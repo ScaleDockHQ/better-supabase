@@ -721,7 +721,7 @@ export function createNotifications<
   };
 
   const notifications: Notifications<K, F> = {
-    send(type, input) {
+    send({ type, input }) {
       return AsyncResult.from(async () => {
         const notification = await prepare(type, input);
 
@@ -793,7 +793,7 @@ export function createNotifications<
         return ok(results);
       });
     },
-    get(id, getOptions = {}) {
+    get({ id, options: getOptions = {} }) {
       return run("get_notification", { id }, (value) =>
         isRecord(value) ? toItem(value) : null,
       ).andThen((item) =>
@@ -984,7 +984,7 @@ export function createNotifications<
 
       return counts;
     },
-    purge(olderThan, batch) {
+    purge({ olderThan, batch } = {}) {
       return run(
         "purge_notifications",
         { older_than: olderThan ?? null, batch: batch ?? null },
@@ -1005,7 +1005,7 @@ export function createNotifications<
         (value) => value === true,
       );
     },
-    unsuppress(address, channel = "email") {
+    unsuppress({ address, channel = "email" }) {
       return run(
         "unsuppress_notification_address",
         { address, channel },
@@ -1087,7 +1087,7 @@ export function createNotifications<
         const results: Result<SentNotification | null>[] = [];
 
         for (const item of chunk) {
-          results.push(await hooked.send(item.type, item));
+          results.push(await hooked.send({ type: item.type, input: item }));
         }
 
         return results;

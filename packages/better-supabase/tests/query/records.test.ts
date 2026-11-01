@@ -141,7 +141,9 @@ describe("recordQueries", () => {
     await expect(new QueryClient().query(queries.can())).resolves.toEqual({
       notes: { read: true, add: false },
     });
-    expect(permissions).toHaveBeenCalledWith(["notes.read", "notes.create"]);
+    expect(permissions).toHaveBeenCalledWith({
+      keys: ["notes.read", "notes.create"],
+    });
 
     const open = recordQueries(feature, { notes: notesClient() });
     await expect(new QueryClient().query(open.can())).resolves.toEqual({

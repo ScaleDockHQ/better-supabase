@@ -136,28 +136,43 @@ describe("createMedications", () => {
     const medications = createMedications({ transport: t });
 
     const saved = await medications
-      .saveMedication("org-1", {
-        name: "Warfarin",
-        unit: "mg",
-        codeSystem: "atc",
-        code: "B01AA03",
-        form: "tablet",
-        strength: "1 mg",
-        highRisk: true,
-        medicationId: "m1",
+      .saveMedication({
+        organizationId: "org-1",
+        input: {
+          name: "Warfarin",
+          unit: "mg",
+          codeSystem: "atc",
+          code: "B01AA03",
+          form: "tablet",
+          strength: "1 mg",
+          highRisk: true,
+          medicationId: "m1",
+        },
       })
       .orThrow();
 
     await medications
-      .saveMedication("org-1", { name: "Water", unit: "ml" })
+      .saveMedication({
+        organizationId: "org-1",
+        input: { name: "Water", unit: "ml" },
+      })
       .orThrow();
 
     const archived = await medications.archiveMedication("m1").orThrow();
-    await medications.importMedication("org-1", ITEM).orThrow();
-    const [, bare] = await medications.medications("org-1").orThrow();
+    await medications
+      .importMedication({ organizationId: "org-1", item: ITEM })
+      .orThrow();
+
+    const [, bare] = await medications
+      .medications({ organizationId: "org-1" })
+      .orThrow();
 
     await medications
-      .medications("org-1", { search: "war", includeArchived: true })
+      .medications({
+        organizationId: "org-1",
+        search: "war",
+        includeArchived: true,
+      })
       .orThrow();
 
     expect(saved).toMatchObject({ highRisk: true, form: "tablet" });
@@ -213,15 +228,20 @@ describe("createMedications", () => {
       catalog: catalogOf(),
     });
 
-    const found = await medications.searchCatalog("warf").orThrow();
+    const found = await medications.searchCatalog({ query: "warf" }).orThrow();
 
     const imported = await medications
-      .importFromCatalog("org-1", "B01AA03", {
+      .importFromCatalog({
+        organizationId: "org-1",
+        code: "B01AA03",
         signal: new AbortController().signal,
       })
       .orThrow();
 
-    const missing = await medications.importFromCatalog("org-1", "nope");
+    const missing = await medications.importFromCatalog({
+      organizationId: "org-1",
+      code: "nope",
+    });
 
     expect(found).toEqual([ITEM]);
     expect(imported.id).toBe("m1");
@@ -234,8 +254,12 @@ describe("createMedications", () => {
   it("returns an error when there is no catalog or it throws", async () => {
     const t = fieldsTransport({});
     const bare = createMedications({ transport: t });
-    const none = await bare.searchCatalog("warf");
-    const noImport = await bare.importFromCatalog("org-1", "B01AA03");
+    const none = await bare.searchCatalog({ query: "warf" });
+
+    const noImport = await bare.importFromCatalog({
+      organizationId: "org-1",
+      code: "B01AA03",
+    });
 
     const failing = createMedications({
       transport: t,
@@ -244,7 +268,7 @@ describe("createMedications", () => {
       }),
     });
 
-    const failed = await failing.searchCatalog("warf");
+    const failed = await failing.searchCatalog({ query: "warf" });
 
     expect(none.ok || none.error.hint).toBe("MEDICATION_NO_CATALOG");
     expect(noImport.ok || noImport.error.hint).toBe("MEDICATION_NO_CATALOG");
@@ -283,32 +307,46 @@ describe("createMedications", () => {
     const subject = { type: "client", id: "c1" };
 
     const order = await medications
-      .prescribe("org-1", subject, "m1", {
-        dose: 2,
-        schedule: { times: ["08:00", "20:00"] },
-        startsOn: Temporal.PlainDate.from("2026-10-30"),
-        endsOn: Temporal.PlainDate.from("2026-11-30"),
-        requiresDoubleCheck: true,
+      .prescribe({
+        organizationId: "org-1",
+        subject,
+        medicationId: "m1",
+        input: {
+          dose: 2,
+          schedule: { times: ["08:00", "20:00"] },
+          startsOn: Temporal.PlainDate.from("2026-10-30"),
+          endsOn: Temporal.PlainDate.from("2026-11-30"),
+          requiresDoubleCheck: true,
+        },
       })
       .orThrow();
 
     await medications
-      .updateOrder("o1", { dose: 3, endsOn: null, route: null })
+      .updateOrder({
+        orderId: "o1",
+        patch: { dose: 3, endsOn: null, route: null },
+      })
       .orThrow();
 
     await medications
-      .updateOrder("o1", { endsOn: Temporal.PlainDate.from("2026-12-01") })
+      .updateOrder({
+        orderId: "o1",
+        patch: { endsOn: Temporal.PlainDate.from("2026-12-01") },
+      })
       .orThrow();
 
     const paused = await medications.pauseOrder("o1").orThrow();
     const resumed = await medications.resumeOrder("o1").orThrow();
-    const stopped = await medications.stopOrder("o2", "done").orThrow();
 
-    const [withMedication, bare] = await medications
-      .ordersOf(subject)
+    const stopped = await medications
+      .stopOrder({ orderId: "o2", reason: "done" })
       .orThrow();
 
-    await medications.ordersOf(subject, { includeStopped: true }).orThrow();
+    const [withMedication, bare] = await medications
+      .ordersOf({ subject })
+      .orThrow();
+
+    await medications.ordersOf({ subject, includeStopped: true }).orThrow();
 
     expect(order).toMatchObject({
       subject,
@@ -385,16 +423,19 @@ describe("createMedications", () => {
     const medications = createMedications({ transport: user, service });
 
     const imported = await medications
-      .importOrders("org-1", [
-        {
-          subject: { type: "client", id: "c1" },
-          externalId: "rx-1",
-          medication: ITEM,
-          dose: 2,
-          schedule: { everyHours: 8, startTime: "06:00" },
-          source: "pharmacy",
-        },
-      ])
+      .importOrders({
+        organizationId: "org-1",
+        orders: [
+          {
+            subject: { type: "client", id: "c1" },
+            externalId: "rx-1",
+            medication: ITEM,
+            dose: 2,
+            schedule: { everyHours: 8, startTime: "06:00" },
+            source: "pharmacy",
+          },
+        ],
+      })
       .orThrow();
 
     const missed = await medications.markMissed().orThrow();
@@ -447,44 +488,54 @@ describe("createMedications", () => {
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
 
     const planned = await medications
-      .planAdministrations("org-1", until)
+      .planAdministrations({ organizationId: "org-1", until })
       .orThrow();
 
     const given = await medications
-      .recordAdministration("a1", { status: "given", checkedBy: "u2" })
+      .recordAdministration({
+        administrationId: "a1",
+        input: { status: "given", checkedBy: "u2" },
+      })
       .orThrow();
 
     await medications
-      .recordAdministration("a2", {
-        status: "refused",
-        dose: 1,
-        reason: "asleep",
-        note: "Try later",
+      .recordAdministration({
+        administrationId: "a2",
+        input: {
+          status: "refused",
+          dose: 1,
+          reason: "asleep",
+          note: "Try later",
+        },
       })
       .orThrow();
 
     const prn = await medications
-      .recordAsNeeded("o2", { reason: "pain" })
+      .recordAsNeeded({ orderId: "o2", input: { reason: "pain" } })
       .orThrow();
 
     await medications
-      .recordAsNeeded("o2", {
-        reason: "pain",
-        dose: 50,
-        checkedBy: "u2",
-        note: "Before sleep",
+      .recordAsNeeded({
+        orderId: "o2",
+        input: {
+          reason: "pain",
+          dose: 50,
+          checkedBy: "u2",
+          note: "Before sleep",
+        },
       })
       .orThrow();
 
     const chart = await medications
-      .chart({ type: "client", id: "c1" })
+      .chart({ subject: { type: "client", id: "c1" } })
       .orThrow();
 
     await medications
-      .chart(
-        { type: "client", id: "c1" },
-        { since: Temporal.Instant.from(AT), until },
-      )
+      .chart({
+        subject: { type: "client", id: "c1" },
+        since: Temporal.Instant.from(AT),
+        until,
+      })
       .orThrow();
 
     expect(planned).toBe(12);
@@ -577,52 +628,61 @@ describe("createMedications", () => {
     const day = Temporal.PlainDate.from("2026-10-30");
 
     const prescribed = await medications
-      .prescribe("org-1", subject, "m1", {
-        dose: 2,
-        asNeeded: true,
-        fields: { ward: "B" },
+      .prescribe({
+        organizationId: "org-1",
+        subject,
+        medicationId: "m1",
+        input: { dose: 2, asNeeded: true, fields: { ward: "B" } },
       })
       .orThrow();
 
     await medications
-      .updateOrder("o1", { dose: 3, fields: { ward: "C" } })
+      .updateOrder({ orderId: "o1", patch: { dose: 3, fields: { ward: "C" } } })
       .orThrow();
 
     const imported = await medications
-      .importOrders("org-1", [
-        {
-          subject,
-          externalId: "rx-1",
-          medicationId: "m1",
-          dose: 1,
-          asNeeded: true,
-          startsOn: day,
-          fields: { ward: "B" },
-        },
-      ])
+      .importOrders({
+        organizationId: "org-1",
+        orders: [
+          {
+            subject,
+            externalId: "rx-1",
+            medicationId: "m1",
+            dose: 1,
+            asNeeded: true,
+            startsOn: day,
+            fields: { ward: "B" },
+          },
+        ],
+      })
       .orThrow();
 
-    const refused = await medications.importOrders("org-1", [
-      { subject, externalId: "rx-2", medicationId: "m1", dose: 1 },
-      {
-        subject,
-        externalId: "rx-3",
-        medicationId: "m1",
-        dose: 1,
-        // SAFETY: a value the schema refuses, to prove the client checks it.
-        fields: { ward: 1 } as unknown as { ward: string },
-      },
-    ]);
+    const refused = await medications.importOrders({
+      organizationId: "org-1",
+      orders: [
+        { subject, externalId: "rx-2", medicationId: "m1", dose: 1 },
+        {
+          subject,
+          externalId: "rx-3",
+          medicationId: "m1",
+          dose: 1,
+          // SAFETY: a value the schema refuses, to prove the client checks it.
+          fields: { ward: 1 } as unknown as { ward: string },
+        },
+      ],
+    });
 
-    const listed = await medications.ordersOf(subject).orThrow();
-    const chart = await medications.chart(subject).orThrow();
+    const listed = await medications.ordersOf({ subject }).orThrow();
+    const chart = await medications.chart({ subject }).orThrow();
 
     expect(prescribed.fields.ward).toBe("B");
     expect(imported.created[0]?.fields.ward).toBe("B");
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(listed[0]?.fields.ward).toBe("B");
     expect(chart.orders[0]?.fields.ward).toBe("B");
-    expect((await medications.stopOrder("o1", "done")).ok).toBe(false);
+    expect(
+      (await medications.stopOrder({ orderId: "o1", reason: "done" })).ok,
+    ).toBe(false);
     expect(t.calls.slice(0, 3)).toEqual([
       [
         "prescribe_medication",
@@ -667,10 +727,10 @@ describe("createMedications", () => {
       stop_medication_order: () => ({ ...ORDER, status: "deleted" }),
     });
 
-    const result = await createMedications({ transport: t }).stopOrder(
-      "o1",
-      "done",
-    );
+    const result = await createMedications({ transport: t }).stopOrder({
+      orderId: "o1",
+      reason: "done",
+    });
 
     expect(result.ok).toBe(false);
   });

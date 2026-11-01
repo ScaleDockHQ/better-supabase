@@ -1630,7 +1630,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@2 managed
--- @bsb-hash sha256:f9513a0c8eeac211e4fa88c4f227aafa04cfe42bcb4ebd737a4ff7ef374081fd
+-- @bsb-hash sha256:dffaa68b75cc4818d9e91f4e5befa000ef4a970bdea0775f9154866e81388cf2
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3385,6 +3385,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_ident
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
+  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -143,6 +143,11 @@ export const COMMANDS: readonly CommandSpec[] = [
         description:
           "Removes the block, then names the db diff that drops its tables",
       },
+      {
+        command: "better-supabase remove crm --with-parts",
+        description:
+          "Removes a composite and its parts, except the parts another block still needs",
+      },
     ],
     effects: [FILES],
   },
@@ -239,6 +244,29 @@ export const COMMANDS: readonly CommandSpec[] = [
         name: "search",
         description: "Finds blocks by name, description or category",
         docs: "/docs/cli/presets#blocks",
+        effects: [],
+      },
+    ],
+  },
+  {
+    name: "automations",
+    description: "Lists the automations the installed blocks ship",
+    group: "inspect",
+    docs: "/docs/cli/automations",
+    effects: [],
+    subcommands: [
+      {
+        name: "list",
+        description:
+          "Lists each automation's trigger and actions, and with --explain what starts and runs it",
+        docs: "/docs/cli/automations",
+        examples: [
+          {
+            command: "better-supabase automations list --explain",
+            description:
+              "Says which block's event starts each automation and what each action does",
+          },
+        ],
         effects: [],
       },
     ],

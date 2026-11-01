@@ -1104,7 +1104,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:d55a74e81d11f94223028a2747b4ec2e968895dc9eeaf28e91841dc8abb260ba
+-- @bsb-hash sha256:0c91a2c116c1005f4fedf56489b86f51ed06dbe2a5364db78f21273e45a9e028
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2176,6 +2176,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_items"
 create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.subject_collections', target_type => 'subject_collection', event_prefix => 'subject_collection', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

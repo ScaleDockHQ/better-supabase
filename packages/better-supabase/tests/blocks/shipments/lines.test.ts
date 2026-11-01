@@ -69,16 +69,19 @@ describe("shipment lines", () => {
     const shipments = createShipments({ transport, tenant: "org-1" });
 
     const shipment = await shipments
-      .setLines("s1", [
-        {
-          variantId: "v1",
-          locationId: "l1",
-          quantity: 1.25,
-          allocationId: "a1",
-          detail: { lotId: "lot-1" },
-        },
-        { variantId: "v2", locationId: "l1", quantity: "2" },
-      ])
+      .setLines({
+        id: "s1",
+        lines: [
+          {
+            variantId: "v1",
+            locationId: "l1",
+            quantity: 1.25,
+            allocationId: "a1",
+            detail: { lotId: "lot-1" },
+          },
+          { variantId: "v2", locationId: "l1", quantity: "2" },
+        ],
+      })
       .orThrow();
 
     expect(calls).toEqual([
@@ -120,21 +123,24 @@ describe("shipment lines", () => {
     const shipments = createShipments({ transport, tenant: "org-1" });
 
     await shipments
-      .receiveReturn("s1", [
-        {
-          variantId: "v1",
-          locationId: "l1",
-          quantity: 0.5,
-          disposition: "hold",
-          detail: { binId: "b-hold" },
-        },
-        {
-          variantId: "v1",
-          locationId: "l1",
-          quantity: 1,
-          disposition: "scrap",
-        },
-      ])
+      .receiveReturn({
+        id: "s1",
+        lines: [
+          {
+            variantId: "v1",
+            locationId: "l1",
+            quantity: 0.5,
+            disposition: "hold",
+            detail: { binId: "b-hold" },
+          },
+          {
+            variantId: "v1",
+            locationId: "l1",
+            quantity: 1,
+            disposition: "scrap",
+          },
+        ],
+      })
       .orThrow();
 
     expect(calls[0]).toEqual({

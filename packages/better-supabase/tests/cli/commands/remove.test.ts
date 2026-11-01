@@ -62,6 +62,49 @@ describe("remove", () => {
     expect(existsSync(join(dir, AUDIT_SCHEMA))).toBe(false);
   });
 
+  it("adds a composite by name and removes it, keeping or dropping its parts", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ blocks: [] }),
+    );
+
+    const added = await run(["add", "governance", "--cwd", dir]);
+
+    expect(added.code).toBe(0);
+    expect((await config()).blocks).toEqual(["governance"]);
+    expect(existsSync(join(dir, AUDIT_SCHEMA))).toBe(true);
+
+    const kept = await run(["remove", "governance", "--cwd", dir]);
+
+    expect(kept.code).toBe(0);
+    expect((await config()).blocks).toEqual(
+      expect.arrayContaining(["audit", "field-history", "data-lifecycle"]),
+    );
+    expect((await config()).blocks).not.toContain("governance");
+    expect(existsSync(join(dir, AUDIT_SCHEMA))).toBe(true);
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ blocks: ["governance"] }),
+    );
+
+    const all = await run([
+      "remove",
+      "governance",
+      "--with-parts",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(all.code).toBe(0);
+    expect((await config()).blocks).toEqual([]);
+    expect(existsSync(join(dir, AUDIT_SCHEMA))).toBe(false);
+
+    const misuse = await run(["remove", "audit", "--with-parts", "--cwd", dir]);
+
+    expect(misuse.code).not.toBe(0);
+  });
+
   it("writes nothing with --dry-run", async () => {
     const result = await run(["remove", "audit", "--dry-run", "--cwd", dir]);
 

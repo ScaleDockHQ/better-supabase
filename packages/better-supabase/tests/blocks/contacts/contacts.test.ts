@@ -62,7 +62,10 @@ describe("parties block", () => {
     const t = transport({ save_company: () => COMPANY });
 
     const company = await createContacts({ transport: t })
-      .saveCompany("o", { id: "c1", website: null, fields: { segment: "smb" } })
+      .saveCompany({
+        organizationId: "o",
+        input: { id: "c1", website: null, fields: { segment: "smb" } },
+      })
       .orThrow();
 
     expect(t.calls[0]).toEqual([
@@ -94,7 +97,7 @@ describe("parties block", () => {
     const parties = createContacts({ transport: t });
 
     const page = await parties
-      .listPeople("o", { search: "acme", limit: 2 })
+      .listPeople({ organizationId: "o", search: "acme", limit: 2 })
       .orThrow();
 
     expect(page.next).toEqual({ name: "Bob", id: "p2" });
@@ -122,7 +125,7 @@ describe("parties block", () => {
     const t = transport({ list_companies: () => [COMPANY] });
 
     const page = await createContacts({ transport: t })
-      .listCompanies("o")
+      .listCompanies({ organizationId: "o" })
       .orThrow();
 
     expect(page.next).toBeUndefined();
@@ -139,13 +142,13 @@ describe("parties block", () => {
     });
 
     const parties = createContacts({ transport: t });
-    await parties.linkPerson("c1", "p1").orThrow();
-    await parties.unlinkPerson("c1", "p1").orThrow();
-    await parties.archivePerson("p1").orThrow();
-    await parties.mergeCompanies("c1", "c2").orThrow();
-    expect((await parties.mergePeople("p1", "p2").orThrow()).email).toBe(
-      "ada@acme.com",
-    );
+    await parties.linkPerson({ companyId: "c1", personId: "p1" }).orThrow();
+    await parties.unlinkPerson({ companyId: "c1", personId: "p1" }).orThrow();
+    await parties.archivePerson({ id: "p1" }).orThrow();
+    await parties.mergeCompanies({ keep: "c1", drop: "c2" }).orThrow();
+    expect(
+      (await parties.mergePeople({ keep: "p1", drop: "p2" }).orThrow()).email,
+    ).toBe("ada@acme.com");
     expect(t.calls.slice(0, 3)).toEqual([
       [
         "set_company_person",
@@ -171,7 +174,11 @@ describe("parties block, roles and suppliers", () => {
     const t = transport({ list_companies: () => [SUPPLIER] });
 
     const page = await createContacts({ transport: t })
-      .listCompanies("o", { role: "supplier", supplierStatus: "approved" })
+      .listCompanies({
+        organizationId: "o",
+        role: "supplier",
+        supplierStatus: "approved",
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({
@@ -192,13 +199,21 @@ describe("parties block, roles and suppliers", () => {
     const parties = createContacts({ transport: t });
 
     await parties
-      .savePerson("o", {
-        id: "p1",
-        customerTermsId: "t1",
-        creditLimit: { amount: 2500n, currency: "USD" },
+      .savePerson({
+        organizationId: "o",
+        input: {
+          id: "p1",
+          customerTermsId: "t1",
+          creditLimit: { amount: 2500n, currency: "USD" },
+        },
       })
       .orThrow();
-    await parties.savePerson("o", { id: "p1", creditLimit: null }).orThrow();
+    await parties
+      .savePerson({
+        organizationId: "o",
+        input: { id: "p1", creditLimit: null },
+      })
+      .orThrow();
 
     expect(t.calls.map(([, args]) => args["attrs"])).toEqual([
       { customerTermsId: "t1", creditLimit: "2500", creditCurrency: "USD" },
@@ -219,14 +234,18 @@ describe("parties block, roles and suppliers", () => {
     const parties = createContacts({ transport: t });
 
     const set = await parties
-      .setRoles("c1", ["supplier", "customer"])
+      .setRoles({ partyId: "c1", roles: ["supplier", "customer"] })
       .orThrow();
 
     const blocked = await parties
-      .setSupplierStatus("p1", "blocked", "Late deliveries")
+      .setSupplierStatus({
+        partyId: "p1",
+        status: "blocked",
+        reason: "Late deliveries",
+      })
       .orThrow();
 
-    await parties.setSupplierStatus("p1", null).orThrow();
+    await parties.setSupplierStatus({ partyId: "p1", status: null }).orThrow();
 
     expect(set.type === "company" && set.company.roles).toEqual([
       "customer",
@@ -257,7 +276,10 @@ describe("parties block, roles and suppliers", () => {
       }),
     });
 
-    const result = await createContacts({ transport: t }).setRoles("c1", []);
+    const result = await createContacts({ transport: t }).setRoles({
+      partyId: "c1",
+      roles: [],
+    });
 
     expect(result.ok).toBe(false);
   });
@@ -294,7 +316,9 @@ describe("parties block, optional fields", () => {
     });
 
     expect(
-      await parties.savePerson("o", { name: "Ada" }).orThrow(),
+      await parties
+        .savePerson({ organizationId: "o", input: { name: "Ada" } })
+        .orThrow(),
     ).toMatchObject({
       phone: "+31",
       ownerId: "u2",
@@ -302,7 +326,11 @@ describe("parties block, optional fields", () => {
       mergedInto: "p9",
       archived: true,
     });
-    const company = await parties.saveCompany("o", { name: "Acme" }).orThrow();
+
+    const company = await parties
+      .saveCompany({ organizationId: "o", input: { name: "Acme" } })
+      .orThrow();
+
     expect(company).toMatchObject({
       website: "https://acme.com",
       vatId: "NL1",
@@ -322,13 +350,14 @@ describe("parties block, optional fields", () => {
 
     const parties = createContacts({ transport: t });
     await parties
-      .listCompanies("o", {
+      .listCompanies({
+        organizationId: "o",
         lifecycle: "customer",
         ownerId: "u1",
         cursor: { name: "Acme", id: "c1" },
       })
       .orThrow();
-    await parties.archiveCompany("c1", false).orThrow();
+    await parties.archiveCompany({ id: "c1", archived: false }).orThrow();
     expect(t.calls[0]?.[1]).toMatchObject({
       lifecycle: "customer",
       owner: "u1",
@@ -371,16 +400,33 @@ describe("person identities", () => {
     expect(listed?.verifiedAt?.toString()).toBe("2026-10-01T00:00:00Z");
 
     const added = await parties
-      .addIdentity("p1", { channel: "whatsapp", address: "+3161" })
+      .addIdentity({
+        personId: "p1",
+        identity: { channel: "whatsapp", address: "+3161" },
+      })
       .orThrow();
 
     expect(added.verifiedAt).toBeUndefined();
     expect(await parties.removeIdentity("i1").orThrow()).toBe(false);
     expect(
-      (await parties.findByIdentity("o", "whatsapp", "+3161").orThrow())?.id,
+      (
+        await parties
+          .findByIdentity({
+            organizationId: "o",
+            channel: "whatsapp",
+            address: "+3161",
+          })
+          .orThrow()
+      )?.id,
     ).toBe("p1");
     expect(
-      await parties.findByIdentity("o", "whatsapp", "+3162").orThrow(),
+      await parties
+        .findByIdentity({
+          organizationId: "o",
+          channel: "whatsapp",
+          address: "+3162",
+        })
+        .orThrow(),
     ).toBeUndefined();
     expect(t.calls.map(([, args]) => args)).toEqual([
       { person: "p1" },
@@ -423,7 +469,7 @@ describe("parties block with relations", () => {
     const parties = createContacts({ transport: t });
 
     const [representative] = await parties
-      .representativesOf("client", "k1")
+      .representativesOf({ subjectType: "client", subjectId: "k1" })
       .orThrow();
 
     expect(representative).toMatchObject({
@@ -493,10 +539,9 @@ describe("payment terms, credit block and delivery", () => {
     });
 
     const company = await createContacts({ transport: t })
-      .saveCompany("o", {
-        id: "c1",
-        customerTermsId: "t1",
-        creditBlock: "soft",
+      .saveCompany({
+        organizationId: "o",
+        input: { id: "c1", customerTermsId: "t1", creditBlock: "soft" },
       })
       .orThrow();
 
@@ -517,7 +562,9 @@ describe("payment terms, credit block and delivery", () => {
     });
 
     await expect(
-      createContacts({ transport: t }).saveCompany("o", { id: "c1" }).orThrow(),
+      createContacts({ transport: t })
+        .saveCompany({ organizationId: "o", input: { id: "c1" } })
+        .orThrow(),
     ).rejects.toThrow("credit block");
   });
 
@@ -532,7 +579,10 @@ describe("payment terms, credit block and delivery", () => {
 
     expect(
       await parties
-        .savePaymentTerm("o", { code: "NET30", name: "Net 30" })
+        .savePaymentTerm({
+          organizationId: "o",
+          input: { code: "NET30", name: "Net 30" },
+        })
         .orThrow(),
     ).toEqual(TERM);
     expect(await parties.paymentTerms("o").orThrow()).toEqual([TERM]);
@@ -553,9 +603,12 @@ describe("payment terms, credit block and delivery", () => {
 
     expect(
       await parties
-        .setDeliveryPreferences("c1", [
-          { documentType: "invoice", channel: "post", copies: 2 },
-        ])
+        .setDeliveryPreferences({
+          partyId: "c1",
+          preferences: [
+            { documentType: "invoice", channel: "post", copies: 2 },
+          ],
+        })
         .orThrow(),
     ).toEqual([PREFERENCE]);
     expect(await parties.deliveryPreferences("c1").orThrow()).toEqual([
@@ -589,7 +642,10 @@ describe("optional record keys", () => {
     });
 
     const parties = createContacts({ transport: t });
-    const person = await parties.savePerson("o", { id: "p1" }).orThrow();
+
+    const person = await parties
+      .savePerson({ organizationId: "o", input: { id: "p1" } })
+      .orThrow();
 
     expect(person).toMatchObject({
       phone: "+31 6 1234",
@@ -599,7 +655,10 @@ describe("optional record keys", () => {
     });
 
     const identity = await parties
-      .addIdentity("p1", { channel: "email", address: "ada@acme.com" })
+      .addIdentity({
+        personId: "p1",
+        identity: { channel: "email", address: "ada@acme.com" },
+      })
       .orThrow();
 
     expect(identity.verifiedAt).toBeDefined();
@@ -630,7 +689,7 @@ describe("optional record keys", () => {
     });
 
     const [representative] = await createContacts({ transport: t })
-      .representativesOf("company", "c1")
+      .representativesOf({ subjectType: "company", subjectId: "c1" })
       .orThrow();
 
     expect(representative).toMatchObject({

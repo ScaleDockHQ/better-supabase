@@ -96,7 +96,7 @@ async function execute(
   command: MemoryCommand,
   ns: MemoryNamespace | undefined,
 ): Promise<string> {
-  const result = await memory.run(organizationId, command, ns);
+  const result = await memory.run({ organizationId, command, ns });
 
   return result.ok ? result.data : `Error: ${result.error.message}`;
 }
@@ -172,7 +172,10 @@ export function recallTool(
       additionalProperties: false,
     }),
     execute: async ({ query }, { abortSignal }): Promise<RecallToolResult> => {
-      const found = await memory.archival.search(organizationId, query, ns, {
+      const found = await memory.archival.search({
+        organizationId,
+        query,
+        ns,
         k: options.k ?? 5,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
@@ -203,7 +206,7 @@ export async function withMemory(
   organizationId: string,
   ns?: MemoryNamespace,
 ): Promise<string> {
-  const rendered = await memory.render(organizationId, ns);
+  const rendered = await memory.render({ organizationId, ns });
 
   if (!rendered.ok || rendered.data === "") {
     return instructions;
@@ -259,14 +262,14 @@ export function extractMemories(
       ...(payload.agent_id === undefined ? {} : { agentId: payload.agent_id }),
     };
 
-    const saved = await options.memory.saveExtracted(
-      payload.organization_id,
-      output.slice(0, options.maxFacts ?? 10),
+    const saved = await options.memory.saveExtracted({
+      organizationId: payload.organization_id,
+      facts: output.slice(0, options.maxFacts ?? 10),
       ns,
-      payload.source_message_id === undefined
+      ...(payload.source_message_id === undefined
         ? {}
-        : { sourceMessageId: payload.source_message_id },
-    );
+        : { sourceMessageId: payload.source_message_id }),
+    });
 
     if (!saved.ok) {
       throw new DbException(saved.error);

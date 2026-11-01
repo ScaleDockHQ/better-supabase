@@ -26,6 +26,10 @@ import { activeTenantSource, roleNameOf } from "./memberships.ts";
 import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
+  ORGANIZATION_READS,
+  organizationOverview,
+} from "./organizations-overview.ts";
+import {
   organizationAttributes,
   organizationExtraColumns,
   organizationReads,
@@ -40,6 +44,7 @@ import {
 
 const NAMES: BlockSqlNames = {
   events: ORGANIZATION_EVENTS,
+  reads: ORGANIZATION_READS,
   options: [
     "assignmentGuard",
     "attributes",
@@ -995,6 +1000,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
   ["list_my_organizations", ""],
   ["list_members", id],
+  ["organization_overview", id],
 ];
 
 /** The module's functions, without delete_organization under deleteMode "none". */
@@ -1050,7 +1056,7 @@ ${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n
     platformOverride: platformOverride(ctx, "removeMemberPlatform"),
     assignableRole: (stored) => assignableRole(ctx, stored),
     event,
-  })}${switcher(ctx, n)}${organizationReads(ctx, n)}
+  })}${switcher(ctx, n)}${organizationReads(ctx, n)}${organizationOverview(ctx)}
 ${grants}`;
 }
 
@@ -1064,6 +1070,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "updated-at"],
   integrates: [
     "audit",
+    "billing",
     "data-lifecycle",
     "entitlements",
     "invitations",

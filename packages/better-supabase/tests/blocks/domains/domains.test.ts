@@ -83,7 +83,10 @@ describe("createDomains", () => {
 
     const domains = createDomains({ transport });
 
-    const added = await domains.add("org-1", "app.acme.test").orThrow();
+    const added = await domains
+      .add({ organizationId: "org-1", hostname: "app.acme.test" })
+      .orThrow();
+
     expect(added).toMatchObject({
       id: "h1",
       organizationId: "org-1",
@@ -158,7 +161,9 @@ describe("createDomainsAdmin", () => {
       },
     });
 
-    const result = await admin.verify("h1", { actorId: "u1" }).orThrow();
+    const result = await admin
+      .verify({ hostnameId: "h1", actorId: "u1" })
+      .orThrow();
 
     expect(result.verifiedAt?.toString()).toBe("2026-10-19T12:05:00Z");
     expect(lookups).toEqual([RECORD.name]);
@@ -178,7 +183,7 @@ describe("createDomainsAdmin", () => {
       resolver: () => Promise.resolve([]),
     });
 
-    const result = await admin.verify("h1");
+    const result = await admin.verify({ hostnameId: "h1" });
 
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.hint).toBe(
@@ -206,7 +211,7 @@ describe("createDomainsAdmin", () => {
         await createDomainsAdmin({
           transport: known.transport,
           resolver,
-        }).verify("h1")
+        }).verify({ hostnameId: "h1" })
       ).ok,
     ).toBe(true);
     expect(lookups).toEqual([]);
@@ -216,7 +221,7 @@ describe("createDomainsAdmin", () => {
     const missing = await createDomainsAdmin({
       transport: unknown.transport,
       resolver,
-    }).verify("nope");
+    }).verify({ hostnameId: "nope" });
 
     expect(missing.ok ? undefined : missing.error.kind).toBe("not_found");
   });
@@ -227,7 +232,7 @@ describe("createDomainsAdmin", () => {
     const result = await createDomainsAdmin({
       transport,
       resolver: () => Promise.reject(new Error("DNS down")),
-    }).verify("h1");
+    }).verify({ hostnameId: "h1" });
 
     expect(result.ok ? undefined : result.error.kind).toBe("network");
   });

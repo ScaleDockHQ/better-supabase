@@ -129,20 +129,18 @@ export interface ServiceAccounts<F extends object = Record<never, never>> {
    * organization. A refused registration deletes the user again.
    */
   readonly create: (
-    organizationId: string,
-    name: string,
-    role: string,
-    options?: CreateServicePrincipalOptions<F>,
+    input: {
+      organizationId: string;
+      name: string;
+      role: string;
+    } & CreateServicePrincipalOptions<F>,
   ) => AsyncResult<CreatedServicePrincipal<F>>;
   readonly setRole: (
-    id: string,
-    role: string,
-    options?: ServicePrincipalActor,
+    input: { id: string; role: string } & ServicePrincipalActor,
   ) => AsyncResult<boolean>;
   /** Removes its membership and default; `false` when it was already off. */
   readonly disable: (
-    id: string,
-    options?: ServicePrincipalActor,
+    input: { id: string } & ServicePrincipalActor,
   ) => AsyncResult<boolean>;
   /** The organization's default principal, or `null`. */
   readonly defaultFor: (organizationId: string) => AsyncResult<string | null>;
@@ -168,7 +166,7 @@ export function createServiceAccounts<
   const { admin } = options;
 
   const client: ServiceAccounts<F> = {
-    create: (organizationId, name, role, extra = {}) =>
+    create: ({ organizationId, name, role, ...extra }) =>
       AsyncResult.from(async () => {
         const checked =
           extra.fields === undefined
@@ -234,13 +232,13 @@ export function createServiceAccounts<
 
         return readFields(fields, registered.data);
       }),
-    setRole: (id, role, extra = {}) =>
+    setRole: ({ id, role, ...extra }) =>
       call(
         "set_service_principal_role",
         { principal: id, role, created_by: extra.createdBy ?? null },
         (value) => value === true,
       ),
-    disable: (id, extra = {}) =>
+    disable: ({ id, ...extra }) =>
       call(
         "disable_service_principal",
         { principal: id, created_by: extra.createdBy ?? null },

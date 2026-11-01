@@ -142,9 +142,7 @@ export interface UsageStatus {
 export interface Usage {
   /** Adds usage without checking the quota (metering only). */
   record(
-    organizationId: string,
-    meter: string,
-    options?: RecordUsageOptions,
+    input: { organizationId: string; meter: string } & RecordUsageOptions,
   ): AsyncResult<UsageRecorded>;
   /**
    * Counts `subject` once in the current period of a `distinct` meter (active
@@ -152,10 +150,9 @@ export interface Usage {
    * reporting read the meter like a counter.
    */
   track(
-    organizationId: string,
-    meter: string,
-    subject: string,
-    options?: { readonly period?: UsagePeriod },
+    input: { organizationId: string; meter: string; subject: string } & {
+      readonly period?: UsagePeriod;
+    },
   ): AsyncResult<UsageRecorded>;
   /**
    * Recomputes `computed` meters from their query for every tenant it returns,
@@ -165,35 +162,48 @@ export interface Usage {
   refresh(meter?: string): AsyncResult<number>;
   /** Adds usage when it fits the quota, or returns `quota_exceeded`. */
   consume(
-    organizationId: string,
-    meter: string,
-    options?: RecordUsageOptions,
+    input: { organizationId: string; meter: string } & RecordUsageOptions,
   ): AsyncResult<UsageRecorded>;
   /**
    * Adds several meters in one transaction, all or none, such as input and
    * output tokens of one call. The idempotency key covers the batch.
    */
   recordMany(
-    organizationId: string,
-    entries: readonly UsageEntry[],
-    options?: Omit<RecordUsageOptions, "quantity">,
+    input: { organizationId: string; entries: readonly UsageEntry[] } & Omit<
+      RecordUsageOptions,
+      "quantity"
+    >,
   ): AsyncResult<UsageBatchRecorded>;
   /**
    * Like `recordMany`, but checks each meter's quota first; when one doesn't
    * fit, nothing is recorded and the result is `quota_exceeded`.
    */
   consumeMany(
-    organizationId: string,
-    entries: readonly UsageEntry[],
-    options?: Omit<RecordUsageOptions, "quantity">,
+    input: { organizationId: string; entries: readonly UsageEntry[] } & Omit<
+      RecordUsageOptions,
+      "quantity"
+    >,
   ): AsyncResult<UsageBatchRecorded>;
-  current(organizationId: string, meter: string): AsyncResult<UsageStatus>;
+  current(input: {
+    organizationId: string;
+    meter: string;
+  }): AsyncResult<UsageStatus>;
   overview(organizationId: string): AsyncResult<readonly UsageStatus[]>;
   /** Units left in the period, or `undefined` without a quota. */
-  remaining(
-    organizationId: string,
-    meter: string,
-  ): AsyncResult<number | undefined>;
+  remaining(input: {
+    organizationId: string;
+    meter: string;
+  }): AsyncResult<number | undefined>;
+  /**
+   * Whether `quantity` (default 1) fits the quota right now, without recording
+   * anything. A meter without a quota always fits. `consume` stays the call
+   * that decides, because the answer can change before the next call.
+   */
+  canConsume(input: {
+    organizationId: string;
+    meter: string;
+    quantity?: number | undefined;
+  }): AsyncResult<boolean>;
   /** The meter catalog (`options.meters`), empty without one. */
   meters(): AsyncResult<Readonly<Record<string, UsageMeterInfo>>>;
   /**
@@ -201,17 +211,16 @@ export interface Usage {
    * (`usage.read`). Empty without `blocks.usage.options.history`.
    */
   history(
-    organizationId: string,
-    options?: UsageHistoryOptions,
+    input: { organizationId: string } & UsageHistoryOptions,
   ): AsyncResult<readonly UsageHistoryEntry[]>;
   /**
    * The meter's usage in its current quota window per actor and source, largest
    * first (`usage.read`). Empty without the history option.
    */
-  breakdown(
-    organizationId: string,
-    meter: string,
-  ): AsyncResult<readonly UsageBreakdownEntry[]>;
+  breakdown(input: {
+    organizationId: string;
+    meter: string;
+  }): AsyncResult<readonly UsageBreakdownEntry[]>;
   /**
    * Deletes up to `batch` history entries older than `olderThan` (default 400
    * days, `purge_usage_history`); returns how many.
@@ -342,11 +351,14 @@ export function createUsage(options: UsageOptions): Usage {
 
   const batch =
     (check: boolean) =>
-    (
-      organizationId: string,
-      entries: readonly UsageEntry[],
-      record: Omit<RecordUsageOptions, "quantity"> = {},
-    ): AsyncResult<UsageBatchRecorded> =>
+    ({
+      organizationId,
+      entries,
+      ...record
+    }: { organizationId: string; entries: readonly UsageEntry[] } & Omit<
+      RecordUsageOptions,
+      "quantity"
+    >): AsyncResult<UsageBatchRecorded> =>
       call(
         "record_usage_batch",
         {
@@ -374,10 +386,13 @@ export function createUsage(options: UsageOptions): Usage {
         },
       );
 
-  const current = (
-    organizationId: string,
-    meter: string,
-  ): AsyncResult<UsageStatus> =>
+  const current = ({
+    organizationId,
+    meter,
+  }: {
+    organizationId: string;
+    meter: string;
+  }): AsyncResult<UsageStatus> =>
     call("usage_status", { tenant: organizationId, meter }, statusOf);
 
   const purge =
@@ -407,9 +422,9 @@ export function createUsage(options: UsageOptions): Usage {
         history: await purgeHistory(jobOptions.history).orThrow(),
         events: await purgeEvents(jobOptions.events).orThrow(),
       }),
-    record: (organizationId, meter, record) =>
+    record: ({ organizationId, meter, ...record }) =>
       call("record_usage", args(organizationId, meter, record), recordedOf),
-    track: (organizationId, meter, subject, trackOptions = {}) =>
+    track: ({ organizationId, meter, subject, ...trackOptions }) =>
       call(
         "track_usage",
         {
@@ -422,7 +437,7 @@ export function createUsage(options: UsageOptions): Usage {
       ),
     refresh: (meter) =>
       call("usage_refresh", { meter }, (value) => Number(value ?? 0)),
-    consume: (organizationId, meter, record) =>
+    consume: ({ organizationId, meter, ...record }) =>
       call("consume_quota", args(organizationId, meter, record), recordedOf),
     recordMany: batch(false),
     consumeMany: batch(true),
@@ -431,9 +446,9 @@ export function createUsage(options: UsageOptions): Usage {
       call("usage_overview", { tenant: organizationId }, (value) =>
         (Array.isArray(value) ? value : []).map(statusOf),
       ),
-    remaining: (organizationId, meter) =>
-      current(organizationId, meter).map((status) => status.remaining),
-    history: (organizationId, list = {}) =>
+    remaining: ({ organizationId, meter }) =>
+      current({ organizationId, meter }).map((status) => status.remaining),
+    history: ({ organizationId, ...list }) =>
       call(
         "usage_history",
         {
@@ -453,7 +468,7 @@ export function createUsage(options: UsageOptions): Usage {
             recordedAt: toInstant(textOf(row["recorded_at"])),
           })),
       ),
-    breakdown: (organizationId, meter) =>
+    breakdown: ({ organizationId, meter }) =>
       call("usage_breakdown", { tenant: organizationId, meter }, (value) =>
         (Array.isArray(value) ? value.filter(isRecord) : []).map((row) => ({
           actor: optionalText(row["actor"]),
@@ -461,6 +476,10 @@ export function createUsage(options: UsageOptions): Usage {
           quantity: numberOf(row["quantity"]),
         })),
       ),
+    canConsume: ({ organizationId, meter, quantity = 1 }) =>
+      hooked
+        .remaining({ organizationId, meter })
+        .map((left) => left === undefined || left >= quantity),
     meters: () =>
       call("usage_meters", {}, (value) => {
         const row = isRecord(value) ? value : {};
@@ -474,10 +493,13 @@ export function createUsage(options: UsageOptions): Usage {
       }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Usage = withBlockHooks(client, options.hooks, {
     block: "usage",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
 
 export interface ReportUsageOptions {

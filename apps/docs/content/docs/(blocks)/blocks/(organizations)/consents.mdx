@@ -243,3 +243,11 @@ await consents
   })
   .orThrow();
 ```
+
+## Require a consent
+
+`require({ subject, purposeKey })` succeeds when the consent is active. Otherwise it fails with a `forbidden` error whose `permission` is `consent:<purposeKey>`, so a route can stop before it reads the record.
+
+```ts
+await db.consents.require({ subject, purposeKey: "research" }).orThrow();
+```

@@ -52,7 +52,9 @@ describe.skipIf(!live)("settings", () => {
       });
 
       await s.asRole(member);
-      expect(await client.setUser("theme", "dark").orThrow()).toBe("dark");
+      expect(
+        await client.setUser({ key: "theme", value: "dark" }).orThrow(),
+      ).toBe("dark");
       expect(await client.getUser("theme").orThrow()).toBe("dark");
       expect(
         await s.value<string>(
@@ -87,30 +89,48 @@ describe.skipIf(!live)("settings", () => {
 
       await s.asRole(member);
       expect(await client.getUser().orThrow()).toEqual({ theme: "light" });
-      expect(await client.setUser("theme", "dark").orThrow()).toBe("dark");
+      expect(
+        await client.setUser({ key: "theme", value: "dark" }).orThrow(),
+      ).toBe("dark");
       expect(await client.getUser("theme").orThrow()).toBe("dark");
 
       await s.asRole(owner);
       expect(await client.getUser("theme").orThrow()).toBe("light");
       expect(
-        await client.setOrganization(organization, "seats", 12).orThrow(),
+        await client
+          .setOrganization({
+            organizationId: organization,
+            key: "seats",
+            value: 12,
+          })
+          .orThrow(),
       ).toBe(12);
 
       // A member reads organization settings but cannot change them.
       await s.asRole(member);
       expect(
-        await client.getOrganization(organization, "seats").orThrow(),
+        await client
+          .getOrganization({ organizationId: organization, key: "seats" })
+          .orThrow(),
       ).toBe(12);
       expect(
-        await client.setOrganization(organization, "seats", 3),
+        await client.setOrganization({
+          organizationId: organization,
+          key: "seats",
+          value: 3,
+        }),
       ).toMatchObject({ ok: false });
       expect(
-        await client.resetOrganization(organization, "seats").orThrow(),
+        await client
+          .resetOrganization({ organizationId: organization, key: "seats" })
+          .orThrow(),
       ).toBe(false);
 
       await s.asRole(outsider);
       expect(
-        await client.getOrganization(organization, "seats").orThrow(),
+        await client
+          .getOrganization({ organizationId: organization, key: "seats" })
+          .orThrow(),
       ).toBe(5);
 
       // The pg_jsonschema check rejects what the schema rejects, and the
@@ -166,7 +186,13 @@ describe.skipIf(!live)("settings", () => {
       });
 
       await s.asRole(owner);
-      await client.setOrganization(organization, "seats", 12).orThrow();
+      await client
+        .setOrganization({
+          organizationId: organization,
+          key: "seats",
+          value: 12,
+        })
+        .orThrow();
       expect(
         await s.hint("better_supabase.organization_setting($1, 'seats')", [
           organization,
@@ -208,7 +234,7 @@ describe.skipIf(!live)("settings", () => {
       });
 
       await s.asRole(member);
-      await client.setUser("theme", "dark").orThrow();
+      await client.setUser({ key: "theme", value: "dark" }).orThrow();
       await s.service();
       expect(
         await s.value<string>(
@@ -257,12 +283,20 @@ describe.skipIf(!live)("settings", () => {
         s.asRole(who, { platform_permissions: permissions });
 
       await as(staff, ["billing.platform"]);
-      expect(await client.setPlatform("feePercent", 2.5).orThrow()).toBe(2.5);
-      expect((await client.setPlatform("routing", "eu")).ok).toBe(false);
-      expect((await client.setPlatform("banner", "Hi")).ok).toBe(false);
+      expect(
+        await client.setPlatform({ key: "feePercent", value: 2.5 }).orThrow(),
+      ).toBe(2.5);
+      expect(
+        (await client.setPlatform({ key: "routing", value: "eu" })).ok,
+      ).toBe(false);
+      expect(
+        (await client.setPlatform({ key: "banner", value: "Hi" })).ok,
+      ).toBe(false);
       await as(staff, ["routing.platform", "settings.manage"]);
-      await client.setPlatform("routing", "eu").orThrow();
-      await client.setPlatform("banner", "Maintenance at 6").orThrow();
+      await client.setPlatform({ key: "routing", value: "eu" }).orThrow();
+      await client
+        .setPlatform({ key: "banner", value: "Maintenance at 6" })
+        .orThrow();
       expect(await client.getPlatform().orThrow()).toEqual({
         feePercent: 2.5,
         routing: "eu",

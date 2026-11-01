@@ -104,17 +104,17 @@ export interface StateMachine<S extends string = string> {
    * allow. `not_found` for a record they can't see.
    */
   transition(
-    subject: RecordRef<S>,
-    to: string,
-    options?: TransitionOptions,
+    input: { subject: RecordRef<S>; to: string } & TransitionOptions,
   ): AsyncResult<boolean>;
   /**
    * Pauses the record (`lifecycle: true`): transitions fail with `STATE_PAUSED`
    * until `until` passes, or until `resume()` without one.
    */
   pause(
-    subject: RecordRef<S>,
-    options?: { readonly until?: Temporal.Instant; readonly reason?: string },
+    input: { subject: RecordRef<S> } & {
+      readonly until?: Temporal.Instant;
+      readonly reason?: string;
+    },
   ): AsyncResult<boolean>;
   /** Ends a pause; `false` when the record wasn't paused. */
   resume(subject: RecordRef<S>): AsyncResult<boolean>;
@@ -122,21 +122,21 @@ export interface StateMachine<S extends string = string> {
    * Turns a flag the machine lists in `flags` on or off; `false` when it
    * already was.
    */
-  setFlag(
-    subject: RecordRef<S>,
-    flag: string,
-    enabled: boolean,
-  ): AsyncResult<boolean>;
+  setFlag(input: {
+    subject: RecordRef<S>;
+    flag: string;
+    enabled: boolean;
+  }): AsyncResult<boolean>;
   /** The record's status, progress, flags, pause and pinned version. */
   state(subject: RecordRef<S>): AsyncResult<StatusState>;
   /**
    * Status changes, newest first; page with the last `createdAt` as `cursor`.
    * Default 50, at most 500.
    */
-  history(
-    subject: RecordRef<S>,
-    page?: CursorPageOptions<Temporal.Instant>,
-  ): AsyncResult<readonly StatusChange[]>;
+  history(input: {
+    subject: RecordRef<S>;
+    page?: CursorPageOptions<Temporal.Instant> | undefined;
+  }): AsyncResult<readonly StatusChange[]>;
   /**
    * The stages timeline in display order; empty for a machine without `stages:
    * true`.
@@ -204,7 +204,7 @@ export function createStateMachine<S extends string = string>(
   const isTrue = (value: unknown): boolean => value === true;
 
   const client: StateMachine<S> = {
-    transition: (subject, to, change = {}) =>
+    transition: ({ subject, to, ...change }) =>
       call(
         "transition",
         {
@@ -216,7 +216,7 @@ export function createStateMachine<S extends string = string>(
         },
         isTrue,
       ),
-    pause: (subject, pause = {}) =>
+    pause: ({ subject, ...pause }) =>
       call(
         "pause_lifecycle",
         {
@@ -233,7 +233,7 @@ export function createStateMachine<S extends string = string>(
         { subject_type: subject.type, subject_id: subject.id },
         isTrue,
       ),
-    setFlag: (subject, flag, enabled) =>
+    setFlag: ({ subject, flag, enabled }) =>
       call(
         "set_lifecycle_flag",
         { subject_type: subject.type, subject_id: subject.id, flag, enabled },
@@ -245,7 +245,7 @@ export function createStateMachine<S extends string = string>(
         { subject_type: subject.type, subject_id: subject.id },
         stateOf,
       ),
-    history: (subject, page) =>
+    history: ({ subject, page }) =>
       call(
         "list_status_history",
         {

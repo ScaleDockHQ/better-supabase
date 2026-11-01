@@ -11,6 +11,7 @@ import {
   EVENT_STRINGS,
   renameSqlEventTypes,
 } from "./codemod-events-0-47.ts";
+import { rewriteObjectInputCalls } from "./codemod-object-inputs.ts";
 import { withEntityKeysRenamed } from "./sql/config-entity-keys.ts";
 
 const escapeRegExp = (value: string): string =>
@@ -168,7 +169,7 @@ function renameSql(source: string): CodemodResult {
 export const CODEMOD_0_47: Codemod = {
   name: ENTITY_RENAMES_CODEMOD,
   description:
-    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns, postmortem actionItems, ai_document_versions, the old policy acknowledgement calls, the sequence run events and queries on renamed module tables for review",
+    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, rewrites block client calls with several positional arguments to one object input (`drive.list(org, options)` to `drive.list({ organizationId, options })`) and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns, postmortem actionItems, ai_document_versions, the old policy acknowledgement calls, the sequence run events and queries on renamed module tables for review",
   subpathImports: {
     "blocks/tasks": { workItemChecklistBinding: "taskChecklistBinding" },
   },
@@ -176,5 +177,9 @@ export const CODEMOD_0_47: Codemod = {
   configFile: (source) =>
     withEntityKeysRenamed({ ok: true, text: source, review: [] }),
   sqlFile: renameSql,
+  source: (text) =>
+    /better-supabase|supabase\//u.test(text)
+      ? rewriteObjectInputCalls(text)
+      : { text, review: [] },
   review: [...REVIEW_0_47, ...EVENT_REVIEW],
 };

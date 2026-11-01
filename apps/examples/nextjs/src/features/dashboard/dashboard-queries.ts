@@ -48,13 +48,25 @@ export async function getCustomerCounts(
 
   const [total, lead, active] = await Promise.all([
     metrics
-      .kpi("customers", range, { organizationId, compare: "previous" })
+      .kpi({
+        metric: "customers",
+        range,
+        options: { organizationId, compare: "previous" },
+      })
       .orThrow(),
     metrics
-      .kpi("customers", range, { organizationId, filter: { status: "lead" } })
+      .kpi({
+        metric: "customers",
+        range,
+        options: { organizationId, filter: { status: "lead" } },
+      })
       .orThrow(),
     metrics
-      .kpi("customers", range, { organizationId, filter: { status: "active" } })
+      .kpi({
+        metric: "customers",
+        range,
+        options: { organizationId, filter: { status: "active" } },
+      })
       .orThrow(),
   ]);
 

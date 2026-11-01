@@ -490,7 +490,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:e793b6dcf687919267a660b27a41fb5777c2982b1f9f5917bc19ee09cd8106d3
+-- @bsb-hash sha256:eb9b0fb6ac73f5cdf0cf80010c18647705fb3854e8775f81f621b4ce20e9af5a
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,6 +1004,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.versions', target_type => 'version', event_prefix => 'version', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

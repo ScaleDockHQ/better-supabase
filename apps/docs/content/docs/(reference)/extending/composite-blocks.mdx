@@ -1,0 +1,98 @@
+---
+title: Composite blocks
+description: Build one block from other blocks, with defaults for its parts and a client that holds theirs, and install or remove it as a unit.
+---
+
+A composite block is a block made of other blocks. The CRM is deals,
+contacts, activities and tasks with a few helpers across them; installing
+`crm` installs those four. A composite is an ordinary block otherwise: one
+manifest, one name, one docs page, one client.
+
+## Declare one
+
+List the parts under `composes` and read their clients from `options.parts`
+in the creator. The part clients are the same objects the app gets, so hooks
+you set on `deals` also run when the composite calls `deals`.
+
+```ts
+import {
+  defineBlock,
+  type BlockContext,
+  type CompositeOptions,
+} from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import { tagsBlock } from "better-supabase/blocks/tags";
+
+const composes = { comments: commentsBlock, tags: tagsBlock };
+
+export const discussionBlock = defineBlock({
+  name: "discussion",
+  category: "collaboration",
+  composes,
+  defaults: { comments: { options: { mentions: true } } },
+  create: (options: BlockContext & CompositeOptions<typeof composes>) => ({
+    comments: options.parts.comments,
+    tags: options.parts.tags,
+  }),
+});
+```
+
+`createBlocks` builds each part once, in the composite's creator and for the
+app, and throws when a part is not in the block set.
+
+Build the set with the parts next to the composite. The composite's client and
+the part clients come from the same instances:
+
+```ts
+import { createBlocks } from "better-supabase/blocks";
+
+export const blocks = createBlocks(
+  { transport },
+  { comments: commentsBlock, tags: tagsBlock, discussion: discussionBlock },
+);
+
+blocks.discussion.comments; // the same client as blocks.comments
+```
+
+## Generated files
+
+`better-supabase gen` writes an entry for the composite in `blockConfig` once
+every part is installed, next to its parts' entries, so `defineBlocks` and
+`block.using(...)` see it. The entry carries no tables or functions of its own;
+a composite with glue SQL gets the entry of its glue module instead. `add`
+wires the composite's client in `lib/blocks.ts` together with its parts.
+
+## Defaults
+
+`defaults` sets options on a part until the app sets them. The app's own
+`blocks.<part>.options` wins key by key, so a default is a starting point and
+never a lock. `resolvePreset` returns the merged result as `partOptions`.
+Conformance checks that every default names a part and an option the part
+has.
+
+## Install and remove
+
+Selecting a composite in a preset selects its parts, and the resolved preset
+lists each part with the reason `part of <composite>`. `removeComposite`
+takes out the composite and its glue and keeps the parts as ordinary blocks.
+With `withParts` it also removes each part that no other selected block or
+composite still needs, and reports the ones it kept and why.
+
+## The composites that ship
+
+The library ships nineteen composites, each with a page: [saas](/docs/blocks/saas), [sales](/docs/blocks/sales), [crm](/docs/blocks/crm), [commerce](/docs/blocks/commerce), [procurement](/docs/blocks/procurement), [finance](/docs/blocks/finance), [support](/docs/blocks/support), [projects](/docs/blocks/projects), [service](/docs/blocks/service), [people](/docs/blocks/people), [recruiting](/docs/blocks/recruiting), [scheduling](/docs/blocks/scheduling), [learning](/docs/blocks/learning), [events](/docs/blocks/events), [cms](/docs/blocks/cms), [care](/docs/blocks/care), [filespace](/docs/blocks/filespace), [collaboration](/docs/blocks/collaboration) and [governance](/docs/blocks/governance). The [overview](/docs/blocks/catalog-composites) explains why two carry names that differ from the block they build on.
+
+Presets list composites in place of long block arrays. The preset tests resolve every named preset and compare its closure with the list recorded before the change, so a preset installs the same blocks. Where a composite adds blocks, the test names them: `helpdesk` gains `chat-sdk-state` and `field-service` gains cases, maintenance, pipelines and SLAs.
+
+## The catalog
+
+Each manifest in the catalog carries `composes` and `defaults` for a
+composite, and `composedBy` for a part, so the docs, the CLI and Create can
+show the relation without importing the blocks.
+
+## Conformance
+
+The block conformance test checks that parts are registered blocks, that
+defaults name real options, and that glue SQL requires only modules its parts
+install. A composite's glue never reaches into a block that is not one of its
+parts.

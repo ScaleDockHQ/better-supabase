@@ -28,11 +28,11 @@ export const enqueueTestJob = bsb.action(
       return connection;
     }
 
-    const queued = await jobsOn(connection.data).enqueue(
-      TEST_QUEUE,
-      { message: "A test job from the jobs settings page" },
-      { context: { actor: { kind: "user", id: auth.user.id }, tenant } },
-    );
+    const queued = await jobsOn(connection.data).enqueue({
+      queue: TEST_QUEUE,
+      payload: { message: "A test job from the jobs settings page" },
+      context: { actor: { kind: "user", id: auth.user.id }, tenant },
+    });
 
     if (queued.ok) {
       await refreshCaller(auth);

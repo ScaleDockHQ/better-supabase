@@ -52,7 +52,9 @@ export function MembersTable() {
               accessibilityRole="button"
               accessibilityHint={editable ? `Changes the role to ${next}` : ""}
               disabled={!editable || busy}
-              onPress={() => void setRole(member.userId, next)}
+              onPress={() =>
+                void setRole({ userId: member.userId, role: next })
+              }
             >
               <Text style={{ color: editable ? "#2563eb" : "#737373" }}>
                 {member.role}

@@ -109,10 +109,10 @@ export interface PayrollExport {
    * locks it. Exporting a locked run with the same file returns it again; a
    * different file fails with `PAYROLL_RUN_EXPORTED`.
    */
-  exportRun(
-    runId: string,
-    format: PayrollExportFormat,
-  ): AsyncResult<PayrollExportResult>;
+  exportRun(input: {
+    runId: string;
+    format: PayrollExportFormat;
+  }): AsyncResult<PayrollExportResult>;
   /** Deletes a draft run. */
   delete(runId: string): AsyncResult<void>;
 }
@@ -241,7 +241,7 @@ export function createPayrollExport(
           ),
         ),
       ),
-    exportRun: (runId, format) =>
+    exportRun: ({ runId, format }) =>
       AsyncResult.from(async () => {
         const checked = payrollFormatOf(format);
         const found = await get(runId);

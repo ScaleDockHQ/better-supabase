@@ -651,7 +651,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:ac7a661d795b6ce3e3f642fb82c697d1d6c503b38151fabc84ebc3e3bd53c7cf
+-- @bsb-hash sha256:1595d5b2face22118ef551417ba94f569b55b3f35844e251e501eb8a01438f5b
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1415,6 +1415,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.documents', target_type => 'document', event_prefix => 'document', deferred => true);
+  perform better_supabase.audit('better_supabase.document_suggestions', target_type => 'document_suggestion', event_prefix => 'document_suggestion', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

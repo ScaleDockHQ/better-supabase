@@ -71,29 +71,30 @@ describe.skipIf(!live)("versions", () => {
       const subject = { type: "doc", id: doc!.id };
 
       const sent = await versions
-        .snapshot(subject, { content: { total: 100 } })
+        .snapshot({ subject, input: { content: { total: 100 } } })
         .orThrow();
 
-      await versions.snapshot(subject, { content: { total: 120 } }).orThrow();
+      await versions
+        .snapshot({ subject, input: { content: { total: 120 } } })
+        .orThrow();
 
       const link = await links
-        .create(subject, { versionId: sent.id })
+        .create({ subject, options: { versionId: sent.id } })
         .orThrow();
 
-      const plain = await links.create(subject).orThrow();
+      const plain = await links.create({ subject }).orThrow();
 
-      const wrong = await links.create(
-        { type: "doc", id: other!.id },
-        { versionId: sent.id },
-      );
+      const wrong = await links.create({
+        subject: { type: "doc", id: other!.id },
+        options: { versionId: sent.id },
+      });
 
       expect(wrong.ok).toBe(false);
 
       await s.asRole("anon");
-      expect(await links.resolve(link.token).orThrow()).toMatchObject({
-        subject,
-        versionId: sent.id,
-      });
+      expect(
+        await links.resolve({ token: link.token }).orThrow(),
+      ).toMatchObject({ subject, versionId: sent.id });
       const shared = await versions.getShared(link.token).orThrow();
       expect(shared).toMatchObject({ id: sent.id, content: { total: 100 } });
       expect(shared).not.toHaveProperty("createdBy");
@@ -136,12 +137,11 @@ describe.skipIf(!live)("versions", () => {
       const input = { type: "doc", id: doc };
 
       await s.as(member);
-      const first = await versions.snapshot(input).orThrow();
+      const first = await versions.snapshot({ subject: input }).orThrow();
       expect(first).toMatchObject({ number: 1, unchanged: false });
-      expect(await versions.snapshot(input).orThrow()).toMatchObject({
-        id: first.id,
-        unchanged: true,
-      });
+      expect(
+        await versions.snapshot({ subject: input }).orThrow(),
+      ).toMatchObject({ id: first.id, unchanged: true });
 
       await s.service();
       await s.client.query(
@@ -151,16 +151,18 @@ describe.skipIf(!live)("versions", () => {
       await s.as(member);
 
       const second = await versions
-        .snapshot(input, { label: "Second" })
+        .snapshot({ subject: input, input: { label: "Second" } })
         .orThrow();
 
       expect(second.number).toBe(2);
-      const listed = await versions.list(input).orThrow();
+      const listed = await versions.list({ subject: input }).orThrow();
       expect(listed.map((version) => [version.number, version.label])).toEqual([
         [2, "Second"],
         [1, undefined],
       ]);
-      expect(await versions.diff(first.id, second.id).orThrow()).toEqual([
+      expect(
+        await versions.diff({ fromId: first.id, toId: second.id }).orThrow(),
+      ).toEqual([
         { op: "add", path: "/body/steps/1", value: "b" },
         { op: "replace", path: "/title", value: "Plan B" },
       ]);
@@ -183,7 +185,7 @@ describe.skipIf(!live)("versions", () => {
         [doc],
       );
       await s.as(owner);
-      const frozen = (await versions.list(input).orThrow())[0]!;
+      const frozen = (await versions.list({ subject: input }).orThrow())[0]!;
       expect(frozen).toMatchObject({ number: 4, label: "sent", frozen: true });
       expect(
         await versions.delete(frozen.id).then((r) => !r.ok && r.error.hint),
@@ -201,10 +203,12 @@ describe.skipIf(!live)("versions", () => {
       await s.as(member);
 
       for (const title of ["C", "D", "E"]) {
-        await versions.snapshot(input, { content: { title } }).orThrow();
+        await versions
+          .snapshot({ subject: input, input: { content: { title } } })
+          .orThrow();
       }
 
-      const kept = await versions.list(input).orThrow();
+      const kept = await versions.list({ subject: input }).orThrow();
       expect(kept.map((version) => version.number)).toEqual([7, 6, 5, 4, 2]);
 
       await s.service();
@@ -223,7 +227,11 @@ describe.skipIf(!live)("versions", () => {
         "update versions_it.notes set text = 'three' where id = $1",
         [note],
       );
-      const auto = await versions.list({ type: "note", id: note }).orThrow();
+
+      const auto = await versions
+        .list({ subject: { type: "note", id: note } })
+        .orThrow();
+
       expect(auto.map((version) => version.source)).toEqual(["auto"]);
       expect((await versions.get(auto[0]!.id).orThrow()).content).toEqual({
         text: "three",

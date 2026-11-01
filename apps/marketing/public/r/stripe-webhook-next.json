@@ -26,7 +26,7 @@
     },
     {
       "path": "items/app/api/stripe/process/route.ts",
-      "content": "import \"server-only\";\nimport { billing, stripeInbox } from \"@/lib/stripe\";\n\n/**\n * Hands the stored Stripe events to the billing block. Call it from a cron that\n * sends `Authorization: Bearer <CRON_SECRET>`; a failed event stays in the\n * inbox for the next run.\n */\nexport async function GET(request: Request): Promise<Response> {\n  const secret = process.env.CRON_SECRET;\n\n  if (!secret || request.headers.get(\"authorization\") !== `Bearer ${secret}`) {\n    return new Response(null, { status: 401 });\n  }\n\n  const result = await stripeInbox.process((message) =>\n    billing.handleStripeEvent(message.payload).orThrow(),\n  );\n\n  return Response.json(result);\n}\n",
+      "content": "import \"server-only\";\nimport { billing, stripeInbox } from \"@/lib/stripe\";\n\n/**\n * Hands the stored Stripe events to the billing block. Call it from a cron that\n * sends `Authorization: Bearer <CRON_SECRET>`; a failed event stays in the\n * inbox for the next run.\n */\nexport async function GET(request: Request): Promise<Response> {\n  const secret = process.env.CRON_SECRET;\n\n  if (!secret || request.headers.get(\"authorization\") !== `Bearer ${secret}`) {\n    return new Response(null, { status: 401 });\n  }\n\n  const result = await stripeInbox.process({\n    handler: (message) => billing.handleStripeEvent(message.payload).orThrow(),\n  });\n\n  return Response.json(result);\n}\n",
       "type": "registry:file",
       "target": "~/app/api/stripe/process/route.ts"
     }

@@ -95,17 +95,20 @@ describe("createContracts", () => {
     const contracts = createContracts({ transport: t });
 
     const contract = await contracts
-      .create("org-1", {
-        title: "Master services agreement",
-        description: "Hosting and support",
-        counterparty: PARTY,
-        ownerId: "u1",
-        value: money(1_200_000n, "EUR"),
-        startsOn: Temporal.PlainDate.from("2026-01-01"),
-        endsOn: Temporal.PlainDate.from("2026-12-31"),
-        autoRenew: true,
-        renewalMonths: 12,
-        noticeDays: 30,
+      .create({
+        organizationId: "org-1",
+        input: {
+          title: "Master services agreement",
+          description: "Hosting and support",
+          counterparty: PARTY,
+          ownerId: "u1",
+          value: money(1_200_000n, "EUR"),
+          startsOn: Temporal.PlainDate.from("2026-01-01"),
+          endsOn: Temporal.PlainDate.from("2026-12-31"),
+          autoRenew: true,
+          renewalMonths: 12,
+          noticeDays: 30,
+        },
       })
       .orThrow();
 
@@ -185,7 +188,10 @@ describe("createContracts", () => {
     const contracts = createContracts({ transport: t, fields: Fields });
 
     const created = await contracts
-      .create("org-1", { title: "MSA", fields: { region: "emea" } })
+      .create({
+        organizationId: "org-1",
+        input: { title: "MSA", fields: { region: "emea" } },
+      })
       .orThrow();
 
     expect(created.fields.region).toBe("emea");
@@ -195,15 +201,22 @@ describe("createContracts", () => {
       fields: { region: "emea" },
     });
 
-    const refused = await contracts.update("k1", {
-      // SAFETY: a value the schema refuses, to prove the client checks it.
-      fields: { region: "mars" } as unknown as { region: "emea" },
+    const refused = await contracts.update({
+      contractId: "k1",
+      changes: {
+        // SAFETY: a value the schema refuses, to prove the client checks it.
+        fields: { region: "mars" } as unknown as { region: "emea" },
+      },
     });
 
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
 
-    await contracts.update("k1", { noticeDays: 60 }).orThrow();
-    await contracts.update("k1", { fields: { region: "amer" } }).orThrow();
+    await contracts
+      .update({ contractId: "k1", changes: { noticeDays: 60 } })
+      .orThrow();
+    await contracts
+      .update({ contractId: "k1", changes: { fields: { region: "amer" } } })
+      .orThrow();
 
     expect(t.calls[1]).toEqual([
       "update_contract",
@@ -232,14 +245,23 @@ describe("createContracts", () => {
 
     const contracts = createContracts({ transport: t });
 
-    await contracts.transition("k1", "submit").orThrow();
-    await contracts.transition("k1", "terminate", "Breach").orThrow();
-    await contracts.sendForSignature("k1", { signers: ["u1"] }).orThrow();
     await contracts
-      .sendForSignature("k1", {
-        signers: ["u1", "u2"],
-        signOrder: "sequential",
-        message: "Please sign",
+      .transition({ contractId: "k1", action: "submit" })
+      .orThrow();
+    await contracts
+      .transition({ contractId: "k1", action: "terminate", reason: "Breach" })
+      .orThrow();
+    await contracts
+      .sendForSignature({ contractId: "k1", input: { signers: ["u1"] } })
+      .orThrow();
+    await contracts
+      .sendForSignature({
+        contractId: "k1",
+        input: {
+          signers: ["u1", "u2"],
+          signOrder: "sequential",
+          message: "Please sign",
+        },
       })
       .orThrow();
 
@@ -277,10 +299,11 @@ describe("createContracts", () => {
     const t = fieldsTransport({ list_contracts: () => [FULL, MINIMAL] });
     const contracts = createContracts({ transport: t });
 
-    const listed = await contracts.list("org-1").orThrow();
+    const listed = await contracts.list({ organizationId: "org-1" }).orThrow();
 
     await contracts
-      .list("org-1", {
+      .list({
+        organizationId: "org-1",
         status: "active",
         ownerId: "u1",
         renewingBefore: Temporal.PlainDate.from("2027-01-01"),
@@ -288,7 +311,7 @@ describe("createContracts", () => {
         pageSize: 10,
       })
       .orThrow();
-    await contracts.forCounterparty(PARTY).orThrow();
+    await contracts.forCounterparty({ counterparty: PARTY }).orThrow();
 
     expect(listed.map((contract) => contract.id)).toEqual(["k1", "k2"]);
     expect(t.calls).toEqual([
@@ -366,23 +389,34 @@ describe("createContracts", () => {
     const contracts = createContracts({ transport: t });
 
     const saved = await contracts
-      .saveObligation("k1", {
-        title: "Quarterly report",
-        description: "Usage report",
-        dueOn: Temporal.PlainDate.from("2026-11-01"),
-        ownerId: "u1",
-        obligationId: "o1",
+      .saveObligation({
+        contractId: "k1",
+        input: {
+          title: "Quarterly report",
+          description: "Usage report",
+          dueOn: Temporal.PlainDate.from("2026-11-01"),
+          ownerId: "u1",
+          obligationId: "o1",
+        },
       })
       .orThrow();
 
-    await contracts.saveObligation("k1", { title: "Kick-off" }).orThrow();
-    await contracts.setObligationStatus("o1", "done").orThrow();
+    await contracts
+      .saveObligation({ contractId: "k1", input: { title: "Kick-off" } })
+      .orThrow();
+    await contracts
+      .setObligationStatus({ obligationId: "o1", status: "done" })
+      .orThrow();
 
     const deleted = await contracts.deleteObligation("o2").orThrow();
-    const listed = await contracts.obligations("org-1").orThrow();
+
+    const listed = await contracts
+      .obligations({ organizationId: "org-1" })
+      .orThrow();
 
     await contracts
-      .obligations("org-1", {
+      .obligations({
+        organizationId: "org-1",
         contractId: "k1",
         ownerId: "u1",
         openOnly: true,

@@ -110,9 +110,15 @@ describe.skipIf(!live)("blocks without organizations", () => {
         .orThrow();
 
       expect(bobs.id).not.toBe(urgent.id);
-      expect((await tags.update(urgent.id, { name: "Mine" })).ok).toBe(false);
-      expect((await tags.attach(note, urgent.id)).ok).toBe(false);
-      expect(await tags.attach(note, bobs.id).orThrow()).toBe(true);
+      expect(
+        (await tags.update({ id: urgent.id, patch: { name: "Mine" } })).ok,
+      ).toBe(false);
+      expect((await tags.attach({ record: note, tagId: urgent.id })).ok).toBe(
+        false,
+      );
+      expect(
+        await tags.attach({ record: note, tagId: bobs.id }).orThrow(),
+      ).toBe(true);
       // Reads also stay in the caller's own set.
       expect(
         (await tags.list({ kind: "label" }).orThrow()).map((tag) => tag.id),
@@ -299,7 +305,9 @@ describe.skipIf(!live)("a workspace-named app", () => {
     await s.as(owner);
 
     const { id } = await workspaces
-      .create({ name: "Acme", slug: `acme-${owner.id.slice(0, 8)}` })
+      .create({
+        attributes: { name: "Acme", slug: `acme-${owner.id.slice(0, 8)}` },
+      })
       .orThrow();
 
     expect(

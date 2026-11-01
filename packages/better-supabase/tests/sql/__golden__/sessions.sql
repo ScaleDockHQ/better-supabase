@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
+-- @bsb-hash sha256:cb508f044284ce2bd25270fecfe6e4ec23b1a685c85bce7f9861c53e456f79bf
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,6 +169,26 @@ $$;
 
 revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
 grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
+
+-- The caller's security page in one call: the sessions from
+-- list_my_sessions(), the count and the current session's id.
+create or replace function better_supabase.sessions_overview()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'count', jsonb_array_length(s.payload),
+    'currentId', (select x ->> 'id' from jsonb_array_elements(s.payload) x where (x ->> 'current')::boolean limit 1),
+    'sessions', s.payload)
+  from (select better_supabase.list_my_sessions() as payload) s
+$$;
+
+revoke execute on function better_supabase.sessions_overview() from public, anon;
+grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -207,7 +227,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
+-- @bsb-hash sha256:cb508f044284ce2bd25270fecfe6e4ec23b1a685c85bce7f9861c53e456f79bf
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,6 +395,26 @@ $$;
 
 revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
 grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
+
+-- The caller's security page in one call: the sessions from
+-- list_my_sessions(), the count and the current session's id.
+create or replace function better_supabase.sessions_overview()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'count', jsonb_array_length(s.payload),
+    'currentId', (select x ->> 'id' from jsonb_array_elements(s.payload) x where (x ->> 'current')::boolean limit 1),
+    'sessions', s.payload)
+  from (select better_supabase.list_my_sessions() as payload) s
+$$;
+
+revoke execute on function better_supabase.sessions_overview() from public, anon;
+grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -413,7 +453,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
+-- @bsb-hash sha256:cb508f044284ce2bd25270fecfe6e4ec23b1a685c85bce7f9861c53e456f79bf
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -581,6 +621,26 @@ $$;
 
 revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
 grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
+
+-- The caller's security page in one call: the sessions from
+-- list_my_sessions(), the count and the current session's id.
+create or replace function better_supabase.sessions_overview()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'count', jsonb_array_length(s.payload),
+    'currentId', (select x ->> 'id' from jsonb_array_elements(s.payload) x where (x ->> 'current')::boolean limit 1),
+    'sessions', s.payload)
+  from (select better_supabase.list_my_sessions() as payload) s
+$$;
+
+revoke execute on function better_supabase.sessions_overview() from public, anon;
+grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -619,7 +679,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:865e7704e364ee3e2478e9585d25a198a643794a46c3b0e91e1353c541bde07e
+-- @bsb-hash sha256:352c60aa6a9bc6aa33e29280eefc5d26a03b5ad20f897faec2aba2c37a4cacf4
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -787,6 +847,26 @@ $$;
 
 revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
 grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
+
+-- The caller's security page in one call: the sessions from
+-- list_my_sessions(), the count and the current session's id.
+create or replace function better_supabase.sessions_overview()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'count', jsonb_array_length(s.payload),
+    'currentId', (select x ->> 'id' from jsonb_array_elements(s.payload) x where (x ->> 'current')::boolean limit 1),
+    'sessions', s.payload)
+  from (select better_supabase.list_my_sessions() as payload) s
+$$;
+
+revoke execute on function better_supabase.sessions_overview() from public, anon;
+grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -847,6 +927,15 @@ set search_path = ''
 as $$ select "better_supabase"."end_my_session"($1) $$;
 revoke execute on function "api"."end_my_session"(uuid) from public, anon, service_role;
 grant execute on function "api"."end_my_session"(uuid) to authenticated;
+
+create or replace function "api"."sessions_overview"()
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."sessions_overview"() $$;
+revoke execute on function "api"."sessions_overview"() from public, anon, service_role;
+grant execute on function "api"."sessions_overview"() to authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

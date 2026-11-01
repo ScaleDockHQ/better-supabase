@@ -22,10 +22,10 @@ export const acknowledgeRecord = bsb.action(
     permission: "acknowledgements.acknowledge",
   },
   async ({ type, id, versionId }, { db, auth }) => {
-    const acknowledged = await db.acknowledgements.acknowledge(
-      { type, id },
-      { versionId },
-    );
+    const acknowledged = await db.acknowledgements.acknowledge({
+      record: { type, id },
+      versionId,
+    });
 
     if (!acknowledged.ok) {
       return acknowledged;

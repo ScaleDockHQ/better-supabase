@@ -517,16 +517,22 @@ describe.skipIf(!live)("drive", () => {
         .create({ kind: "label", name: "Final" })
         .orThrow();
 
-      const labeled = await drive.label(file, final.id).orThrow();
+      const labeled = await drive
+        .label({ id: file, tagId: final.id })
+        .orThrow();
+
       expect(labeled.labels?.map((label) => label.name)).toEqual(["Final"]);
       expect(
-        (await drive.labeled(tenant, final.id).orThrow()).map(
-          (node) => node.id,
-        ),
+        (
+          await drive
+            .labeled({ organizationId: tenant, tagId: final.id })
+            .orThrow()
+        ).map((node) => node.id),
       ).toEqual([file]);
 
       const request = await drive
-        .requestApproval(file, {
+        .requestApproval({
+          id: file,
           attachmentId: created.attachment.id,
           reason: "Sign off v1",
         })
@@ -582,7 +588,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe("DRIVE_FORBIDDEN");
 
       await s.as(owner);
-      await approvals.approve(request.id).orThrow();
+      await approvals.approve({ id: request.id }).orThrow();
 
       const [decided] = await drive.approvals(file).orThrow();
       expect(decided).toMatchObject({ status: "approved", current: false });
@@ -590,10 +596,10 @@ describe.skipIf(!live)("drive", () => {
       const revisions = await drive.revisions(file).orThrow();
 
       const restored = await drive
-        .restoreRevision(
-          file,
-          revisions.find((revision) => revision.number === 1)!.id,
-        )
+        .restoreRevision({
+          id: file,
+          revisionId: revisions.find((revision) => revision.number === 1)!.id,
+        })
         .orThrow();
 
       expect(restored.approval?.status).toBe("approved");
@@ -649,18 +655,21 @@ describe.skipIf(!live)("drive", () => {
       );
 
       const request = await drive
-        .requestAccess(folder.id, { reason: "Quarter close" })
+        .requestAccess({
+          nodeId: folder.id,
+          input: { reason: "Quarter close" },
+        })
         .orThrow();
 
       expect(request).toMatchObject({ action: "read", status: "pending" });
 
       await s.as(owner);
       expect(
-        (await drive.accessRequests(folder.id).orThrow()).map(
+        (await drive.accessRequests({ nodeId: folder.id }).orThrow()).map(
           (entry) => entry.userId,
         ),
       ).toEqual([member.id]);
-      await approvals.approve(request.approvalId!).orThrow();
+      await approvals.approve({ id: request.approvalId! }).orThrow();
 
       await s.as(member);
       expect(await drive.get(folder.id).orThrow()).toMatchObject({
@@ -669,7 +678,13 @@ describe.skipIf(!live)("drive", () => {
 
       await s.as(owner);
       expect(
-        await drive.transferOwnership(tenant, owner.id, member.id).orThrow(),
+        await drive
+          .transferOwnership({
+            organizationId: tenant,
+            fromUserId: owner.id,
+            toUserId: member.id,
+          })
+          .orThrow(),
       ).toEqual({ nodes: 1, drives: 0 });
 
       await s.as(member);

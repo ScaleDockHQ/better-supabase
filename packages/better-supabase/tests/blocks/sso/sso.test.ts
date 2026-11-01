@@ -103,18 +103,24 @@ describe("createSso", () => {
     });
 
     const sso = createSso({ transport });
-    const added = await sso.addDomain("org-1", "Acme.test").orThrow();
+
+    const added = await sso
+      .addDomain({ organizationId: "org-1", domain: "Acme.test" })
+      .orThrow();
+
     expect(added.record.name).toBe("_better-supabase.acme.test");
     expect(added.verifiedAt).toBeUndefined();
     const [listed] = await sso.domains("org-1").orThrow();
     expect(listed?.verifiedAt?.toString()).toBe("2026-10-06T12:05:00Z");
 
     const updated = await sso
-      .updateDomain("d1", { enforceSso: true })
+      .updateDomain({ domainId: "d1", settings: { enforceSso: true } })
       .orThrow();
 
     expect(updated).toMatchObject({ autoJoinRole: "member", enforceSso: true });
-    await sso.updateDomain("d1", { autoJoinRole: null }).orThrow();
+    await sso
+      .updateDomain({ domainId: "d1", settings: { autoJoinRole: null } })
+      .orThrow();
     expect(calls.at(-1)).toEqual([
       "update_organization_domain",
       { id: "d1", auto_join_role: null, enforce_sso: false },
@@ -138,7 +144,12 @@ describe("createSso", () => {
 
   it("returns not_found when updating a domain the caller can't see", async () => {
     const { transport } = fakeTransport({ organization_domain: null });
-    const result = await createSso({ transport }).updateDomain("d1", {});
+
+    const result = await createSso({ transport }).updateDomain({
+      domainId: "d1",
+      settings: {},
+    });
+
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatchObject({
       kind: "not_found",
@@ -210,7 +221,11 @@ describe("createSsoAdmin", () => {
       resolver: () => Promise.resolve(records),
     });
 
-    const missing = await admin.verifyDomain("d1", { actorId: "u1" });
+    const missing = await admin.verifyDomain({
+      domainId: "d1",
+      options: { actorId: "u1" },
+    });
+
     expect(!missing.ok && missing.error).toMatchObject({
       kind: "invalid_request",
       hint: "SSO_DOMAIN_RECORD_MISSING",
@@ -218,7 +233,7 @@ describe("createSsoAdmin", () => {
     records = ["better-supabase-domain-verification=abc"];
 
     const verified = await admin
-      .verifyDomain("d1", { actorId: "u1" })
+      .verifyDomain({ domainId: "d1", options: { actorId: "u1" } })
       .orThrow();
 
     expect(verified.verifiedAt).toBeDefined();
@@ -234,7 +249,7 @@ describe("createSsoAdmin", () => {
       resolver: () => Promise.resolve([]),
     });
 
-    const result = await unknown.verifyDomain("d1");
+    const result = await unknown.verifyDomain({ domainId: "d1" });
     expect(!result.ok && result.error.kind).toBe("not_found");
 
     const failing = createSsoAdmin({
@@ -242,7 +257,7 @@ describe("createSsoAdmin", () => {
       resolver: () => Promise.reject(new Error("dns down")),
     });
 
-    const failed = await failing.verifyDomain("d1");
+    const failed = await failing.verifyDomain({ domainId: "d1" });
     expect(!failed.ok && failed.error).toMatchObject({
       kind: "network",
       message: "dns down",
@@ -274,17 +289,17 @@ describe("createSsoAdmin", () => {
     });
 
     const created = await admin
-      .addSamlProvider(
-        "org-1",
-        {
+      .addSamlProvider({
+        organizationId: "org-1",
+        input: {
           metadataUrl: "https://idp.test/metadata",
           domains: ["acme.test"],
           attributeMapping: { keys: { email: { name: "mail" } } },
           nameIdFormat:
             "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         },
-        { actorId: "u1" },
-      )
+        actorId: "u1",
+      })
       .orThrow();
 
     expect(created.id).toBe("p1");
@@ -304,9 +319,12 @@ describe("createSsoAdmin", () => {
     });
 
     const updated = await admin
-      .updateSamlProvider("p1", {
-        metadataXml: "<xml/>",
-        domains: ["acme.test", "acme.example"],
+      .updateSamlProvider({
+        providerId: "p1",
+        input: {
+          metadataXml: "<xml/>",
+          domains: ["acme.test", "acme.example"],
+        },
       })
       .orThrow();
 
@@ -315,11 +333,16 @@ describe("createSsoAdmin", () => {
     expect(requests[1]?.url).toBe(
       "https://project.test/auth/v1/admin/sso/providers/p1",
     );
-    await admin.updateSamlProvider("p1", { domains: ["acme.test"] }).orThrow();
+    await admin
+      .updateSamlProvider({
+        providerId: "p1",
+        input: { domains: ["acme.test"] },
+      })
+      .orThrow();
     expect(calls.at(-1)?.[1]["metadata_url"]).toBe("https://idp.test/metadata");
 
     const removed = await admin
-      .removeSamlProvider("p1", { actorId: "u1" })
+      .removeSamlProvider({ providerId: "p1", actorId: "u1" })
       .orThrow();
 
     expect(removed?.id).toBe("p1");
@@ -347,9 +370,9 @@ describe("createSsoAdmin", () => {
       auth: { url: "https://p.test", secretKey: "k", fetch },
     });
 
-    const result = await admin.addSamlProvider("org-1", {
-      metadataXml: "<xml/>",
-      domains: ["acme.test"],
+    const result = await admin.addSamlProvider({
+      organizationId: "org-1",
+      input: { metadataXml: "<xml/>", domains: ["acme.test"] },
     });
 
     expect(result.ok).toBe(false);
@@ -380,9 +403,9 @@ describe("createSsoAdmin", () => {
       auth: { url: "https://p.test", secretKey: "k", fetch },
     });
 
-    const result = await admin.addSamlProvider("org-1", {
-      metadataXml: "<xml/>",
-      domains: ["acme.test"],
+    const result = await admin.addSamlProvider({
+      organizationId: "org-1",
+      input: { metadataXml: "<xml/>", domains: ["acme.test"] },
     });
 
     expect(!result.ok && result.error).toMatchObject({
@@ -399,9 +422,9 @@ describe("createSsoAdmin", () => {
 
     const without = createSsoAdmin({ transport });
 
-    const result = await without.addSamlProvider("org-1", {
-      metadataXml: "<xml/>",
-      domains: ["a.test"],
+    const result = await without.addSamlProvider({
+      organizationId: "org-1",
+      input: { metadataXml: "<xml/>", domains: ["a.test"] },
     });
 
     expect(!result.ok && result.error.kind).toBe("invalid_request");
@@ -415,9 +438,9 @@ describe("createSsoAdmin", () => {
       },
     });
 
-    const failed = await offline.addSamlProvider("org-1", {
-      metadataXml: "<xml/>",
-      domains: ["a.test"],
+    const failed = await offline.addSamlProvider({
+      organizationId: "org-1",
+      input: { metadataXml: "<xml/>", domains: ["a.test"] },
     });
 
     expect(!failed.ok && failed.error).toMatchObject({
@@ -434,16 +457,19 @@ describe("createSsoAdmin", () => {
       },
     });
 
-    const bad = await garbled.addSamlProvider("org-1", {
-      metadataXml: "<xml/>",
-      domains: ["a.test"],
+    const bad = await garbled.addSamlProvider({
+      organizationId: "org-1",
+      input: { metadataXml: "<xml/>", domains: ["a.test"] },
     });
 
     expect(!bad.ok && bad.error.message).toBe("Supabase Auth answered 502");
-    expect(await offline.removeSamlProvider("p1").orThrow()).toBeUndefined();
+    expect(
+      await offline.removeSamlProvider({ providerId: "p1" }).orThrow(),
+    ).toBeUndefined();
 
-    const update = await offline.updateSamlProvider("p1", {
-      domains: ["a.test"],
+    const update = await offline.updateSamlProvider({
+      providerId: "p1",
+      input: { domains: ["a.test"] },
     });
 
     expect(!update.ok && update.error).toMatchObject({

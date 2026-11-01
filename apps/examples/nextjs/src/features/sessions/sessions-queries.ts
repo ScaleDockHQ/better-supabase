@@ -32,19 +32,18 @@ function latestSignIn(amr: readonly SignIn[]): SignIn | null {
   return latest;
 }
 
-const OtherSession = v.object({
-  id: v.string(),
-  lastActiveAt: v.string(),
-  userAgent: v.nullable(v.string()),
-  ip: v.nullable(v.string()),
-  current: v.boolean(),
-});
-
-export type OtherSession = v.InferOutput<typeof OtherSession>;
+export interface OtherSession {
+  readonly id: string;
+  readonly lastActiveAt: string;
+  readonly userAgent: string | null;
+  readonly ip: string | null;
+  readonly current: boolean;
+}
 
 /**
  * The caller's sessions on other devices, newest activity first
- * (`list_my_sessions`, which reads `auth.sessions` for the caller only).
+ * (`sessions.overview`, which reads `auth.sessions` for the caller only and
+ * marks the current one in the same call).
  */
 export async function getOtherSessions(): Promise<readonly OtherSession[]> {
   "use cache: private";
@@ -54,11 +53,18 @@ export async function getOtherSessions(): Promise<readonly OtherSession[]> {
     return [];
   }
 
-  const rows = await db
-    .$api("list_my_sessions", {}, { returns: v.array(OtherSession) })
-    .orThrow();
+  const { sessions } = await db.$blocks.sessions.overview().orThrow();
 
-  return rows.filter((row) => !row.current);
+  return sessions
+    .filter((session) => !session.current)
+    .map((session) => ({
+      id: session.id,
+      lastActiveAt:
+        (session.lastActiveAt ?? session.createdAt)?.toString() ?? "",
+      userAgent: session.userAgent,
+      ip: session.ip,
+      current: session.current,
+    }));
 }
 
 /** The session behind this request's token, or null for a caller without one. */

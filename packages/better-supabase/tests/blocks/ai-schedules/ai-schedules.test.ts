@@ -70,13 +70,16 @@ describe("createAiSchedules", () => {
     });
 
     const tasks = createAiSchedules({ transport, now: () => NOW });
-    await tasks.create("o1", {
-      title: "Digest",
-      prompt: "Summarize",
-      cron: "0 9 * * *",
-      timezone: "Europe/Amsterdam",
-      chatId: null,
-      agentId: "a1",
+    await tasks.create({
+      organizationId: "o1",
+      task: {
+        title: "Digest",
+        prompt: "Summarize",
+        cron: "0 9 * * *",
+        timezone: "Europe/Amsterdam",
+        chatId: null,
+        agentId: "a1",
+      },
     });
     expect(calls[0]?.args).toEqual({
       tenant: "o1",
@@ -91,12 +94,20 @@ describe("createAiSchedules", () => {
       },
       next_run_at: "2026-01-02T08:00:00Z",
     });
-    await tasks.update("o1", "t1", { title: "New" });
+    await tasks.update({
+      organizationId: "o1",
+      taskId: "t1",
+      fields: { title: "New" },
+    });
     expect(calls[1]?.args["next_run_at"]).toBeUndefined();
-    await tasks.update("o1", "t1", { cron: "30 minutes" });
+    await tasks.update({
+      organizationId: "o1",
+      taskId: "t1",
+      fields: { cron: "30 minutes" },
+    });
     expect(calls[2]?.args["next_run_at"]).toBe("2026-01-01T10:45:00Z");
-    await tasks.pause("o1", "t1");
-    await tasks.resume("o1", "t1");
+    await tasks.pause({ organizationId: "o1", taskId: "t1" });
+    await tasks.resume({ organizationId: "o1", taskId: "t1" });
     expect(calls.slice(3).map(({ args }) => args["fields"])).toEqual([
       { enabled: false },
       { enabled: true },
@@ -107,14 +118,19 @@ describe("createAiSchedules", () => {
     const { transport, calls } = fakeTransport({});
     const tasks = createAiSchedules({ transport, now: () => NOW });
 
-    const bad = await tasks.create("o1", {
-      title: "x",
-      prompt: "y",
-      cron: "every tuesday",
+    const bad = await tasks.create({
+      organizationId: "o1",
+      task: { title: "x", prompt: "y", cron: "every tuesday" },
     });
 
     expect(bad.ok ? undefined : bad.error.hint).toBe("AI_TASK_INVALID");
-    const zoneOnly = await tasks.update("o1", "t1", { timezone: "UTC" });
+
+    const zoneOnly = await tasks.update({
+      organizationId: "o1",
+      taskId: "t1",
+      fields: { timezone: "UTC" },
+    });
+
     expect(zoneOnly.ok ? undefined : zoneOnly.error.message).toContain(
       "together",
     );
@@ -135,13 +151,17 @@ describe("createAiSchedules", () => {
     });
 
     const tasks = createAiSchedules({ transport });
-    const [task] = await tasks.list("o1", { all: true }).orThrow();
+
+    const [task] = await tasks
+      .list({ organizationId: "o1", all: true })
+      .orThrow();
+
     expect(task?.lastRun).toMatchObject({ chatId: "c1", status: "completed" });
     expect(task?.enabled).toBe(false);
-    const [run] = await tasks.runs("t1", { limit: 2 }).orThrow();
+    const [run] = await tasks.runs({ taskId: "t1", limit: 2 }).orThrow();
     expect(run).toMatchObject({ status: "failed", error: "boom" });
     expect(await tasks.remove("t1").orThrow()).toBe(true);
-    await tasks.list("o1");
+    await tasks.list({ organizationId: "o1" });
     expect(calls.map(({ args }) => args)).toEqual([
       { tenant: "o1", mine: false },
       { task_id: "t1", max_rows: 2 },
@@ -228,11 +248,14 @@ describe("createAiSchedules", () => {
     });
 
     expect(await tasks.drain({ batch: 1 }).orThrow()).toBe(1);
-    expect(send).toHaveBeenCalledWith("ai_task.finished", {
-      recipients: ["u1"],
-      tenant: "o1",
-      key: "ai-task-run:r1",
-      data: { taskId: "t1", runId: "r1", ok: false, error: "model down" },
+    expect(send).toHaveBeenCalledWith({
+      type: "ai_task.finished",
+      input: {
+        recipients: ["u1"],
+        tenant: "o1",
+        key: "ai-task-run:r1",
+        data: { taskId: "t1", runId: "r1", ok: false, error: "model down" },
+      },
     });
     const silent = vi.fn();
     await createAiSchedules({
@@ -320,7 +343,10 @@ describe("createAiSchedules", () => {
       now: () => NOW,
     });
 
-    const task = await tasks.resume("o1", "t1").orThrow();
+    const task = await tasks
+      .resume({ organizationId: "o1", taskId: "t1" })
+      .orThrow();
+
     expect(task.nextRunAt?.toString()).toBe("2026-01-02T09:00:00Z");
     expect(service.calls[0]?.args).toEqual({
       items: { items: [{ id: "t1", next_run_at: "2026-01-02T09:00:00Z" }] },
@@ -333,7 +359,7 @@ describe("createAiSchedules", () => {
     await createAiSchedules({
       transport: paused.transport,
       service: service.transport,
-    }).pause("o1", "t1");
+    }).pause({ organizationId: "o1", taskId: "t1" });
     expect(service.calls).toHaveLength(1);
   });
 
@@ -346,7 +372,7 @@ describe("createAiSchedules", () => {
     const result = await createAiSchedules({
       transport: service.transport,
       run: () => Promise.resolve(),
-    }).execute("r1");
+    }).execute({ runId: "r1" });
 
     expect(result.ok).toBe(false);
   });

@@ -1864,7 +1864,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:b6ee5b4e64b129f74d7bb0c4e0aa23bfeea38a4617889f97fc32f2e7762dfba0
+-- @bsb-hash sha256:8697c923c255847a6e7621d4175292cdf8b183140f1c82e403e5282bc1f81eff
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3787,6 +3787,19 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_size
 create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_list', event_prefix => 'pick_list', deferred => true);
+  perform better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
+  perform better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
+  perform better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
+  perform better_supabase.audit('better_supabase.putaway_rules', target_type => 'putaway_rule', event_prefix => 'putaway_rule', deferred => true);
+  perform better_supabase.audit('better_supabase.bin_slots', target_type => 'bin_slot', event_prefix => 'bin_slot', deferred => true);
+  perform better_supabase.audit('better_supabase.variant_sizes', target_type => 'variant_size', event_prefix => 'variant_size', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

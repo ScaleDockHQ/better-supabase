@@ -96,7 +96,7 @@ describe.skipIf(!live)("drive controlled documents", () => {
           [attachment, owner.id],
         );
         await s.as(owner);
-        await drive.commit(node, attachment).orThrow();
+        await drive.commit({ id: node, attachmentId: attachment }).orThrow();
       };
 
       const readable = async (attachment: Attachment) => {
@@ -137,9 +137,9 @@ describe.skipIf(!live)("drive controlled documents", () => {
       const approveRelease = async () => {
         const pending = await pendingRelease();
         await s.as(first);
-        await approvals.approve(pending).orThrow();
+        await approvals.approve({ id: pending }).orThrow();
         await s.as(second);
-        await approvals.approve(pending).orThrow();
+        await approvals.approve({ id: pending }).orThrow();
         await s.as(owner);
       };
 
@@ -163,10 +163,13 @@ describe.skipIf(!live)("drive controlled documents", () => {
 
       await s.as(owner);
       expect(
-        (await drive.saveDocument(file, { type: "form" })).error?.hint,
+        (await drive.saveDocument({ id: file, document: { type: "form" } }))
+          .error?.hint,
       ).toBe("DRIVE_DOCUMENT_TYPE_UNKNOWN");
 
-      const saved = await drive.saveDocument(file, { type: "sop" }).orThrow();
+      const saved = await drive
+        .saveDocument({ id: file, document: { type: "sop" } })
+        .orThrow();
 
       expect(saved.document).toMatchObject({
         number: "DOC-00001",
@@ -185,8 +188,11 @@ describe.skipIf(!live)("drive controlled documents", () => {
 
       await s.as(owner);
       expect(
-        (await drive.saveDocument(policy.node.id, { type: "policy" }).orThrow())
-          .document?.number,
+        (
+          await drive
+            .saveDocument({ id: policy.node.id, document: { type: "policy" } })
+            .orThrow()
+        ).document?.number,
       ).toBe("POL-001");
 
       await s.asRole(reader);
@@ -204,26 +210,31 @@ describe.skipIf(!live)("drive controlled documents", () => {
       expect(await readable(created.attachment)).toBe(false);
 
       const submitted = await drive
-        .submitDocument(file, { reason: "First issue" })
+        .submitDocument({ id: file, reason: "First issue" })
         .orThrow();
 
       expect(submitted.document?.status).toBe("in_review");
-      expect((await drive.submitDocument(file)).error?.hint).toBe(
+      expect((await drive.submitDocument({ id: file })).error?.hint).toBe(
         "DRIVE_DOCUMENT_STATUS_INVALID",
       );
       expect(
-        (await drive.releaseDocument(file, created.attachment.id)).error?.hint,
+        (
+          await drive.releaseDocument({
+            id: file,
+            attachmentId: created.attachment.id,
+          })
+        ).error?.hint,
       ).toBe("DRIVE_FORBIDDEN");
 
       const pending = await pendingRelease();
       await s.as(first);
-      await approvals.approve(pending).orThrow();
+      await approvals.approve({ id: pending }).orThrow();
       await s.as(owner);
       expect((await drive.get(file).orThrow()).document?.status).toBe(
         "in_review",
       );
       await s.as(second);
-      await approvals.approve(pending).orThrow();
+      await approvals.approve({ id: pending }).orThrow();
       await s.as(owner);
 
       const released = (await drive.get(file).orThrow()).document;
@@ -278,13 +289,18 @@ describe.skipIf(!live)("drive controlled documents", () => {
       );
       await s.as(owner);
       expect(
-        (await drive.documents(tenant, { reviewDue: true }).orThrow()).map(
-          (node) => node.id,
-        ),
+        (
+          await drive
+            .documents({ organizationId: tenant, filters: { reviewDue: true } })
+            .orThrow()
+        ).map((node) => node.id),
       ).toEqual([file]);
       expect(
         await drive
-          .documents(tenant, { search: "doc-0000", type: "sop" })
+          .documents({
+            organizationId: tenant,
+            filters: { search: "doc-0000", type: "sop" },
+          })
           .orThrow(),
       ).toHaveLength(1);
       expect(
@@ -298,13 +314,13 @@ describe.skipIf(!live)("drive controlled documents", () => {
       await s.as(owner);
 
       const revise = await drive
-        .reviewDocument(file, "revise", "Steps changed")
+        .reviewDocument({ id: file, outcome: "revise", note: "Steps changed" })
         .orThrow();
 
       expect(revise.document?.status).toBe("effective");
 
       const resubmitted = await drive
-        .submitDocument(file, { attachmentId: revision.attachment.id })
+        .submitDocument({ id: file, attachmentId: revision.attachment.id })
         .orThrow();
 
       expect(resubmitted.document?.status).toBe("effective");
@@ -338,15 +354,21 @@ describe.skipIf(!live)("drive controlled documents", () => {
       await s.as(owner);
 
       const obsolete = await drive
-        .obsoleteDocument(file, "Replaced by DOC-00002")
+        .obsoleteDocument({ id: file, reason: "Replaced by DOC-00002" })
         .orThrow();
 
       expect(obsolete.document?.status).toBe("obsolete");
       expect(
-        (await drive.saveDocument(file, { type: "sop" })).error?.hint,
+        (await drive.saveDocument({ id: file, document: { type: "sop" } }))
+          .error?.hint,
       ).toBe("DRIVE_DOCUMENT_STATUS_INVALID");
       expect(
-        await drive.documents(tenant, { status: "obsolete" }).orThrow(),
+        await drive
+          .documents({
+            organizationId: tenant,
+            filters: { status: "obsolete" },
+          })
+          .orThrow(),
       ).toHaveLength(1);
     } finally {
       await s.close();

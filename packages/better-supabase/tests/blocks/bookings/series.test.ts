@@ -134,11 +134,11 @@ describe("bookings series client", () => {
     });
 
     const booked = await bookings
-      .bookSeries(
-        "s1",
-        "r1",
-        at("2030-03-18T08:00:00Z"),
-        {
+      .bookSeries({
+        serviceId: "s1",
+        resourceId: "r1",
+        startsAt: at("2030-03-18T08:00:00Z"),
+        rule: {
           freq: "weekly",
           weekdays: [1, 3],
           count: 4,
@@ -146,9 +146,9 @@ describe("bookings series client", () => {
           until: at("2030-04-01T00:00:00Z"),
           tz: "Europe/Amsterdam",
         },
-        { email: "bo@example.test" },
-        { skipConflicts: true },
-      )
+        customer: { email: "bo@example.test" },
+        skipConflicts: true,
+      })
       .orThrow();
 
     expect(calls).toEqual([
@@ -185,7 +185,12 @@ describe("bookings series client", () => {
     });
 
     const booked = await bookings
-      .bookSeries("s1", "r1", at("2030-03-18T08:00:00Z"), { freq: "daily" })
+      .bookSeries({
+        serviceId: "s1",
+        resourceId: "r1",
+        startsAt: at("2030-03-18T08:00:00Z"),
+        rule: { freq: "daily" },
+      })
       .orThrow();
 
     expect(calls[0]?.[1]).toMatchObject({
@@ -204,14 +209,20 @@ describe("bookings series client", () => {
     });
 
     expect(
-      await bookings.reschedule("b1", at("2030-03-18T10:00:00Z")).orThrow(),
+      await bookings
+        .reschedule({ bookingId: "b1", startsAt: at("2030-03-18T10:00:00Z") })
+        .orThrow(),
     ).toHaveLength(1);
     await bookings
-      .reschedule("b1", at("2030-03-18T10:00:00Z"), { scope: "following" })
+      .reschedule({
+        bookingId: "b1",
+        startsAt: at("2030-03-18T10:00:00Z"),
+        scope: "following",
+      })
       .orThrow();
-    expect(await bookings.cancelSeries("b1").orThrow()).toBe(3);
+    expect(await bookings.cancelSeries({ bookingId: "b1" }).orThrow()).toBe(3);
     await bookings
-      .cancelSeries("b1", { scope: "one", reason: "ill" })
+      .cancelSeries({ bookingId: "b1", scope: "one", reason: "ill" })
       .orThrow();
     const series = await bookings.series("sr1").orThrow();
     expect(series.bookings.map((booking) => booking.id)).toEqual(["b1"]);

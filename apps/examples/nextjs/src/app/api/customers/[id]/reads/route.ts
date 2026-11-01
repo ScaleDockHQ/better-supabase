@@ -5,5 +5,5 @@ import { bsb } from "../../../../../lib/supabase/server";
  * log `subjects.customer.auditReads` keeps.
  */
 export const GET = bsb.route<{ id: string }>((_request, { db, params }) =>
-  db.subjects.reads.list({ type: "customer", id: params.id }),
+  db.subjects.reads.list({ subject: { type: "customer", id: params.id } }),
 );

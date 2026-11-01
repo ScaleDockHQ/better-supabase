@@ -68,19 +68,21 @@ describe("durable steps", () => {
     expect(calls[0]).toEqual({
       name: "saveAssistant",
       args: [
-        "c1",
-        message,
         {
-          parentId: "u1",
-          status: "complete",
-          model: "openai/gpt-5",
-          format: AI_SDK_UI_FORMAT,
-          native: {
-            id: "m1",
-            role: "assistant",
-            parts: [{ type: "text", text: "Hi", state: "done" }],
+          chatId: "c1",
+          message,
+          options: {
+            parentId: "u1",
+            status: "complete",
+            model: "openai/gpt-5",
+            format: AI_SDK_UI_FORMAT,
+            native: {
+              id: "m1",
+              role: "assistant",
+              parts: [{ type: "text", text: "Hi", state: "done" }],
+            },
+            runId: "run1",
           },
-          runId: "run1",
         },
       ],
     });
@@ -119,26 +121,30 @@ describe("durable steps", () => {
     });
     expect(calls.map((call) => call.args)).toEqual([
       [
-        "c1",
         {
-          approvalId: "a1",
-          tool: "rm",
-          toolCallId: "t1",
-          input: {},
-          runId: "run1",
-          messageId: "m1",
+          chatId: "c1",
+          request: {
+            approvalId: "a1",
+            tool: "rm",
+            toolCallId: "t1",
+            input: {},
+            runId: "run1",
+            messageId: "m1",
+          },
         },
       ],
       [
-        "c1",
         {
-          approvalId: "a2",
-          tool: "rm",
-          toolCallId: "t2",
-          input: { p: 1 },
-          runId: "run1",
-          messageId: "m1",
-          signature: "sig",
+          chatId: "c1",
+          request: {
+            approvalId: "a2",
+            tool: "rm",
+            toolCallId: "t2",
+            input: { p: 1 },
+            runId: "run1",
+            messageId: "m1",
+            signature: "sig",
+          },
         },
       ],
     ]);
@@ -155,7 +161,9 @@ describe("durable steps", () => {
       { approvalId: "a1", approved: true },
       { approvalId: "a2", approved: false, reason: "no" },
     ]);
-    expect(calls[0]?.args).toEqual(["c1", ["a1", "a2", "a3"]]);
+    expect(calls[0]?.args).toEqual([
+      { chatId: "c1", approvalIds: ["a1", "a2", "a3"] },
+    ]);
   });
 
   it("releases the segment and backfills a missing cost", async () => {
@@ -182,9 +190,9 @@ describe("durable steps", () => {
       { enqueueCostBackfill },
     );
     expect(calls[0]?.args).toEqual([
-      "c1",
-      "s1",
       {
+        chatId: "c1",
+        streamId: "s1",
         status: "completed",
         usage: {
           inputTokens: 1,
@@ -212,7 +220,10 @@ describe("durable steps", () => {
       status: "failed",
       error: "down",
     });
-    expect(calls[0]?.args[2]).toEqual({ status: "failed", error: "down" });
+    expect(calls[0]?.args[0]).toMatchObject({
+      status: "failed",
+      error: "down",
+    });
     expect(enqueueCostBackfill).not.toHaveBeenCalled();
   });
 });

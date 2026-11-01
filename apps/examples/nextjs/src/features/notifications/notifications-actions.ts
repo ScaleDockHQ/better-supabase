@@ -24,11 +24,14 @@ export const notifyMe = bsb.action(
       return err(dbError("unauthorized", "Sign in to get notifications"));
     }
 
-    const sent = await db.notifications.send("test.sent", {
-      tenant,
-      recipients: [auth.user.id],
-      includeActor: true,
-      data: { title },
+    const sent = await db.notifications.send({
+      type: "test.sent",
+      input: {
+        tenant,
+        recipients: [auth.user.id],
+        includeActor: true,
+        data: { title },
+      },
     });
 
     if (!sent.ok) {

@@ -18,6 +18,12 @@
     "clinical-decision-support",
     "e-prescribing",
     "passes",
-    "enrollments"
+    "enrollments",
+    "care",
+    "events",
+    "learning",
+    "people",
+    "recruiting",
+    "scheduling"
   ]
 }

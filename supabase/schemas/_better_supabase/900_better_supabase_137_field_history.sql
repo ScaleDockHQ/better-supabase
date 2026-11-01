@@ -1,6 +1,6 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:da4254935c2dd80929b538bef1a75446af956cc0605a5e75e0ecf9f8cca97f61
+-- @bsb-hash sha256:49fecc541638a86a71c7c7aeef9a4af704779f3cf60fe5f1e9e39446d4327620
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,29 @@ drop policy if exists field_changes_read on "better_supabase"."field_changes";
 create policy field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+
+-- Keeps the old and new value of each watched column of a work_item on update.
+create or replace function better_supabase.bsb_field_history_work_item()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."field_changes" ("tenant_id", "subject_type", "subject_id", "field", "old_value", "new_value", "changed_by")
+  select new."tenant_id", 'work_item', new."id"::text, x.field, x.old_value, x.new_value, auth.uid()
+  from (values
+      ('title', to_jsonb(old."title"), to_jsonb(new."title")),
+      ('body', to_jsonb(old."body"), to_jsonb(new."body"))
+  ) as x (field, old_value, new_value)
+  where x.old_value is distinct from x.new_value;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_field_history_work_item() from public, anon, authenticated;
+drop trigger if exists bsb_field_history_work_item on "better_supabase"."work_items";
+create trigger bsb_field_history_work_item after update of "title", "body" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_field_history_work_item();
 
 -- Keeps the old and new value of each watched column of a deal on update.
 create or replace function better_supabase.bsb_field_history_deal()

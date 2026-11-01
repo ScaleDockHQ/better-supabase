@@ -141,17 +141,17 @@ export interface Metrics<
    * One point per bucket of `range`, gaps filled. Checked against the metric's
    * permission.
    */
-  series<K extends MetricKey<M>>(
-    metric: K,
-    range: MetricRange,
-    options: MetricSeriesOptions<MetricDimension<M, K>>,
-  ): AsyncResult<MetricSeries>;
+  series<K extends MetricKey<M>>(input: {
+    metric: K;
+    range: MetricRange;
+    options: MetricSeriesOptions<MetricDimension<M, K>>;
+  }): AsyncResult<MetricSeries>;
   /** The total over `range`, for a stat card. */
-  kpi<K extends MetricKey<M>>(
-    metric: K,
-    range: MetricRange,
-    options: MetricReadOptions<MetricDimension<M, K>>,
-  ): AsyncResult<Kpi>;
+  kpi<K extends MetricKey<M>>(input: {
+    metric: K;
+    range: MetricRange;
+    options: MetricReadOptions<MetricDimension<M, K>>;
+  }): AsyncResult<Kpi>;
   definitions(): AsyncResult<readonly MetricInfo[]>;
   /**
    * Re-aggregates the rollups of a window, so late or changed rows land.
@@ -316,7 +316,7 @@ export function createMetrics<
     );
 
   const client: Metrics<M> = {
-    series(metric, range, read) {
+    series({ metric, range, options: read }) {
       const grain = read.grain ?? "day";
 
       return readSeries(metric, range, read, grain).andThen((points) =>
@@ -327,7 +327,7 @@ export function createMetrics<
           : AsyncResult.ok({ metric, grain, range, points }),
       );
     },
-    kpi(metric, range, read) {
+    kpi({ metric, range, options: read }) {
       return readValue(metric, range, read).andThen((current) =>
         read.compare === "previous"
           ? readValue(metric, previousRange(range), read).map((before) => ({

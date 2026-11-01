@@ -42,7 +42,7 @@ export const dispatchBinding: RecordBinding<
     cancel: {
       input: recordRowInput,
       run: (client: Dispatch, _subject, { id }: RecordRowInput) =>
-        client.setStatus(id, "cancelled"),
+        client.setStatus({ id, status: "cancelled" }),
     },
   },
 });

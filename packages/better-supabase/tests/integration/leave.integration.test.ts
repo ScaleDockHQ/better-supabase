@@ -34,18 +34,24 @@ describe.skipIf(!live)("leave", () => {
       await s.as(ada);
       expect(
         await leave
-          .saveType(tenant, { key: "vacation", name: "Vacation" })
+          .saveType({
+            organizationId: tenant,
+            input: { key: "vacation", name: "Vacation" },
+          })
           .then(hint),
       ).toBe("LEAVE_FORBIDDEN");
 
       await s.as(owner);
 
       const vacation = await leave
-        .saveType(tenant, {
-          key: "vacation",
-          name: "Vacation",
-          allowance: 25,
-          carryoverMax: 5,
+        .saveType({
+          organizationId: tenant,
+          input: {
+            key: "vacation",
+            name: "Vacation",
+            allowance: 25,
+            carryoverMax: 5,
+          },
         })
         .orThrow();
 
@@ -56,19 +62,25 @@ describe.skipIf(!live)("leave", () => {
       });
       expect(
         await leave
-          .accrue(tenant, {
-            typeId: vacation.id,
-            period: 2027,
-            idempotencyKey: "2027",
+          .accrue({
+            organizationId: tenant,
+            accrual: {
+              typeId: vacation.id,
+              period: 2027,
+              idempotencyKey: "2027",
+            },
           })
           .orThrow(),
       ).toBe(2);
       expect(
         await leave
-          .accrue(tenant, {
-            typeId: vacation.id,
-            period: 2027,
-            idempotencyKey: "2027",
+          .accrue({
+            organizationId: tenant,
+            accrual: {
+              typeId: vacation.id,
+              period: 2027,
+              idempotencyKey: "2027",
+            },
           })
           .orThrow(),
       ).toBe(0);
@@ -76,7 +88,10 @@ describe.skipIf(!live)("leave", () => {
       await s.as(stranger);
       expect(
         await leave
-          .request(tenant, { typeId: vacation.id, startsOn: day("2027-03-01") })
+          .request({
+            organizationId: tenant,
+            input: { typeId: vacation.id, startsOn: day("2027-03-01") },
+          })
           .then(hint),
       ).toBe("LEAVE_FORBIDDEN");
 
@@ -84,42 +99,54 @@ describe.skipIf(!live)("leave", () => {
 
       // Monday to Sunday counts the five working days.
       const week = await leave
-        .request(tenant, {
-          typeId: vacation.id,
-          startsOn: day("2027-03-01"),
-          endsOn: day("2027-03-07"),
-          note: "Ski trip",
+        .request({
+          organizationId: tenant,
+          input: {
+            typeId: vacation.id,
+            startsOn: day("2027-03-01"),
+            endsOn: day("2027-03-07"),
+            note: "Ski trip",
+          },
         })
         .orThrow();
 
       expect(week).toMatchObject({ amount: 5, status: "pending" });
       expect(
         await leave
-          .request(tenant, { typeId: vacation.id, startsOn: day("2027-03-03") })
+          .request({
+            organizationId: tenant,
+            input: { typeId: vacation.id, startsOn: day("2027-03-03") },
+          })
           .then(hint),
       ).toBe("LEAVE_OVERLAP");
       expect(
         await leave
-          .request(tenant, {
-            typeId: vacation.id,
-            startsOn: day("2027-04-01"),
-            endsOn: day("2027-05-31"),
+          .request({
+            organizationId: tenant,
+            input: {
+              typeId: vacation.id,
+              startsOn: day("2027-04-01"),
+              endsOn: day("2027-05-31"),
+            },
           })
           .then(hint),
       ).toBe("LEAVE_BALANCE_EXCEEDED");
 
       const half = await leave
-        .request(tenant, {
-          typeId: vacation.id,
-          startsOn: day("2027-03-10"),
-          partial: "morning",
+        .request({
+          organizationId: tenant,
+          input: {
+            typeId: vacation.id,
+            startsOn: day("2027-03-10"),
+            partial: "morning",
+          },
         })
         .orThrow();
 
       expect(half.amount).toBe(0.5);
 
       const [pending] = await leave
-        .balances(tenant, { period: 2027 })
+        .balances({ organizationId: tenant, period: 2027 })
         .orThrow();
 
       expect(pending).toMatchObject({
@@ -137,7 +164,9 @@ describe.skipIf(!live)("leave", () => {
         half.approvalId,
       ]);
 
-      const requests = await leave.list(tenant, { everyone: true }).orThrow();
+      const requests = await leave
+        .list({ organizationId: tenant, everyone: true })
+        .orThrow();
 
       expect(requests.map((request) => [request.id, request.status])).toEqual([
         [week.id, "approved"],
@@ -146,18 +175,28 @@ describe.skipIf(!live)("leave", () => {
 
       await s.as(ada);
       expect(
-        (await leave.balances(tenant, { period: 2027 }).orThrow())[0],
+        (
+          await leave
+            .balances({ organizationId: tenant, period: 2027 })
+            .orThrow()
+        )[0],
       ).toMatchObject({ taken: 5, pending: 0, available: 20 });
-      expect(await leave.list(tenant, { everyone: true }).then(hint)).toBe(
-        "LEAVE_FORBIDDEN",
-      );
+      expect(
+        await leave.list({ organizationId: tenant, everyone: true }).then(hint),
+      ).toBe("LEAVE_FORBIDDEN");
 
       expect((await leave.cancel(week.id).orThrow()).status).toBe("cancelled");
       expect(
-        (await leave.balances(tenant, { period: 2027 }).orThrow())[0],
+        (
+          await leave
+            .balances({ organizationId: tenant, period: 2027 })
+            .orThrow()
+        )[0],
       ).toMatchObject({ taken: 0, available: 25 });
 
-      const kinds = await leave.ledger(tenant, { period: 2027 }).orThrow();
+      const kinds = await leave
+        .ledger({ organizationId: tenant, period: 2027 })
+        .orThrow();
 
       // One transaction gives every entry the same created_at, so compare unordered.
       expect(
@@ -195,27 +234,41 @@ describe.skipIf(!live)("leave", () => {
       await s.as(owner);
 
       const vacation = await leave
-        .saveType(tenant, {
-          key: "vacation",
-          name: "Vacation",
-          carryoverMax: 5,
+        .saveType({
+          organizationId: tenant,
+          input: { key: "vacation", name: "Vacation", carryoverMax: 5 },
         })
         .orThrow();
 
       await leave
-        .adjust(tenant, {
-          userId: ada.id,
-          typeId: vacation.id,
-          amount: 12,
-          period: 2026,
-          kind: "grant",
+        .adjust({
+          organizationId: tenant,
+          adjustment: {
+            userId: ada.id,
+            typeId: vacation.id,
+            amount: 12,
+            period: 2026,
+            kind: "grant",
+          },
         })
         .orThrow();
-      expect(await leave.closePeriod(tenant, 2026).orThrow()).toBe(3);
-      expect(await leave.closePeriod(tenant, 2026).orThrow()).toBe(0);
+      expect(
+        await leave
+          .closePeriod({ organizationId: tenant, period: 2026 })
+          .orThrow(),
+      ).toBe(3);
+      expect(
+        await leave
+          .closePeriod({ organizationId: tenant, period: 2026 })
+          .orThrow(),
+      ).toBe(0);
 
       const balance = async (period: number) =>
-        (await leave.balances(tenant, { userId: ada.id, period }).orThrow())[0];
+        (
+          await leave
+            .balances({ organizationId: tenant, userId: ada.id, period })
+            .orThrow()
+        )[0];
 
       expect((await balance(2026))?.available).toBe(0);
       expect((await balance(2027))?.available).toBe(5);
@@ -238,23 +291,29 @@ describe.skipIf(!live)("leave", () => {
       await s.as(owner);
 
       const appointments = await leave
-        .saveType(tenant, { key: "doctor", name: "Doctor", unit: "hours" })
+        .saveType({
+          organizationId: tenant,
+          input: { key: "doctor", name: "Doctor", unit: "hours" },
+        })
         .orThrow();
 
       expect(
         await leave
-          .request(tenant, {
-            typeId: appointments.id,
-            startsOn: day("2027-02-02"),
+          .request({
+            organizationId: tenant,
+            input: { typeId: appointments.id, startsOn: day("2027-02-02") },
           })
           .then(hint),
       ).toBe("LEAVE_INVALID");
 
       const visit = await leave
-        .request(tenant, {
-          typeId: appointments.id,
-          startsOn: day("2027-02-02"),
-          hours: 2.5,
+        .request({
+          organizationId: tenant,
+          input: {
+            typeId: appointments.id,
+            startsOn: day("2027-02-02"),
+            hours: 2.5,
+          },
         })
         .orThrow();
 

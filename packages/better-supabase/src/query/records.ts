@@ -97,7 +97,7 @@ export interface RecordQueriesOptions extends QueriesOptions {
    * Without it every flag is `true` and RLS decides.
    */
   readonly access?: {
-    permissions(keys: readonly string[]): AsyncResult<PermissionSet>;
+    permissions(input: { keys: readonly string[] }): AsyncResult<PermissionSet>;
   };
 }
 
@@ -240,7 +240,7 @@ export function recordQueries<
           const set =
             options.access === undefined || keys.length === 0
               ? undefined
-              : await unwrap(options.access.permissions(keys));
+              : await unwrap(options.access.permissions({ keys }));
 
           return recordCan<B, N>(feature, set);
         },

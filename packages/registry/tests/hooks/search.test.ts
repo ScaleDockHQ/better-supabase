@@ -261,8 +261,8 @@ describe("useCommandSearch", () => {
     await view.result.select({ ...item("n1"), score: 1 } as never);
     expect(view.result.open).toBe(false);
     expect(view.result.query).toBe("");
-    await view.result.star(item("n1"));
-    await view.result.star(item("n1"), false);
+    await view.result.star({ item: item("n1") });
+    await view.result.star({ item: item("n1"), starred: false });
     expect(
       rpc.calls
         .filter(
@@ -281,7 +281,7 @@ describe("useCommandSearch", () => {
 
     await view.result.select(item("n1"));
     expect(view.result.error?.message).toBe("denied");
-    await view.result.star(item("n2"));
+    await view.result.star({ item: item("n2") });
     expect(view.result.error?.message).toBe("denied");
     view.unmount();
   });

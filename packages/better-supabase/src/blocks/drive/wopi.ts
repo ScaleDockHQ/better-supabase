@@ -47,8 +47,7 @@ export interface WopiHost {
    * milliseconds it stops working (`access_token_ttl`).
    */
   token(
-    claims: WopiTokenClaims,
-    options?: { readonly ttlSeconds?: number },
+    input: { claims: WopiTokenClaims } & { readonly ttlSeconds?: number },
   ): Promise<{ readonly accessToken: string; readonly accessTokenTtl: number }>;
   /** Answers a WOPI request; mount it on any route that passes a `Request`. */
   handle(request: Request): Promise<Response>;
@@ -212,10 +211,10 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
     }
   }
 
-  async function token(
-    claims: WopiTokenClaims,
-    tokenOptions: { readonly ttlSeconds?: number } = {},
-  ) {
+  async function token({
+    claims,
+    ...tokenOptions
+  }: { claims: WopiTokenClaims } & { readonly ttlSeconds?: number }) {
     const expires =
       clock() + (tokenOptions.ttlSeconds ?? DEFAULT_TTL_SECONDS) * 1000;
 
@@ -259,7 +258,7 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
   });
 
   async function getFile(drive: WopiDrive, id: string): Promise<Response> {
-    const download = await drive.download(id);
+    const download = await drive.download({ id });
 
     if (!download.ok) {
       return fromError(download.error);
@@ -318,9 +317,9 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
 
     const mimeType = node.data.file?.mimeType ?? "application/octet-stream";
 
-    const upload = await drive.uploadRevision(claims.fileId, {
-      mimeType,
-      size: body.byteLength,
+    const upload = await drive.uploadRevision({
+      id: claims.fileId,
+      file: { mimeType, size: body.byteLength },
     });
 
     if (!upload.ok) {
@@ -337,10 +336,10 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
       return reply(500);
     }
 
-    const committed = await drive.commit(
-      claims.fileId,
-      upload.data.attachment.id,
-    );
+    const committed = await drive.commit({
+      id: claims.fileId,
+      attachmentId: upload.data.attachment.id,
+    });
 
     return committed.ok
       ? reply(200, version(committed.data))
@@ -379,7 +378,8 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
     }
 
     const take = async (): Promise<Response> => {
-      const locked = await drive.lock(claims.fileId, {
+      const locked = await drive.lock({
+        id: claims.fileId,
         until: temporal().Instant.fromEpochMilliseconds(clock() + lockMs),
         note: `${LOCK_PREFIX}${lockId}`,
       });
@@ -403,7 +403,7 @@ export function createWopiHost(options: WopiHostOptions): WopiHost {
           return mismatch();
         }
 
-        const unlocked = await drive.unlock(claims.fileId);
+        const unlocked = await drive.unlock({ id: claims.fileId });
 
         return unlocked.ok
           ? reply(200, version(unlocked.data))

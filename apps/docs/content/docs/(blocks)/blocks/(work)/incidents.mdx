@@ -217,16 +217,22 @@ the Cyber Resilience Act (Regulation (EU) 2024/2847). The pins are in
 
 ```ts
 const profile = await db.incidents
-  .saveRegulatoryProfile(incident.id, {
-    regimes: ["nis2", "cra"],
-    awareAt: Temporal.Instant.from("2026-11-01T09:00:00Z"),
-    activelyExploited: true,
+  .saveRegulatoryProfile({
+    incidentId: incident.id,
+    input: {
+      regimes: ["nis2", "cra"],
+      awareAt: Temporal.Instant.from("2026-11-01T09:00:00Z"),
+      activelyExploited: true,
+    },
   })
   .orThrow();
 
 await db.incidents
-  .submitFiling(incident.id, "nis2", "early_warning", {
-    reference: "CSIRT-2026-0412",
+  .submitFiling({
+    incidentId: incident.id,
+    regime: "nis2",
+    stage: "early_warning",
+    input: { reference: "CSIRT-2026-0412" },
   })
   .orThrow();
 ```
@@ -294,3 +300,7 @@ await incidents
   .saveComponent(organizationId, { name: "Primary database", public: false })
   .orThrow();
 ```
+
+## Resolve an incident
+
+`resolve({ incidentId, body })` posts a `resolved` update, which also sets the incident's `resolvedAt`.

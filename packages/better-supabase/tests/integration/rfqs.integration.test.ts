@@ -61,53 +61,75 @@ describe.skipIf(!live)("rfqs", () => {
       );
 
       const dock = await inventory
-        .saveLocation(org, { code: "DOCK", name: "Dock" })
+        .saveLocation({
+          organizationId: org,
+          input: { code: "DOCK", name: "Dock" },
+        })
         .orThrow();
 
       const cheap = await parties
-        .saveCompany(org, { name: "Cheap bolts" })
+        .saveCompany({ organizationId: org, input: { name: "Cheap bolts" } })
         .orThrow();
 
       const fast = await parties
-        .saveCompany(org, { name: "Fast bolts" })
+        .saveCompany({ organizationId: org, input: { name: "Fast bolts" } })
         .orThrow();
 
-      await parties.setSupplierStatus(cheap.id, "approved").orThrow();
-      await parties.setSupplierStatus(fast.id, "approved").orThrow();
+      await parties
+        .setSupplierStatus({ partyId: cheap.id, status: "approved" })
+        .orThrow();
+      await parties
+        .setSupplierStatus({ partyId: fast.id, status: "approved" })
+        .orThrow();
 
       const rfq = await rfqs
-        .createRfq({ title: "Bolts", currency: "EUR" }, [
-          { description: "Bolt", quantity: 10, variantId: variant.id },
-        ])
+        .createRfq({
+          input: { title: "Bolts", currency: "EUR" },
+          lines: [{ description: "Bolt", quantity: 10, variantId: variant.id }],
+        })
         .orThrow();
 
       const line = rfq.lines[0]!;
 
       const a = await rfqs
-        .inviteSupplier(rfq.id, { type: "company", id: cheap.id })
+        .inviteSupplier({
+          rfqId: rfq.id,
+          supplier: { type: "company", id: cheap.id },
+        })
         .orThrow();
 
       const b = await rfqs
-        .inviteSupplier(rfq.id, { type: "company", id: fast.id })
+        .inviteSupplier({
+          rfqId: rfq.id,
+          supplier: { type: "company", id: fast.id },
+        })
         .orThrow();
 
       expect(
         await rfqs
-          .recordQuote(rfq.id, a.id, [
-            { lineId: line.id, unitAmount: eur(100n) },
-          ])
+          .recordQuote({
+            rfqId: rfq.id,
+            invitationId: a.id,
+            lines: [{ lineId: line.id, unitAmount: eur(100n) }],
+          })
           .then(hint),
       ).toBe("RFQ_STATUS");
 
       await rfqs.openRfq(rfq.id).orThrow();
       await rfqs
-        .recordQuote(rfq.id, a.id, [{ lineId: line.id, unitAmount: eur(100n) }])
+        .recordQuote({
+          rfqId: rfq.id,
+          invitationId: a.id,
+          lines: [{ lineId: line.id, unitAmount: eur(100n) }],
+        })
         .orThrow();
 
       const second = await rfqs
-        .recordQuote(rfq.id, b.id, [
-          { lineId: line.id, unitAmount: eur(120n), leadTimeDays: 2 },
-        ])
+        .recordQuote({
+          rfqId: rfq.id,
+          invitationId: b.id,
+          lines: [{ lineId: line.id, unitAmount: eur(120n), leadTimeDays: 2 }],
+        })
         .orThrow();
 
       const comparison = await rfqs.compare(rfq.id).orThrow();
@@ -117,7 +139,7 @@ describe.skipIf(!live)("rfqs", () => {
       await rfqs.closeRfq(rfq.id).orThrow();
 
       const awarded = await rfqs
-        .award(rfq.id, second.id, { location: dock.id })
+        .award({ rfqId: rfq.id, quoteId: second.id, location: dock.id })
         .orThrow();
 
       expect(awarded.status).toBe("awarded");

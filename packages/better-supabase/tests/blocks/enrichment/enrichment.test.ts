@@ -280,7 +280,7 @@ describe("createEnrichment", () => {
     const enrichment = createEnrichment({ transport, provider });
 
     const result = await enrichment
-      .enrich({ type: "company", id: "c1" })
+      .enrich({ subject: { type: "company", id: "c1" } })
       .orThrow();
 
     expect(result).toMatchObject({
@@ -328,7 +328,7 @@ describe("createEnrichment", () => {
     const enrichment = createEnrichment({ transport, provider, fill: false });
 
     const result = await enrichment
-      .enrich({ type: "person", id: "p1" }, { signal })
+      .enrich({ subject: { type: "person", id: "p1" }, signal })
       .orThrow();
 
     expect(result).toMatchObject({
@@ -366,7 +366,7 @@ describe("createEnrichment", () => {
     const enrichment = createEnrichment({ transport, provider, fill: false });
 
     await enrichment
-      .enrich({ type: "person", id: "p2" }, { fill: true })
+      .enrich({ subject: { type: "person", id: "p2" }, fill: true })
       .orThrow();
     expect(provider.person).toHaveBeenCalledWith({ name: "Bo" });
     expect(call.mock.calls.at(-1)?.[2]).toMatchObject({ fill: true });
@@ -389,7 +389,10 @@ describe("createEnrichment", () => {
 
     const enrichment = createEnrichment({ transport, provider });
 
-    const failed = await enrichment.enrich({ type: "company", id: "c1" });
+    const failed = await enrichment.enrich({
+      subject: { type: "company", id: "c1" },
+    });
+
     expect(failed.error?.kind).toBe("network");
     expect(provider.company).toHaveBeenCalledExactlyOnceWith({
       name: "Acme",
@@ -406,7 +409,10 @@ describe("createEnrichment", () => {
       provider,
     });
 
-    const notFound = await missing.enrich({ type: "company", id: "x" });
+    const notFound = await missing.enrich({
+      subject: { type: "company", id: "x" },
+    });
+
     expect(notFound.ok).toBe(false);
     expect(provider.company).toHaveBeenCalledOnce();
   });

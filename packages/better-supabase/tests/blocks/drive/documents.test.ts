@@ -110,10 +110,9 @@ describe("drive documents", () => {
     const drive = createDrive({ transport: fake });
 
     const saved = await drive
-      .saveDocument("n1", {
-        type: "sop",
-        ownerId: "u1",
-        reviewIntervalMonths: 6,
+      .saveDocument({
+        id: "n1",
+        document: { type: "sop", ownerId: "u1", reviewIntervalMonths: 6 },
       })
       .orThrow();
 
@@ -121,30 +120,41 @@ describe("drive documents", () => {
     expect(saved.document?.effectiveVersionId).toBeUndefined();
     expect(saved.document?.nextReviewOn).toBeUndefined();
 
-    await drive.saveDocument("n1", { type: "sop" }).orThrow();
+    await drive.saveDocument({ id: "n1", document: { type: "sop" } }).orThrow();
 
     const submitted = await drive
-      .submitDocument("n1", { attachmentId: "a2", reason: "Annual update" })
+      .submitDocument({ id: "n1", attachmentId: "a2", reason: "Annual update" })
       .orThrow();
 
     expect(submitted.document?.status).toBe("in_review");
-    await drive.submitDocument("n1").orThrow();
+    await drive.submitDocument({ id: "n1" }).orThrow();
 
-    const released = await drive.releaseDocument("n1", "a2").orThrow();
+    const released = await drive
+      .releaseDocument({ id: "n1", attachmentId: "a2" })
+      .orThrow();
+
     expect(released.document?.effectiveFrom?.toString()).toBe(
       "2026-10-01T00:00:00Z",
     );
     expect(released.document?.nextReviewOn?.toString()).toBe("2027-10-01");
     expect(released.document?.effectiveVersion).toBe(1);
 
-    const obsolete = await drive.obsoleteDocument("n1", "Replaced").orThrow();
+    const obsolete = await drive
+      .obsoleteDocument({ id: "n1", reason: "Replaced" })
+      .orThrow();
+
     expect(obsolete.document?.status).toBe("obsolete");
 
-    await drive.reviewDocument("n1", "unchanged", "Still right").orThrow();
-    await drive.reviewDocument("n1", "revise").orThrow();
+    await drive
+      .reviewDocument({ id: "n1", outcome: "unchanged", note: "Still right" })
+      .orThrow();
+    await drive.reviewDocument({ id: "n1", outcome: "revise" }).orThrow();
 
     const register = await drive
-      .documents("o", { status: "effective", reviewDue: true })
+      .documents({
+        organizationId: "o",
+        filters: { status: "effective", reviewDue: true },
+      })
       .orThrow();
 
     expect(register.map((node) => node.document?.number)).toEqual([
@@ -152,7 +162,7 @@ describe("drive documents", () => {
       undefined,
     ]);
 
-    await drive.documents("o").orThrow();
+    await drive.documents({ organizationId: "o" }).orThrow();
     expect(await drive.notifyDueReviews().orThrow()).toBe(2);
 
     expect(fake.calls).toEqual([
@@ -212,7 +222,7 @@ describe("drive documents", () => {
         attachments: createAttachments({ transport: fake, storage }),
       });
 
-      return (await drive.download("n1").orThrow()).signedUrl;
+      return (await drive.download({ id: "n1" }).orThrow()).signedUrl;
     };
 
     expect(await download({ ...DOCUMENT, effectiveOnly: true })).toBe(

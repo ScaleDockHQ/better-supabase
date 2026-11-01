@@ -54,6 +54,7 @@ import { POLICY_RULES } from "./policies.ts";
 import { REALTIME_RULES } from "./realtime.ts";
 import { REMOVED_API_RULES } from "./removed-apis.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
+import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import {
   catalogOf,
@@ -1137,6 +1138,7 @@ export const RULES: readonly Rule[] = [
   ...HOOK_RULES,
   ...COOKIE_RULES,
   ...NEXT_CACHE_RULES,
+  ...ROUND_TRIP_RULES,
   ...CLAIM_RULES,
   ...REMOVED_API_RULES,
   ...NAMING_RULES,

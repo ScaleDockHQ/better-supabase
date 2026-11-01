@@ -69,6 +69,10 @@ files and `lib/blocks.ts` in one step. `better-supabase add --preset crm`
 applies one to a project you have, and `better-supabase config --preset` shows
 how your config differs from its preset ([CLI](/docs/cli/presets)).
 
+## Composites in presets
+
+A preset can list a [composite](/docs/blocks/catalog-composites) in place of its parts: `saas` stands for the eleven workspace blocks, and the `people` and `field-service` presets list `recruiting` and `service`. `resolvePreset` expands each composite to its parts, so the closure is what the parts alone would give, plus the blocks a composite adds. A test pins that closure for every named preset.
+
 ## Named presets
 
 | Preset             | Group      | Blocks                                                                                                                                                                                                                                                                                                                                  |

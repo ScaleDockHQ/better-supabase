@@ -93,7 +93,10 @@ export function workItemRecurrenceSink(
           continue;
         }
 
-        const repeated = await workItems.repeat(id, next);
+        const repeated = await workItems.repeat({
+          workItemId: id,
+          dueAt: next,
+        });
 
         if (!repeated.ok) {
           throw new Error(

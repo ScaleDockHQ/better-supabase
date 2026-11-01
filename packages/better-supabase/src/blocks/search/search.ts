@@ -90,7 +90,10 @@ export interface Search {
    * `-word`, `or`), prefixes for typeahead and trigram matches for typos. Rows
    * the caller can't read, and trashed rows, are left out.
    */
-  search(q: string, query?: SearchQuery): AsyncResult<readonly SearchHit[]>;
+  search(input: {
+    q: string;
+    query?: SearchQuery | undefined;
+  }): AsyncResult<readonly SearchHit[]>;
   /** The caller's recently opened subjects, newest first. */
   recents(options?: SearchListOptions): AsyncResult<readonly SearchUserItem[]>;
   /** The caller's starred subjects, newest first. */
@@ -98,34 +101,46 @@ export interface Search {
     options?: SearchListOptions,
   ): AsyncResult<readonly SearchUserItem[]>;
   /** Records that the caller opened a subject, for `recents`. */
-  touch(subjectType: string, subjectId: string): AsyncResult<boolean>;
+  touch(input: {
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<boolean>;
   /** Stars or unstars a subject for the caller, for `favorites`. */
-  star(
-    subjectType: string,
-    subjectId: string,
-    starred?: boolean,
-  ): AsyncResult<boolean>;
+  star(input: {
+    subjectType: string;
+    subjectId: string;
+    starred?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** Reads one row into the index again. Service only. */
-  refresh(subjectType: string, subjectId: string): AsyncResult<boolean>;
+  refresh(input: {
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<boolean>;
   /** Drops one subject from the index. Service only. */
-  remove(subjectType: string, subjectId: string): AsyncResult<boolean>;
+  remove(input: {
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<boolean>;
   /** Indexes every row of one type, or of all of them. Service only. */
   reindex(subjectType?: string): AsyncResult<number>;
   /** Documents without an embedding, oldest first. Service only. */
   pendingEmbeddings(limit?: number): AsyncResult<readonly PendingEmbedding[]>;
   /** Stores an embedding unless the text changed. Service only. */
-  setEmbedding(
+  setEmbedding(input: {
     document: Pick<
       PendingEmbedding,
       "subjectType" | "subjectId" | "contentHash"
-    >,
-    embedding: readonly number[],
-  ): AsyncResult<boolean>;
+    >;
+    embedding: readonly number[];
+  }): AsyncResult<boolean>;
   /**
    * Embeds up to `limit` pending documents with `embed` and stores them. Run it
    * from a job or cron. Service only. Resolves to the number stored.
    */
-  embedPending(embed: Embedder, limit?: number): AsyncResult<number>;
+  embedPending(input: {
+    embed: Embedder;
+    limit?: number | undefined;
+  }): AsyncResult<number>;
 }
 
 const vectorArg = (values: readonly number[]): AsyncResult<string> =>
@@ -202,7 +217,10 @@ export function createSearch(options: SearchOptions): Search {
       recordsOf(value, "search_pending_embeddings").map(pendingOf),
     );
 
-  const setEmbedding: Search["setEmbedding"] = (entry, embedding) =>
+  const setEmbedding: Search["setEmbedding"] = ({
+    document: entry,
+    embedding,
+  }) =>
     vectorArg(embedding).andThen((vector) =>
       service(
         "search_set_embedding",
@@ -217,7 +235,7 @@ export function createSearch(options: SearchOptions): Search {
     );
 
   const client: Search = {
-    search: (q, query = {}) =>
+    search: ({ q, query = {} }) =>
       (query.embedding === undefined || query.embedding === null
         ? AsyncResult.ok({})
         : vectorArg(query.embedding).map((vector) => ({
@@ -238,25 +256,25 @@ export function createSearch(options: SearchOptions): Search {
       ),
     recents: list("search_recents"),
     favorites: list("search_favorites"),
-    touch: (subjectType, subjectId) =>
+    touch: ({ subjectType, subjectId }) =>
       call(
         "search_touch",
         { subject_type: subjectType, subject_id: subjectId },
         (value) => value === true,
       ),
-    star: (subjectType, subjectId, starred = true) =>
+    star: ({ subjectType, subjectId, starred = true }) =>
       call(
         "search_star",
         { subject_type: subjectType, subject_id: subjectId, starred },
         (value) => value === true,
       ),
-    refresh: (subjectType, subjectId) =>
+    refresh: ({ subjectType, subjectId }) =>
       service(
         "search_refresh",
         { subject_type: subjectType, subject_id: subjectId },
         (value) => value === true,
       ),
-    remove: (subjectType, subjectId) =>
+    remove: ({ subjectType, subjectId }) =>
       service(
         "search_remove",
         { subject_type: subjectType, subject_id: subjectId },
@@ -266,7 +284,7 @@ export function createSearch(options: SearchOptions): Search {
       service("search_reindex", { subject_type: subjectType ?? null }, Number),
     pendingEmbeddings,
     setEmbedding,
-    embedPending: (embed, limit = 100) =>
+    embedPending: ({ embed, limit = 100 }) =>
       pendingEmbeddings(limit).andThen((pending) =>
         run(async () => {
           if (pending.length === 0) {

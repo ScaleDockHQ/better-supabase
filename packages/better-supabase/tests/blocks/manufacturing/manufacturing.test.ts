@@ -175,24 +175,31 @@ describe("createManufacturing", () => {
     });
 
     const draft = await manufacturing
-      .saveBom("bread", {
-        components: [
-          { variantId: "flour", quantity: 0.5, scrapBps: 200, operation: 10 },
-        ],
-        operations: [
-          {
-            sequence: 10,
-            workCenterId: "w1",
-            title: "Bake",
-            runMinutesPerUnit: 6,
-          },
-        ],
+      .saveBom({
+        variantId: "bread",
+        input: {
+          components: [
+            { variantId: "flour", quantity: 0.5, scrapBps: 200, operation: 10 },
+          ],
+          operations: [
+            {
+              sequence: 10,
+              workCenterId: "w1",
+              title: "Bake",
+              runMinutesPerUnit: 6,
+            },
+          ],
+        },
       })
       .orThrow();
 
     const active = await manufacturing.activateBom("b1").orThrow();
     const versions = await manufacturing.listBoms("bread").orThrow();
-    const explosion = await manufacturing.explodeBom("bread", 4).orThrow();
+
+    const explosion = await manufacturing
+      .explodeBom({ variantId: "bread", quantity: 4 })
+      .orThrow();
+
     const uses = await manufacturing.whereUsed("flour").orThrow();
 
     expect(draft.status).toBe("draft");
@@ -263,7 +270,7 @@ describe("createManufacturing", () => {
     });
 
     const saved = await manufacturing
-      .saveWorkCenter({ name: "Oven", costRate: money(6000, "EUR") })
+      .saveWorkCenter({ input: { name: "Oven", costRate: money(6000, "EUR") } })
       .orThrow();
 
     const listed = await manufacturing.workCenters().orThrow();
@@ -308,18 +315,29 @@ describe("createManufacturing", () => {
       })
       .orThrow();
 
-    await manufacturing.release("mo1", { allowShortage: true }).orThrow();
-    await manufacturing.startOperation("op1").orThrow();
-    await manufacturing.finishOperation("op1", 24).orThrow();
     await manufacturing
-      .recordConsumption("mo1", "flour", 2.04, { lotId: "lot-flour" })
+      .release({ orderId: "mo1", allowShortage: true })
+      .orThrow();
+    await manufacturing.startOperation("op1").orThrow();
+    await manufacturing
+      .finishOperation({ operationId: "op1", minutes: 24 })
+      .orThrow();
+    await manufacturing
+      .recordConsumption({
+        orderId: "mo1",
+        variantId: "flour",
+        quantity: 2.04,
+        detail: { lotId: "lot-flour" },
+      })
       .orThrow();
 
     const done = await manufacturing
-      .complete("mo1", 4, { scrap: 1, lot: { code: "B-1" } })
+      .complete({ orderId: "mo1", produced: 4, scrap: 1, lot: { code: "B-1" } })
       .orThrow();
 
-    const canceled = await manufacturing.cancel("mo2", "Dropped").orThrow();
+    const canceled = await manufacturing
+      .cancel({ orderId: "mo2", reason: "Dropped" })
+      .orThrow();
 
     const listed = await manufacturing
       .listOrders({ status: "done", limit: 10 })
@@ -477,7 +495,10 @@ describe("createManufacturing", () => {
       tenant: "org-1",
     });
 
-    const genealogy = await manufacturing.lotGenealogy("lot-bread").orThrow();
+    const genealogy = await manufacturing
+      .lotGenealogy({ lotId: "lot-bread" })
+      .orThrow();
+
     const recall = await manufacturing.lotRecall("lot-flour").orThrow();
     const requirements = await manufacturing.requirements(14).orThrow();
 

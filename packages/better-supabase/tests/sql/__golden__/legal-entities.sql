@@ -637,7 +637,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:35a028371b3986bcdc1e9c3ff3adff1bfee52faad057438e23a5043c4b666d33
+-- @bsb-hash sha256:8f742a958203517110ddba2671aaba37964a26ab10f0a5345bb12b0ce724f44e
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1416,6 +1416,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entity
 create policy bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.legal_entities', target_type => 'legal_entity', event_prefix => 'legal_entity', deferred => true);
+  perform better_supabase.audit('better_supabase.legal_entity_settings', target_type => 'legal_entity_setting', event_prefix => 'legal_entity_setting', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -914,7 +914,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:54dab34aab480d6015365f2bd8c4572d0d6ffedc9168130212e603271c1b0dcc
+-- @bsb-hash sha256:6665c610bede5160ac37964f7fa2ed59b09db482e4e82df5334be81882c99c8c
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2365,6 +2365,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_sch
 create policy bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.templates', target_type => 'template', event_prefix => 'template', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

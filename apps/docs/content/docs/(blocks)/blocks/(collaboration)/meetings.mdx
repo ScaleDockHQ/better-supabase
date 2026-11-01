@@ -204,3 +204,7 @@ The hooks are `before_meeting_create`, `after_meeting_create`,
 `better-supabase add --recipe meeting-agenda` adds the agenda editor, and
 `meeting-minutes` adds the minutes, decisions and action items of a meeting.
 See [UI recipes](/docs/registry/ui-recipes).
+
+## Conclude a meeting
+
+`conclude({ meetingId, summary, decisions })` settles each listed decision through `decide`, then marks the meeting held with its summary. It stops at the first failure.

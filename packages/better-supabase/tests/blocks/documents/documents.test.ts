@@ -60,11 +60,25 @@ describe("documents client", () => {
       updates: [{ seq: 5, update: new Uint8Array([3]) }],
     });
     expect(opened.updatedAt.toString()).toBe("2026-10-02T00:00:00Z");
-    expect(await documents.push("d1", new Uint8Array([3])).orThrow()).toBe(6);
-    const pulled = await documents.pull("d1", 5).orThrow();
+    expect(
+      await documents
+        .push({ documentId: "d1", update: new Uint8Array([3]) })
+        .orThrow(),
+    ).toBe(6);
+
+    const pulled = await documents
+      .pull({ documentId: "d1", afterSeq: 5 })
+      .orThrow();
+
     expect(pulled).toEqual({ snapshotSeq: 0, updates: [] });
     expect(
-      await documents.compact("d1", new Uint8Array([1, 2]), 6).orThrow(),
+      await documents
+        .compact({
+          documentId: "d1",
+          state: new Uint8Array([1, 2]),
+          throughSeq: 6,
+        })
+        .orThrow(),
     ).toBe(true);
     expect(fake.calls).toEqual([
       [
@@ -105,10 +119,18 @@ describe("documents client", () => {
 
     const documents = createDocuments({ transport: fake, schema: "app" });
     expect(
-      await documents.saveVersion("d1", new Uint8Array([1])).orThrow(),
+      await documents
+        .saveVersion({ documentId: "d1", state: new Uint8Array([1]) })
+        .orThrow(),
     ).toEqual({ id: "v1", number: 1 });
-    await documents.saveVersion("d1", new Uint8Array([1]), "Final").orThrow();
-    const listed = await documents.versions("d1").orThrow();
+    await documents
+      .saveVersion({
+        documentId: "d1",
+        state: new Uint8Array([1]),
+        label: "Final",
+      })
+      .orThrow();
+    const listed = await documents.versions({ documentId: "d1" }).orThrow();
     expect(listed[0]).toMatchObject({
       label: "Final",
       source: "manual",
@@ -117,12 +139,16 @@ describe("documents client", () => {
     });
     expect(listed[1]).toMatchObject({ source: "manual", frozen: false });
     expect(listed[1]).not.toHaveProperty("label");
-    const named = await documents.versions("d1", { named: true }).orThrow();
+
+    const named = await documents
+      .versions({ documentId: "d1", named: true })
+      .orThrow();
+
     expect(named.map((item) => item.id)).toEqual(["v2"]);
     expect(listed[1]).not.toHaveProperty("createdBy");
-    expect(await documents.version("d1", "v1").orThrow()).toEqual(
-      new Uint8Array([1, 2]),
-    );
+    expect(
+      await documents.version({ documentId: "d1", versionId: "v1" }).orThrow(),
+    ).toEqual(new Uint8Array([1, 2]));
     expect(fake.calls[0]![1]).toMatchObject({ label: null });
     expect(fake.calls[1]![1]).toMatchObject({ label: "Final" });
   });
@@ -131,10 +157,14 @@ describe("documents client", () => {
     const fake = transport({ name_document_version: () => true });
 
     const documents = createDocuments({ transport: fake, schema: "app" });
-    expect(await documents.nameVersion("d1", "v1", "Draft").orThrow()).toBe(
-      true,
-    );
-    await documents.nameVersion("d1", "v1", null).orThrow();
+    expect(
+      await documents
+        .nameVersion({ documentId: "d1", versionId: "v1", label: "Draft" })
+        .orThrow(),
+    ).toBe(true);
+    await documents
+      .nameVersion({ documentId: "d1", versionId: "v1", label: null })
+      .orThrow();
     expect(fake.calls).toEqual([
       [
         "name_document_version",
@@ -181,7 +211,7 @@ describe("documents client", () => {
     const documents = createDocuments({ transport: fake, schema: "app" });
 
     const suggested = await documents
-      .suggest("d1", new Uint8Array([3]))
+      .suggest({ documentId: "d1", update: new Uint8Array([3]) })
       .orThrow();
 
     expect(suggested).toMatchObject({
@@ -192,12 +222,26 @@ describe("documents client", () => {
     });
     expect(suggested).not.toHaveProperty("summary");
     expect(suggested).not.toHaveProperty("seq");
-    await documents.suggest("d1", new Uint8Array([3]), "Typo").orThrow();
-    expect(await documents.suggestions("d1").orThrow()).toHaveLength(1);
-    await documents.suggestions("d1", { status: "all" }).orThrow();
+    await documents
+      .suggest({
+        documentId: "d1",
+        update: new Uint8Array([3]),
+        summary: "Typo",
+      })
+      .orThrow();
+    expect(
+      await documents.suggestions({ documentId: "d1" }).orThrow(),
+    ).toHaveLength(1);
+    await documents
+      .suggestions({ documentId: "d1", options: { status: "all" } })
+      .orThrow();
 
     const accepted = await documents
-      .decideSuggestion("s1", "accepted", "Thanks")
+      .decideSuggestion({
+        suggestionId: "s1",
+        decision: "accepted",
+        note: "Thanks",
+      })
       .orThrow();
 
     expect(accepted).toMatchObject({
@@ -208,7 +252,12 @@ describe("documents client", () => {
       seq: 7,
     });
     expect(accepted.decidedAt?.toString()).toBe("2026-10-04T00:00:00Z");
-    const bad = await documents.decideSuggestion("s1", "rejected");
+
+    const bad = await documents.decideSuggestion({
+      suggestionId: "s1",
+      decision: "rejected",
+    });
+
     expect(bad.error).toBeDefined();
     expect(fake.calls).toEqual([
       [
@@ -251,7 +300,12 @@ describe("documents client", () => {
     });
 
     const documents = createDocuments({ transport: fake, schema: "app" });
-    const pushed = await documents.push("d1", new Uint8Array([1]));
+
+    const pushed = await documents.push({
+      documentId: "d1",
+      update: new Uint8Array([1]),
+    });
+
     expect(pushed.error).toBeDefined();
     expect(await documents.toCompact().orThrow()).toEqual([]);
   });

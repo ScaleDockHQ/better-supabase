@@ -22,10 +22,10 @@ export const addEventReminder = bsb.action(
     permission: "reminders.manage",
   },
   async ({ eventId, offsetMinutes }, { db, auth }) => {
-    const saved = await db.reminders.upsert(
-      { type: EVENT_SUBJECT, id: eventId },
-      offsetMinutes,
-    );
+    const saved = await db.reminders.upsert({
+      subject: { type: EVENT_SUBJECT, id: eventId },
+      when: offsetMinutes,
+    });
 
     if (!saved.ok) {
       return saved;
@@ -76,7 +76,11 @@ export const createCalendar = bsb.action(
     permission: "calendar.manage",
   },
   async ({ name, tz }, { tenant, db, auth }) => {
-    const created = await db.calendar.createCalendar(tenant, name, { tz });
+    const created = await db.calendar.createCalendar({
+      organizationId: tenant,
+      name,
+      options: { tz },
+    });
 
     if (!created.ok) {
       return created;
@@ -126,13 +130,16 @@ export const createEvent = bsb.action(
           })
       ).toInstant();
 
-    const saved = await db.calendar.upsert(input.calendarId, {
-      title: input.title,
-      allDay,
-      tz: input.tz,
-      startsAt: allDay ? at(day) : at(day, input.start),
-      endsAt: allDay ? at(day.add({ days: 1 })) : at(day, input.end),
-      location: input.location === "" ? null : (input.location ?? null),
+    const saved = await db.calendar.upsert({
+      calendarId: input.calendarId,
+      input: {
+        title: input.title,
+        allDay,
+        tz: input.tz,
+        startsAt: allDay ? at(day) : at(day, input.start),
+        endsAt: allDay ? at(day.add({ days: 1 })) : at(day, input.end),
+        location: input.location === "" ? null : (input.location ?? null),
+      },
     });
 
     if (!saved.ok) {
@@ -163,9 +170,12 @@ export const setWorkingHours = bsb.action(
     permission: "calendar.read",
   },
   async ({ tz, start, end }, { tenant, db, auth }) => {
-    const saved = await db.calendar.setWorkingHours(tenant, {
-      tz,
-      hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
+    const saved = await db.calendar.setWorkingHours({
+      organizationId: tenant,
+      input: {
+        tz,
+        hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
+      },
     });
 
     if (!saved.ok) {

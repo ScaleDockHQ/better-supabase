@@ -1,0 +1,80 @@
+---
+title: CRM
+description: Sales plus mail sync, sequences, segments, assignment, enrichment, forecasts, lead scoring and goals, with a pipeline read set.
+---
+
+Is the sales stack with the follow-up and planning blocks around it. Its parts are contacts, pipelines, deals, quotes, goals, activities, mail sync, sequences, segments, assignment, enrichment, forecasts, lead scoring and the queue. It shares `closeWon` and `closeLost` with [`sales`](/docs/blocks/sales).
+
+```bash
+better-supabase add crm
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { crm: {} } });
+```
+
+`add` lists `crm` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/crm` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { crmBlock } from "better-supabase/blocks/crm";
+```
+
+## Parts
+
+Installing `crm` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`contacts`](/docs/blocks/contacts)
+- [`pipelines`](/docs/blocks/pipelines)
+- [`deals`](/docs/blocks/deals)
+- [`quotes`](/docs/blocks/quotes)
+- [`goals`](/docs/blocks/goals)
+- [`activities`](/docs/blocks/activities)
+- [`mail-sync`](/docs/blocks/mail-sync)
+- [`sequences`](/docs/blocks/sequences)
+- [`segments`](/docs/blocks/segments)
+- [`assignment`](/docs/blocks/assignment)
+- [`enrichment`](/docs/blocks/enrichment)
+- [`forecasts`](/docs/blocks/forecasts)
+- [`lead-scoring`](/docs/blocks/lead-scoring)
+- [`queue`](/docs/blocks/queue)
+
+## Helpers and read set
+
+`closeWon` and `closeLost` work as on `sales`: the deal moves first, then the quote.
+
+`crmReadSets.dashboard` is a named read set for the pipeline page. It calls `deals.board` for one pipeline, so the page loads with one round trip. Build it once after `better-supabase gen` has written the block reads:
+
+```ts title="lib/read-sets.ts"
+import { defineCompositeReadSet } from "better-supabase/blocks";
+import { crmReadSets } from "better-supabase/blocks/crm";
+
+import { betterSupabase } from "@/lib/supabase/server";
+import { reads } from "@/lib/supabase/blocks.generated";
+
+export const crmDashboard = defineCompositeReadSet(
+  betterSupabase,
+  crmReadSets.dashboard,
+  reads,
+);
+```
+
+Pass the result to `db.$many(crmDashboard, { pipelineId })`. `defineCompositeReadSet` throws a `TypeError` that names the block read when it is missing, for example when `deals` is not installed.
+
+## Example
+
+The Next.js example builds the helpers over the clients it already installs, in `apps/examples/nextjs/src/features/composites/composites.ts`, and calls them from the server actions in `composite-actions.ts`:
+
+```ts
+const closed = await crmOf(db).closeWon({ dealId, quote: true });
+```
+
+`closeDealWon` is that call behind a server action with the `deals.write` permission. The example keeps its pipeline board on its own `pipelineOverview` read set, which calls the same `deals.board` read as `crmReadSets.dashboard`.
+
+## Remove
+
+```bash
+better-supabase remove crm
+better-supabase remove crm --with-parts
+```
+
+The first command replaces `crm` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

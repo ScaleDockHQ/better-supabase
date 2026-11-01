@@ -128,11 +128,15 @@ export function createMemory(options: MemoryOptions): Memory {
         )
       : AsyncResult.ok(undefined);
 
-  const view = (
-    organizationId: string | null,
+  const view = ({
+    organizationId,
     path = "/memories",
-    ns?: MemoryNamespace,
-  ): AsyncResult<MemoryView | undefined> =>
+    ns,
+  }: {
+    organizationId: string | null;
+    path?: string | undefined;
+    ns?: MemoryNamespace | undefined;
+  }): AsyncResult<MemoryView | undefined> =>
     call(
       "memory_view",
       { tenant: organizationId, path, ns: nsArg(ns) },
@@ -141,7 +145,7 @@ export function createMemory(options: MemoryOptions): Memory {
 
   const core: Memory["core"] = {
     view,
-    write: (organizationId, path, content, ns, writeOptions = {}) =>
+    write: ({ organizationId, path, content, ns, ...writeOptions }) =>
       call(
         "memory_create",
         {
@@ -153,7 +157,7 @@ export function createMemory(options: MemoryOptions): Memory {
         },
         memoryOf,
       ),
-    strReplace: (organizationId, path, oldText, newText, ns) =>
+    strReplace: ({ organizationId, path, oldText, newText, ns }) =>
       call(
         "memory_str_replace",
         {
@@ -165,7 +169,7 @@ export function createMemory(options: MemoryOptions): Memory {
         },
         memoryOf,
       ),
-    insert: (organizationId, path, line, text, ns) =>
+    insert: ({ organizationId, path, line, text, ns }) =>
       call(
         "memory_insert",
         {
@@ -177,13 +181,13 @@ export function createMemory(options: MemoryOptions): Memory {
         },
         memoryOf,
       ),
-    remove: (organizationId, path, ns) =>
+    remove: ({ organizationId, path, ns }) =>
       call(
         "memory_delete",
         { tenant: organizationId, path, ns: nsArg(ns) },
         Number,
       ),
-    rename: (organizationId, oldPath, newPath, ns) =>
+    rename: ({ organizationId, oldPath, newPath, ns }) =>
       call(
         "memory_rename",
         {
@@ -194,7 +198,7 @@ export function createMemory(options: MemoryOptions): Memory {
         },
         Number,
       ),
-    list: (organizationId, ns) =>
+    list: ({ organizationId, ns }) =>
       call(
         "memory_list",
         { tenant: organizationId, ns: nsArg(ns), kind: "core" },
@@ -256,63 +260,74 @@ export function createMemory(options: MemoryOptions): Memory {
       ),
     );
 
-  const runCommand = (
-    organizationId: string | null,
-    command: MemoryCommand,
-    ns?: MemoryNamespace,
-  ): AsyncResult<string> => {
+  const runCommand = ({
+    organizationId,
+    command,
+    ns,
+  }: {
+    organizationId: string | null;
+    command: MemoryCommand;
+    ns?: MemoryNamespace | undefined;
+  }): AsyncResult<string> => {
     switch (command.command) {
       case "view": {
-        return view(organizationId, command.path, ns).map((result) => {
-          if (result === undefined) {
-            return `${command.path} does not exist.`;
-          }
+        return view({ organizationId, path: command.path, ns }).map(
+          (result) => {
+            if (result === undefined) {
+              return `${command.path} does not exist.`;
+            }
 
-          if (result.type === "file") {
-            return `Here's the content of ${result.path} with line numbers:\n${numbered(result.content, command.view_range)}`;
-          }
+            if (result.type === "file") {
+              return `Here's the content of ${result.path} with line numbers:\n${numbered(result.content, command.view_range)}`;
+            }
 
-          const entries = result.entries.map(
-            (entry) => `${String(entry.size)}\t${entry.path}`,
-          );
+            const entries = result.entries.map(
+              (entry) => `${String(entry.size)}\t${entry.path}`,
+            );
 
-          return `Here are the files in ${result.path}:\n${entries.join("\n")}`;
-        });
+            return `Here are the files in ${result.path}:\n${entries.join("\n")}`;
+          },
+        );
       }
 
       case "create": {
         return core
-          .write(organizationId, command.path, command.file_text, ns)
+          .write({
+            organizationId,
+            path: command.path,
+            content: command.file_text,
+            ns,
+          })
           .map(() => `File created successfully at: ${command.path}`);
       }
 
       case "str_replace": {
         return core
-          .strReplace(
+          .strReplace({
             organizationId,
-            command.path,
-            command.old_str,
-            command.new_str ?? "",
+            path: command.path,
+            oldText: command.old_str,
+            newText: command.new_str ?? "",
             ns,
-          )
+          })
           .map(() => `The memory file ${command.path} has been edited.`);
       }
 
       case "insert": {
         return core
-          .insert(
+          .insert({
             organizationId,
-            command.path,
-            command.insert_line,
-            command.insert_text,
+            path: command.path,
+            line: command.insert_line,
+            text: command.insert_text,
             ns,
-          )
+          })
           .map(() => `The memory file ${command.path} has been edited.`);
       }
 
       case "delete": {
         return core
-          .remove(organizationId, command.path, ns)
+          .remove({ organizationId, path: command.path, ns })
           .map((count) =>
             count === 0
               ? `${command.path} does not exist.`
@@ -322,7 +337,12 @@ export function createMemory(options: MemoryOptions): Memory {
 
       case "rename": {
         return core
-          .rename(organizationId, command.old_path, command.new_path, ns)
+          .rename({
+            organizationId,
+            oldPath: command.old_path,
+            newPath: command.new_path,
+            ns,
+          })
           .map(
             () =>
               `Successfully renamed ${command.old_path} to ${command.new_path}`,
@@ -347,11 +367,11 @@ export function createMemory(options: MemoryOptions): Memory {
     core,
     run: runCommand,
     archival: {
-      upsert: (organizationId, content, ns, saveOptions) =>
+      upsert: ({ organizationId, content, ns, ...saveOptions }) =>
         save(organizationId, content, ns, saveOptions),
-      search: (organizationId, query, ns, searchOptions) =>
+      search: ({ organizationId, query, ns, ...searchOptions }) =>
         search(organizationId, query, ns, searchOptions),
-      list: (organizationId, ns, listOptions = {}) =>
+      list: ({ organizationId, ns, ...listOptions }) =>
         call(
           "memory_list",
           {
@@ -362,7 +382,7 @@ export function createMemory(options: MemoryOptions): Memory {
           },
           (value) => recordsOf(value, "memory_list").map(memoryOf),
         ),
-      forget: (memoryId, forgetOptions = {}) =>
+      forget: ({ memoryId, ...forgetOptions }) =>
         call(
           "memory_forget",
           { memory_id: memoryId, superseded_by: forgetOptions.supersededBy },
@@ -403,7 +423,7 @@ export function createMemory(options: MemoryOptions): Memory {
               ),
             )
           : AsyncResult.err(noEmbedder()),
-      search: (organizationId, query, recallOptions = {}) =>
+      search: ({ organizationId, query, ...recallOptions }) =>
         embedder
           ? embedOne(query, recallOptions.signal).andThen((embedding) =>
               call(
@@ -420,8 +440,8 @@ export function createMemory(options: MemoryOptions): Memory {
             )
           : AsyncResult.err(noEmbedder()),
     },
-    render: (organizationId, ns) =>
-      core.list(organizationId, ns).map((files) => {
+    render: ({ organizationId, ns }) =>
+      core.list({ organizationId, ns }).map((files) => {
         if (files.length === 0) {
           return "";
         }
@@ -442,7 +462,7 @@ export function createMemory(options: MemoryOptions): Memory {
 
         return text + close;
       }),
-    saveExtracted: (organizationId, facts, ns, saveOptions) =>
+    saveExtracted: ({ organizationId, facts, ns, ...saveOptions }) =>
       AsyncResult.from(async (): Promise<Result<MemoryRecord[]>> => {
         const saved: MemoryRecord[] = [];
 
@@ -565,13 +585,13 @@ export function createMemory(options: MemoryOptions): Memory {
           )
         : AsyncResult.err(noEmbedder()),
     documents: {
-      read: (scopeKey, path) =>
+      read: ({ scopeKey, path }) =>
         service(
           "memory_document_read",
           { scope_key: scopeKey, path },
           (value) => (isRecord(value) ? documentOf(value) : undefined),
         ),
-      write: (scopeKey, path, content, writeOptions) =>
+      write: ({ scopeKey, path, content, options: writeOptions }) =>
         service(
           "memory_document_write",
           {

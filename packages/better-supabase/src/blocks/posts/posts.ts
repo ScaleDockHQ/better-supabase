@@ -145,19 +145,25 @@ export interface Posts<F extends object = Record<never, never>> {
    * Writes a post on a board. It shows at once, or waits for a moderator when
    * `options.moderation` is "pre". Banned members can't post.
    */
-  create(boardId: string, input: PostInput<F>): AsyncResult<Post<F>>;
+  create(input: { boardId: string; input: PostInput<F> }): AsyncResult<Post<F>>;
   /** Changes the caller's own post, or any post for a moderator. */
-  update(postId: string, input: Partial<PostInput<F>>): AsyncResult<Post<F>>;
+  update(input: {
+    postId: string;
+    input: Partial<PostInput<F>>;
+  }): AsyncResult<Post<F>>;
   /** Deletes a post; false when there was none. */
   delete(postId: string): AsyncResult<boolean>;
   get(postId: string): AsyncResult<Post<F> | null>;
   list(filter?: PostsFilter): AsyncResult<readonly Post<F>[]>;
   /** Sets the status, pin or lock of a post; needs `posts.moderate`. */
-  setState(postId: string, input: PostStateInput): AsyncResult<Post<F>>;
+  setState(input: {
+    postId: string;
+    input: PostStateInput;
+  }): AsyncResult<Post<F>>;
   /** 1 up, -1 down, 0 clears the caller's vote. Returns the tally. */
-  vote(postId: string, value: -1 | 0 | 1): AsyncResult<PostVotes>;
+  vote(input: { postId: string; value: -1 | 0 | 1 }): AsyncResult<PostVotes>;
   /** Closes a duplicate and moves its votes to `targetId`. Returns the target. */
-  merge(sourceId: string, targetId: string): AsyncResult<Post<F>>;
+  merge(input: { sourceId: string; targetId: string }): AsyncResult<Post<F>>;
 }
 
 export interface PostsOptions<
@@ -286,7 +292,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
             ),
         ),
       ),
-    create: (boardId, input) =>
+    create: ({ boardId, input }) =>
       write(input).andThen((attrs) =>
         call(
           "create_post",
@@ -294,7 +300,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
           post("create_post"),
         ).andThen(fields.row),
       ),
-    update: (postId, input) =>
+    update: ({ postId, input }) =>
       write(input).andThen((attrs) =>
         call(
           "update_post",
@@ -320,15 +326,15 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
           (value) => recordsOf(value, "list_posts").map(post("list_posts")),
         ).andThen(fields.rows),
       ),
-    setState: (postId, input) =>
+    setState: ({ postId, input }) =>
       call(
         "set_post_state",
         { post_id: postId, attrs: definedOf(input) },
         post("set_post_state"),
       ).andThen(fields.row),
-    vote: (postId, value) =>
+    vote: ({ postId, value }) =>
       call("vote_on_post", { post_id: postId, value }, tallyOf),
-    merge: (sourceId, targetId) =>
+    merge: ({ sourceId, targetId }) =>
       call(
         "merge_posts",
         { source_id: sourceId, target_id: targetId },

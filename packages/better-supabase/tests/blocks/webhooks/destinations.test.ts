@@ -179,14 +179,14 @@ describe("incoming destinations", () => {
     });
 
     const post = () =>
-      hooks.receive(
-        new Request("https://api.test/hooks/tok", {
+      hooks.receive({
+        request: new Request("https://api.test/hooks/tok", {
           method: "POST",
           headers: { "webhook-id": "m1" },
           body: '{"type":"lead.created"}',
         }),
-        "tok",
-      );
+        token: "tok",
+      });
 
     expect((await post()).status).toBe(202);
     expect((await post()).status).toBe(200);

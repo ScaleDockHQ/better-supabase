@@ -21,7 +21,10 @@ describe("hiring fields", () => {
     });
 
     const job = await hiring
-      .saveJob("o", { title: "Engineer", fields: { level: 3 } })
+      .saveJob({
+        organizationId: "o",
+        job: { title: "Engineer", fields: { level: 3 } },
+      })
       .orThrow();
 
     expect(job.fields.level).toBe(3);
@@ -38,9 +41,9 @@ describe("hiring fields", () => {
       fields: v.object({ level: v.number() }),
     });
 
-    const saved = await hiring.saveJob("o", {
-      title: "Engineer",
-      fields: { level: "high" as never },
+    const saved = await hiring.saveJob({
+      organizationId: "o",
+      job: { title: "Engineer", fields: { level: "high" as never } },
     });
 
     expect(saved.ok).toBe(false);
@@ -52,7 +55,7 @@ describe("hiring fields", () => {
     const t = fieldsTransport({ save_job: () => ({ ...JOB, fields: null }) });
 
     const job = await createHiring({ transport: t })
-      .saveJob("o", { title: "Engineer" })
+      .saveJob({ organizationId: "o", job: { title: "Engineer" } })
       .orThrow();
 
     expect(job.fields).toEqual({});

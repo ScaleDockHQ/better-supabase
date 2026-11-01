@@ -118,11 +118,15 @@ export function createEvalJob(
           : await scoreItem(item, output, options.scorers);
 
       await options.evals.runs
-        .record(runId, item.id, {
-          ...(output === undefined ? {} : { output }),
-          scores,
-          ...(error === undefined ? {} : { error }),
-          latencyMs: Date.now() - started,
+        .record({
+          runId,
+          itemId: item.id,
+          result: {
+            ...(output === undefined ? {} : { output }),
+            scores,
+            ...(error === undefined ? {} : { error }),
+            latencyMs: Date.now() - started,
+          },
         })
         .orThrow();
 
@@ -131,11 +135,15 @@ export function createEvalJob(
 
     while (Date.now() < deadline) {
       const page = await options.evals.items
-        .list(found.datasetId, { pendingRun: runId, limit: pageSize })
+        .list({
+          datasetId: found.datasetId,
+          pendingRun: runId,
+          limit: pageSize,
+        })
         .orThrow();
 
       if (page.length === 0) {
-        const run = await options.evals.runs.finish(runId).orThrow();
+        const run = await options.evals.runs.finish({ runId }).orThrow();
 
         return { runId, processed, done: true, run };
       }

@@ -56,8 +56,8 @@ async function loadMatrix(): Promise<Matrix | null> {
   }
 
   const [types, gaps] = await Promise.all([
-    db.qualifications.types(tenant).orThrow(),
-    db.qualifications.gaps(tenant).orThrow(),
+    db.qualifications.types({ organizationId: tenant }).orThrow(),
+    db.qualifications.gaps({ organizationId: tenant }).orThrow(),
   ]);
 
   return {
@@ -102,9 +102,15 @@ async function loadMine(): Promise<MyQualificationsData | null> {
   }
 
   const [holdings, gaps] = await Promise.all([
-    db.qualifications.of("member", session.user.id).orThrow(),
     db.qualifications
-      .gaps(tenant, { holderId: session.user.id, status: "missing" })
+      .of({ holderType: "member", holderId: session.user.id })
+      .orThrow(),
+    db.qualifications
+      .gaps({
+        organizationId: tenant,
+        holderId: session.user.id,
+        status: "missing",
+      })
       .orThrow(),
   ]);
 

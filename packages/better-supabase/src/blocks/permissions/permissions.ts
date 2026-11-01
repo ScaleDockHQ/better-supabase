@@ -63,18 +63,16 @@ export interface Permissions<K extends string = string> {
    * included; the `custom` model lists none, so pass the keys you check.
    */
   permissions(
-    keys?: readonly K[],
-    options?: AccessCallOptions,
+    input?: { keys?: readonly K[] | undefined } & AccessCallOptions,
   ): AsyncResult<PermissionSet>;
   /** Whether the caller holds `key`. */
-  can(key: K, options?: AccessCallOptions): AsyncResult<boolean>;
+  can(input: { key: K } & AccessCallOptions): AsyncResult<boolean>;
   /**
    * One `can<Name>` boolean per entry of `flags`, in one call: `{ edit:
    * "customers.write" }` resolves to `{ canEdit: true }`.
    */
   flags<const M extends Readonly<Record<string, K>>>(
-    flags: M,
-    options?: AccessCallOptions,
+    input: { flags: M } & AccessCallOptions,
   ): AsyncResult<PermissionFlags<M>>;
   /**
    * The catalog's tenant roles with their keys in the tenant. Catalog model
@@ -88,10 +86,11 @@ export interface Permissions<K extends string = string> {
    * holds. Resolves to the role as it stands after the change.
    */
   setOverride(
-    role: string,
-    permission: K,
-    granted: boolean | null,
-    options?: AccessCallOptions,
+    input: {
+      role: string;
+      permission: K;
+      granted: boolean | null;
+    } & AccessCallOptions,
   ): AsyncResult<CatalogRole>;
 }
 
@@ -140,9 +139,10 @@ export function createPermissions<K extends string = string>(
     );
 
   const client: Permissions<K> = {
-    permissions: (keys, perCall) => load(keys, perCall),
-    can: (key, perCall) => load([key], perCall).map((set) => can(set, key)),
-    flags: (flags, perCall) =>
+    permissions: ({ keys, ...perCall } = {}) => load(keys, perCall),
+    can: ({ key, ...perCall }) =>
+      load([key], perCall).map((set) => can(set, key)),
+    flags: ({ flags, ...perCall }) =>
       load(Object.values(flags), perCall).map((set) =>
         permissionFlags(set, flags),
       ),
@@ -152,8 +152,8 @@ export function createPermissions<K extends string = string>(
           recordsOf(value, "list_roles").map(catalogRoleOf),
         ),
       ),
-    setOverride: (role, permission, granted, perCall) =>
-      requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+    setOverride: ({ role, permission, granted, ...perCall }) =>
+      requireTenant(perCall.tenant ?? options.tenant).andThen((tenant) =>
         call(
           "set_permission_override",
           { tenant, role, permission, granted },

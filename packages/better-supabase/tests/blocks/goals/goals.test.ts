@@ -39,12 +39,15 @@ describe("targets block", () => {
     const t = transport({ save_goal: () => ROW });
 
     const target = await createGoals({ transport: t })
-      .upsert("o", {
-        name: "Quota",
-        metric: "deals.won_amount",
-        goal: 1000n,
-        actual: 5n,
-        periodStart: Temporal.PlainDate.from("2026-10-01"),
+      .upsert({
+        organizationId: "o",
+        target: {
+          name: "Quota",
+          metric: "deals.won_amount",
+          goal: 1000n,
+          actual: 5n,
+          periodStart: Temporal.PlainDate.from("2026-10-01"),
+        },
       })
       .orThrow();
 
@@ -77,7 +80,8 @@ describe("targets block", () => {
     const targets = createGoals({ transport: t });
 
     const [row] = await targets
-      .progress("o", {
+      .progress({
+        organizationId: "o",
         on: Temporal.PlainDate.from("2026-11-01"),
         ownerId: "u1",
       })
@@ -89,13 +93,15 @@ describe("targets block", () => {
       on_date: "2026-11-01",
       owner: "u1",
     });
-    await targets.progress("o").orThrow();
+    await targets.progress({ organizationId: "o" }).orThrow();
     expect(t.calls[1]?.[1]).toEqual({
       tenant: "o",
       on_date: null,
       owner: null,
     });
-    await targets.upsert("o", { id: "t1", archived: true }).orThrow();
+    await targets
+      .upsert({ organizationId: "o", target: { id: "t1", archived: true } })
+      .orThrow();
     expect(t.calls[2]?.[1]).toEqual({
       tenant: "o",
       target: "t1",

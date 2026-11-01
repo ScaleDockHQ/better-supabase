@@ -48,19 +48,31 @@ describe.skipIf(!live)("scheduling recipe", () => {
 
       await s.as(owner);
       await stateMachine
-        .transition({ type: "booking", id: subjectId }, "confirmed")
+        .transition({
+          subject: { type: "booking", id: subjectId },
+          to: "confirmed",
+        })
         .orThrow();
 
       const room = await customFields
-        .saveDefinition("booking", "room", "Room", "text")
+        .saveDefinition({
+          entity: "booking",
+          key: "room",
+          label: "Room",
+          type: "text",
+        })
         .orThrow();
 
       await customFields
-        .setValue({ type: "booking", id: subjectId }, room.id, "Atlas")
+        .setValue({
+          subject: { type: "booking", id: subjectId },
+          definitionId: room.id,
+          value: "Atlas",
+        })
         .orThrow();
 
       const reminder = await reminders
-        .upsert({ type: "booking", id: subjectId }, 15)
+        .upsert({ subject: { type: "booking", id: subjectId }, when: 15 })
         .orThrow();
 
       await watchers.relay();
@@ -85,10 +97,10 @@ describe.skipIf(!live)("scheduling recipe", () => {
       expect(await received(s, owner, subjectId)).toEqual(["reminder.due"]);
       await s.as(owner);
       expect(
-        await stateMachine.transition(
-          { type: "booking", id: subjectId },
-          "requested",
-        ),
+        await stateMachine.transition({
+          subject: { type: "booking", id: subjectId },
+          to: "requested",
+        }),
       ).toMatchObject({ ok: false });
     });
   });

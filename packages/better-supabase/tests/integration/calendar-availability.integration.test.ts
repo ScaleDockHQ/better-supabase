@@ -102,17 +102,17 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
     });
     await session.as(owner);
     ({ id: adaCalendar } = await calendar
-      .createCalendar(org, "Ada", {
-        tz: "Europe/Amsterdam",
-        ownerType: "user",
-        ownerId: ada.id,
+      .createCalendar({
+        organizationId: org,
+        name: "Ada",
+        options: { tz: "Europe/Amsterdam", ownerType: "user", ownerId: ada.id },
       })
       .orThrow());
     ({ id: bobCalendar } = await calendar
-      .createCalendar(org, "Bob", {
-        tz: "Europe/Amsterdam",
-        ownerType: "user",
-        ownerId: bob.id,
+      .createCalendar({
+        organizationId: org,
+        name: "Bob",
+        options: { tz: "Europe/Amsterdam", ownerType: "user", ownerId: bob.id },
       })
       .orThrow());
   });
@@ -167,23 +167,28 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
 
     expect(
       await calendar
-        .setWorkingHours(org, { tz: "Europe/Amsterdam", hours: weekdays })
+        .setWorkingHours({
+          organizationId: org,
+          input: { tz: "Europe/Amsterdam", hours: weekdays },
+        })
         .orThrow(),
     ).toBe(5);
 
-    const refused = await calendar.setWorkingHours(org, {
-      tz: "UTC",
-      hours: [],
-      userId: bob.id,
+    const refused = await calendar.setWorkingHours({
+      organizationId: org,
+      input: { tz: "UTC", hours: [], userId: bob.id },
     });
 
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "CALENDAR_FORBIDDEN",
     );
 
-    const invalid = await calendar.setWorkingHours(org, {
-      tz: "UTC",
-      hours: [{ weekday: 1, start: "17:00", end: "09:00" }],
+    const invalid = await calendar.setWorkingHours({
+      organizationId: org,
+      input: {
+        tz: "UTC",
+        hours: [{ weekday: 1, start: "17:00", end: "09:00" }],
+      },
     });
 
     expect(invalid.ok ? undefined : invalid.error.hint).toBe(
@@ -192,14 +197,21 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
     await session.as(owner);
     expect(
       await calendar
-        .setWorkingHours(org, {
-          tz: "Europe/Amsterdam",
-          hours: [{ weekday: 3, start: "13:00", end: "24:00" }],
-          userId: bob.id,
+        .setWorkingHours({
+          organizationId: org,
+          input: {
+            tz: "Europe/Amsterdam",
+            hours: [{ weekday: 3, start: "13:00", end: "24:00" }],
+            userId: bob.id,
+          },
         })
         .orThrow(),
     ).toBe(1);
-    expect(await calendar.workingHours(org, [bob.id]).orThrow()).toEqual([
+    expect(
+      await calendar
+        .workingHours({ organizationId: org, userIds: [bob.id] })
+        .orThrow(),
+    ).toEqual([
       {
         userId: bob.id,
         tz: "Europe/Amsterdam",
@@ -211,57 +223,78 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
   it("answers free/busy from events, invitations, blocks and leave", async () => {
     await session.as(ada);
     await calendar
-      .upsert(adaCalendar, {
-        title: "Stand-up",
-        startsAt: at("2030-03-04T08:00:00Z"),
-        endsAt: at("2030-03-04T08:15:00Z"),
-        tz: "Europe/Amsterdam",
-        rrule: "FREQ=DAILY;COUNT=3",
+      .upsert({
+        calendarId: adaCalendar,
+        input: {
+          title: "Stand-up",
+          startsAt: at("2030-03-04T08:00:00Z"),
+          endsAt: at("2030-03-04T08:15:00Z"),
+          tz: "Europe/Amsterdam",
+          rrule: "FREQ=DAILY;COUNT=3",
+        },
       })
       .orThrow();
     await calendar
-      .upsert(adaCalendar, {
-        title: "Lunch walk",
-        startsAt: at("2030-03-04T11:00:00Z"),
-        endsAt: at("2030-03-04T12:00:00Z"),
-        transparency: "transparent",
+      .upsert({
+        calendarId: adaCalendar,
+        input: {
+          title: "Lunch walk",
+          startsAt: at("2030-03-04T11:00:00Z"),
+          endsAt: at("2030-03-04T12:00:00Z"),
+          transparency: "transparent",
+        },
       })
       .orThrow();
     await calendar
-      .upsert(adaCalendar, {
-        title: "Writing",
-        kind: "focus_time",
-        startsAt: at("2030-03-05T12:00:00Z"),
-        endsAt: at("2030-03-05T14:00:00Z"),
+      .upsert({
+        calendarId: adaCalendar,
+        input: {
+          title: "Writing",
+          kind: "focus_time",
+          startsAt: at("2030-03-05T12:00:00Z"),
+          endsAt: at("2030-03-05T14:00:00Z"),
+        },
       })
       .orThrow();
 
     const meeting = await calendar
-      .upsert(bobCalendar, {
-        title: "Review",
-        startsAt: at("2030-03-04T13:00:00Z"),
-        endsAt: at("2030-03-04T14:00:00Z"),
+      .upsert({
+        calendarId: bobCalendar,
+        input: {
+          title: "Review",
+          startsAt: at("2030-03-04T13:00:00Z"),
+          endsAt: at("2030-03-04T14:00:00Z"),
+        },
       })
       .orThrow();
 
     await calendar
-      .setAttendee(meeting.id, { email: "ada@example.test", userId: ada.id })
+      .setAttendee({
+        eventId: meeting.id,
+        attendee: { email: "ada@example.test", userId: ada.id },
+      })
       .orThrow();
 
     const leave = createLeave({ transport: sqlTransport(session.sql) });
     await session.as(owner);
 
     const type = await leave
-      .saveType(org, { key: "vacation", name: "Vacation", tracked: false })
+      .saveType({
+        organizationId: org,
+        input: { key: "vacation", name: "Vacation", tracked: false },
+      })
       .orThrow();
 
     await session.as(ada);
 
     const away = await leave
-      .request(org, {
-        typeId: type.id,
-        startsOn: Temporal.PlainDate.from("2030-03-07"),
-        partial: "afternoon",
+      .request({
+        organizationId: org,
+        input: {
+          typeId: type.id,
+          startsOn: Temporal.PlainDate.from("2030-03-07"),
+          partial: "afternoon",
+        },
       })
       .orThrow();
 
@@ -272,7 +305,9 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
 
     await session.as(bob);
 
-    const [found] = await calendar.freeBusy(org, [ada.id], week).orThrow();
+    const [found] = await calendar
+      .freeBusy({ organizationId: org, userIds: [ada.id], range: week })
+      .orThrow();
 
     expect(strings(found?.busy ?? [])).toEqual([
       "2030-03-04T08:00:00Z/2030-03-04T08:15:00Z",
@@ -292,15 +327,21 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
     expect(found?.workingHours).toHaveLength(5);
 
     await session.as(ada);
-    await calendar.respond(meeting.id, "declined").orThrow();
+    await calendar
+      .respond({ eventId: meeting.id, response: "declined" })
+      .orThrow();
 
-    const [declined] = await calendar.freeBusy(org, [ada.id], week).orThrow();
+    const [declined] = await calendar
+      .freeBusy({ organizationId: org, userIds: [ada.id], range: week })
+      .orThrow();
 
     expect(strings(declined?.busy ?? [])).not.toContain(
       "2030-03-04T13:00:00Z/2030-03-04T14:00:00Z",
     );
 
-    const both = await calendar.freeBusy(org, [ada.id, bob.id], week).orThrow();
+    const both = await calendar
+      .freeBusy({ organizationId: org, userIds: [ada.id, bob.id], range: week })
+      .orThrow();
 
     expect(
       strings(
@@ -315,16 +356,24 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
   it("refuses outsiders and oversized ranges", async () => {
     await session.as(outsider);
 
-    const refused = await calendar.freeBusy(org, [ada.id], week);
+    const refused = await calendar.freeBusy({
+      organizationId: org,
+      userIds: [ada.id],
+      range: week,
+    });
 
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "CALENDAR_FORBIDDEN",
     );
     await session.as(ada);
 
-    const long = await calendar.freeBusy(org, [ada.id], {
-      from: at("2030-01-01T00:00:00Z"),
-      until: at("2030-06-01T00:00:00Z"),
+    const long = await calendar.freeBusy({
+      organizationId: org,
+      userIds: [ada.id],
+      range: {
+        from: at("2030-01-01T00:00:00Z"),
+        until: at("2030-06-01T00:00:00Z"),
+      },
     });
 
     expect(long.ok ? undefined : long.error.hint).toBe(
@@ -335,37 +384,52 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
   it("auto-declines invitations an out-of-office block covers", async () => {
     await session.as(bob);
     await calendar
-      .upsert(bobCalendar, {
-        title: "Conference",
-        kind: "out_of_office",
-        autoDecline: true,
-        startsAt: at("2030-03-11T00:00:00Z"),
-        endsAt: at("2030-03-13T00:00:00Z"),
+      .upsert({
+        calendarId: bobCalendar,
+        input: {
+          title: "Conference",
+          kind: "out_of_office",
+          autoDecline: true,
+          startsAt: at("2030-03-11T00:00:00Z"),
+          endsAt: at("2030-03-13T00:00:00Z"),
+        },
       })
       .orThrow();
 
     const sync = await calendar
-      .upsert(adaCalendar, {
-        title: "Sync",
-        startsAt: at("2030-03-12T10:00:00Z"),
-        endsAt: at("2030-03-12T10:30:00Z"),
+      .upsert({
+        calendarId: adaCalendar,
+        input: {
+          title: "Sync",
+          startsAt: at("2030-03-12T10:00:00Z"),
+          endsAt: at("2030-03-12T10:30:00Z"),
+        },
       })
       .orThrow();
 
     await calendar
-      .setAttendee(sync.id, { email: "bob@example.test", userId: bob.id })
+      .setAttendee({
+        eventId: sync.id,
+        attendee: { email: "bob@example.test", userId: bob.id },
+      })
       .orThrow();
 
     const later = await calendar
-      .upsert(adaCalendar, {
-        title: "Retro",
-        startsAt: at("2030-03-14T10:00:00Z"),
-        endsAt: at("2030-03-14T10:30:00Z"),
+      .upsert({
+        calendarId: adaCalendar,
+        input: {
+          title: "Retro",
+          startsAt: at("2030-03-14T10:00:00Z"),
+          endsAt: at("2030-03-14T10:30:00Z"),
+        },
       })
       .orThrow();
 
     await calendar
-      .setAttendee(later.id, { email: "bob@example.test", userId: bob.id })
+      .setAttendee({
+        eventId: later.id,
+        attendee: { email: "bob@example.test", userId: bob.id },
+      })
       .orThrow();
 
     const responses = await session.rows<{ title: string; response: string }>(
@@ -382,12 +446,15 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
 
     // A block saved over an open invitation declines it too.
     await calendar
-      .upsert(bobCalendar, {
-        title: "Dentist",
-        kind: "out_of_office",
-        autoDecline: true,
-        startsAt: at("2030-03-14T09:00:00Z"),
-        endsAt: at("2030-03-14T11:00:00Z"),
+      .upsert({
+        calendarId: bobCalendar,
+        input: {
+          title: "Dentist",
+          kind: "out_of_office",
+          autoDecline: true,
+          startsAt: at("2030-03-14T09:00:00Z"),
+          endsAt: at("2030-03-14T11:00:00Z"),
+        },
       })
       .orThrow();
 
@@ -403,32 +470,42 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
     await session.as(owner);
 
     const resource = await bookings
-      .saveResource(org, {
-        name: "Ada's office hours",
-        tz: "Europe/Amsterdam",
-        hostUserId: ada.id,
-        checkBusy: true,
-        calendarId: adaCalendar,
+      .saveResource({
+        organizationId: org,
+        input: {
+          name: "Ada's office hours",
+          tz: "Europe/Amsterdam",
+          hostUserId: ada.id,
+          checkBusy: true,
+          calendarId: adaCalendar,
+        },
       })
       .orThrow();
 
     await bookings
-      .setAvailability(resource.id, [
-        { weekday: 3, start: "09:00", end: "12:00" },
-      ])
+      .setAvailability({
+        resourceId: resource.id,
+        hours: [{ weekday: 3, start: "09:00", end: "12:00" }],
+      })
       .orThrow();
 
     const service = await bookings
-      .saveService(org, {
-        name: "Intro call",
-        duration: Temporal.Duration.from({ minutes: 30 }),
+      .saveService({
+        organizationId: org,
+        input: {
+          name: "Intro call",
+          duration: Temporal.Duration.from({ minutes: 30 }),
+        },
       })
       .orThrow();
 
     const slots = await bookings
-      .availableSlots(service.id, {
-        from: at("2030-03-06T00:00:00Z"),
-        until: at("2030-03-07T00:00:00Z"),
+      .availableSlots({
+        serviceId: service.id,
+        range: {
+          from: at("2030-03-06T00:00:00Z"),
+          until: at("2030-03-07T00:00:00Z"),
+        },
       })
       .orThrow();
 
@@ -442,21 +519,24 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
     ]);
 
     const booked = await bookings
-      .hold(
-        service.id,
-        resource.id,
-        at("2030-03-06T09:00:00Z"),
-        { name: "Grace", email: "grace@example.test" },
-        { confirm: true },
-      )
+      .hold({
+        serviceId: service.id,
+        resourceId: resource.id,
+        startsAt: at("2030-03-06T09:00:00Z"),
+        customer: { name: "Grace", email: "grace@example.test" },
+        confirm: true,
+      })
       .orThrow();
 
     expect(booked.status).toBe("confirmed");
 
     const left = await bookings
-      .availableSlots(service.id, {
-        from: at("2030-03-06T00:00:00Z"),
-        until: at("2030-03-07T00:00:00Z"),
+      .availableSlots({
+        serviceId: service.id,
+        range: {
+          from: at("2030-03-06T00:00:00Z"),
+          until: at("2030-03-07T00:00:00Z"),
+        },
       })
       .orThrow();
 

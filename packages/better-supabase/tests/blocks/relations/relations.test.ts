@@ -50,7 +50,9 @@ describe("relations client", () => {
     const fake = transport({ link: stored({}) });
     const relations = createRelations({ transport: fake, tenant: ORG });
 
-    const made = await relations.link(a, b, { kind: "blocked_by" }).orThrow();
+    const made = await relations
+      .link({ source: a, target: b, input: { kind: "blocked_by" } })
+      .orThrow();
 
     expect(fake.calls[0]).toEqual({
       fn: "link",
@@ -94,7 +96,7 @@ describe("relations client", () => {
     });
 
     const made = await createRelations({ transport: fake, tenant: ORG })
-      .link(a, c, { kind: "parent" })
+      .link({ source: a, target: c, input: { kind: "parent" } })
       .orThrow();
 
     expect(made.replaced).toEqual({ target: b, data: { x: 1 } });
@@ -113,7 +115,11 @@ describe("relations client", () => {
     const relations = createRelations({ transport: fake, tenant: ORG });
 
     const changed = await relations
-      .link(b, a, { kind: "blocks", data: { lag: 2 } })
+      .link({
+        source: b,
+        target: a,
+        input: { kind: "blocks", data: { lag: 2 } },
+      })
       .orThrow();
 
     expect(changed.undo?.calls).toEqual([
@@ -125,7 +131,7 @@ describe("relations client", () => {
     const fakeSame = transport({ link: stored({ created: false }) });
 
     const same = await createRelations({ transport: fakeSame, tenant: ORG })
-      .link(b, a, { kind: "blocks" })
+      .link({ source: b, target: a, input: { kind: "blocks" } })
       .orThrow();
 
     expect(same.undo).toBeNull();
@@ -140,7 +146,9 @@ describe("relations client", () => {
       schema: "app",
     });
 
-    const gone = await relations.unlink(a, b, { kind: "relates" }).orThrow();
+    const gone = await relations
+      .unlink({ source: a, target: b, input: { kind: "relates" } })
+      .orThrow();
 
     expect(gone.undo?.calls[0]).toMatchObject({
       fn: "link",
@@ -149,7 +157,7 @@ describe("relations client", () => {
     const fakeNone = transport({ unlink: { removed: false, data: null } });
 
     const none = await createRelations({ transport: fakeNone, tenant: ORG })
-      .unlink(a, b, { kind: "relates" })
+      .unlink({ source: a, target: b, input: { kind: "relates" } })
       .orThrow();
 
     expect(none).toEqual({ removed: false, undo: null });
@@ -175,7 +183,7 @@ describe("relations client", () => {
     });
 
     const relations = createRelations({ transport: fake, tenant: ORG });
-    expect(await relations.of(a).orThrow()).toEqual([
+    expect(await relations.of({ subject: a }).orThrow()).toEqual([
       {
         id: "r1",
         kind: "blocked_by",
@@ -190,17 +198,17 @@ describe("relations client", () => {
     expect(await relations.edges("blocks").orThrow()).toEqual([
       { id: "r1", kind: "blocks", source: b, target: a, data: {}, fields: {} },
     ]);
-    expect(await relations.ancestors(a, "parent").orThrow()).toEqual([
-      { type: "task", id: "b", depth: 1 },
-    ]);
-    expect(await relations.descendants(a, "parent").orThrow()).toEqual([]);
+    expect(
+      await relations.ancestors({ subject: a, kind: "parent" }).orThrow(),
+    ).toEqual([{ type: "task", id: "b", depth: 1 }]);
+    expect(
+      await relations.descendants({ subject: a, kind: "parent" }).orThrow(),
+    ).toEqual([]);
     expect(
       await relations
-        .rollup(a, {
-          kind: "parent",
-          of: "task",
-          agg: "sum",
-          column: "estimate",
+        .rollup({
+          subject: a,
+          input: { kind: "parent", of: "task", agg: "sum", column: "estimate" },
         })
         .orThrow(),
     ).toBe(12);
@@ -220,13 +228,13 @@ describe("relations client", () => {
       tenant: () => session.tenant,
     });
 
-    expect(await relations.of(a)).toMatchObject({
+    expect(await relations.of({ subject: a })).toMatchObject({
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
     expect(fake.calls).toHaveLength(0);
     session.tenant = "org-2";
-    await relations.of(a, "blocks").orThrow();
+    await relations.of({ subject: a, kind: "blocks" }).orThrow();
     expect(fake.calls[0]?.args).toMatchObject({
       tenant: "org-2",
       kind: "blocks",
@@ -357,7 +365,10 @@ describe("relations conversions", () => {
     const relations = createRelations({ transport: t, tenant: ORG });
     expect(
       await relations
-        .convertedInto({ type: "deal", id: "d1" }, "quote")
+        .convertedInto({
+          origin: { type: "deal", id: "d1" },
+          intoType: "quote",
+        })
         .orThrow(),
     ).toBe("q1");
     expect(
@@ -379,7 +390,9 @@ describe("relations conversions", () => {
       tenant: ORG,
     });
 
-    expect(await none.convertedInto(a, "quote").orThrow()).toBeUndefined();
+    expect(
+      await none.convertedInto({ origin: a, intoType: "quote" }).orThrow(),
+    ).toBeUndefined();
     const failing = transport({ ancestors: new Error("down") });
     expect(
       (await createRelations({ transport: failing, tenant: ORG }).lineage(a))

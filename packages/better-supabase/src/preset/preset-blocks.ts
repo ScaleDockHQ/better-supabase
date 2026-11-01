@@ -79,7 +79,6 @@ export const CONTROLLED_DOCUMENTS: NonNullable<Preset["instances"]> = {
  */
 export const ERP: readonly string[] = [
   "legal-entities",
-  "tax",
   "imports",
   "custom-fields",
   "attachments",
@@ -90,10 +89,8 @@ export const ERP: readonly string[] = [
   "assets",
   "quotes",
   "orders",
-  "invoices",
   "numbering",
-  "accounting",
-  "banking",
+  "finance",
   "approvals",
   "employees",
   "time-tracking",
@@ -107,40 +104,6 @@ export const ERP: readonly string[] = [
 export const QUOTE_TO_ORDER: NonNullable<Preset["instances"]> = {
   automations: { options: { enable: ["quotes.quote_to_order"] } },
 };
-
-/**
- * The blocks behind `care`: the client record, its team and read log, the
- * clinical blocks on it, and the people, funding and quality blocks around it.
- */
-export const CARE: readonly string[] = [
-  "contacts",
-  "guests",
-  "field-encryption",
-  "data-lifecycle",
-  "consents",
-  "activities",
-  "care-plans",
-  "observations",
-  "medications",
-  "forms",
-  "bookings",
-  "calendar",
-  "reminders",
-  "time-tracking",
-  "funding",
-  "shifts",
-  "qualifications",
-  "courses",
-  "cases",
-  "acknowledgements",
-  "drive",
-  "attachments",
-  "versions",
-  "approvals",
-  "state-machine",
-  "numbering",
-  "signatures",
-];
 
 /**
  * Clients are contacts' persons: their record team reads and edits them, and
@@ -174,17 +137,7 @@ export const CARE_SETTINGS: NonNullable<Preset["instances"]> = {
   approvals: DOCUMENT_RELEASE,
 };
 
-export const SAAS: readonly string[] = [
-  "organizations",
-  "invitations",
-  "teams",
-  "profiles",
-  "billing",
-  "entitlements",
-  "notifications",
-  "audit",
-  "api-keys",
-  "settings",
-  "onboarding",
-  "outbox",
-];
+export const SAAS: readonly string[] = ["saas"];
+
+/** `SAAS` and `relations`, which the presets with declared conversions install. */
+export const SAAS_LINKED: readonly string[] = [...SAAS, "relations"];

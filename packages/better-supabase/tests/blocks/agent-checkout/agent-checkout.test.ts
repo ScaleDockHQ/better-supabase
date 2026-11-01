@@ -189,7 +189,7 @@ describe("createAgentCheckout", () => {
       orders: orders(),
     });
 
-    const result = await checkout.completeSession("s1");
+    const result = await checkout.completeSession({ sessionId: "s1" });
 
     expect(result.ok).toBe(false);
     expect(t.calls.map(([fn]) => fn)).toEqual(["get_checkout_session"]);
@@ -206,7 +206,7 @@ describe("createAgentCheckout", () => {
       signing: await signing(),
     });
 
-    const result = await checkout.completeSession("s1");
+    const result = await checkout.completeSession({ sessionId: "s1" });
 
     expect(result.ok).toBe(false);
     expect(t.calls.map(([fn]) => fn)).not.toContain(

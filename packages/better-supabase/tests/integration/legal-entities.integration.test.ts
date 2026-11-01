@@ -71,19 +71,21 @@ describe.skipIf(!live)("legal-entities module in Postgres", () => {
 
     const id = first?.id ?? "";
 
-    await entities.setSetting(id, "invoice.footer", "Bedankt").orThrow();
+    await entities
+      .setSetting({ id, key: "invoice.footer", value: "Bedankt" })
+      .orThrow();
 
     const resolved = await entities
-      .resolveSetting("invoice.footer", { legalEntityId: id })
+      .resolveSetting({ key: "invoice.footer", legalEntityId: id })
       .orThrow();
 
     expect(resolved.source).toBe("legal_entity");
     expect(resolved.value).toBe("Bedankt");
 
-    await entities.resetSetting(id, "invoice.footer").orThrow();
+    await entities.resetSetting({ id, key: "invoice.footer" }).orThrow();
 
     const fallback = await entities
-      .resolveSetting("invoice.footer", { legalEntityId: id })
+      .resolveSetting({ key: "invoice.footer", legalEntityId: id })
       .orThrow();
 
     expect(fallback.source).not.toBe("legal_entity");

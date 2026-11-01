@@ -123,7 +123,7 @@ export function useAttachmentUpload(
       start: (file) =>
         latest.current.start?.(file) ??
         client
-          .upload(subject, file)
+          .upload({ subject, attachment: file })
           .map((upload) => ({
             id: upload.attachment.id,
             signedUrl: upload.signedUrl,

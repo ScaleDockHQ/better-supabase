@@ -7,11 +7,13 @@ import type {
   Payload,
 } from "../ir/args.ts";
 import type {
+  AnyFunctions,
   AnyModels,
   SchemaMeta,
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type { BlockReadMap, BlockReadSpecs } from "./block-reads.ts";
 import type {
   CursorPageArgs,
   FindExt,
@@ -55,6 +57,84 @@ export interface QuerySpec<
   /** Type-only: the result `db.$run(spec)` resolves to. */
   readonly [resultType]?: R;
 }
+
+declare const functionResultType: unique symbol;
+
+/**
+ * A call of a SQL function the caller may execute, for a read set: build it
+ * with `s.$fn.<name>(args)`. The function runs inside the set's own function,
+ * as the caller, so RLS applies as it does for `db.$rpc`.
+ */
+export interface FunctionSpec<N extends string = string, R = unknown> {
+  readonly v: 1;
+  readonly kind: "function";
+  readonly name: N;
+  /** Named arguments; placeholders stand for read set parameters. */
+  readonly args: Readonly<Record<string, unknown>>;
+  /**
+   * The tables the function reads, when known (a block read lists its module's
+   * tables). `bsb.tags` tags a cache scope with them.
+   */
+  readonly tables?: readonly string[];
+  /**
+   * The schema the function lives in, when it is not one the schema metadata
+   * lists (a block read names the block's API schema).
+   */
+  readonly schema?: string;
+  /** Type-only: the result of the call. */
+  readonly [functionResultType]?: R;
+}
+
+/** The function calls `s.$fn` offers: one per function in the schema. */
+export type FunctionSpecs<F extends AnyFunctions> = {
+  readonly [N in keyof F & string]: [F[N]["Args"]] extends [never]
+    ? () => FunctionSpec<N, F[N]["Returns"]>
+    : (args: F[N]["Args"]) => FunctionSpec<N, F[N]["Returns"]>;
+};
+
+/** What a read set entry holds: a table read or a function call. */
+export type ReadSetEntry = QuerySpec | FunctionSpec;
+
+/** The result of a read set entry. */
+export type InferEntryResult<S> =
+  S extends FunctionSpec<string, infer R> ? R : InferResult<S>;
+
+/** What `record_summary` returns for a record the caller can read. */
+export interface RecordSummaryRead {
+  readonly type: string;
+  readonly id: string;
+  readonly title: string | null;
+  readonly url: string | null;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly unread: Readonly<Record<string, boolean>>;
+}
+
+/** The options of `s.record(type, id, options)`. */
+export interface RecordReadOptions {
+  /** The sections to count (`comments`, `attachments`); at most 20. */
+  readonly sections?: readonly string[];
+  /** When the caller last saw the record, as an ISO timestamp. */
+  readonly seenAt?: string;
+}
+
+/**
+ * The builders a read set gets: the table specs, `$fn`, `blocks` (the reads the
+ * installed blocks ship) and `record` (the record summary).
+ */
+export type ReadSetSpecs<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  B extends BlockReadMap = Record<never, never>,
+> = Specs<M, E> & {
+  readonly $fn: FunctionSpecs<F>;
+  readonly blocks: BlockReadSpecs<B>;
+  record(
+    type: string,
+    id: string,
+    options?: RecordReadOptions,
+  ): FunctionSpec<"record_summary", RecordSummaryRead | null>;
+};
 
 /** The result type of a `QuerySpec`. */
 export type InferResult<S> =
@@ -115,6 +195,59 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
   }
 
   return specs;
+}
+
+/** `s.record`: the record summary as a function entry. */
+export function recordSpec(
+  type: string,
+  id: string,
+  options: RecordReadOptions = {},
+): FunctionSpec<"record_summary", RecordSummaryRead | null> {
+  return {
+    v: 1,
+    kind: "function",
+    name: "record_summary",
+    args: {
+      subject_type: type,
+      subject_id: id,
+      sections: [...(options.sections ?? [])],
+      ...(options.seenAt === undefined ? {} : { seen_at: options.seenAt }),
+    },
+  };
+}
+
+/** `s.$fn`: any property is a builder; the read set checks the name. */
+export function createFunctionSpecs(): Record<string, unknown> {
+  return new Proxy(
+    {},
+    {
+      get: (_target, name) =>
+        typeof name === "string"
+          ? (args?: Readonly<Record<string, unknown>>): FunctionSpec => ({
+              v: 1,
+              kind: "function",
+              name,
+              args: args ?? {},
+            })
+          : undefined,
+    },
+  );
+}
+
+export function isFunctionSpec(value: unknown): value is FunctionSpec {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  // SAFETY: value is a non-null object here, and every field is checked below.
+  const spec = value as Partial<FunctionSpec>;
+
+  return (
+    spec.v === 1 &&
+    spec.kind === "function" &&
+    typeof spec.name === "string" &&
+    typeof spec.args === "object"
+  );
 }
 
 function trimUndefined(args: readonly unknown[]): unknown[] {

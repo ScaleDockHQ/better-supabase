@@ -125,24 +125,30 @@ describe.skipIf(!live)("approvals", () => {
       ).toBe("STATE_APPROVAL_REQUIRED");
 
       const request = await approvals
-        .request(
-          { type: "invoice", id: invoice },
-          { action: "send", reason: "Q3" },
-        )
+        .request({
+          subject: { type: "invoice", id: invoice },
+          input: { action: "send", reason: "Q3" },
+        })
         .orThrow();
 
       expect(request).toMatchObject({ status: "pending", step: 0 });
       expect(
         await approvals
-          .request({ type: "invoice", id: invoice }, { action: "send" })
+          .request({
+            subject: { type: "invoice", id: invoice },
+            input: { action: "send" },
+          })
           .then(hint),
       ).toBe("APPROVAL_PENDING");
       expect(
         await approvals
-          .request({ type: "invoice", id: invoice }, { action: "archive" })
+          .request({
+            subject: { type: "invoice", id: invoice },
+            input: { action: "archive" },
+          })
           .then(hint),
       ).toBe("APPROVAL_POLICY_UNKNOWN");
-      expect(await approvals.approve(request.id).then(hint)).toBe(
+      expect(await approvals.approve({ id: request.id }).then(hint)).toBe(
         "APPROVAL_FORBIDDEN",
       );
 
@@ -157,14 +163,18 @@ describe.skipIf(!live)("approvals", () => {
       ).toEqual([{ user_id: owner.id }]);
 
       await s.asRole(finance);
-      expect(await approvals.approve(request.id).then(hint)).toBe(
+      expect(await approvals.approve({ id: request.id }).then(hint)).toBe(
         "APPROVAL_FORBIDDEN",
       );
       await s.asRole(owner);
       expect((await approvals.get(request.id).orThrow()).canDecide).toBe(true);
-      const second = await approvals.approve(request.id, "fine").orThrow();
+
+      const second = await approvals
+        .approve({ id: request.id, comment: "fine" })
+        .orThrow();
+
       expect(second).toMatchObject({ status: "pending", step: 1 });
-      expect(await approvals.approve(request.id).then(hint)).toBe(
+      expect(await approvals.approve({ id: request.id }).then(hint)).toBe(
         "APPROVAL_FORBIDDEN",
       );
 
@@ -175,17 +185,24 @@ describe.skipIf(!live)("approvals", () => {
         ),
       ).toEqual([request.id]);
       expect(
-        await approvals.delegate(request.id, requester.id).then(hint),
+        await approvals
+          .delegate({ id: request.id, userId: requester.id })
+          .then(hint),
       ).toBe("APPROVAL_DELEGATE_INVALID");
-      await approvals.delegate(request.id, deputy.id, "on leave").orThrow();
+      await approvals
+        .delegate({ id: request.id, userId: deputy.id, comment: "on leave" })
+        .orThrow();
 
       await s.asRole(deputy);
-      const done = await approvals.approve(request.id).orThrow();
+      const done = await approvals.approve({ id: request.id }).orThrow();
       expect(done.status).toBe("approved");
       expect(await status()).toBe("sent");
       expect(
         await approvals
-          .isApproved({ type: "invoice", id: invoice }, "send")
+          .isApproved({
+            subject: { type: "invoice", id: invoice },
+            action: "send",
+          })
           .orThrow(),
       ).toBe(true);
 
@@ -249,7 +266,10 @@ describe.skipIf(!live)("approvals", () => {
 
       const ask = (subjectId: string) =>
         approvals
-          .request({ type: "invoice", id: subjectId }, { action: "void" })
+          .request({
+            subject: { type: "invoice", id: subjectId },
+            input: { action: "void" },
+          })
           .orThrow();
 
       await s.asRole(requester);
@@ -262,10 +282,16 @@ describe.skipIf(!live)("approvals", () => {
       );
       await s.asRole(owner);
       expect(
-        (await approvals.reject(rejected.id, "duplicate").orThrow()).status,
+        (
+          await approvals
+            .reject({ id: rejected.id, comment: "duplicate" })
+            .orThrow()
+        ).status,
       ).toBe("rejected");
       expect(
-        await approvals.approve(rejected.id).then((r) => !r.ok && r.error.hint),
+        await approvals
+          .approve({ id: rejected.id })
+          .then((r) => !r.ok && r.error.hint),
       ).toBe("APPROVAL_CLOSED");
 
       await s.service();

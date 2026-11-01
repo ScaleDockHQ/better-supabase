@@ -38,7 +38,10 @@ async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
   }
 
   const templates = templatesOf(supabase);
-  const list = await templates.list(tenant, { type: "customer" }).orThrow();
+
+  const list = await templates
+    .list({ organizationId: tenant, filter: { type: "customer" } })
+    .orThrow();
 
   const details = await Promise.all(
     list.map((template) => templates.get(template.id).orThrow()),

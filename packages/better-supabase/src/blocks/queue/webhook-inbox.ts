@@ -250,11 +250,12 @@ export interface WebhookInbox<F extends object = Record<never, never>> {
    * this worker.
    */
   process<T = unknown>(
-    handler: (
-      message: WebhookInboxMessage<T, F>,
-      signal: AbortSignal,
-    ) => unknown,
-    options?: WebhookInboxProcessOptions,
+    input: {
+      handler: (
+        message: WebhookInboxMessage<T, F>,
+        signal: AbortSignal,
+      ) => unknown;
+    } & WebhookInboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
   list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry<F>[]>;
@@ -535,7 +536,7 @@ export function createWebhookInbox<
       });
     },
 
-    async process(handler, processOptions = {}) {
+    async process({ handler, ...processOptions }) {
       let succeeded = 0;
       let failed = 0;
       const lease = seconds(processOptions.lease ?? 300);

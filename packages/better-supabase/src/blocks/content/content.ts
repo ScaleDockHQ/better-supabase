@@ -149,7 +149,10 @@ export interface Content {
    * request. Under `requireApproval`, a scheduled or published entry needs
    * `content.publish`.
    */
-  update(entryId: string, input: ContentEntryUpdate): AsyncResult<ContentEntry>;
+  update(input: {
+    entryId: string;
+    input: ContentEntryUpdate;
+  }): AsyncResult<ContentEntry>;
   /** Takes an entry down; a live or scheduled one needs `content.publish`. */
   archive(entryId: string): AsyncResult<ContentEntry>;
   /** The entry with its translations, or null when the caller can't read it. */
@@ -164,10 +167,10 @@ export interface Content {
    * Schedules an entry to go live at `at`, or unschedules it with null. Under
    * `requireApproval` a member's call opens a publish request.
    */
-  schedule(
-    entryId: string,
-    at: Temporal.Instant | null,
-  ): AsyncResult<ContentEntry>;
+  schedule(input: {
+    entryId: string;
+    at: Temporal.Instant | null;
+  }): AsyncResult<ContentEntry>;
   /** Publishes the scheduled entries that are due; service role only. */
   publishDue(): AsyncResult<number>;
   /** A published entry, falling back to the default locale; anyone may call it. */
@@ -306,7 +309,7 @@ export function createContent(options: ContentOptions): Content {
           entry("create_content_entry"),
         ),
       ),
-    update: (entryId, input) =>
+    update: ({ entryId, input }) =>
       call(
         "update_content_entry",
         { entry_id: entryId, attrs: definedOf(input) },
@@ -341,7 +344,7 @@ export function createContent(options: ContentOptions): Content {
         { entry_id: entryId },
         entry("publish_content_entry"),
       ),
-    schedule: (entryId, at) =>
+    schedule: ({ entryId, at }) =>
       call(
         "schedule_content_entry",
         { entry_id: entryId, at: instantArg(at) },

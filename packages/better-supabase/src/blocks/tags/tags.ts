@@ -13,8 +13,11 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import {
+  neighborsForIndex,
+  rankBetweenResult,
+} from "../../core/rank-result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -105,22 +108,40 @@ export interface Tags<F extends object = Record<never, never>> {
    * Renames a tag, sets its slug, kind, color or description, and sets the
    * extra columns `fields` names.
    */
-  update(id: string, patch: UpdateTagInput<F>): AsyncResult<boolean>;
+  update(input: { id: string; patch: UpdateTagInput<F> }): AsyncResult<boolean>;
   /**
    * Moves a tag between the tags with rank keys `previous` and `next`. Resolves
    * to its new key.
    */
-  reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
+  /**
+   * Puts a tag at position `toIndex` (0 is first) among the tags of `kind`
+   * (every kind without it) and resolves to its new key. It reads the list and
+   * calls `reorder` with the neighbours there.
+   */
+  move(input: {
+    id: string;
+    toIndex: number;
+    kind?: string | undefined;
+  }): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
   /** Puts a tag on `record`. */
-  attach(record: RecordRef, tagId: string): AsyncResult<boolean>;
+  attach(input: { record: RecordRef; tagId: string }): AsyncResult<boolean>;
   /** Takes a tag off `record`. */
-  detach(record: RecordRef, tagId: string): AsyncResult<boolean>;
+  detach(input: { record: RecordRef; tagId: string }): AsyncResult<boolean>;
   /**
    * The tenant's tags in rank order: every kind, the tags of `kind`, or the
    * tags on the record `on` names.
    */
   list(params?: ListTagsParams): AsyncResult<readonly Tag<F>[]>;
+  /**
+   * Makes `tagIds` the tags on the record: attaches the missing ones and
+   * detaches the others, in that order. It stops at the first failure.
+   */
+  replace(input: {
+    record: RecordRef;
+    tagIds: readonly string[];
+  }): AsyncResult<{ readonly attached: number; readonly detached: number }>;
 }
 
 function tagOf(value: unknown): Tag {
@@ -189,7 +210,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
             ).andThen(fields.row),
           ),
       ),
-    update: (id, patch) =>
+    update: ({ id, patch }) =>
       fields
         .args(patch.fields)
         .andThen((checked) =>
@@ -204,7 +225,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
             (value) => value === true,
           ),
         ),
-    reorder: (id, neighbors) => {
+    reorder: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -213,9 +234,17 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
       return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
     },
+    move: ({ id, toIndex, kind }) =>
+      hooked.list(kind === undefined ? {} : { kind }).andThen((tags) => {
+        const neighbors = neighborsForIndex(tags, id, toIndex);
+
+        return neighbors.ok
+          ? hooked.reorder({ id, neighbors: neighbors.data })
+          : AsyncResult.err(neighbors.error);
+      }),
     delete: (id) =>
       call("delete_tag", { tag_id: id }, (value) => value === true),
-    attach: (record, tagId) =>
+    attach: ({ record, tagId }) =>
       tenant().andThen((organizationId) =>
         call(
           "tag",
@@ -228,7 +257,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
           (value) => value === true,
         ),
       ),
-    detach: (record, tagId) =>
+    detach: ({ record, tagId }) =>
       tenant().andThen((organizationId) =>
         call(
           "untag",
@@ -267,10 +296,44 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
         return listed.andThen(fields.rows);
       }),
+    replace: ({ record, tagIds }) =>
+      AsyncResult.from(async () => {
+        const current = await hooked.list({ on: record });
+
+        if (!current.ok) {
+          return current;
+        }
+
+        const have = new Set(current.data.map((tag) => tag.id));
+        const want = new Set(tagIds);
+        const toAttach = [...want].filter((id) => !have.has(id));
+        const toDetach = [...have].filter((id) => !want.has(id));
+
+        for (const tagId of toAttach) {
+          const attached = await hooked.attach({ record, tagId });
+
+          if (!attached.ok) {
+            return attached;
+          }
+        }
+
+        for (const tagId of toDetach) {
+          const detached = await hooked.detach({ record, tagId });
+
+          if (!detached.ok) {
+            return detached;
+          }
+        }
+
+        return ok({ attached: toAttach.length, detached: toDetach.length });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Tags<F> = withBlockHooks(client, options.hooks, {
     block: "tags",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

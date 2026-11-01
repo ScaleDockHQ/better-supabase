@@ -140,28 +140,35 @@ describe.skipIf(!live)("workflow-editor module", () => {
       ).toBe("WORKFLOW_NOT_PUBLISHED");
 
       const broken = await builder.versions
-        .upsert(definition.id, {
-          nodes: [
-            { id: "start", kind: "trigger" },
-            { id: "x", kind: "step", step: "nope" },
-          ],
-          edges: [{ id: "e", source: "start", target: "x" }],
+        .upsert({
+          definition: definition.id,
+          graph: {
+            nodes: [
+              { id: "start", kind: "trigger" },
+              { id: "x", kind: "step", step: "nope" },
+            ],
+            edges: [{ id: "e", source: "start", target: "x" }],
+          },
         })
         .orThrow();
 
       expect(broken).toMatchObject({ version: 1, status: "draft" });
-      const refused = await builder.versions.publish(broken.id);
+      const refused = await builder.versions.publish({ version: broken.id });
       expect(!refused.ok && refused.error.hint).toBe("WORKFLOW_GRAPH_INVALID");
       expect(!refused.ok && refused.error.message).toContain(
         "not in the step library",
       );
 
       const draft = await builder.versions
-        .upsert(definition.id, GRAPH)
+        .upsert({ definition: definition.id, graph: GRAPH })
         .orThrow();
 
       expect(draft.id).toBe(broken.id);
-      const v1 = await builder.versions.publish(draft.id).orThrow();
+
+      const v1 = await builder.versions
+        .publish({ version: draft.id })
+        .orThrow();
+
       expect(v1).toMatchObject({ version: 1, status: "published" });
       expect(v1).not.toHaveProperty("compiled");
       expect(compiled).toHaveLength(2);
@@ -181,25 +188,30 @@ describe.skipIf(!live)("workflow-editor module", () => {
       await s.asRole(owner);
 
       const next = await builder.versions
-        .upsert(definition.id, {
-          ...GRAPH,
-          nodes: [
-            ...GRAPH.nodes,
-            { id: "wait", kind: "sleep", config: { duration: "1h" } },
-          ],
-          edges: [
-            ...GRAPH.edges,
-            { id: "e4", source: "welcome", target: "wait" },
-          ],
+        .upsert({
+          definition: definition.id,
+          graph: {
+            ...GRAPH,
+            nodes: [
+              ...GRAPH.nodes,
+              { id: "wait", kind: "sleep", config: { duration: "1h" } },
+            ],
+            edges: [
+              ...GRAPH.edges,
+              { id: "e4", source: "welcome", target: "wait" },
+            ],
+          },
         })
         .orThrow();
 
       expect(next).toMatchObject({ version: 2, status: "draft" });
-      expect(await builder.versions.diff(v1.id, next.id).orThrow()).toEqual({
+      expect(
+        await builder.versions.diff({ from: v1.id, to: next.id }).orThrow(),
+      ).toEqual({
         nodes: { added: ["wait"], removed: [], changed: [] },
         edges: { added: ["welcome->wait"], removed: [] },
       });
-      await builder.versions.publish(next.id).orThrow();
+      await builder.versions.publish({ version: next.id }).orThrow();
       expect(
         (await builder.versions.list(definition.id).orThrow()).map((v) => [
           v.version,
@@ -209,9 +221,9 @@ describe.skipIf(!live)("workflow-editor module", () => {
         [2, "published"],
         [1, "archived"],
       ]);
-      expect(await builder.definitions.list(tenant).orThrow()).toMatchObject([
-        { slug: "onboard", published: 2, draft: false },
-      ]);
+      expect(
+        await builder.definitions.list({ tenant }).orThrow(),
+      ).toMatchObject([{ slug: "onboard", published: 2, draft: false }]);
 
       const runId = await builder
         .run({
@@ -231,7 +243,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       expect(starts[0]?.version.graph?.nodes).toHaveLength(5);
 
       await s.asRole(member);
-      expect(await asMember.definitions.list(tenant).orThrow()).toEqual([]);
+      expect(await asMember.definitions.list({ tenant }).orThrow()).toEqual([]);
       await s.asRole(outsider);
       expect(
         await asMember.definitions.get(definition.id).orThrow(),
@@ -281,10 +293,10 @@ describe.skipIf(!live)("workflow-editor module", () => {
         .orThrow();
 
       const draft = await builder.versions
-        .upsert(definition.id, GRAPH)
+        .upsert({ definition: definition.id, graph: GRAPH })
         .orThrow();
 
-      await builder.versions.publish(draft.id).orThrow();
+      await builder.versions.publish({ version: draft.id }).orThrow();
 
       const webhook = await builder.triggers
         .upsert({ definition: definition.id, kind: "webhook" })
@@ -361,7 +373,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       ).toBe(405);
 
       const synced = await service.triggers
-        .syncSchedule(schedule, tenant)
+        .syncSchedule({ trigger: schedule, tenant })
         .orThrow();
 
       expect(synced).toMatchObject({
@@ -503,7 +515,10 @@ describe.skipIf(!live)("workflow-editor module", () => {
       });
       expect(
         await service.credentials
-          .authorize(credential.id, { redirectUri: "https://app.test/cb" })
+          .authorize({
+            id: credential.id,
+            options: { redirectUri: "https://app.test/cb" },
+          })
           .then((result) => !result.ok && result.error.kind),
       ).toBe("unsupported");
 
@@ -657,7 +672,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       expect(await builder.definitions.remove(definition.id).orThrow()).toBe(
         true,
       );
-      expect(await builder.definitions.list(tenant).orThrow()).toEqual([]);
+      expect(await builder.definitions.list({ tenant }).orThrow()).toEqual([]);
     } finally {
       await s.close();
     }

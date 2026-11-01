@@ -192,11 +192,14 @@ describe("createMailSync tracking", () => {
     });
 
     const sent = await mail
-      .send("a1", {
-        to: [{ address: "bob@globex.test" }],
-        subject: "Hi",
-        html: '<p><a href="https://x.test">x</a></p>',
-        templateVersionId: "v1",
+      .send({
+        accountId: "a1",
+        draft: {
+          to: [{ address: "bob@globex.test" }],
+          subject: "Hi",
+          html: '<p><a href="https://x.test">x</a></p>',
+          templateVersionId: "v1",
+        },
       })
       .orThrow();
 
@@ -256,11 +259,14 @@ describe("createMailSync tracking", () => {
     });
 
     const sent = await mail
-      .send("a1", {
-        to: [{ address: "bob@globex.test" }],
-        subject: "Hi",
-        html: "<p>Hi</p>",
-        track: false,
+      .send({
+        accountId: "a1",
+        draft: {
+          to: [{ address: "bob@globex.test" }],
+          subject: "Hi",
+          html: "<p>Hi</p>",
+          track: false,
+        },
       })
       .orThrow();
 
@@ -269,7 +275,10 @@ describe("createMailSync tracking", () => {
     expect(provider.send.mock.lastCall?.[0]?.draft.html).toBe("<p>Hi</p>");
 
     await mail
-      .send("a1", { to: [{ address: "bob@globex.test" }], subject: "Text" })
+      .send({
+        accountId: "a1",
+        draft: { to: [{ address: "bob@globex.test" }], subject: "Text" },
+      })
       .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -292,11 +301,14 @@ describe("createMailSync tracking", () => {
       providers: [gmail()],
     });
 
-    const sent = await mail.send("a1", {
-      to: [{ address: "bob@globex.test" }],
-      subject: "Hi",
-      html: "<p>Hi</p>",
-      track: true,
+    const sent = await mail.send({
+      accountId: "a1",
+      draft: {
+        to: [{ address: "bob@globex.test" }],
+        subject: "Hi",
+        html: "<p>Hi</p>",
+        track: true,
+      },
     });
 
     expect(sent.ok ? undefined : sent.error.hint).toBe("MAIL_TRACKING_MISSING");
@@ -361,11 +373,16 @@ describe("createMailSync tracking", () => {
     const { transport, call } = fakeTransport(answers);
     const mail = createMailSync({ transport });
 
-    expect(await mail.templateStats("org").orThrow()).toEqual([
+    expect(
+      await mail.templateStats({ organizationId: "org" }).orThrow(),
+    ).toEqual([
       { templateVersionId: "v1", sent: 3, opened: 2, clicked: 1, replied: 1 },
     ]);
     await mail
-      .templateStats("org", { since: Temporal.Instant.from(AT) })
+      .templateStats({
+        organizationId: "org",
+        since: Temporal.Instant.from(AT),
+      })
       .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",

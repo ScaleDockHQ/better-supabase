@@ -16,10 +16,10 @@ export const acknowledgeCareAlert = bsb.action(
     permission: "clinical_decision_support.write",
   },
   async ({ alertId }, { db }) => {
-    const alert = await db.clinicalDecisionSupport.decide(
+    const alert = await db.clinicalDecisionSupport.decide({
       alertId,
-      "acknowledged",
-    );
+      decision: "acknowledged",
+    });
 
     return alert.ok ? ok({ id: alert.data.id }) : alert;
   },

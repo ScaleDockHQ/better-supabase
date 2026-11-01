@@ -23,17 +23,17 @@ export const createDraftInvoice = bsb.action(
     permission: "invoices.write",
   },
   async ({ title, amount }, { tenant, db, auth }) => {
-    const created = await db.invoices.create(
-      tenant,
-      { title, currency: SHOP_CURRENCY },
-      [
+    const created = await db.invoices.create({
+      organizationId: tenant,
+      input: { title, currency: SHOP_CURRENCY },
+      lines: [
         {
           description: title,
           quantity: 1,
           unitAmount: parseMoney(amount, SHOP_CURRENCY),
         },
       ],
-    );
+    });
 
     if (!created.ok) {
       return created;
@@ -53,7 +53,7 @@ export const issueInvoice = bsb.action(
     permission: "invoices.write",
   },
   async ({ invoiceId }, { db, auth }) => {
-    const issued = await db.invoices.issue(invoiceId);
+    const issued = await db.invoices.issue({ invoiceId });
 
     if (!issued.ok) {
       return issued;

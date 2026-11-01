@@ -123,7 +123,8 @@ describe.skipIf(!live)("api-keys", () => {
 
       // Rotation keeps the old key valid for the grace period.
       const rotated = await keys
-        .rotate(personal.key.id, {
+        .rotate({
+          id: personal.key.id,
           grace: Temporal.Duration.from({ hours: 1 }),
         })
         .orThrow();

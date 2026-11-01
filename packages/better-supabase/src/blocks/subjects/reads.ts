@@ -49,15 +49,14 @@ export interface SubjectReads {
    * a block read function, such as a page that selects the row itself. A type
    * without `auditReads` logs nothing.
    */
-  log(subject: RecordRef, options?: SubjectReadOptions): AsyncResult<void>;
+  log(input: { subject: RecordRef } & SubjectReadOptions): AsyncResult<void>;
   /**
    * Who read the record and when, newest first. For holders of `audit.read`,
    * the record team's leads, the record's own guest and a representative with
    * `act` authority.
    */
   list(
-    subject: RecordRef,
-    options?: SubjectAccessLogOptions,
+    input: { subject: RecordRef } & SubjectAccessLogOptions,
   ): AsyncResult<readonly SubjectRead[]>;
 }
 
@@ -92,7 +91,7 @@ const readList = (value: unknown): SubjectRead[] =>
 /** `reads` of the subjects client, over `call`. */
 export function subjectReads(call: BlockCall): SubjectReads {
   return {
-    log: (subject, options = {}) =>
+    log: ({ subject, ...options }) =>
       call(
         "record_subject_read",
         {
@@ -102,7 +101,7 @@ export function subjectReads(call: BlockCall): SubjectReads {
         },
         () => undefined,
       ),
-    list: (subject, options = {}) =>
+    list: ({ subject, ...options }) =>
       call(
         "subject_access_log",
         {

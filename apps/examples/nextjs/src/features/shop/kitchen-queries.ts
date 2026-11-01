@@ -105,7 +105,10 @@ async function loadKitchen(
   const stationId = active.some((each) => each.id === station) ? station : null;
 
   const tickets = await kitchen
-    .queue(tenant, stationId === null ? {} : { stationId })
+    .queue({
+      organizationId: tenant,
+      query: stationId === null ? {} : { stationId },
+    })
     .orThrow();
 
   return {
@@ -132,7 +135,9 @@ async function loadBoard(): Promise<BoardView | null> {
     return null;
   }
 
-  const cards = await shopOrders(supabase).kitchen.board(tenant).orThrow();
+  const cards = await shopOrders(supabase)
+    .kitchen.board({ organizationId: tenant })
+    .orThrow();
 
   return { organizationId: tenant, cards: cards.map(cardView) };
 }

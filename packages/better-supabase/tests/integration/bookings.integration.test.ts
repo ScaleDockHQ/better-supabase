@@ -79,7 +79,12 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("lets managers set up resources and services, and refuses members", async () => {
     await session.as(member);
-    const refused = await bookings.saveResource(org, { name: "Nope" });
+
+    const refused = await bookings.saveResource({
+      organizationId: org,
+      input: { name: "Nope" },
+    });
+
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "BOOKING_FORBIDDEN",
     );
@@ -87,25 +92,31 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.as(owner);
     resourceId = (
       await bookings
-        .saveResource(org, {
-          name: "Ann",
-          kind: "staff",
-          tz: "Europe/Amsterdam",
-          calendarId,
+        .saveResource({
+          organizationId: org,
+          input: {
+            name: "Ann",
+            kind: "staff",
+            tz: "Europe/Amsterdam",
+            calendarId,
+          },
         })
         .orThrow()
     ).id;
-    expect(await bookings.setAvailability(resourceId, weekdays).orThrow()).toBe(
-      5,
-    );
+    expect(
+      await bookings.setAvailability({ resourceId, hours: weekdays }).orThrow(),
+    ).toBe(5);
     serviceId = (
       await bookings
-        .saveService(org, {
-          name: "Haircut",
-          duration: Temporal.Duration.from({ minutes: 30 }),
-          bufferAfter: "PT15M",
-          resourceKinds: ["staff"],
-          reminderOffsets: [60],
+        .saveService({
+          organizationId: org,
+          input: {
+            name: "Haircut",
+            duration: Temporal.Duration.from({ minutes: 30 }),
+            bufferAfter: "PT15M",
+            resourceKinds: ["staff"],
+            reminderOffsets: [60],
+          },
         })
         .orThrow()
     ).id;
@@ -113,7 +124,11 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("returns slots inside the weekly hours, in the resource's zone", async () => {
     await session.as(member);
-    const slots = await bookings.availableSlots(serviceId, monday).orThrow();
+
+    const slots = await bookings
+      .availableSlots({ serviceId, range: monday })
+      .orThrow();
+
     expect(slots.map((slot) => slot.startsAt.toString())).toEqual([
       "2030-03-04T08:00:00Z",
       "2030-03-04T08:30:00Z",
@@ -125,12 +140,14 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     expect(slots[0]?.localStart.toString()).toBe("2030-03-04T09:00:00");
 
     const tokyo = await bookings
-      .availableSlots(serviceId, monday, { tz: "Asia/Tokyo" })
+      .availableSlots({ serviceId, range: monday, tz: "Asia/Tokyo" })
       .orThrow();
 
     expect(tokyo[0]?.localStart.toString()).toBe("2030-03-04T17:00:00");
 
-    const badZone = await bookings.availableSlots(serviceId, monday, {
+    const badZone = await bookings.availableSlots({
+      serviceId,
+      range: monday,
       tz: "Mars/Base",
     });
 
@@ -143,21 +160,27 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.as(owner);
 
     const { id } = await bookings
-      .addException(resourceId, {
-        startsAt: at("2030-03-04T08:00:00Z"),
-        endsAt: at("2030-03-04T10:00:00Z"),
-        reason: "Dentist",
+      .addException({
+        resourceId,
+        exception: {
+          startsAt: at("2030-03-04T08:00:00Z"),
+          endsAt: at("2030-03-04T10:00:00Z"),
+          reason: "Dentist",
+        },
       })
       .orThrow();
 
-    const closed = await bookings.availableSlots(serviceId, monday).orThrow();
+    const closed = await bookings
+      .availableSlots({ serviceId, range: monday })
+      .orThrow();
+
     expect(closed.map((slot) => slot.startsAt.toString())).toEqual([
       "2030-03-04T10:00:00Z",
       "2030-03-04T10:30:00Z",
     ]);
     expect(await bookings.deleteException(id).orThrow()).toBe(true);
     expect(
-      await bookings.availableSlots(serviceId, monday).orThrow(),
+      await bookings.availableSlots({ serviceId, range: monday }).orThrow(),
     ).toHaveLength(6);
   });
 
@@ -165,7 +188,12 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.as(member);
 
     const held = await bookings
-      .hold(serviceId, resourceId, at("2030-03-04T08:00:00Z"), { name: "Bo" })
+      .hold({
+        serviceId,
+        resourceId,
+        startsAt: at("2030-03-04T08:00:00Z"),
+        customer: { name: "Bo" },
+      })
       .orThrow();
 
     expect(held.status).toBe("hold");
@@ -173,22 +201,25 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     expect(held.holdExpiresAt).toBeDefined();
     expect(held.accessToken).toMatch(/^[0-9a-f]{48}$/);
 
-    const left = await bookings.availableSlots(serviceId, monday).orThrow();
+    const left = await bookings
+      .availableSlots({ serviceId, range: monday })
+      .orThrow();
+
     expect(left.map((slot) => slot.startsAt.toString())).not.toContain(
       "2030-03-04T08:30:00Z",
     );
 
-    const again = await bookings.hold(
+    const again = await bookings.hold({
       serviceId,
       resourceId,
-      at("2030-03-04T08:00:00Z"),
-    );
+      startsAt: at("2030-03-04T08:00:00Z"),
+    });
 
     expect(again.ok ? undefined : again.error.hint).toBe(
       "BOOKING_SLOT_UNAVAILABLE",
     );
 
-    await bookings.cancel(held.id).orThrow();
+    await bookings.cancel({ bookingId: held.id }).orThrow();
   });
 
   it("enforces the exclusion constraint even for direct writes", async () => {
@@ -222,20 +253,25 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
     const room = (
       await bookings
-        .saveResource(org, { name: "Studio", kind: "room", capacity: 2 })
+        .saveResource({
+          organizationId: org,
+          input: { name: "Studio", kind: "room", capacity: 2 },
+        })
         .orThrow()
     ).id;
 
     await bookings
-      .setAvailability(room, [{ weekday: 1, start: "08:00", end: "09:00" }])
+      .setAvailability({
+        resourceId: room,
+        hours: [{ weekday: 1, start: "08:00", end: "09:00" }],
+      })
       .orThrow();
 
     const yoga = (
       await bookings
-        .saveService(org, {
-          name: "Yoga",
-          duration: "PT1H",
-          resourceKinds: ["room"],
+        .saveService({
+          organizationId: org,
+          input: { name: "Yoga", duration: "PT1H", resourceKinds: ["room"] },
         })
         .orThrow()
     ).id;
@@ -243,15 +279,34 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     const start = at("2030-03-04T08:00:00Z");
 
     const first = await bookings
-      .hold(yoga, room, start, { name: "A" }, { confirm: true })
+      .hold({
+        serviceId: yoga,
+        resourceId: room,
+        startsAt: start,
+        customer: { name: "A" },
+        confirm: true,
+      })
       .orThrow();
 
     const second = await bookings
-      .hold(yoga, room, start, { name: "B" }, { confirm: true })
+      .hold({
+        serviceId: yoga,
+        resourceId: room,
+        startsAt: start,
+        customer: { name: "B" },
+        confirm: true,
+      })
       .orThrow();
 
     expect([first.seat, second.seat].toSorted((a, b) => a - b)).toEqual([1, 2]);
-    const third = await bookings.hold(yoga, room, start, { name: "C" });
+
+    const third = await bookings.hold({
+      serviceId: yoga,
+      resourceId: room,
+      startsAt: start,
+      customer: { name: "C" },
+    });
+
     expect(third.ok ? undefined : third.error.hint).toBe(
       "BOOKING_SLOT_UNAVAILABLE",
     );
@@ -261,7 +316,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.as(member);
 
     const held = await bookings
-      .hold(serviceId, resourceId, at("2030-03-04T09:00:00Z"))
+      .hold({ serviceId, resourceId, startsAt: at("2030-03-04T09:00:00Z") })
       .orThrow();
 
     await session.service();
@@ -287,7 +342,12 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.as(member);
 
     const held = await bookings
-      .hold(serviceId, resourceId, at("2030-03-04T10:00:00Z"), { name: "Cy" })
+      .hold({
+        serviceId,
+        resourceId,
+        startsAt: at("2030-03-04T10:00:00Z"),
+        customer: { name: "Cy" },
+      })
       .orThrow();
 
     await bookings.confirm(held.id).orThrow();
@@ -308,7 +368,11 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     expect(reminders.map((reminder) => reminder.offset_minutes)).toEqual([60]);
 
     await session.as(member);
-    const cancelled = await bookings.cancel(held.id, "ill").orThrow();
+
+    const cancelled = await bookings
+      .cancel({ bookingId: held.id, reason: "ill" })
+      .orThrow();
+
     expect(cancelled.cancelReason).toBe("ill");
     await session.service();
     expect(
@@ -321,10 +385,16 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("lists bookings by policy", async () => {
     await session.as(owner);
-    const all = await bookings.list(org, monday).orThrow();
+
+    const all = await bookings
+      .list({ organizationId: org, range: monday })
+      .orThrow();
+
     expect(all.length).toBeGreaterThan(0);
     await session.asRole(outsider);
-    expect(await bookings.list(org, monday).orThrow()).toEqual([]);
+    expect(
+      await bookings.list({ organizationId: org, range: monday }).orThrow(),
+    ).toEqual([]);
   });
 
   it("takes guest bookings through a share link, with an access token and a rate limit", async () => {
@@ -339,32 +409,42 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     const info = await bookings.public.service(link.token).orThrow();
     expect(info.name).toBe("Haircut");
     expect(info.resources.map((resource) => resource.id)).toEqual([resourceId]);
-    const slots = await bookings.public.slots(link.token, monday).orThrow();
+
+    const slots = await bookings.public
+      .slots({ token: link.token, range: monday })
+      .orThrow();
+
     expect(slots.length).toBeGreaterThan(0);
 
-    const noEmail = await bookings.public.hold(
-      link.token,
+    const noEmail = await bookings.public.hold({
+      token: link.token,
       resourceId,
-      slots[0]!.startsAt,
-      { name: "Guest", email: "nope" },
-    );
+      startsAt: slots[0]!.startsAt,
+      customer: { name: "Guest", email: "nope" },
+    });
 
     expect(noEmail.ok ? undefined : noEmail.error.hint).toBe(
       "BOOKING_CUSTOMER_INVALID",
     );
 
     const held = await bookings.public
-      .hold(link.token, resourceId, slots[0]!.startsAt, {
-        name: "Guest",
-        email: "guest@example.test",
+      .hold({
+        token: link.token,
+        resourceId,
+        startsAt: slots[0]!.startsAt,
+        customer: { name: "Guest", email: "guest@example.test" },
       })
       .orThrow();
 
-    const wrong = await bookings.public.confirm(held.id, "0".repeat(48));
+    const wrong = await bookings.public.confirm({
+      bookingId: held.id,
+      accessToken: "0".repeat(48),
+    });
+
     expect(wrong.ok ? undefined : wrong.error.hint).toBe("BOOKING_FORBIDDEN");
 
     const confirmed = await bookings.public
-      .confirm(held.id, held.accessToken)
+      .confirm({ bookingId: held.id, accessToken: held.accessToken })
       .orThrow();
 
     expect(confirmed.status).toBe("confirmed");

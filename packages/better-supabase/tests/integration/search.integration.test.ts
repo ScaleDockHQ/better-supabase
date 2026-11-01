@@ -176,13 +176,17 @@ describe.skipIf(!live)("search", () => {
       await s.asRole(member);
       expect(
         (
-          await client.search("revenue", { organizationId: tenant }).orThrow()
+          await client
+            .search({ q: "revenue", query: { organizationId: tenant } })
+            .orThrow()
         )[0],
       ).toMatchObject({ subjectId: "n1", url: "/notes/n1" });
       expect(
         (await client.favorites().orThrow()).map((item) => item.subjectId),
       ).toEqual([]);
-      expect(await client.star("note", "n1").orThrow()).toBe(true);
+      expect(
+        await client.star({ subjectType: "note", subjectId: "n1" }).orThrow(),
+      ).toBe(true);
       expect((await client.favorites().orThrow())[0]?.starredAt).toBeInstanceOf(
         Temporal.Instant,
       );
@@ -205,13 +209,19 @@ describe.skipIf(!live)("search", () => {
         },
       ]);
       await s.asRole(member);
-      expect(await client.search("revenue").orThrow()).toEqual([]);
+      expect(await client.search({ q: "revenue" }).orThrow()).toEqual([]);
 
       await s.service();
       await s.client.query("truncate better_supabase.search_documents");
       expect(await s.value("better_supabase.search_reindex('note')")).toBe(3);
-      expect(await client.remove("note", "n1").orThrow()).toBe(true);
-      expect(await client.refresh("note", "n1").orThrow()).toBe(true);
+      expect(
+        await client.remove({ subjectType: "note", subjectId: "n1" }).orThrow(),
+      ).toBe(true);
+      expect(
+        await client
+          .refresh({ subjectType: "note", subjectId: "n1" })
+          .orThrow(),
+      ).toBe(true);
     } finally {
       await s.close();
     }
@@ -245,11 +255,12 @@ describe.skipIf(!live)("search", () => {
       const client = createSearch({ transport: sqlTransport(s.sql) });
       expect(
         await client
-          .embedPending(async (texts) =>
-            texts.map((text) =>
-              text.startsWith("Invoice") ? [1, 0, 0] : [0, 1, 0],
-            ),
-          )
+          .embedPending({
+            embed: async (texts) =>
+              texts.map((text) =>
+                text.startsWith("Invoice") ? [1, 0, 0] : [0, 1, 0],
+              ),
+          })
           .orThrow(),
       ).toBe(pending.length);
       expect(
@@ -259,7 +270,7 @@ describe.skipIf(!live)("search", () => {
       await s.asRole(owner);
 
       const hits = await client
-        .search("questions", { embedding: [0.1, 0.9, 0] })
+        .search({ q: "questions", query: { embedding: [0.1, 0.9, 0] } })
         .orThrow();
 
       expect(hits.map((hit) => hit.subjectId)).toEqual(["b", "a"]);
@@ -348,12 +359,14 @@ grant select on search_src_it.customers to authenticated;`);
       const search = createSearch({ transport: sqlTransport(s.sql) });
 
       const [hit] = await search
-        .search("grace", { organizationId: tenant })
+        .search({ q: "grace", query: { organizationId: tenant } })
         .orThrow();
 
       expect(hit).toMatchObject({ subjectId: acme!.id, description: "NL123" });
       expect(
-        await search.search("gone", { organizationId: tenant }).orThrow(),
+        await search
+          .search({ q: "gone", query: { organizationId: tenant } })
+          .orThrow(),
       ).toEqual([]);
       await s.service();
       expect(

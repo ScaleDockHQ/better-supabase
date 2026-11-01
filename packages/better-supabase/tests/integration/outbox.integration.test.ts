@@ -97,8 +97,12 @@ describe.skipIf(!live)("outbox", () => {
 
   it("holds back events of open transactions so none is skipped", async () => {
     expect(
-      (await outbox.register("crm", { types: ["organization.*", "widget.*"] }))
-        .ok,
+      (
+        await outbox.register({
+          consumer: "crm",
+          types: ["organization.*", "widget.*"],
+        })
+      ).ok,
     ).toBe(true);
     const slow = await pool.connect();
     const sent: CloudEvent[] = [];
@@ -113,34 +117,40 @@ describe.skipIf(!live)("outbox", () => {
         `select ${SCHEMA}.emit_event('organization.slow', '{}'::jsonb, 'organizations/1')`,
       );
 
-      const fast = await outbox.emit(
-        "organization.fast",
-        { n: 1 },
-        { tenant: "t1" },
-      );
+      const fast = await outbox.emit({
+        type: "organization.fast",
+        payload: { n: 1 },
+        tenant: "t1",
+      });
 
       expect(fast.ok).toBe(true);
-      expect((await outbox.emit("other.type")).ok).toBe(true);
+      expect((await outbox.emit({ type: "other.type" })).ok).toBe(true);
 
-      expect(await outbox.relay("crm", sink)).toEqual({ delivered: 0 });
+      expect(await outbox.relay({ consumer: "crm", sink })).toEqual({
+        delivered: 0,
+      });
       await slow.query("commit");
     } finally {
       slow.release();
     }
 
-    expect(await outbox.relay("crm", sink)).toEqual({ delivered: 2 });
+    expect(await outbox.relay({ consumer: "crm", sink })).toEqual({
+      delivered: 2,
+    });
     expect(sent.map((event) => event.type)).toEqual([
       "dev.better-supabase.organization.slow",
       "dev.better-supabase.organization.fast",
     ]);
     expect(sent[1]).toMatchObject({ partitionkey: "t1", data: { n: 1 } });
-    expect(await outbox.relay("crm", sink)).toEqual({ delivered: 0 });
+    expect(await outbox.relay({ consumer: "crm", sink })).toEqual({
+      delivered: 0,
+    });
   });
 
   it("delivers an event whose transaction commits after a later one", async () => {
-    expect((await outbox.register("late", { types: ["late.*"] })).ok).toBe(
-      true,
-    );
+    expect(
+      (await outbox.register({ consumer: "late", types: ["late.*"] })).ok,
+    ).toBe(true);
     const sent: CloudEvent[] = [];
 
     const sink = {
@@ -154,14 +164,18 @@ describe.skipIf(!live)("outbox", () => {
       await early.query(
         `select ${SCHEMA}.emit_event('late.first', '{}'::jsonb)`,
       );
-      expect((await outbox.emit("late.second")).ok).toBe(true);
-      expect(await outbox.relay("late", sink)).toEqual({ delivered: 0 });
+      expect((await outbox.emit({ type: "late.second" })).ok).toBe(true);
+      expect(await outbox.relay({ consumer: "late", sink })).toEqual({
+        delivered: 0,
+      });
       await early.query("commit");
     } finally {
       early.release();
     }
 
-    expect(await outbox.relay("late", sink)).toEqual({ delivered: 2 });
+    expect(await outbox.relay({ consumer: "late", sink })).toEqual({
+      delivered: 2,
+    });
     expect(sent.map((event) => event.type)).toEqual([
       "dev.better-supabase.late.first",
       "dev.better-supabase.late.second",
@@ -170,23 +184,26 @@ describe.skipIf(!live)("outbox", () => {
   });
 
   it("deduplicates keys, tracks rows and keeps history", async () => {
-    const first = await outbox.emit(
-      "invoice.paid",
-      {},
-      { tenant: "t2", key: "inv-9" },
-    );
+    const first = await outbox.emit({
+      type: "invoice.paid",
+      payload: {},
+      tenant: "t2",
+      key: "inv-9",
+    });
 
-    const again = await outbox.emit(
-      "invoice.paid",
-      {},
-      { tenant: "t2", key: "inv-9" },
-    );
+    const again = await outbox.emit({
+      type: "invoice.paid",
+      payload: {},
+      tenant: "t2",
+      key: "inv-9",
+    });
 
-    const other = await outbox.emit(
-      "invoice.paid",
-      {},
-      { tenant: "t3", key: "inv-9" },
-    );
+    const other = await outbox.emit({
+      type: "invoice.paid",
+      payload: {},
+      tenant: "t3",
+      key: "inv-9",
+    });
 
     expect(again.data).toBe(first.data);
     expect(other.data).not.toBe(first.data);
@@ -209,9 +226,9 @@ describe.skipIf(!live)("outbox", () => {
   });
 
   it("hands consume handlers the rows with the actor", async () => {
-    expect((await outbox.register("rows", { types: ["rows.*"] })).ok).toBe(
-      true,
-    );
+    expect(
+      (await outbox.register({ consumer: "rows", types: ["rows.*"] })).ok,
+    ).toBe(true);
     const actor = crypto.randomUUID();
     const client = await pool.connect();
 
@@ -235,14 +252,17 @@ describe.skipIf(!live)("outbox", () => {
     }[] = [];
 
     expect(
-      await outbox.consume("rows", (events) => {
-        seen.push(
-          ...events.map(({ type, actorId, tenant }) => ({
-            type,
-            actorId,
-            tenant,
-          })),
-        );
+      await outbox.consume({
+        consumer: "rows",
+        handler: (events) => {
+          seen.push(
+            ...events.map(({ type, actorId, tenant }) => ({
+              type,
+              actorId,
+              tenant,
+            })),
+          );
+        },
       }),
     ).toEqual({ delivered: 1 });
     expect(seen).toEqual([
@@ -252,7 +272,7 @@ describe.skipIf(!live)("outbox", () => {
   });
 
   it("keeps the lease to one worker and purges only what consumers passed", async () => {
-    await outbox.register("audit", { fromStart: true });
+    await outbox.register({ consumer: "audit", fromStart: true });
 
     const { rows } = await pool.query(
       `select ${SCHEMA}.outbox_claim('audit', 'w1', 1) as a, ${SCHEMA}.outbox_claim('audit', 'w2', 1) as b`,
@@ -262,16 +282,22 @@ describe.skipIf(!live)("outbox", () => {
     expect(rows[0].b).toEqual([]);
     await pool.query(`select ${SCHEMA}.outbox_ack('audit', 'w1', null)`);
 
-    expect((await outbox.purge("0 seconds")).data).toBe(0);
-    await outbox.relay("audit", { send: () => undefined });
-    await outbox.relay("crm", { send: () => undefined });
-    expect((await outbox.purge("0 seconds")).data).toBeGreaterThan(0);
+    expect((await outbox.purge({ olderThan: "0 seconds" })).data).toBe(0);
+    await outbox.relay({ consumer: "audit", sink: { send: () => undefined } });
+    await outbox.relay({ consumer: "crm", sink: { send: () => undefined } });
+    expect(
+      (await outbox.purge({ olderThan: "0 seconds" })).data,
+    ).toBeGreaterThan(0);
   });
 
   it("backs off, then moves an event that keeps failing to the dead letters", async () => {
-    await outbox.register("poison", { types: ["poison.*"] });
-    expect((await outbox.emit("poison.bad", { n: 1 })).ok).toBe(true);
-    expect((await outbox.emit("poison.good", { n: 2 })).ok).toBe(true);
+    await outbox.register({ consumer: "poison", types: ["poison.*"] });
+    expect(
+      (await outbox.emit({ type: "poison.bad", payload: { n: 1 } })).ok,
+    ).toBe(true);
+    expect(
+      (await outbox.emit({ type: "poison.good", payload: { n: 2 } })).ok,
+    ).toBe(true);
     const handled: string[] = [];
 
     const handler = (events: readonly { type: string }[]) => {
@@ -289,7 +315,12 @@ describe.skipIf(!live)("outbox", () => {
         `update ${SCHEMA}.outbox_consumers set retry_at = now() - interval '1 second' where name = 'poison'`,
       );
 
-    const first = await outbox.consume("poison", handler, options);
+    const first = await outbox.consume({
+      consumer: "poison",
+      handler,
+      ...options,
+    });
+
     expect(first).toMatchObject({ delivered: 0 });
     expect(first.error?.message).toContain("No such customer");
 
@@ -302,19 +333,25 @@ describe.skipIf(!live)("outbox", () => {
       last_error: "No such customer",
       waiting: true,
     });
-    expect(await outbox.consume("poison", handler, options)).toEqual({
-      delivered: 0,
-    });
+    expect(
+      await outbox.consume({ consumer: "poison", handler, ...options }),
+    ).toEqual({ delivered: 0 });
 
     await ready();
-    const second = await outbox.consume("poison", handler, options);
+
+    const second = await outbox.consume({
+      consumer: "poison",
+      handler,
+      ...options,
+    });
+
     expect(second).toMatchObject({ delivered: 0, deadLettered: 1 });
 
-    expect(await outbox.consume("poison", handler, options)).toEqual({
-      delivered: 1,
-    });
+    expect(
+      await outbox.consume({ consumer: "poison", handler, ...options }),
+    ).toEqual({ delivered: 1 });
     expect(handled).toEqual(["poison.good"]);
-    const letters = await outbox.deadLetters("poison");
+    const letters = await outbox.deadLetters({ consumer: "poison" });
     expect(letters.data).toHaveLength(1);
     expect(letters.data?.[0]).toMatchObject({
       consumer: "poison",
@@ -331,20 +368,26 @@ describe.skipIf(!live)("outbox", () => {
   });
 
   it("purges past a consumer that stopped claiming when asked to", async () => {
-    await outbox.register("idle", { fromStart: true });
+    await outbox.register({ consumer: "idle", fromStart: true });
     await pool.query(
       `update ${SCHEMA}.outbox_consumers set updated_at = now() - interval '2 days' where name = 'idle'`,
     );
-    expect((await outbox.emit("purge.me")).ok).toBe(true);
+    expect((await outbox.emit({ type: "purge.me" })).ok).toBe(true);
 
     for (const consumer of ["crm", "audit", "poison"]) {
-      await outbox.relay(consumer, { send: () => undefined });
+      await outbox.relay({ consumer, sink: { send: () => undefined } });
     }
 
-    expect((await outbox.purge("0 seconds")).data).toBe(0);
+    expect((await outbox.purge({ olderThan: "0 seconds" })).data).toBe(0);
     expect(
-      (await outbox.purge("0 seconds", 10_000, { ignoreIdle: "1 day" })).data,
+      (
+        await outbox.purge({
+          olderThan: "0 seconds",
+          batch: 10_000,
+          ignoreIdle: "1 day",
+        })
+      ).data,
     ).toBeGreaterThan(0);
-    expect((await outbox.deadLetters("poison")).data).toEqual([]);
+    expect((await outbox.deadLetters({ consumer: "poison" })).data).toEqual([]);
   });
 });

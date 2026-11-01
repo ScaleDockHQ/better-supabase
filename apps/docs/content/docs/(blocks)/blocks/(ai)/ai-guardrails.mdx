@@ -29,25 +29,25 @@ service role reads or writes the tables.
 
 ```ts
 await guardrails.policies
-  .upsert(
-    "support",
-    "input",
-    {
+  .upsert({
+    agent: "support",
+    stage: "input",
+    config: {
       injection: { action: "block" },
       pii: { action: "redact", kinds: ["card", "iban", "email"] },
       denyTopics: ["weapons", "self-harm"],
     },
-    { organizationId },
-  )
+    organizationId,
+  })
   .orThrow();
 
 await guardrails.policies
-  .upsert(
-    "support",
-    "output",
-    { pii: { action: "redact" }, maxToolDepth: 5 },
-    { organizationId },
-  )
+  .upsert({
+    agent: "support",
+    stage: "output",
+    config: { pii: { action: "redact" }, maxToolDepth: 5 },
+    organizationId,
+  })
   .orThrow();
 ```
 

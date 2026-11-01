@@ -192,12 +192,28 @@ function instanceEntries(
       ]),
     );
 
-  for (const [key, instance] of Object.entries(preset.instances ?? {})) {
+  // A composite's defaults, with the preset's own instance merged over them.
+  const instances: Record<string, PresetInstance> = {
+    ...resolved.partInstances,
+    ...preset.instances,
+  };
+
+  for (const [key, instance] of Object.entries(instances)) {
     if (resolved.conflicts.some((conflict) => conflict.block === key)) {
       continue;
     }
 
-    blocks[key] = { ...blocks[key], ...flatInstance(instance) };
+    const part = resolved.partInstances[key];
+    const own = preset.instances?.[key];
+
+    blocks[key] = {
+      ...blocks[key],
+      ...flatInstance(
+        part === undefined || own === undefined
+          ? instance
+          : { ...own, ...part },
+      ),
+    };
   }
 
   return blocks;

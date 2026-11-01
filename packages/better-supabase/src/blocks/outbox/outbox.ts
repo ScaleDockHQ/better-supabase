@@ -197,12 +197,10 @@ export interface HistoryFilter extends CursorPageOptions<number> {
 export interface Outbox {
   /** Writes an event in the current transaction and returns its id. */
   emit(
-    type: string,
-    payload?: unknown,
-    options?: EmitOptions,
+    input: { type: string; payload?: unknown } & EmitOptions,
   ): AsyncResult<string>;
   /** Creates the consumer, or changes its types. Returns its cursor position. */
-  register(consumer: string, options?: RegisterOptions): AsyncResult<number>;
+  register(input: { consumer: string } & RegisterOptions): AsyncResult<number>;
   /** Removes the consumer, so purges stop waiting for it. */
   unregister(consumer: string): AsyncResult<boolean>;
   /**
@@ -213,9 +211,7 @@ export interface Outbox {
    * letters.
    */
   relay(
-    consumer: string,
-    sink: EventSink,
-    options?: RelayOptions,
+    input: { consumer: string; sink: EventSink } & RelayOptions,
   ): Promise<RelayResult>;
   /**
    * Like `relay`, but hands `handler` the outbox rows themselves, with
@@ -223,9 +219,7 @@ export interface Outbox {
    * indexing, notifications) that need the actor.
    */
   consume(
-    consumer: string,
-    handler: OutboxHandler,
-    options?: RelayOptions,
+    input: { consumer: string; handler: OutboxHandler } & RelayOptions,
   ): Promise<RelayResult>;
   /**
    * A `GET`/`POST` handler for a cron that relays every consumer at once,
@@ -236,19 +230,20 @@ export interface Outbox {
   ): (request: Request) => Promise<Response>;
   history(filter?: HistoryFilter): AsyncResult<readonly OutboxEvent[]>;
   /** The consumer's dead letters, newest first (default 100, at most 1000). */
-  deadLetters(
-    consumer: string,
-    limit?: number,
-  ): AsyncResult<readonly OutboxDeadLetter[]>;
+  deadLetters(input: {
+    consumer: string;
+    limit?: number | undefined;
+  }): AsyncResult<readonly OutboxDeadLetter[]>;
   /**
    * Deletes up to `batch` events (default 10,000) older than `olderThan` that
    * every consumer has passed, and dead letters older than `olderThan`. Call it
    * again while it returns `batch`.
    */
   purge(
-    olderThan?: string,
-    batch?: number,
-    options?: OutboxPurgeOptions,
+    input?: {
+      olderThan?: string | undefined;
+      batch?: number | undefined;
+    } & OutboxPurgeOptions,
   ): AsyncResult<number>;
 }
 
@@ -562,7 +557,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
   }
 
   const client: Outbox = {
-    emit: (type, payload = {}, emitOptions = {}) =>
+    emit: ({ type, payload = {}, ...emitOptions }) =>
       run(async () =>
         String(
           await userCall("emit_event", [
@@ -575,7 +570,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
           ]),
         ),
       ),
-    register: (consumer, registerOptions = {}) =>
+    register: ({ consumer, ...registerOptions }) =>
       run(async () =>
         Number(
           await call("outbox_register", [
@@ -587,9 +582,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
       ),
     unregister: (consumer) =>
       run(async () => (await call("outbox_unregister", [consumer])) === true),
-    relay: (consumer, sink, relayOptions) =>
+    relay: ({ consumer, sink, ...relayOptions }) =>
       relay(consumer, toSink(sink), relayOptions),
-    consume: (consumer, handler, relayOptions) =>
+    consume: ({ consumer, handler, ...relayOptions }) =>
       relay(consumer, handler, relayOptions),
     relayRoute(routeOptions) {
       return cronRoute(
@@ -647,13 +642,13 @@ export function createOutbox(options: OutboxOptions): Outbox {
           ]),
         ),
       ),
-    deadLetters: (consumer, limit) =>
+    deadLetters: ({ consumer, limit }) =>
       run(async () =>
         toDeadLetters(
           await call("outbox_dead_letters", [consumer, limit ?? 100]),
         ),
       ),
-    purge: (olderThan, batch, purgeOptions = {}) =>
+    purge: ({ olderThan, batch, ...purgeOptions } = {}) =>
       run(async () =>
         Number(
           await call("purge_outbox", [

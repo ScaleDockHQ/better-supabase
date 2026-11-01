@@ -62,48 +62,66 @@ describe.skipIf(!live)("purchasing", () => {
       );
 
       const dock = await inventory
-        .saveLocation(org, { code: "DOCK", name: "Dock" })
+        .saveLocation({
+          organizationId: org,
+          input: { code: "DOCK", name: "Dock" },
+        })
         .orThrow();
 
       const supplier = await parties
-        .saveCompany(org, { name: "Bolt supplier" })
+        .saveCompany({ organizationId: org, input: { name: "Bolt supplier" } })
         .orThrow();
 
-      await parties.setSupplierStatus(supplier.id, "blocked").orThrow();
+      await parties
+        .setSupplierStatus({ partyId: supplier.id, status: "blocked" })
+        .orThrow();
       expect(
         await inventory
-          .savePurchaseOrder(org, {
+          .savePurchaseOrder({
+            organizationId: org,
+            input: {
+              locationId: dock.id,
+              supplier: { type: "company", id: supplier.id },
+              currency: "EUR",
+              lines: [
+                { variantId: variant.id, quantity: 5, unitCost: eur(200n) },
+              ],
+            },
+          })
+          .then(hint),
+      ).toBe("PURCHASE_ORDER_SUPPLIER_BLOCKED");
+      await parties
+        .setSupplierStatus({ partyId: supplier.id, status: "approved" })
+        .orThrow();
+
+      const requisition = await inventory
+        .requestPurchase({
+          organizationId: org,
+          input: {
             locationId: dock.id,
             supplier: { type: "company", id: supplier.id },
             currency: "EUR",
             lines: [
               { variantId: variant.id, quantity: 5, unitCost: eur(200n) },
             ],
-          })
-          .then(hint),
-      ).toBe("PURCHASE_ORDER_SUPPLIER_BLOCKED");
-      await parties.setSupplierStatus(supplier.id, "approved").orThrow();
-
-      const requisition = await inventory
-        .requestPurchase(org, {
-          locationId: dock.id,
-          supplier: { type: "company", id: supplier.id },
-          currency: "EUR",
-          lines: [{ variantId: variant.id, quantity: 5, unitCost: eur(200n) }],
-          reason: "Below the reorder point",
+            reason: "Below the reorder point",
+          },
         })
         .orThrow();
 
       expect(requisition).toMatchObject({ status: "pending", lines: [{}] });
 
       const approved = await inventory
-        .decidePurchaseRequisition(requisition.id, true)
+        .decidePurchaseRequisition({
+          requisitionId: requisition.id,
+          approve: true,
+        })
         .orThrow();
 
       expect(approved.status).toBe("approved");
 
       const order = await inventory
-        .purchaseOrderFromRequisitions([requisition.id])
+        .purchaseOrderFromRequisitions({ requisitionIds: [requisition.id] })
         .orThrow();
 
       expect(
@@ -119,10 +137,10 @@ describe.skipIf(!live)("purchasing", () => {
       );
 
       const receipt = await inventory
-        .receivePurchaseOrder(
-          order.id,
-          lines.map((line) => ({ lineId: line.id, quantity: 3 })),
-        )
+        .receivePurchaseOrder({
+          purchaseOrderId: order.id,
+          lines: lines.map((line) => ({ lineId: line.id, quantity: 3 })),
+        })
         .orThrow();
 
       expect(receipt).toMatchObject({ status: "partially_received" });
@@ -146,12 +164,17 @@ describe.skipIf(!live)("purchasing", () => {
       ];
 
       await s.as(member);
-      expect(await invoices.create(org, billInput, billLines).then(hint)).toBe(
-        "INVOICE_FORBIDDEN",
-      );
+      expect(
+        await invoices
+          .create({ organizationId: org, input: billInput, lines: billLines })
+          .then(hint),
+      ).toBe("INVOICE_FORBIDDEN");
 
       await s.as(owner);
-      const draft = await invoices.create(org, billInput, billLines).orThrow();
+
+      const draft = await invoices
+        .create({ organizationId: org, input: billInput, lines: billLines })
+        .orThrow();
 
       expect(draft).toMatchObject({
         direction: "purchase",
@@ -159,7 +182,7 @@ describe.skipIf(!live)("purchasing", () => {
         purchaseOrderId: order.id,
       });
 
-      const bill = await invoices.issue(draft.id).orThrow();
+      const bill = await invoices.issue({ invoiceId: draft.id }).orThrow();
 
       expect(bill.identifier).toBe("BILL-1");
 

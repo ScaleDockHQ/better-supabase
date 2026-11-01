@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:286f0d8efafb5616a90250672a2e295070a928946ce784be74ff460800534cf5
+-- @bsb-hash sha256:75a79d0951e5a305ff657b4729a03e39a68b994219667fcbf8d983677eaaa516
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -860,6 +860,52 @@ $$;
 revoke execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) from public, anon;
 grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) to authenticated, service_role;
 
+-- The tenant's resources, as the caller (the table's policy decides who sees
+-- them). Inactive ones are left out unless include_inactive is set.
+create or replace function "better_supabase"."list_booking_resources"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', rs."id", 'name', rs."name", 'kind', rs."kind",
+    'capacity', rs."capacity", 'tz', rs."tz", 'active', rs."active",
+    'calendarId', rs."calendar_id",
+    'hostUserId', rs."host_user_id"
+  ) order by rs."name", rs."id"), '[]'::jsonb)
+  from "better_supabase"."booking_resources" rs
+  where rs."tenant_id" = list_booking_resources.tenant
+    and (list_booking_resources.include_inactive or rs."active")
+$$;
+revoke execute on function "better_supabase"."list_booking_resources"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_booking_resources"(uuid, boolean) to authenticated, service_role;
+
+-- The tenant's services with their durations as interval text, as the
+-- caller. Inactive ones are left out unless include_inactive is set.
+create or replace function "better_supabase"."list_booking_services"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', sv."id", 'name', sv."name",
+    'duration', sv."duration"::text,
+    'bufferBefore', sv."buffer_before"::text,
+    'bufferAfter', sv."buffer_after"::text,
+    'resourceKinds', to_jsonb(sv."resource_kinds"),
+    'active', sv."active"
+  ) order by sv."name", sv."id"), '[]'::jsonb)
+  from "better_supabase"."booking_services" sv
+  where sv."tenant_id" = list_booking_services.tenant
+    and (list_booking_services.include_inactive or sv."active")
+$$;
+revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
+
 -- Public booking through a share link to a service (subjectType
 -- "booking_service"): the token is the credential, hashed before the lookup.
 create or replace function "better_supabase"."public_booking_service"(token text)
@@ -1533,6 +1579,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restric
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.bookings', target_type => 'booking', event_prefix => 'booking', deferred => true);
+end;
+$$;
+
 -- blocks.bookings.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1689,6 +1742,24 @@ set search_path = ''
 as $$ select "better_supabase"."list_bookings"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_bookings"(uuid, timestamptz, timestamptz, uuid) from public, anon;
 grant execute on function "api"."list_bookings"(uuid, timestamptz, timestamptz, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_booking_resources"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_booking_resources"($1, $2) $$;
+revoke execute on function "api"."list_booking_resources"(uuid, boolean) from public, anon;
+grant execute on function "api"."list_booking_resources"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."list_booking_services"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_booking_services"($1, $2) $$;
+revoke execute on function "api"."list_booking_services"(uuid, boolean) from public, anon;
+grant execute on function "api"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."public_booking_service"(token text)
 returns jsonb

@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:d2fa404d05801787f9b678791d8fe774e276d8e4c35930bc13594e369810d60f
+-- @bsb-hash sha256:0bd4720603bf86a825597f67f16789a0cfee62efc0ea757de40f58e680c72c0c
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1437,6 +1437,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_a
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.moderation_items', target_type => 'moderation_item', event_prefix => 'moderation_item', deferred => true);
+end;
+$$;
 
 -- blocks.moderation.api: entry points for the Data API.
 create schema if not exists "api";

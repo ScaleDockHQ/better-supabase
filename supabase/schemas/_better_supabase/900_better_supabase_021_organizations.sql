@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:364e38a81b753a61dfbf153350162bbb006366da1b557b2b2bec1e70a17fdea1
+-- @bsb-hash sha256:88fd7bc0c77c432a751728d87251c3297559b8c8e99f85151b33fe204a1fa1bc
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -651,6 +651,52 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "better_supabase"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "better_supabase"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "better_supabase"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'id', i.id, 'email', i.email, 'role', i.role, 'expiresAt', to_jsonb(i) -> 'expires_at')
+          order by i.email)
+        from "better_supabase"."list_organization_invitations"(organization_overview.organization) i
+      ), '[]'::jsonb)
+  );
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -673,6 +719,8 @@ revoke execute on function "better_supabase"."list_my_organizations"() from publ
 grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_overview"(uuid) from public, anon;
+grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."list_organization_invitations"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
 
@@ -816,6 +864,15 @@ set search_path = ''
 as $$ select * from "better_supabase"."list_members"($1) $$;
 revoke execute on function "api"."list_members"(uuid) from public, anon;
 grant execute on function "api"."list_members"(uuid) to authenticated, service_role;
+
+create or replace function "api"."organization_overview"(organization uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."organization_overview"($1) $$;
+revoke execute on function "api"."organization_overview"(uuid) from public, anon;
+grant execute on function "api"."organization_overview"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_organization_invitations"(organization uuid)
 returns table (

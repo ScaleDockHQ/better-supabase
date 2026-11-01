@@ -404,19 +404,22 @@ export function vercelSandboxes(
       const create = mergeSandboxOptions(options.defaults, chatOptions.create);
 
       return options.sandboxes
-        .register(organizationId, {
-          provider: VERCEL_SANDBOX_PROVIDER,
-          sandboxId: name,
-          chatId,
-          ...(chatOptions.userId === undefined
-            ? {}
-            : { userId: chatOptions.userId }),
-          ...(chatOptions.idleSeconds === undefined
-            ? {}
-            : { idleSeconds: chatOptions.idleSeconds }),
-          ...(chatOptions.expiresAt === undefined
-            ? {}
-            : { expiresAt: chatOptions.expiresAt }),
+        .register({
+          organizationId,
+          sandbox: {
+            provider: VERCEL_SANDBOX_PROVIDER,
+            sandboxId: name,
+            chatId,
+            ...(chatOptions.userId === undefined
+              ? {}
+              : { userId: chatOptions.userId }),
+            ...(chatOptions.idleSeconds === undefined
+              ? {}
+              : { idleSeconds: chatOptions.idleSeconds }),
+            ...(chatOptions.expiresAt === undefined
+              ? {}
+              : { expiresAt: chatOptions.expiresAt }),
+          },
         })
         .andThen(async (row) => {
           const module = await loadSdk();

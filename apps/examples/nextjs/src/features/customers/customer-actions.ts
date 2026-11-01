@@ -30,7 +30,11 @@ export const createCustomer = bsb.action(
   },
   async ({ name }, { tenant: organizationId, db }) => {
     const { usage, onboarding } = db;
-    const quota = await usage.consume(organizationId, "customers.created");
+
+    const quota = await usage.consume({
+      organizationId,
+      meter: "customers.created",
+    });
 
     if (!quota.ok) {
       return quota;
@@ -55,7 +59,11 @@ export const createCustomer = bsb.action(
         targetLabel: name,
       }),
     );
-    await onboarding.complete(gettingStarted, "customer", organizationId);
+    await onboarding.complete({
+      checklist: gettingStarted,
+      step: "customer",
+      organizationId,
+    });
 
     return created;
   },

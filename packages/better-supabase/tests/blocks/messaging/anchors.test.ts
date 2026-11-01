@@ -112,14 +112,16 @@ describe("messaging.anchoredTo", () => {
       },
     });
 
-    const messages = await messaging.anchoredTo(FILE, { limit: 10 }).orThrow();
+    const messages = await messaging
+      .anchoredTo({ attachmentId: FILE, limit: 10 })
+      .orThrow();
 
     expect(calls).toEqual([
       ["list_file_anchors", { attachment: FILE, max_rows: 10 }],
     ]);
     expect(isFileAnchor(messages[0]?.anchor)).toBe(true);
 
-    await messaging.anchoredTo(FILE).orThrow();
+    await messaging.anchoredTo({ attachmentId: FILE }).orThrow();
     expect(calls[1]?.[1]).toEqual({ attachment: FILE, max_rows: null });
   });
 });

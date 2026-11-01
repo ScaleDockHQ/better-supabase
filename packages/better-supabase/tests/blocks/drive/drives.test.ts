@@ -98,7 +98,7 @@ describe("drive drives and connections", () => {
     const drive = createDrive({ transport: fake });
 
     const [listed] = await drive
-      .drives("o", { pageSize: 5, skip: 5 })
+      .drives({ organizationId: "o", options: { pageSize: 5, skip: 5 } })
       .orThrow();
 
     expect(listed).toMatchObject({ id: "d1", role: "owner", readOnly: false });
@@ -107,25 +107,34 @@ describe("drive drives and connections", () => {
     expect((await drive.drive("d1").orThrow()).name).toBe("Team files");
 
     const created = await drive
-      .createDrive("o", { name: "Team files", kind: "shared", ownerId: "u2" })
+      .createDrive({
+        organizationId: "o",
+        drive: { name: "Team files", kind: "shared", ownerId: "u2" },
+      })
       .orThrow();
 
     expect(created.name).toBe("Team files");
 
     const mirrored = await drive
-      .createDrive("o", { name: "Mirror", connectionId: "c1" })
+      .createDrive({
+        organizationId: "o",
+        drive: { name: "Mirror", connectionId: "c1" },
+      })
       .orThrow();
 
     expect(mirrored.kind).toBe("shared");
     expect(mirrored.connectionId).toBe("c1");
 
-    expect((await drive.renameDrive("d1", "Archive").orThrow()).name).toBe(
-      "Archive",
-    );
+    expect(
+      (await drive.renameDrive({ id: "d1", name: "Archive" }).orThrow()).name,
+    ).toBe("Archive");
     expect(await drive.deleteDrive("d1").orThrow()).toBe(true);
 
     const shared = await drive
-      .shareDrive("d1", { type: "team", id: "t1" }, "editor", {
+      .shareDrive({
+        id: "d1",
+        principal: { type: "team", id: "t1" },
+        role: "editor",
         expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
       })
       .orThrow();
@@ -136,7 +145,9 @@ describe("drive drives and connections", () => {
     });
     expect(shared.expiresAt).toBeUndefined();
     expect(
-      await drive.unshareDrive("d1", { type: "team", id: "t1" }).orThrow(),
+      await drive
+        .unshareDrive({ id: "d1", principal: { type: "team", id: "t1" } })
+        .orThrow(),
     ).toBe(true);
 
     const [grant] = await drive.driveGrants("d1").orThrow();
@@ -195,7 +206,7 @@ describe("drive drives and connections", () => {
     const drive = createDrive({ transport: fake });
 
     const [connection] = await drive
-      .connections("o", { pageSize: 10 })
+      .connections({ organizationId: "o", pageSize: 10 })
       .orThrow();
 
     expect(connection).toMatchObject({
@@ -206,7 +217,15 @@ describe("drive drives and connections", () => {
     expect(connection?.lastSyncedAt).toBeUndefined();
     expect(connection?.updatedAt).toBeUndefined();
     expect(
-      (await drive.connect("o", "google-drive", "Drive").orThrow()).syncCursor,
+      (
+        await drive
+          .connect({
+            organizationId: "o",
+            provider: "google-drive",
+            name: "Drive",
+          })
+          .orThrow()
+      ).syncCursor,
     ).toBe("cursor");
     expect(await drive.disconnect("c1").orThrow()).toBe(true);
 
@@ -233,7 +252,7 @@ describe("drive drives and connections", () => {
     const drive = createDrive({ transport: fake });
 
     const held = await drive
-      .hold("n1", Temporal.Instant.from("2026-12-01T00:00:00Z"))
+      .hold({ id: "n1", until: Temporal.Instant.from("2026-12-01T00:00:00Z") })
       .orThrow();
 
     expect(held.legalHoldUntil?.toString()).toBe("2026-12-01T00:00:00Z");

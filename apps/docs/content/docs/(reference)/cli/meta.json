@@ -8,6 +8,7 @@
     "dev",
     "db",
     "table",
+    "automations",
     "migrate",
     "spec",
     "powersync",

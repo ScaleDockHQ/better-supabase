@@ -138,39 +138,48 @@ export interface RelationsOptions<
 /** Every method acts in the block's `tenant`. */
 export interface Relations<F extends object = Record<never, never>> {
   /** Links `source` to `target` with a kind. */
-  link(
-    source: RecordRef,
-    target: RecordRef,
-    input: LinkInput<F>,
-  ): AsyncResult<LinkResult<F>>;
-  unlink(
-    source: RecordRef,
-    target: RecordRef,
-    input: UnlinkInput,
-  ): AsyncResult<UnlinkResult>;
+  link(input: {
+    source: RecordRef;
+    target: RecordRef;
+    input: LinkInput<F>;
+  }): AsyncResult<LinkResult<F>>;
+  unlink(input: {
+    source: RecordRef;
+    target: RecordRef;
+    input: UnlinkInput;
+  }): AsyncResult<UnlinkResult>;
   /** A subject's links in both directions, optionally of one kind. */
-  of(subject: RecordRef, kind?: string): AsyncResult<Relation<F>[]>;
+  of(input: {
+    subject: RecordRef;
+    kind?: string | undefined;
+  }): AsyncResult<Relation<F>[]>;
   /** Every link of a kind in the tenant (up to 10,000), for a chart or a tree. */
   edges(kind: string): AsyncResult<RelationEdge<F>[]>;
-  ancestors(subject: RecordRef, kind: string): AsyncResult<RelationNode[]>;
-  descendants(subject: RecordRef, kind: string): AsyncResult<RelationNode[]>;
+  ancestors(input: {
+    subject: RecordRef;
+    kind: string;
+  }): AsyncResult<RelationNode[]>;
+  descendants(input: {
+    subject: RecordRef;
+    kind: string;
+  }): AsyncResult<RelationNode[]>;
   /**
    * Aggregates a column over a subject's descendants, such as estimates under
    * an epic.
    */
-  rollup(
-    subject: RecordRef,
-    input: RollupInput,
-  ): AsyncResult<number | string | null>;
+  rollup(input: {
+    subject: RecordRef;
+    input: RollupInput;
+  }): AsyncResult<number | string | null>;
   /**
    * The id of the record of `intoType` that `origin` was already converted into
    * through a `created_from` link, or `undefined`. Check it before a conversion
    * so converting twice returns the first record.
    */
-  convertedInto(
-    origin: RecordRef,
-    intoType: string,
-  ): AsyncResult<string | undefined>;
+  convertedInto(input: {
+    origin: RecordRef;
+    intoType: string;
+  }): AsyncResult<string | undefined>;
   /**
    * The records a subject was converted from (`origins`, nearest first) and
    * into (`conversions`) through `created_from` links: a deal, its quote, the
@@ -182,6 +191,12 @@ export interface Relations<F extends object = Record<never, never>> {
     readonly origins: RelationNode[];
     readonly conversions: RelationNode[];
   }>;
+  /** `ancestors` or `descendants` of a subject, by `direction`. */
+  walk(input: {
+    subject: RecordRef;
+    kind: string;
+    direction: "up" | "down";
+  }): AsyncResult<RelationNode[]>;
 }
 
 const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -246,7 +261,7 @@ export function createRelations<
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Relations<F> = {
-    link: (source, target, input) =>
+    link: ({ source, target, input }) =>
       tenant().andThen((organizationId) =>
         writeFields(fields, input.fields, (checked) =>
           call(
@@ -311,7 +326,7 @@ export function createRelations<
           ).andThen((result) => readFields(fields, result)),
         ),
       ),
-    unlink: (source, target, input) =>
+    unlink: ({ source, target, input }) =>
       tenant().andThen((organizationId) =>
         call(
           "unlink",
@@ -337,7 +352,7 @@ export function createRelations<
           },
         ),
       ),
-    of: (subject, kind) =>
+    of: ({ subject, kind }) =>
       tenant().andThen((organizationId) =>
         call(
           "relations_of",
@@ -365,19 +380,19 @@ export function createRelations<
           recordsOf(value, "relations_by_kind").map(edgeOf),
         ).andThen((edges) => readAllFields(fields, edges)),
       ),
-    ancestors: (subject, kind) =>
+    ancestors: ({ subject, kind }) =>
       tenant().andThen((organizationId) =>
         call("ancestors", walkArgs(organizationId, kind, subject), (value) =>
           recordsOf(value, "ancestors").map(nodeOf),
         ),
       ),
-    descendants: (subject, kind) =>
+    descendants: ({ subject, kind }) =>
       tenant().andThen((organizationId) =>
         call("descendants", walkArgs(organizationId, kind, subject), (value) =>
           recordsOf(value, "descendants").map(nodeOf),
         ),
       ),
-    convertedInto: (origin, intoType) =>
+    convertedInto: ({ origin, intoType }) =>
       tenant().andThen((organizationId) =>
         call(
           "converted_into",
@@ -403,7 +418,7 @@ export function createRelations<
           })),
         );
       }),
-    rollup: (subject, input) =>
+    rollup: ({ subject, input }) =>
       tenant().andThen((organizationId) =>
         call(
           "relation_rollup",
@@ -419,10 +434,17 @@ export function createRelations<
               : null,
         ),
       ),
+    walk: ({ subject, kind, direction }) =>
+      direction === "up"
+        ? hooked.ancestors({ subject, kind })
+        : hooked.descendants({ subject, kind }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Relations<F> = withBlockHooks(client, options.hooks, {
     block: "relations",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

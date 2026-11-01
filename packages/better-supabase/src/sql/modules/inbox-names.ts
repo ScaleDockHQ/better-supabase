@@ -12,6 +12,7 @@ import {
   operationPermission,
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
+import { link } from "../links.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
 import { messagingSql } from "./messaging-names.ts";
@@ -88,6 +89,17 @@ const EVENTS: BlockSqlEvents<InboxEvents> = {
 };
 
 export const INBOX_NAMES: BlockSqlNames = {
+  links: [
+    link(
+      "fromConversation",
+      "conversion",
+      "inbox",
+      "tasks",
+      "task",
+      "tasks.from_conversation",
+    ),
+    link("contact", "reference", "inbox", "contacts", "person"),
+  ],
   entities: {
     inbox: {
       table: "inboxes",
@@ -97,6 +109,16 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
+  hooks: [
+    "before_inbox_conversation_start",
+    "after_inbox_conversation_start",
+    "before_inbox_message_send",
+    "after_inbox_message_send",
+    "before_inbox_conversation_assign",
+    "after_inbox_conversation_assign",
+    "before_inbox_conversation_status_change",
+    "after_inbox_conversation_status_change",
+  ],
   options: [
     "topic",
     "bucket",

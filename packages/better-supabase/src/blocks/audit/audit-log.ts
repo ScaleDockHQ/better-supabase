@@ -118,6 +118,24 @@ export interface AuditPage<Columns extends AuditColumns = AuditColumns> {
   readonly total?: number;
 }
 
+/** An entry of `page`, with the name of whoever acted. */
+export type AuditPageEntry<Columns extends AuditColumns = AuditColumns> =
+  AuditRecord<Columns> & {
+    /**
+     * The actor's label as the entry recorded it (the member's name or the
+     * service, see `actorLabel`), or `null` when the entry has none.
+     */
+    readonly actorName: string | null;
+  };
+
+/** What `page` returns: one page of entries with the total behind it. */
+export interface AuditNamedPage<Columns extends AuditColumns = AuditColumns> {
+  readonly entries: readonly AuditPageEntry<Columns>[];
+  readonly next: AuditCursor | undefined;
+  /** How many entries match the filters, across all pages. */
+  readonly total: number;
+}
+
 /** The restricted details `reveal` returns, when the entry has them. */
 export interface AuditDetails {
   readonly entry: string;
@@ -261,6 +279,24 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   ): AsyncResult<readonly Result<string>[]>;
   /** A page of the entries the caller can read, newest first. */
   list(options?: AuditListOptions): AsyncResult<AuditPage<Columns>>;
+  /**
+   * The audit page of an app in one call: `list` with the total, and each
+   * entry's `actorName`. It calls `list` with `count: true`, so `list` hooks
+   * see it and the read policy decides what is counted.
+   */
+  page(
+    options?: Omit<AuditListOptions, "count">,
+  ): AsyncResult<AuditNamedPage<Columns>>;
+  /**
+   * Every entry readable by the caller that shares `correlationId`, oldest
+   * first, so one request or job reads as one story. It pages through `list`
+   * (up to `limit`, default 1000 entries), so `list` hooks see each page.
+   */
+  correlated(input: {
+    correlationId: string;
+    organizationId?: string | undefined;
+    limit?: number | undefined;
+  }): AsyncResult<readonly AuditRecord<Columns>[]>;
   /**
    * The restricted details of one entry for a caller with the reveal permission
    * in its tenant (or platform staff); the reveal is itself recorded as
@@ -661,6 +697,45 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
     recordMany,
     sink: (sinkOptions) => auditSink(recordMany, sinkOptions),
     list,
+    page: (pageOptions = {}) =>
+      hooked
+        .list({ ...pageOptions, count: true })
+        .map((data) => ({
+          entries: data.entries.map((entry) => ({
+            ...entry,
+            actorName: entry.actorLabel ?? null,
+          })),
+          next: data.next,
+          total: data.total ?? data.entries.length,
+        })),
+    correlated: ({ correlationId, organizationId, limit = 1000 }) =>
+      AsyncResult.from(async () => {
+        const entries: AuditRecord<Columns>[] = [];
+        let cursor: AuditCursor | undefined;
+
+        while (entries.length < limit) {
+          const page = await hooked.list({
+            correlationId,
+            ...(organizationId === undefined ? {} : { organizationId }),
+            order: "asc",
+            cursor,
+            limit: Math.min(200, limit - entries.length),
+          });
+
+          if (!page.ok) {
+            return page;
+          }
+
+          entries.push(...page.data.entries);
+          cursor = page.data.next;
+
+          if (cursor === undefined) {
+            break;
+          }
+        }
+
+        return ok(entries);
+      }),
     reveal: (entryId) =>
       call("reveal_audit_entry", { entry: entryId }, (value) =>
         detailsOf(value, entryId),
@@ -723,8 +798,11 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
       }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: AuditLog<Columns> = withBlockHooks(client, options.hooks, {
     block: "audit",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

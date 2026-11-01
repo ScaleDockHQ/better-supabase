@@ -80,7 +80,10 @@ export const createEmployee = bsb.action(
       employee.startDate = Temporal.PlainDate.from(input.startDate);
     }
 
-    const created = await employees.create(tenant, employee);
+    const created = await employees.create({
+      organizationId: tenant,
+      input: employee,
+    });
 
     if (!created.ok) {
       return created;
@@ -103,10 +106,10 @@ export const createEmployee = bsb.action(
         details.personalEmail = personalEmail;
       }
 
-      const saved = await employees.savePrivateDetails(
-        created.data.id,
-        details,
-      );
+      const saved = await employees.savePrivateDetails({
+        employeeId: created.data.id,
+        input: details,
+      });
 
       if (!saved.ok) {
         return saved;
@@ -245,9 +248,9 @@ export const submitTimesheet = bsb.action(
     permission: "time_tracking.track",
   },
   async ({ week }, { db, auth }) => {
-    const submitted = await db.timeTracking.submit(
-      Temporal.PlainDate.from(week),
-    );
+    const submitted = await db.timeTracking.submit({
+      week: Temporal.PlainDate.from(week),
+    });
 
     if (!submitted.ok) {
       return submitted;
@@ -276,7 +279,7 @@ export const createOpening = bsb.action(
       job.location = location;
     }
 
-    const saved = await db.hiring.saveJob(tenant, job);
+    const saved = await db.hiring.saveJob({ organizationId: tenant, job });
 
     if (!saved.ok) {
       return saved;
@@ -296,11 +299,11 @@ export const addCandidate = bsb.action(
     permission: "hiring.write",
   },
   async ({ jobId, candidateId }, { db, auth }) => {
-    const applied = await db.hiring.apply(
+    const applied = await db.hiring.apply({
       jobId,
-      { type: "customer", id: candidateId },
-      { source: "hiring-board" },
-    );
+      candidate: { type: "customer", id: candidateId },
+      source: "hiring-board",
+    });
 
     if (!applied.ok) {
       return applied;
@@ -323,8 +326,10 @@ export const moveApplication = bsb.action(
     permission: "hiring.write",
   },
   async ({ applicationId, stageId }, { db, auth }) => {
-    const moved = await db.rank.move("application", applicationId, {
-      group: stageId,
+    const moved = await db.rank.move({
+      subjectType: "application",
+      subjectId: applicationId,
+      target: { group: stageId },
     });
 
     if (!moved.ok) {
@@ -352,7 +357,7 @@ export const closeApplication = bsb.action(
 
     const closed = await (outcome === "hired"
       ? hiring.hire(applicationId)
-      : hiring.reject(applicationId));
+      : hiring.reject({ applicationId }));
 
     if (!closed.ok) {
       return closed;

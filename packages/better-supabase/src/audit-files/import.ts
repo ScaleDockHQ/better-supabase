@@ -38,11 +38,11 @@ export interface AuditUpsertReply {
  * `imports.upsertBatch` fits as is.
  */
 export interface AuditImportPort {
-  upsertBatch(
-    runId: string,
-    entity: string,
-    items: readonly AuditImportItem[],
-  ): PromiseLike<
+  upsertBatch(input: {
+    runId: string;
+    entity: string;
+    items: readonly AuditImportItem[];
+  }): PromiseLike<
     | { readonly ok: true; readonly data: AuditUpsertReply }
     | { readonly ok: false; readonly error: { readonly message: string } }
   >;
@@ -222,11 +222,11 @@ export async function importAuditFile(
       return;
     }
 
-    const outcome = await options.imports.upsertBatch(
-      options.run,
+    const outcome = await options.imports.upsertBatch({
+      runId: options.run,
       entity,
       items,
-    );
+    });
 
     if (!outcome.ok) {
       throw new PortFailure(entity, outcome.error.message);

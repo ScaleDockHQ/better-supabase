@@ -1478,6 +1478,12 @@
             "type": "boolean",
             "default": false
           },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "deletedAt": {
             "type": "string",
             "description": "The soft-delete column."
@@ -4380,6 +4386,10 @@
             "properties": {
               "appendOnly": {
                 "type": "boolean"
+              },
+              "blockTables": {
+                "type": "string",
+                "default": "entities"
               },
               "chain": {
                 "type": "boolean",

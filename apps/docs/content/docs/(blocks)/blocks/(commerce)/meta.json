@@ -25,6 +25,9 @@
     "shipments",
     "leases",
     "expenses",
-    "donations"
+    "donations",
+    "commerce",
+    "finance",
+    "procurement"
   ]
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:1d0a9fc5e54242fd299eb3a22edeeae59a80e4da92b0ce1880b9a916b6c0b45a
+-- @bsb-hash sha256:589074179ef5a1ebc468adfcce0891b13ec93acf18b18c18dffbeeea0c27ff60
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1026,6 +1026,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_memb
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.segments', target_type => 'segment', event_prefix => 'segment', deferred => true);
+end;
+$$;
 
 -- blocks.segments.api: entry points for the Data API.
 create schema if not exists "api";

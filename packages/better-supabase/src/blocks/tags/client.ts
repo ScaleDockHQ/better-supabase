@@ -124,7 +124,7 @@ export function createTagInputController(
           error: undefined,
         }));
 
-        const result = await client.attach(subject, tag.id);
+        const result = await client.attach({ record: subject, tagId: tag.id });
 
         state.set((current) => ({
           pending: without(current.pending, tag.id),
@@ -177,7 +177,7 @@ export function createTagInputController(
               error: undefined,
             }));
 
-            const result = await client.detach(subject, tagId);
+            const result = await client.detach({ record: subject, tagId });
 
             state.set((current) => ({
               pending: without(current.pending, tagId),

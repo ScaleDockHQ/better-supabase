@@ -87,7 +87,7 @@ export function createIncomingWebhooks(
   );
 
   const client: IncomingWebhooks = {
-    async receive(request, token) {
+    async receive({ request, token }) {
       const instance = new URL(request.url).pathname;
 
       if (request.method !== "POST") {
@@ -335,7 +335,7 @@ export function createIncomingWebhooks(
           };
         },
       ),
-    list: (tenant, subject) =>
+    list: ({ tenant, subject }) =>
       call(
         "list_incoming_webhooks",
         {
@@ -369,7 +369,7 @@ export function createIncomingWebhooks(
             }),
           ),
       ),
-    rotate: (id, rotateOptions = {}) =>
+    rotate: ({ id, ...rotateOptions }) =>
       call(
         "rotate_incoming_webhook",
         { endpoint: id, rotate_secret: rotateOptions.rotateSecret ?? false },
@@ -382,7 +382,7 @@ export function createIncomingWebhooks(
           };
         },
       ),
-    rotateSecret: (id, rotateOptions = {}) =>
+    rotateSecret: ({ id, options: rotateOptions = {} }) =>
       call(
         "rotate_incoming_webhook_secret",
         {
@@ -403,7 +403,7 @@ export function createIncomingWebhooks(
           };
         },
       ),
-    update: (id, input) =>
+    update: ({ id, input }) =>
       call(
         "update_incoming_webhook",
         {
@@ -427,7 +427,7 @@ export function createIncomingWebhooks(
           };
         },
       ),
-    setEnabled: (id, enabled) =>
+    setEnabled: ({ id, enabled }) =>
       call(
         "set_incoming_webhook_enabled",
         { endpoint: id, enabled },

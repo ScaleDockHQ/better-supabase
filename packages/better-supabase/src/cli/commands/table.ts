@@ -10,6 +10,7 @@ import type { Paint } from "../style.ts";
 import {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   TABLE_FEATURES,
 } from "../../sql/index.ts";
@@ -36,7 +37,7 @@ const TABLE_ARGS = {
     type: "positional",
     required: true,
     description:
-      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events or vector-search",
+      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events, vector-search, history or lifecycle",
   },
 } as const;
 
@@ -127,12 +128,14 @@ export async function runTable(
     );
   }
 
-  const next = setTableFeature(
-    found.text,
+  const enabled = action === "enable";
+
+  const next = setFeatureStatement(
+    setTableFeature(found.text, schema, name, feature, enabled),
     schema,
     name,
     feature,
-    action === "enable",
+    enabled,
   );
 
   const plan: FilePlan = {

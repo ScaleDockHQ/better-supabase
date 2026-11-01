@@ -130,11 +130,14 @@ describe("createAttachments", () => {
     });
 
     const upload = await attachments
-      .upload(null, {
-        name: "plan.pdf",
-        mimeType: "application/pdf",
-        size: 2048,
-        metadata: { caption: "Floor plan" },
+      .upload({
+        subject: null,
+        attachment: {
+          name: "plan.pdf",
+          mimeType: "application/pdf",
+          size: 2048,
+          metadata: { caption: "Floor plan" },
+        },
       })
       .orThrow();
 
@@ -186,11 +189,15 @@ describe("createAttachments", () => {
 
     expect(
       await attachments
-        .put(
-          { type: "project", id: "p1" },
-          { name: "plan.pdf", mimeType: "application/pdf", size: 5 },
-          new Uint8Array([1, 2, 3, 4, 5]),
-        )
+        .put({
+          subject: { type: "project", id: "p1" },
+          attachment: {
+            name: "plan.pdf",
+            mimeType: "application/pdf",
+            size: 5,
+          },
+          file: new Uint8Array([1, 2, 3, 4, 5]),
+        })
         .orThrow(),
     ).toMatchObject({ id: "a1", status: "pending" });
     expect(calls.map(([fn]) => fn)).toEqual([
@@ -234,11 +241,11 @@ describe("createAttachments", () => {
     });
 
     expect(
-      await noUpload.put(
-        null,
-        { name: "x", mimeType: "text/plain", size: 1 },
-        new Blob(["x"]),
-      ),
+      await noUpload.put({
+        subject: null,
+        attachment: { name: "x", mimeType: "text/plain", size: 1 },
+        file: new Blob(["x"]),
+      }),
     ).toMatchObject({ error: { hint: "ATTACHMENT_STORAGE_CLIENT" } });
   });
 
@@ -259,10 +266,9 @@ describe("createAttachments", () => {
       }).storage,
     });
 
-    const upload = await denied.upload(null, {
-      name: "x",
-      mimeType: "text/plain",
-      size: 1,
+    const upload = await denied.upload({
+      subject: null,
+      attachment: { name: "x", mimeType: "text/plain", size: 1 },
     });
 
     expect(upload.ok ? undefined : upload.error.kind).toBe("forbidden");
@@ -275,10 +281,9 @@ describe("createAttachments", () => {
       }).storage,
     });
 
-    const none = await empty.upload(null, {
-      name: "x",
-      mimeType: "text/plain",
-      size: 1,
+    const none = await empty.upload({
+      subject: null,
+      attachment: { name: "x", mimeType: "text/plain", size: 1 },
     });
 
     expect(none.ok ? undefined : none.error.message).toBe(
@@ -292,10 +297,9 @@ describe("createAttachments", () => {
         .storage,
     });
 
-    const failed = await thrown.upload(null, {
-      name: "x",
-      mimeType: "text/plain",
-      size: 1,
+    const failed = await thrown.upload({
+      subject: null,
+      attachment: { name: "x", mimeType: "text/plain", size: 1 },
     });
 
     expect(failed.ok).toBe(false);
@@ -327,7 +331,7 @@ describe("createAttachments", () => {
       transport: signing.transport,
       storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
       tenant: "org-1",
-    }).upload(null, file);
+    }).upload({ subject: null, attachment: file });
 
     expect(refusedUrl.error).toMatchObject({
       kind: "forbidden",
@@ -344,7 +348,7 @@ describe("createAttachments", () => {
       transport: sending.transport,
       storage: fakeStorage({ upload: refusal }).storage,
       tenant: "org-1",
-    }).put(null, file, new Blob(["hello"]));
+    }).put({ subject: null, attachment: file, file: new Blob(["hello"]) });
 
     expect(refusedUpload.error?.code).toBe("SUPPORT_READ_ONLY");
     expect(sending.calls.map(([fn]) => fn)).toEqual([
@@ -361,7 +365,7 @@ describe("createAttachments", () => {
       transport: cleanupFails.transport,
       storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
       tenant: "org-1",
-    }).upload(null, file);
+    }).upload({ subject: null, attachment: file });
 
     expect(kept.error?.code).toBe("SUPPORT_READ_ONLY");
     expect(cleanupFails.calls.at(-1)?.[0]).toBe("delete_attachment");
@@ -377,7 +381,11 @@ describe("createAttachments", () => {
     });
 
     expect(
-      (await clean.download("a1", { as: "plan.pdf" }).orThrow()).signedUrl,
+      (
+        await clean
+          .download({ id: "a1", options: { as: "plan.pdf" } })
+          .orThrow()
+      ).signedUrl,
     ).toBe("https://s/sign/org-1/attachments/a1");
     expect(storage.calls[0]).toEqual([
       "createSignedUrl",
@@ -385,7 +393,7 @@ describe("createAttachments", () => {
       60,
       { download: "plan.pdf" },
     ]);
-    await clean.download("a1").orThrow();
+    await clean.download({ id: "a1" }).orThrow();
     expect(storage.calls[1]).toEqual([
       "createSignedUrl",
       "org-1/attachments/a1",
@@ -400,7 +408,7 @@ describe("createAttachments", () => {
       const blocked = await createAttachments({
         transport: fakeTransport({ get_attachment: row({ status }) }).transport,
         storage: storage.storage,
-      }).download("a1");
+      }).download({ id: "a1" });
 
       expect(blocked.ok ? undefined : blocked.error).toMatchObject({
         kind: "invalid_request",
@@ -416,7 +424,7 @@ describe("createAttachments", () => {
       requireScan: false,
     });
 
-    expect((await unscanned.download("a1")).ok).toBe(true);
+    expect((await unscanned.download({ id: "a1" })).ok).toBe(true);
 
     const notUploaded = await createAttachments({
       transport: fakeTransport({
@@ -424,7 +432,7 @@ describe("createAttachments", () => {
       }).transport,
       storage: storage.storage,
       requireScan: false,
-    }).download("a1");
+    }).download({ id: "a1" });
 
     expect(notUploaded.ok).toBe(false);
   });
@@ -651,8 +659,15 @@ describe("createAttachments", () => {
     const file = { name: "x", mimeType: "text/plain", size: 1 };
 
     for (const result of [
-      await attachments.upload({ type: "project", id: "p1" }, file),
-      await attachments.put(null, file, new Blob(["x"])),
+      await attachments.upload({
+        subject: { type: "project", id: "p1" },
+        attachment: file,
+      }),
+      await attachments.put({
+        subject: null,
+        attachment: file,
+        file: new Blob(["x"]),
+      }),
       await attachments.list(),
     ]) {
       expect(result.error).toMatchObject({
@@ -680,7 +695,10 @@ describe("createAttachments", () => {
     const note = { type: "note", id: "n1" };
 
     const upload = await attachments
-      .upload(note, { name: "x", mimeType: "text/plain", size: 1 })
+      .upload({
+        subject: note,
+        attachment: { name: "x", mimeType: "text/plain", size: 1 },
+      })
       .orThrow();
 
     expect(upload.attachment.organizationId).toBeUndefined();
@@ -727,7 +745,7 @@ describe("createAttachmentScanner", () => {
       () => ({ status: "infected", detail: "eicar" }),
     );
 
-    const result = await s.scan("a1").orThrow();
+    const result = await s.scan({ id: "a1" }).orThrow();
     expect(result).toMatchObject({ status: "infected", scanDetail: "eicar" });
     expect(storage.calls).toEqual([["download", "org-1/attachments/a1"]]);
     expect(calls.at(-1)).toEqual([
@@ -741,7 +759,9 @@ describe("createAttachmentScanner", () => {
       throw new Error("not called");
     });
 
-    expect((await settled.scanner.scan("a1").orThrow()).status).toBe("clean");
+    expect((await settled.scanner.scan({ id: "a1" }).orThrow()).status).toBe(
+      "clean",
+    );
     expect(settled.storage.calls).toEqual([]);
 
     const early = scanner(
@@ -749,7 +769,7 @@ describe("createAttachmentScanner", () => {
       () => ({ status: "clean" }),
     );
 
-    const result = await early.scanner.scan("a1");
+    const result = await early.scanner.scan({ id: "a1" });
     expect(result.ok ? undefined : result.error.hint).toBe(
       "ATTACHMENT_NOT_UPLOADED",
     );
@@ -764,7 +784,7 @@ describe("createAttachmentScanner", () => {
       () => Promise.reject(new Error("clamd down")),
     );
 
-    const result = await s.scan("a1");
+    const result = await s.scan({ id: "a1" });
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "raised",
       hint: "ATTACHMENT_SCAN_FAILED",
@@ -789,7 +809,7 @@ describe("createAttachmentScanner", () => {
       () => Promise.reject(new Error("x")),
     );
 
-    const missing = await lost.scanner.scan("a1");
+    const missing = await lost.scanner.scan({ id: "a1" });
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "ATTACHMENT_NOT_FOUND",
     );
@@ -956,7 +976,7 @@ describe("createObjectScanner", () => {
   it("scans an object once and records the verdict", async () => {
     const fresh = scan(null);
     expect(
-      await fresh.scanner.scan("files", "a/b.pdf").orThrow(),
+      await fresh.scanner.scan({ bucket: "files", path: "a/b.pdf" }).orThrow(),
     ).toMatchObject({ bucket: "files", path: "a/b.pdf", status: "clean" });
     expect(fresh.seen).toEqual(["files/a/b.pdf"]);
     expect(fresh.calls.at(-1)).toEqual([
@@ -970,9 +990,10 @@ describe("createObjectScanner", () => {
       status: "infected",
     });
 
-    expect((await done.scanner.scan("files", "a/b.pdf").orThrow()).status).toBe(
-      "infected",
-    );
+    expect(
+      (await done.scanner.scan({ bucket: "files", path: "a/b.pdf" }).orThrow())
+        .status,
+    ).toBe("infected");
     expect(done.seen).toEqual([]);
   });
 
@@ -982,7 +1003,11 @@ describe("createObjectScanner", () => {
       true,
     );
 
-    const result = await failing.scanner.scan("files", "a/b.pdf");
+    const result = await failing.scanner.scan({
+      bucket: "files",
+      path: "a/b.pdf",
+    });
+
     expect(result.ok ? undefined : result.error.hint).toBe(
       "ATTACHMENT_SCAN_FAILED",
     );
@@ -1073,7 +1098,7 @@ describe("createObjectScanner", () => {
         new AbortController().signal,
       ),
     ).resolves.toBeUndefined();
-    const direct = await scanner.scan("files", "gone.pdf");
+    const direct = await scanner.scan({ bucket: "files", path: "gone.pdf" });
     expect(direct.ok ? undefined : direct.error).toMatchObject({
       kind: "not_found",
       code: "NoSuchKey",

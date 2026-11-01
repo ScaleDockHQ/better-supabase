@@ -71,9 +71,10 @@ describe("createRfqs", () => {
     const rfqs = createRfqs({ transport: t, tenant: "org-1" });
 
     const created = await rfqs
-      .createRfq({ title: "Pallets", currency: "EUR" }, [
-        { description: "Pallet", quantity: 10 },
-      ])
+      .createRfq({
+        input: { title: "Pallets", currency: "EUR" },
+        lines: [{ description: "Pallet", quantity: 10 }],
+      })
       .orThrow();
 
     expect(created.number).toBe("RFQ-1");
@@ -109,7 +110,7 @@ describe("createRfqs", () => {
     const rfqs = createRfqs({ transport: t, tenant: "org-1" });
 
     const invited = await rfqs
-      .inviteSupplier("r1", { type: "company", id: "c1" })
+      .inviteSupplier({ rfqId: "r1", supplier: { type: "company", id: "c1" } })
       .orThrow();
 
     const opened = await rfqs.openRfq("r1").orThrow();
@@ -137,12 +138,14 @@ describe("createRfqs", () => {
     const rfqs = createRfqs({ transport: t, tenant: "org-1" });
 
     const quote = await rfqs
-      .recordQuote(
-        "r1",
-        "i1",
-        [{ lineId: "l1", unitAmount: money(1250n, "EUR"), leadTimeDays: 5 }],
-        { validUntil: temporal().PlainDate.from("2026-12-01") },
-      )
+      .recordQuote({
+        rfqId: "r1",
+        invitationId: "i1",
+        lines: [
+          { lineId: "l1", unitAmount: money(1250n, "EUR"), leadTimeDays: 5 },
+        ],
+        input: { validUntil: temporal().PlainDate.from("2026-12-01") },
+      })
       .orThrow();
 
     const withdrawn = await rfqs.withdrawQuote("q1").orThrow();
@@ -209,7 +212,7 @@ describe("createRfqs", () => {
     const comparison = await rfqs.compare("r1").orThrow();
 
     const awarded = await rfqs
-      .award("r1", "q1", { location: "loc1" })
+      .award({ rfqId: "r1", quoteId: "q1", location: "loc1" })
       .orThrow();
 
     expect(comparison.lines[0]?.offers[0]).toMatchObject({
@@ -240,9 +243,10 @@ describe("createRfqs", () => {
     const rfqs = createRfqs({ transport: t, tenant: "org-1" });
 
     expect((await rfqs.closeRfq("r1").orThrow()).status).toBe("closed");
-    expect((await rfqs.cancelRfq("r1", "no").orThrow()).cancelReason).toBe(
-      "no",
-    );
+    expect(
+      (await rfqs.cancelRfq({ rfqId: "r1", reason: "no" }).orThrow())
+        .cancelReason,
+    ).toBe("no");
   });
 
   it("validates the request input and names the block", () => {

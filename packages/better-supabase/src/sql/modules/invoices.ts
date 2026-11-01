@@ -21,6 +21,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { invoiceAccountingSources } from "./invoices-accounting.ts";
@@ -155,6 +156,17 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link(
+      "fromQuote",
+      "conversion",
+      "invoice",
+      "quotes",
+      "quote",
+      "invoice_from_quote",
+    ),
+    link("fromOrder", "conversion", "invoice", "orders", "order"),
+  ],
   entities: {
     invoice: {
       table: "invoices",

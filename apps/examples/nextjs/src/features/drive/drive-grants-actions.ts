@@ -98,7 +98,7 @@ export const shareDriveItem = bsb.action(
     permission: "drive.read",
   },
   async ({ id, principal, role }, { db, auth }) => {
-    const shared = await driveOf(db).share(id, principal, role);
+    const shared = await driveOf(db).share({ id, principal, role });
 
     if (!shared.ok) {
       return shared;
@@ -118,7 +118,7 @@ export const unshareDriveItem = bsb.action(
     permission: "drive.read",
   },
   async ({ id, principal }, { db, auth }) => {
-    const removed = await driveOf(db).unshare(id, principal);
+    const removed = await driveOf(db).unshare({ id, principal });
 
     if (!removed.ok) {
       return removed;

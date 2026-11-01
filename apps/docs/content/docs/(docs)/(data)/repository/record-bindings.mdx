@@ -230,6 +230,16 @@ summary?.unread.attachments; // true
 `record_summary` runs as the caller, so the counts are the rows the caller
 can read.
 
+`subjects.can({ subject, actions })` asks `can_subject` for each action and returns `{ read: true, delete: false }`. `subjects.view({ subject, sections, actions })` returns the summary and those answers together (`undefined` when the caller can't read the record). `subjects.record(subject)` binds both to one record, so a page that works on a single record writes `const record = subjects.record({ type: "customer", id })` and then `record.view({ sections: ["comments"] })`.
+
+```ts
+const view = await subjects
+  .record({ type: "customer", id })
+  .view({ sections: ["comments", "attachments"], actions: ["write", "delete"] })
+  .orThrow();
+view?.can.delete; // false
+```
+
 ## Keep it current
 
 `createRecordController` loads the bindings, and the summary when you pass
@@ -312,3 +322,27 @@ export const workNotesBlock = defineBlock({
 
 `testRecordBinding` in `better-supabase/testing` checks a binding against this
 contract ([Conformance](/docs/extending/conformance)).
+
+## Copy, trash and restore a record
+
+`bsb.recordAt(type, id)` returns the verbs that act on one record. It is separate from `bsb.record(type)`,
+which loads and writes through the bindings. Call it from a Server Component or inside your own Server
+Action, outside `"use cache"`.
+
+```ts
+const customer = bsb.recordAt(customerRecord, id);
+
+const copied = await customer.copyTo(newId);
+// { ok: true, data: { tags: 2, comments: 5, customFields: 4 } }
+
+const trashed = await customer.trash();
+if (trashed.ok) await customer.restore(trashed.data.id);
+```
+
+`copyTo` runs the `copy` hook of each binding that has one: `tags`, `comments` and `customFields`. Pass
+`{ bindings: ["tags"] }` to copy fewer. It stops at the first binding that fails and returns its
+error, and running it again is safe. Versions, signatures, drive revisions and field history have no
+`copy`, because copying them would forge a history. `trash` needs an active tenant.
+
+The `custom-fields`, `field-history`, `reactions`, `drive` and `signatures` blocks also bind to a
+record now. `drive` binds to a `drive_node` and loads its revisions.

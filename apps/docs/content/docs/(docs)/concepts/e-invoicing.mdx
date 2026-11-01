@@ -24,7 +24,7 @@ Peppol endpoint (the scheme from the EAS code list and the id), their address
 and, where they have one, their VAT number.
 
 ```ts
-const issued = await db.invoices.issue(invoiceId).orThrow();
+const issued = await db.invoices.issue({ invoiceId }).orThrow();
 
 const document = toUbl(issued, {
   seller: {
@@ -109,8 +109,8 @@ with the created bill's totals before you approve it.
 ## Participant ids
 
 Peppol delivers to a participant id: an EAS scheme and an id. Store them with
-`setEInvoiceEndpoint(organizationId, kind, partyId, { scheme, id })`, where
-`kind` is `organization`, `legal_entity` or `company`. A seller reads the id of
+`setEInvoiceEndpoint({ organizationId, partyKind, partyId, endpoint })`, where
+`partyKind` is `organization`, `legal_entity` or `company`. A seller reads the id of
 its legal entity, then the organization's. The buyer reads the id of the
 invoice's company. Clear one with `null`. `eInvoiceEndpoints(invoiceId)`
 returns both for an invoice. They are rows of `invoice_e_endpoints`, so
@@ -168,7 +168,7 @@ export const bis3 = peppolBis3Format({
 });
 
 const sent = await db.invoices
-  .sendEInvoice(issued, { format: bis3, channel: peppol })
+  .sendEInvoice({ invoice: issued, format: bis3, channel: peppol })
   .orThrow();
 ```
 
@@ -187,15 +187,15 @@ instead of sending the document again.
 
 ## Delivery status
 
-Run `syncEInvoices(organizationId, { channel })` on a schedule. It asks
+Run `syncEInvoices({ organizationId, channel })` on a schedule. It asks
 `channel.status` for each pending delivery and moves it to `delivered` or
 `rejected` with the reason, recording `invoice.e_invoice_delivered` or
-`invoice.e_invoice_rejected`. `eInvoiceDeliveries(organizationId, filter)`
+`invoice.e_invoice_rejected`. `eInvoiceDeliveries({ organizationId, ...filter })`
 reads the log.
 
 ## Receive
 
-Run `receiveEInvoices(organizationId, { channel })` to poll a channel with a
+Run `receiveEInvoices({ organizationId, channel })` to poll a channel with a
 `receive` method. Each new document is logged once, read with `fromUbl`, and
 becomes a purchase bill when its sender's participant id belongs to a company
 of the organization. A document with an unknown sender or one that doesn't

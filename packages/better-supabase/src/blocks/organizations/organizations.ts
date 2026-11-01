@@ -17,6 +17,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { OrganizationsEvents } from "./events.ts";
+import type { OrganizationOverview } from "./overview.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
 import {
@@ -36,6 +37,7 @@ import {
   isRecord,
   recordsOf,
 } from "../shared.ts";
+import { decodeOverview } from "./overview.ts";
 
 /**
  * Organization columns by database name: `name`, `slug`, the columns in
@@ -208,6 +210,11 @@ export interface OrganizationsOptions<
   R extends string = string,
 > extends BlockTemporalOptions {
   /**
+   * The role `owner` looks for; `blocks.organizations.options.ownerRole`.
+   * Default `owner`.
+   */
+  readonly ownerRole?: string;
+  /**
    * A Standard Schema for the organization's extra columns
    * (`options.attributes` and `options.extraColumns`), keyed by database name.
    * It types and parses them on `mine()`, and validates them on `create` and
@@ -286,77 +293,105 @@ export interface Organizations<
   R extends string = string,
 > {
   create(
-    attributes: OrganizationAttributes & Partial<F>,
-    options?: CreateOrganizationOptions,
+    input: {
+      attributes: OrganizationAttributes & Partial<F>;
+    } & CreateOrganizationOptions,
   ): AsyncResult<{ readonly id: string }>;
-  update(
-    organizationId: string,
-    attributes: OrganizationAttributes & Partial<F>,
-  ): AsyncResult<true>;
+  update(input: {
+    organizationId: string;
+    attributes: OrganizationAttributes & Partial<F>;
+  }): AsyncResult<true>;
   /** `false` when it did not exist (or was already soft-deleted). */
   delete(organizationId: string): AsyncResult<boolean>;
   /** Why a slug can't be used, or `undefined` when it can. */
-  slugProblem(
-    slug: string,
-    exceptOrganizationId?: string,
-  ): AsyncResult<SlugProblem | undefined>;
-  updateMemberRole(
-    organizationId: string,
-    userId: string,
-    role: string,
-  ): AsyncResult<true>;
+  slugProblem(input: {
+    slug: string;
+    exceptOrganizationId?: string | undefined;
+  }): AsyncResult<SlugProblem | undefined>;
+  updateMemberRole(input: {
+    organizationId: string;
+    userId: string;
+    role: string;
+  }): AsyncResult<true>;
   /**
    * Adds a role to a member, with `blocks.memberships.options.roles.many`.
    * `false` when they already held it.
    */
-  addMemberRole(
-    organizationId: string,
-    userId: string,
-    role: string,
-  ): AsyncResult<boolean>;
+  addMemberRole(input: {
+    organizationId: string;
+    userId: string;
+    role: string;
+  }): AsyncResult<boolean>;
   /**
    * Removes one of a member's roles, with
    * `blocks.memberships.options.roles.many`. `false` when they didn't hold it;
    * the last role and the last owner are refused.
    */
-  removeMemberRole(
-    organizationId: string,
-    userId: string,
-    role: string,
-  ): AsyncResult<boolean>;
-  removeMember(organizationId: string, userId: string): AsyncResult<true>;
-  suspendMember(organizationId: string, userId: string): AsyncResult<boolean>;
-  resumeMember(organizationId: string, userId: string): AsyncResult<boolean>;
+  removeMemberRole(input: {
+    organizationId: string;
+    userId: string;
+    role: string;
+  }): AsyncResult<boolean>;
+  removeMember(input: {
+    organizationId: string;
+    userId: string;
+  }): AsyncResult<true>;
+  suspendMember(input: {
+    organizationId: string;
+    userId: string;
+  }): AsyncResult<boolean>;
+  resumeMember(input: {
+    organizationId: string;
+    userId: string;
+  }): AsyncResult<boolean>;
   leave(organizationId: string): AsyncResult<true>;
   /** `formerRole` defaults to `options.formerOwnerRole`. */
-  transferOwnership(
-    organizationId: string,
-    newOwnerId: string,
-    formerRole?: string,
-  ): AsyncResult<true>;
+  transferOwnership(input: {
+    organizationId: string;
+    newOwnerId: string;
+    formerRole?: string | undefined;
+  }): AsyncResult<true>;
   markUsed(organizationId: string): AsyncResult<boolean>;
   switch(organizationId: string): AsyncResult<SwitchResult>;
   /** Organizations the caller belongs to. */
   mine(): AsyncResult<readonly (OrganizationMembership & F)[]>;
   members(organizationId: string): AsyncResult<readonly OrganizationMember[]>;
+  /**
+   * The member who holds `options.ownerRole` (default `owner`), the first when
+   * several do; `undefined` when none does. It reads `members`.
+   */
+  owner(organizationId: string): AsyncResult<OrganizationMember | undefined>;
+  /**
+   * Every member's roles by user id: `roles` with several roles per member,
+   * otherwise the one `role`. It reads `members`.
+   */
+  memberRoles(
+    organizationId: string,
+  ): AsyncResult<Readonly<Record<string, readonly string[]>>>;
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
+  /**
+   * The organization page in one call: the caller's role, the members with
+   * their roles, the open invitations and the billed seats. `members` and
+   * `invitations` give the same pieces one call at a time.
+   */
+  overview(organizationId: string): AsyncResult<OrganizationOverview>;
   invite(request: InviteRequest<I, R>): AsyncResult<InvitationSent<I>>;
-  resendInvitation(
-    invitationId: string,
-    validFor?: string,
-  ): AsyncResult<InvitationSent<I>>;
+  resendInvitation(input: {
+    invitationId: string;
+    validFor?: string | undefined;
+  }): AsyncResult<InvitationSent<I>>;
   /**
    * A new email, role or prefill for an open invitation, with the checks
    * `invite` makes. The token and expiry stay, so the link already sent keeps
    * working; call `resendInvitation` to mail the new address. An expired
    * invitation fails with `INVITATION_EXPIRED`; resend it first.
    */
-  updateInvitation(
-    invitationId: string,
-    changes: InvitationChanges,
-  ): AsyncResult<Invitation<I>>;
+  updateInvitation(input: {
+    invitationId: string;
+    changes: InvitationChanges;
+  }): AsyncResult<Invitation<I>>;
   /** `false` when it was not open. */
   revokeInvitation(invitationId: string): AsyncResult<boolean>;
   declineInvitation(token: string): AsyncResult<boolean>;
@@ -536,12 +571,43 @@ export function createOrganizations<
 >(
   options: OrganizationsOptions<S, SI, R>,
 ): Organizations<FieldsOf<S>, FieldsOf<SI>, R> {
-  const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>, R>(options);
+  const base = organizationsClient<FieldsOf<S>, FieldsOf<SI>, R>(options);
+  const ownerRole = options.ownerRole ?? "owner";
 
-  return withBlockHooks(client, options.hooks, {
-    block: "organizations",
-    ...(options.events ? { logger: options.events.logger } : {}),
-  });
+  const client: Organizations<FieldsOf<S>, FieldsOf<SI>, R> = {
+    ...base,
+    owner: (organizationId) =>
+      hooked
+        .members(organizationId)
+        .map((members) =>
+          members.find((member) =>
+            (member.roles ?? [member.role]).includes(ownerRole),
+          ),
+        ),
+    memberRoles: (organizationId) =>
+      hooked
+        .members(organizationId)
+        .map((members) =>
+          Object.fromEntries(
+            members.map((member) => [
+              member.userId,
+              member.roles ?? [member.role],
+            ]),
+          ),
+        ),
+  };
+
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Organizations<FieldsOf<S>, FieldsOf<SI>, R> = withBlockHooks(
+    client,
+    options.hooks,
+    {
+      block: "organizations",
+      ...(options.events ? { logger: options.events.logger } : {}),
+    },
+  );
+
+  return hooked;
 }
 
 function organizationsClient<
@@ -554,7 +620,7 @@ function organizationsClient<
     StandardSchemaV1 | undefined,
     R
   >,
-): Organizations<F, I, R> {
+): Omit<Organizations<F, I, R>, "owner" | "memberRoles"> {
   applyTemporal(options);
 
   const fields: BlockFields<F> = blockFields(
@@ -676,13 +742,11 @@ function organizationsClient<
   };
 
   return {
-    create(attributes, createOptions) {
+    create({ attributes, ...createOptions }) {
       return checked(attributes).andThen((valid) => {
         const attrs = {
           ...valid,
-          ...(createOptions?.ownerId
-            ? { owner_id: createOptions.ownerId }
-            : {}),
+          ...(createOptions.ownerId ? { owner_id: createOptions.ownerId } : {}),
         };
 
         return run(
@@ -693,8 +757,8 @@ function organizationsClient<
             const id = text(value);
             organizationEvent("organization.created", {
               organizationId: id,
-              ...((createOptions?.ownerId ?? options.actorId)
-                ? { userId: createOptions?.ownerId ?? options.actorId }
+              ...((createOptions.ownerId ?? options.actorId)
+                ? { userId: createOptions.ownerId ?? options.actorId }
                 : {}),
             });
 
@@ -703,7 +767,7 @@ function organizationsClient<
         );
       });
     },
-    update(organizationId, attributes) {
+    update({ organizationId, attributes }) {
       return checked(attributes).andThen((valid) =>
         run(
           "organizations",
@@ -731,7 +795,7 @@ function organizationsClient<
         },
       );
     },
-    slugProblem(slug, exceptOrganizationId) {
+    slugProblem({ slug, exceptOrganizationId }) {
       return run(
         "organizations",
         "organization_slug_problem",
@@ -753,7 +817,7 @@ function organizationsClient<
         },
       );
     },
-    updateMemberRole(organizationId, userId, role) {
+    updateMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
         "update_member_role",
@@ -769,7 +833,7 @@ function organizationsClient<
         },
       );
     },
-    addMemberRole(organizationId, userId, role) {
+    addMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
         "add_member_role",
@@ -787,7 +851,7 @@ function organizationsClient<
         },
       );
     },
-    removeMemberRole(organizationId, userId, role) {
+    removeMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
         "remove_member_role",
@@ -805,7 +869,7 @@ function organizationsClient<
         },
       );
     },
-    removeMember(organizationId, userId) {
+    removeMember({ organizationId, userId }) {
       return run(
         "organizations",
         "remove_member",
@@ -820,7 +884,7 @@ function organizationsClient<
         },
       );
     },
-    suspendMember(organizationId, userId) {
+    suspendMember({ organizationId, userId }) {
       return run(
         "organizations",
         "suspend_member",
@@ -837,7 +901,7 @@ function organizationsClient<
         },
       );
     },
-    resumeMember(organizationId, userId) {
+    resumeMember({ organizationId, userId }) {
       return run(
         "organizations",
         "resume_member",
@@ -869,7 +933,7 @@ function organizationsClient<
         },
       );
     },
-    transferOwnership(organizationId, newOwnerId, formerRole) {
+    transferOwnership({ organizationId, newOwnerId, formerRole }) {
       return run(
         "organizations",
         "transfer_ownership",
@@ -965,6 +1029,13 @@ function organizationsClient<
           })),
       );
     },
+    overview: (organizationId) =>
+      run(
+        "organizations",
+        "organization_overview",
+        { organization: organizationId },
+        decodeOverview,
+      ),
     invitations(organizationId) {
       return run(
         "organizations",
@@ -1022,7 +1093,7 @@ function organizationsClient<
         );
       });
     },
-    resendInvitation(invitationId, validFor) {
+    resendInvitation({ invitationId, validFor }) {
       return run(
         "invitations",
         "resend_invitation",
@@ -1030,7 +1101,7 @@ function organizationsClient<
         (value) => sent(value, "resend_invitation", true),
       );
     },
-    updateInvitation(invitationId, changes) {
+    updateInvitation({ invitationId, changes }) {
       return run(
         "invitations",
         "update_invitation",

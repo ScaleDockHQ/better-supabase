@@ -56,11 +56,11 @@ export function driveOffboardingSink(
           continue;
         }
 
-        const moved = await drive.transferOwnership(
+        const moved = await drive.transferOwnership({
           organizationId,
-          userId,
+          fromUserId: userId,
           toUserId,
-        );
+        });
 
         if (!moved.ok) {
           throw new Error(

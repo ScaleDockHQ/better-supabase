@@ -905,7 +905,9 @@ describe("createWebhooks: management", () => {
     ).toBe("del-9");
     expect(await webhooks.redeliver("del-1").orThrow()).toBe("del-1");
     expect(
-      await webhooks.rotateSecret("dest-1", { overlap: "1 hour" }).orThrow(),
+      await webhooks
+        .rotateSecret({ endpointId: "dest-1", overlap: "1 hour" })
+        .orThrow(),
     ).toBe("whsec_new");
     expect(calls.map(({ fn, args }) => [fn, args])).toEqual([
       [
@@ -970,7 +972,7 @@ describe("createWebhooks: management", () => {
       secrets: { apiVersion: 1, secrets: async () => [] },
     });
 
-    const result = await webhooks.rotateSecret("dest-1");
+    const result = await webhooks.rotateSecret({ endpointId: "dest-1" });
     expect(!result.ok && result.error.message).toBe(
       "The secret store can't rotate secrets",
     );
@@ -1516,7 +1518,7 @@ describe("endpoint management", () => {
     expect(created.createdAt.toString()).toBe("2026-10-29T12:00:00Z");
 
     const updated = await webhooks
-      .updateEndpoint("ep-1", { enabled: false })
+      .updateEndpoint({ endpointId: "ep-1", changes: { enabled: false } })
       .orThrow();
 
     expect(updated.enabled).toBe(false);
@@ -1552,7 +1554,12 @@ describe("endpoint management", () => {
     });
 
     const webhooks = createWebhooks({ transport: block.transport });
-    const result = await webhooks.updateEndpoint("ep-1", { name: "x" });
+
+    const result = await webhooks.updateEndpoint({
+      endpointId: "ep-1",
+      changes: { name: "x" },
+    });
+
     expect(result.error?.kind).toBe("forbidden");
   });
 });

@@ -1,7 +1,11 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AiFiles } from "../../src/blocks/ai-files/index.ts";
-import type { BlockContext, Notifier } from "../../src/blocks/index.ts";
+import type {
+  BlockContext,
+  CompositeOptions,
+  Notifier,
+} from "../../src/blocks/index.ts";
 import type { OrganizationsEvents } from "../../src/blocks/organizations/index.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
@@ -89,8 +93,14 @@ describe("createBlocks sinks", () => {
       cloudEvent("subject.trashed", { subjectType: "task", subjectId: "t1" }),
       cloudEvent("subject.restored", { subjectType: "task", subjectId: "t2" }),
     ]);
-    expect(remove).toHaveBeenCalledWith("task", "t1");
-    expect(refresh).toHaveBeenCalledWith("task", "t2");
+    expect(remove).toHaveBeenCalledWith({
+      subjectType: "task",
+      subjectId: "t1",
+    });
+    expect(refresh).toHaveBeenCalledWith({
+      subjectType: "task",
+      subjectId: "t2",
+    });
   });
 
   it("rolls metrics up for the events in the metrics block's sink option", async () => {
@@ -134,11 +144,10 @@ describe("createBlocks hooks", () => {
       { organizations: organizationsBlock, audit: auditBlock },
     );
 
-    expect(await blocks.organizations.create({ name: "Acme" })).toMatchObject({
-      ok: false,
-      error: { kind: "forbidden" },
-    });
-    expect(before).toHaveBeenCalledWith([{ name: "Acme" }], {
+    expect(
+      await blocks.organizations.create({ attributes: { name: "Acme" } }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(before).toHaveBeenCalledWith([{ attributes: { name: "Acme" } }], {
       block: "organizations",
       method: "create",
     });
@@ -157,7 +166,10 @@ describe("createBlocks hooks", () => {
       },
     );
     const port = seen[0]?.["notifier"] as Notifier;
-    await port.send("x", { recipients: [], tenant: "o", key: "k", data: {} });
+    await port.send({
+      type: "x",
+      input: { recipients: [], tenant: "o", key: "k", data: {} },
+    });
     expect(before).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledOnce();
   });
@@ -194,11 +206,11 @@ describe("createBlocks", () => {
       { "rate-limit": rateLimitBlock },
     );
 
-    expect(await blocks["rate-limit"].check("api", "key-1").orThrow()).toEqual({
-      allowed: true,
-      remaining: 4,
-      retryAfter: 0,
-    });
+    expect(
+      await blocks["rate-limit"]
+        .check({ scope: "api", key: "key-1" })
+        .orThrow(),
+    ).toEqual({ allowed: true, remaining: 4, retryAfter: 0 });
     expect(calls).toEqual([
       [
         "better_supabase",
@@ -340,12 +352,15 @@ describe("createBlocks", () => {
         subject: { type: "task", id: "42" },
       })
       .orThrow();
-    expect(send).toHaveBeenCalledWith("reminder.due", {
-      recipients: ["u1"],
-      tenant: "o1",
-      key: "reminder:r1:2026-10-14T09:00:00Z",
-      subject: { type: "task", id: "42" },
-      data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
+    expect(send).toHaveBeenCalledWith({
+      type: "reminder.due",
+      input: {
+        recipients: ["u1"],
+        tenant: "o1",
+        key: "reminder:r1:2026-10-14T09:00:00Z",
+        subject: { type: "task", id: "42" },
+        data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
+      },
     });
   });
 
@@ -606,5 +621,62 @@ describe("defineBlocks", () => {
     expect(set.config).toBe(config);
     expect(typeof blocks.organizations.create).toBe("function");
     blocks.close();
+  });
+});
+
+describe("createBlocks composites", () => {
+  const part = (name: string, answer: string) =>
+    defineBlock({
+      name,
+      create: (_options: BlockContext) => ({ answer: () => answer }),
+      category: "work",
+    });
+
+  const alpha = part("alpha", "a");
+  const beta = part("beta", "b");
+
+  const composite = defineBlock({
+    name: "pair",
+    composes: { alpha, beta },
+    create: (
+      options: BlockContext &
+        CompositeOptions<{ alpha: typeof alpha; beta: typeof beta }>,
+    ) => ({
+      both: () => options.parts.alpha.answer() + options.parts.beta.answer(),
+    }),
+    category: "work",
+  });
+
+  it("hands a composite the clients of its parts", () => {
+    const blocks = createBlocks(
+      { transport },
+      { alpha, beta, pair: composite },
+    );
+
+    expect(blocks.pair.both()).toBe("ab");
+  });
+
+  it("builds a part once, for the composite and for the app", () => {
+    const seen: Record<string, unknown>[] = [];
+
+    const counted = defineBlock({
+      name: "alpha",
+      create: (options: Record<string, unknown>) => {
+        seen.push(options);
+
+        return { answer: () => "a" };
+      },
+      category: "work",
+    });
+
+    createBlocks({ transport }, { alpha: counted, beta, pair: composite });
+
+    expect(seen).toHaveLength(1);
+  });
+
+  it("names the part that is missing", () => {
+    expect(() =>
+      createBlocks({ transport }, { alpha, pair: composite }),
+    ).toThrow(/"pair" is built from "beta"/u);
   });
 });

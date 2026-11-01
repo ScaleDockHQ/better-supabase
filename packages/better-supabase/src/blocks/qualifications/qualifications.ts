@@ -7,12 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -190,25 +190,46 @@ export interface QualifiedHoldersOptions {
   readonly on?: Temporal.PlainDate;
 }
 
+export interface QualificationMatrixOptions {
+  /** Default: `member`. */
+  readonly holderType?: QualificationHolderType;
+  /** Default: today. */
+  readonly on?: Temporal.PlainDate;
+}
+
+/** `valid`, a gap status, or `none` when the holder neither holds nor needs it. */
+export type QualificationCellStatus = QualificationGapStatus | "valid" | "none";
+
+export interface QualificationMatrixRow {
+  readonly holderId: string;
+  /** The holder's name when a gap names it, else the id. */
+  readonly holderTitle: string;
+  readonly cells: Readonly<Record<string, QualificationCellStatus>>;
+}
+
+export interface QualificationMatrix {
+  readonly types: readonly QualificationType[];
+  readonly rows: readonly QualificationMatrixRow[];
+}
+
 export interface Qualifications<F extends object = Record<never, never>> {
   /** Needs `qualifications.manage`. */
-  saveType(
-    organizationId: string,
-    input: QualificationTypeInput,
-  ): AsyncResult<QualificationType>;
+  saveType(input: {
+    organizationId: string;
+    input: QualificationTypeInput;
+  }): AsyncResult<QualificationType>;
   /** Needs `qualifications.manage`. Holdings stay. */
   archiveType(typeId: string): AsyncResult<QualificationType>;
   /** By name. */
   types(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly QualificationType[]>;
   /** Needs `qualifications.manage`. Adding the same target twice keeps one. */
-  addRequirement(
-    typeId: string,
-    targetType: QualificationTargetType,
-    targetValue: string,
-  ): AsyncResult<QualificationRequirement>;
+  addRequirement(input: {
+    typeId: string;
+    targetType: QualificationTargetType;
+    targetValue: string;
+  }): AsyncResult<QualificationRequirement>;
   /** Needs `qualifications.manage`. */
   removeRequirement(
     requirementId: string,
@@ -217,36 +238,56 @@ export interface Qualifications<F extends object = Record<never, never>> {
     typeId: string,
   ): AsyncResult<readonly QualificationRequirement[]>;
   /** Needs `qualifications.grant`. */
-  grant(
-    organizationId: string,
-    input: QualificationGrantInput<F>,
-  ): AsyncResult<Qualification<F>>;
+  grant(input: {
+    organizationId: string;
+    input: QualificationGrantInput<F>;
+  }): AsyncResult<Qualification<F>>;
   /** Needs `qualifications.grant`. Revoking twice keeps the first revocation. */
-  revoke(
-    qualificationId: string,
-    reason?: string,
-  ): AsyncResult<Qualification<F>>;
+  revoke(input: {
+    qualificationId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Qualification<F>>;
   /** Every holding of one holder, the newest grant first. */
-  of(
-    holderType: QualificationHolderType,
-    holderId: string,
-  ): AsyncResult<readonly Qualification<F>[]>;
+  of(input: {
+    holderType: QualificationHolderType;
+    holderId: string;
+  }): AsyncResult<readonly Qualification<F>[]>;
   /** The required qualifications holders lack, have let lapse or are about to. */
   gaps(
-    organizationId: string,
-    options?: QualificationGapOptions,
+    input: { organizationId: string } & QualificationGapOptions,
   ): AsyncResult<readonly QualificationGap[]>;
+  /**
+   * Holders by the qualification types they need or hold, read together:
+   * `types` are the active types (the columns), `rows` the holders with a valid
+   * holding or a gap (the rows), each with one cell per type key. A holder with
+   * neither does not appear.
+   */
+  matrix(
+    input: { organizationId: string } & QualificationMatrixOptions,
+  ): AsyncResult<QualificationMatrix>;
   /** The ids of the holders with a valid holding of `typeKey` on a day. */
   qualifiedHolders(
-    organizationId: string,
-    typeKey: string,
-    options?: QualifiedHoldersOptions,
+    input: {
+      organizationId: string;
+      typeKey: string;
+    } & QualifiedHoldersOptions,
   ): AsyncResult<readonly string[]>;
   /**
    * Reports each holding once when it starts expiring and once when it expires;
    * returns how many. Service role only; run it daily.
    */
   notifyExpiring(): AsyncResult<number>;
+  /**
+   * Whether `holderId` holds a valid qualification of `typeKey` today, or on
+   * `on`.
+   */
+  check(input: {
+    organizationId: string;
+    typeKey: string;
+    holderId: string;
+    holderType?: QualificationHolderType | undefined;
+    on?: Temporal.PlainDate | undefined;
+  }): AsyncResult<boolean>;
 }
 
 const HOLDER_TYPES: readonly QualificationHolderType[] = [
@@ -410,7 +451,7 @@ export function createQualifications<
     requirementOf(value, fn);
 
   const client: Qualifications<F> = {
-    saveType: (organizationId, input) =>
+    saveType: ({ organizationId, input }) =>
       call(
         "save_qualification_type",
         {
@@ -430,7 +471,7 @@ export function createQualifications<
       call("archive_qualification_type", { type_id: typeId }, (value) =>
         typeOf(value, "archive_qualification_type"),
       ),
-    types: (organizationId, list = {}) =>
+    types: ({ organizationId, ...list }) =>
       call(
         "list_qualification_types",
         {
@@ -439,7 +480,7 @@ export function createQualifications<
         },
         many("list_qualification_types", typeOf),
       ),
-    addRequirement: (typeId, targetType, targetValue) =>
+    addRequirement: ({ typeId, targetType, targetValue }) =>
       call(
         "add_qualification_requirement",
         { type_id: typeId, target_type: targetType, target_value: targetValue },
@@ -457,7 +498,7 @@ export function createQualifications<
         { type_id: typeId },
         many("list_qualification_requirements", requirementOf),
       ),
-    grant: (organizationId, input) =>
+    grant: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -476,19 +517,19 @@ export function createQualifications<
             holding("grant_qualification"),
           ).andThen(fields.row),
         ),
-    revoke: (qualificationId, reason) =>
+    revoke: ({ qualificationId, reason }) =>
       call(
         "revoke_qualification",
         { qualification_id: qualificationId, reason: reason ?? null },
         holding("revoke_qualification"),
       ).andThen(fields.row),
-    of: (holderType, holderId) =>
+    of: ({ holderType, holderId }) =>
       call(
         "qualifications_of",
         { holder_type: holderType, holder_id: holderId },
         many("qualifications_of", holdingOf),
       ).andThen(fields.rows),
-    gaps: (organizationId, list = {}) =>
+    gaps: ({ organizationId, ...list }) =>
       call(
         "qualification_gaps",
         {
@@ -503,7 +544,7 @@ export function createQualifications<
         },
         many("qualification_gaps", gapOf),
       ),
-    qualifiedHolders: (organizationId, typeKey, list = {}) =>
+    qualifiedHolders: ({ organizationId, typeKey, ...list }) =>
       call(
         "qualified_holders",
         {
@@ -514,11 +555,97 @@ export function createQualifications<
         },
         idsOf,
       ),
+    matrix: ({ organizationId, holderType, on }) =>
+      AsyncResult.from<QualificationMatrix>(async () => {
+        const kind = holderType ?? "member";
+        const types = await hooked.types({ organizationId });
+
+        if (!types.ok) {
+          return err(types.error);
+        }
+
+        const [gaps, valid] = await Promise.all([
+          hooked.gaps({ organizationId, holderType: kind }),
+          Promise.all(
+            types.data.map((type) =>
+              hooked.qualifiedHolders({
+                organizationId,
+                typeKey: type.key,
+                holderType: kind,
+                ...(on ? { on } : {}),
+              }),
+            ),
+          ),
+        ]);
+
+        if (!gaps.ok) {
+          return err(gaps.error);
+        }
+
+        const titles = new Map<string, string>();
+
+        const cells = new Map<
+          string,
+          Record<string, QualificationCellStatus>
+        >();
+
+        const cellsOf = (holderId: string) => {
+          const found = cells.get(holderId) ?? {};
+
+          cells.set(holderId, found);
+
+          return found;
+        };
+
+        for (const [index, holders] of valid.entries()) {
+          if (!holders.ok) {
+            return err(holders.error);
+          }
+
+          const type = types.data[index];
+
+          for (const holderId of holders.data) {
+            if (type) {
+              cellsOf(holderId)[type.key] = "valid";
+            }
+          }
+        }
+
+        for (const gap of gaps.data) {
+          titles.set(gap.holderId, gap.holderTitle);
+          cellsOf(gap.holderId)[gap.typeKey] = gap.status;
+        }
+
+        return ok({
+          types: types.data,
+          rows: [...cells]
+            .map(([holderId, found]) => ({
+              holderId,
+              holderTitle: titles.get(holderId) ?? holderId,
+              cells: Object.fromEntries(
+                types.data.map((type) => [type.key, found[type.key] ?? "none"]),
+              ),
+            }))
+            .toSorted((a, b) => a.holderTitle.localeCompare(b.holderTitle)),
+        });
+      }),
     notifyExpiring: () => call("notify_expiring_qualifications", {}, numberOf),
+    check: ({ organizationId, typeKey, holderId, holderType, on }) =>
+      hooked
+        .qualifiedHolders({
+          organizationId,
+          typeKey,
+          ...(holderType === undefined ? {} : { holderType }),
+          ...(on === undefined ? {} : { on }),
+        })
+        .map((holders) => holders.includes(holderId)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Qualifications<F> = withBlockHooks(client, options.hooks, {
     block: "qualifications",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

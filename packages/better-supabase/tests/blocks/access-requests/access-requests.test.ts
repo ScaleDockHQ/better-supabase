@@ -88,7 +88,8 @@ describe("access requests client", () => {
     expect(granted).not.toHaveProperty("endedAt");
 
     const listed = await access
-      .list("o", {
+      .list({
+        organizationId: "o",
         status: "granted",
         mine: true,
         pageSize: 5,
@@ -99,7 +100,7 @@ describe("access requests client", () => {
     expect(listed[1]).not.toHaveProperty("reason");
     expect(listed[1]).not.toHaveProperty("duration");
     expect(listed[1]!.endedAt?.toString()).toBe("2026-09-01T01:00:00Z");
-    await access.list("o").orThrow();
+    await access.list({ organizationId: "o" }).orThrow();
 
     expect((await access.end("r1").orThrow()).status).toBe("ended");
     expect(fake.calls).toEqual([
@@ -226,9 +227,9 @@ describe("access requests client", () => {
     expect(opened.expiresAt?.toString()).toBe("2026-10-01T08:00:00Z");
 
     const reviewed = await access
-      .reviewEmergency("r3", {
-        verdict: "justified",
-        note: "Checked the chart",
+      .reviewEmergency({
+        id: "r3",
+        input: { verdict: "justified", note: "Checked the chart" },
       })
       .orThrow();
 
@@ -239,11 +240,12 @@ describe("access requests client", () => {
     });
     expect(reviewed.review?.reviewedAt.toString()).toBe("2026-10-02T00:00:00Z");
 
-    const listed = await access.emergencies("o").orThrow();
+    const listed = await access.emergencies({ organizationId: "o" }).orThrow();
     expect(listed).toHaveLength(2);
     expect(listed[1]!.review).not.toHaveProperty("note");
     await access
-      .emergencies("o", {
+      .emergencies({
+        organizationId: "o",
         unreviewed: false,
         pageSize: 10,
         before: temporal().Instant.from("2026-10-03T00:00:00Z"),
@@ -256,7 +258,10 @@ describe("access requests client", () => {
       reason: "Audit",
       duration: temporal().Duration.from({ days: 1 }),
     });
-    await access.reviewEmergency("r3", { verdict: "unjustified" });
+    await access.reviewEmergency({
+      id: "r3",
+      input: { verdict: "unjustified" },
+    });
 
     expect(fake.calls).toEqual([
       [
@@ -326,12 +331,20 @@ describe("access requests client", () => {
     const fake = transport({ list_record_access_requests: () => [RECORD] });
     const access = createAccessRequests({ transport: fake, schema: "app" });
 
-    const listed = await access.records("drive_node", "n1").orThrow();
+    const listed = await access
+      .records({ subjectType: "drive_node", subjectId: "n1" })
+      .orThrow();
+
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({ subjectId: "n1", target: "record" });
 
     await access
-      .records("drive_node", "n1", { status: "pending", pageSize: 5 })
+      .records({
+        subjectType: "drive_node",
+        subjectId: "n1",
+        status: "pending",
+        pageSize: 5,
+      })
       .orThrow();
 
     expect(fake.calls).toEqual([
@@ -360,7 +373,9 @@ describe("access requests client", () => {
       schema: "app",
     });
 
-    expect((await wrong.records("drive_node", "n1")).ok).toBe(false);
+    expect(
+      (await wrong.records({ subjectType: "drive_node", subjectId: "n1" })).ok,
+    ).toBe(false);
   });
 
   it("rejects a reply of the wrong kind or with an unknown verdict", async () => {
@@ -399,7 +414,12 @@ describe("access requests client", () => {
         .ok,
     ).toBe(false);
     expect(
-      (await access.reviewEmergency("r1", { verdict: "justified" })).ok,
+      (
+        await access.reviewEmergency({
+          id: "r1",
+          input: { verdict: "justified" },
+        })
+      ).ok,
     ).toBe(false);
   });
 });

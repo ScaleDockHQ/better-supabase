@@ -8,7 +8,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -203,16 +204,16 @@ export interface Enrollments {
    * cancelled one starts again with its completed steps. With `dates`, it sets
    * them as `setDates` does.
    */
-  enroll(
-    program: string,
-    subject: RecordRef,
-    dates?: EnrollmentDates,
-  ): AsyncResult<Enrollment>;
+  enroll(input: {
+    program: string;
+    subject: RecordRef;
+    dates?: EnrollmentDates | undefined;
+  }): AsyncResult<Enrollment>;
   /** Sets the dates its due dates count from and renders them again. */
-  setDates(
-    enrollmentId: string,
-    dates: EnrollmentDates,
-  ): AsyncResult<Enrollment>;
+  setDates(input: {
+    enrollmentId: string;
+    dates: EnrollmentDates;
+  }): AsyncResult<Enrollment>;
   /**
    * Open steps of active enrollments that have an assignee or a due date,
    * soonest due first. Without `enrollments.read`, the caller's own.
@@ -221,21 +222,42 @@ export interface Enrollments {
     filter?: EnrollmentOpenStepsFilter,
   ): AsyncResult<readonly EnrollmentOpenStep[]>;
   /** A subject's enrollment in a program, or `null`. */
-  enrollment(
-    program: string,
-    subject: RecordRef,
-  ): AsyncResult<Enrollment | null>;
+  enrollment(input: {
+    program: string;
+    subject: RecordRef;
+  }): AsyncResult<Enrollment | null>;
   /**
    * The organization's enrollments, most recently changed first. Without
    * `enrollments.read`, the caller's own.
    */
   list(filter?: EnrollmentsFilter): AsyncResult<readonly Enrollment[]>;
   /** Marks a step done; completing the last step completes the enrollment. */
-  complete(enrollmentId: string, step: string): AsyncResult<Enrollment>;
+  complete(input: {
+    enrollmentId: string;
+    step: string;
+  }): AsyncResult<Enrollment>;
   /** Marks a step not done again. */
-  reset(enrollmentId: string, step: string): AsyncResult<Enrollment>;
+  reset(input: { enrollmentId: string; step: string }): AsyncResult<Enrollment>;
   /** Cancels an active enrollment; its completed steps stay. */
   cancel(enrollmentId: string): AsyncResult<Enrollment>;
+  /**
+   * Holds an active enrollment, setting `pausedAt`; its steps stay as they are.
+   * Needs the `paused_at` column and a program the app owns.
+   */
+  pause(enrollmentId: string): AsyncResult<Enrollment>;
+  /** Clears `pausedAt` on a paused enrollment. */
+  resume(enrollmentId: string): AsyncResult<Enrollment>;
+  /** Resets every completed step, so the enrollment runs from the start. */
+  restart(enrollmentId: string): AsyncResult<Enrollment>;
+  /**
+   * Completes the first step that isn't done yet, in the program's order. Fails
+   * with `not_found` when every step is done.
+   */
+  advance(input: {
+    enrollmentId: string;
+    subject: RecordRef;
+    program: string;
+  }): AsyncResult<Enrollment>;
 }
 
 function optional<K extends string, V>(
@@ -449,7 +471,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         { program_id: programId },
         (value) => value === true,
       ),
-    enroll: (program, subject, dates) =>
+    enroll: ({ program, subject, dates }) =>
       tenant()
         .andThen((organizationId) =>
           call(
@@ -468,7 +490,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ? AsyncResult.ok(enrollment)
             : setDates(enrollment.id, dates),
         ),
-    setDates: (enrollmentId, dates) => setDates(enrollmentId, dates),
+    setDates: ({ enrollmentId, dates }) => setDates(enrollmentId, dates),
     openSteps: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -486,7 +508,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ),
         ),
       ),
-    enrollment: (program, subject) =>
+    enrollment: ({ program, subject }) =>
       tenant().andThen((organizationId) =>
         call(
           "enrollment",
@@ -519,13 +541,13 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             ),
         ),
       ),
-    complete: (enrollmentId, step) =>
+    complete: ({ enrollmentId, step }) =>
       call(
         "complete_enrollment_step",
         { enrollment_id: enrollmentId, step },
         one("complete_enrollment_step"),
       ),
-    reset: (enrollmentId, step) =>
+    reset: ({ enrollmentId, step }) =>
       call(
         "reset_enrollment_step",
         { enrollment_id: enrollmentId, step },
@@ -537,10 +559,72 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         { enrollment_id: enrollmentId },
         one("cancel_enrollment"),
       ),
+    pause: (enrollmentId) =>
+      call(
+        "pause_enrollment",
+        { enrollment_id: enrollmentId },
+        one("pause_enrollment"),
+      ),
+    resume: (enrollmentId) =>
+      call(
+        "resume_enrollment",
+        { enrollment_id: enrollmentId },
+        one("resume_enrollment"),
+      ),
+    restart: (enrollmentId) =>
+      AsyncResult.from(async () => {
+        const found = await hooked.list({ pageSize: 200 });
+
+        if (!found.ok) {
+          return found;
+        }
+
+        const enrollment = found.data.find((each) => each.id === enrollmentId);
+
+        if (enrollment === undefined) {
+          return err(
+            dbError("not_found", `Enrollment ${enrollmentId} not found`),
+          );
+        }
+
+        let latest = enrollment;
+
+        for (const { step } of enrollment.progress) {
+          const reset = await hooked.reset({ enrollmentId, step });
+
+          if (!reset.ok) {
+            return reset;
+          }
+
+          latest = reset.data;
+        }
+
+        return ok(latest);
+      }),
+    advance: ({ enrollmentId, subject, program }) =>
+      hooked.enrollment({ program, subject }).andThen(async (enrollment) => {
+        if (enrollment === null || enrollment.id !== enrollmentId) {
+          return err(
+            dbError("not_found", `Enrollment ${enrollmentId} not found`),
+          );
+        }
+
+        const done = new Set(enrollment.progress.map((each) => each.step));
+        const next = enrollment.steps.find((step) => !done.has(step));
+
+        if (next === undefined) {
+          return err(dbError("not_found", "Every step is done"));
+        }
+
+        return hooked.complete({ enrollmentId, step: next });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Enrollments = withBlockHooks(client, options.hooks, {
     block: "enrollments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

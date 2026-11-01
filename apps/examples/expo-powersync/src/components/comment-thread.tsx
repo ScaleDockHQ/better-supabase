@@ -29,7 +29,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
     setPending(true);
 
-    if ((await add(text)).ok) {
+    if ((await add({ body: text })).ok) {
       setBody("");
     }
 

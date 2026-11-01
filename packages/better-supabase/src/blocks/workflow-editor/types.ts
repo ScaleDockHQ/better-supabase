@@ -489,10 +489,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * marked `optedOut` when it opted out. `subjectType` keeps the ones that
      * run on that record type.
      */
-    list(
-      tenant?: string,
-      filter?: { readonly subjectType?: string },
-    ): AsyncResult<readonly WorkflowDefinition<F>[]>;
+    list(input?: {
+      tenant?: string | undefined;
+      filter?: { readonly subjectType?: string } | undefined;
+    }): AsyncResult<readonly WorkflowDefinition<F>[]>;
     get(id: string): AsyncResult<WorkflowDefinition<F> | undefined>;
     remove(id: string): AsyncResult<boolean>;
     /**
@@ -521,9 +521,9 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * marking one clears the tenant's other default for those subject types.
      */
     setPurpose(
-      id: string,
-      purpose: WorkflowPurpose,
-      options?: { readonly isDefault?: boolean },
+      input: { id: string; purpose: WorkflowPurpose } & {
+        readonly isDefault?: boolean;
+      },
     ): AsyncResult<WorkflowDefinition<F>>;
     /**
      * The default definition for `purpose` (default `lifecycle`) in `tenant`,
@@ -531,8 +531,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * didn't opt out of. `subjectType` picks a default that names it.
      */
     resolve(
-      tenant: string,
-      options?: {
+      input: { tenant: string } & {
         readonly purpose?: WorkflowPurpose;
         readonly subjectType?: string;
       },
@@ -550,9 +549,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
     upsert(
-      definition: string,
-      graph: WorkflowGraph,
-      options?: VersionSaveOptions,
+      input: { definition: string; graph: WorkflowGraph } & VersionSaveOptions,
     ): AsyncResult<WorkflowVersion>;
     /**
      * Compiles the graph with `compile`, then publishes as the caller; the
@@ -563,12 +560,11 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * it.
      */
     publish(
-      version: string,
-      options?: PublishOptions,
+      input: { version: string } & PublishOptions,
     ): AsyncResult<WorkflowVersion>;
     list(definition: string): AsyncResult<readonly WorkflowVersion[]>;
     get(version: string): AsyncResult<WorkflowVersion | undefined>;
-    diff(from: string, to: string): AsyncResult<WorkflowGraphDiff>;
+    diff(input: { from: string; to: string }): AsyncResult<WorkflowGraphDiff>;
     /**
      * The claims a step of `version` runs with (through `service`): the
      * publisher's (a user, or the tenant's default service principal), narrowed
@@ -579,10 +575,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * `forbidden` error (`WORKFLOW_PUBLISHER_REVOKED`); there is no fallback to
      * the service role. Call it inside every step.
      */
-    runAs(
-      version: string | undefined,
-      tenant?: string,
-    ): AsyncResult<Readonly<Record<string, unknown>>>;
+    runAs(input: {
+      version: string | undefined;
+      tenant?: string | undefined;
+    }): AsyncResult<Readonly<Record<string, unknown>>>;
   };
   /**
    * Starts a run of the published version: `workflow_editor.run` in its tenant,
@@ -612,10 +608,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * Creates or updates the `workflows` schedule of a schedule trigger (its
      * `config.cron`), named `builder-trigger:<id>`. Uses `service`.
      */
-    syncSchedule(
-      trigger: WorkflowTrigger,
-      tenant?: string,
-    ): AsyncResult<WorkflowSchedule>;
+    syncSchedule(input: {
+      trigger: WorkflowTrigger;
+      tenant?: string | undefined;
+    }): AsyncResult<WorkflowSchedule>;
     /**
      * The `start` for `workflows.schedules.tick`: starts `builder:<definition>`
      * schedules here and passes the others to `fallback`.
@@ -626,10 +622,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     list(tenant?: string): AsyncResult<readonly WorkflowCredential[]>;
     create(input: CredentialInput): AsyncResult<WorkflowCredential>;
     /** The URL that connects the account, for providers that authorize. */
-    authorize(
-      id: string,
-      options: { readonly redirectUri: string; readonly state?: string },
-    ): AsyncResult<string>;
+    authorize(input: {
+      id: string;
+      options: { readonly redirectUri: string; readonly state?: string };
+    }): AsyncResult<string>;
     /** Deletes the row, then revokes the secret it names. */
     revoke(id: string): AsyncResult<boolean>;
     /**

@@ -1,0 +1,87 @@
+---
+title: Care
+description: Contacts, care plans, observations, medications, consents, funding, shifts and the quality blocks around a client record.
+---
+
+Installs the blocks behind a care provider as one: the client record and its team, clinical blocks, scheduling, staffing, training and controlled documents. It sets the care defaults.
+
+```bash
+better-supabase add care
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { care: {} } });
+```
+
+`add` lists `care` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/care` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { careBlock } from "better-supabase/blocks/care";
+```
+
+## Parts
+
+Installing `care` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`contacts`](/docs/blocks/contacts)
+- [`guests`](/docs/blocks/guests)
+- [`field-encryption`](/docs/blocks/field-encryption)
+- [`data-lifecycle`](/docs/blocks/data-lifecycle)
+- [`consents`](/docs/blocks/consents)
+- [`activities`](/docs/blocks/activities)
+- [`care-plans`](/docs/blocks/care-plans)
+- [`observations`](/docs/blocks/observations)
+- [`medications`](/docs/blocks/medications)
+- [`forms`](/docs/blocks/forms)
+- [`bookings`](/docs/blocks/bookings)
+- [`calendar`](/docs/blocks/calendar)
+- [`reminders`](/docs/blocks/reminders)
+- [`time-tracking`](/docs/blocks/time-tracking)
+- [`funding`](/docs/blocks/funding)
+- [`shifts`](/docs/blocks/shifts)
+- [`qualifications`](/docs/blocks/qualifications)
+- [`courses`](/docs/blocks/courses)
+- [`cases`](/docs/blocks/cases)
+- [`acknowledgements`](/docs/blocks/acknowledgements)
+- [`drive`](/docs/blocks/drive)
+- [`attachments`](/docs/blocks/attachments)
+- [`versions`](/docs/blocks/versions)
+- [`approvals`](/docs/blocks/approvals)
+- [`state-machine`](/docs/blocks/state-machine)
+- [`numbering`](/docs/blocks/numbering)
+- [`signatures`](/docs/blocks/signatures)
+
+## Defaults
+
+It sets person records to audit reads with a record team, vital signs as the observation defaults, an incident case kind for missed doses, and the case kinds incident, employee incident and complaint. It also controls protocol, policy, procedure, work instruction and form document types in the drive.
+
+The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/extending/composite-blocks)).
+
+## Helpers
+
+`prescribeWithConsent`: Check that the subject has an active consent for the purpose, then prescribe. Without the consent nothing is prescribed.
+
+```ts
+await blocks.care.prescribeWithConsent({
+  organizationId,
+  subject,
+  purposeKey: "medication",
+  medicationId,
+  order,
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## The client dossier
+
+`care.dossier({ organizationId, subject })` reads one client's care plans, latest observations, active medication orders, consents and funding awards with their usage together. The first read that fails returns its error and nothing else.
+
+## Remove
+
+```bash
+better-supabase remove care
+better-supabase remove care --with-parts
+```
+
+The first command replaces `care` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

@@ -3,11 +3,14 @@ import type { ResolvedConfig } from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
 import { blockEntities } from "../../config/index.ts";
+import { readTypeSource } from "../../index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
   modulePermissionKeys,
+  readArgSource,
   resolveBlock,
+  SQL_MODULES,
 } from "../../sql/index.ts";
 import { applyCasing } from "./model-types.ts";
 import { prop, q } from "./shared.ts";
@@ -456,6 +459,72 @@ function keyUnionLines(config: NamesConfig): string[] {
   );
 }
 
+function readLines(
+  entries: Readonly<Record<string, GeneratedBlock>>,
+): NameConstantLines {
+  const types: string[] = [];
+  const groups: string[] = [];
+
+  for (const [key, entry] of Object.entries(entries)) {
+    const reads = SQL_MODULES[entry.block ?? key]?.names?.reads ?? [];
+
+    if (reads.length === 0) {
+      continue;
+    }
+
+    const lines = reads.map((read) => {
+      const base = `${pascal(key)}${pascal(read.name)}`;
+
+      const args = Object.entries(read.args)
+        .map(
+          ([name, arg]) =>
+            `readonly ${prop(name)}${arg.optional ? "?" : ""}: ${readArgSource(arg.type)}`,
+        )
+        .join("; ");
+
+      types.push(
+        "",
+        `/** The arguments of \`reads.${prop(camel(key))}.${read.name}\`. @public */`,
+        `export type ${base}Args = { ${args} };`,
+        "",
+        `/** What \`reads.${prop(camel(key))}.${read.name}\` returns. @public */`,
+        `export type ${base}Result = ${readTypeSource(read.result)};`,
+      );
+
+      const fn = entry.names?.functions?.[read.function] ?? read.function;
+
+      const params = Object.entries(read.args)
+        .map(([name, arg]) => `${prop(name)}: ${q(arg.param)}`)
+        .join(", ");
+
+      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${read.tables.map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
+    });
+
+    groups.push(`  ${prop(camel(key))}: {`, ...lines, "  },");
+  }
+
+  if (groups.length === 0) {
+    return { specifiers: [], imports: [], lines: [] };
+  }
+
+  return {
+    specifiers: ["blockRead"],
+    imports: [],
+    lines: [
+      ...types,
+      "",
+      "/**",
+      " * The installed blocks' composed reads, for `defineReadSet(..., { blocks:",
+      " * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.",
+      " * @public",
+      " */",
+      "export const reads = {",
+      ...groups,
+      "} as const;",
+    ],
+  };
+}
+
 /**
  * The constants app code references by name, from the config: permission keys,
  * role names, block events, entity URLs, realtime topics, bucket paths, and the
@@ -466,9 +535,10 @@ export function nameConstantLines(
   entries: Readonly<Record<string, GeneratedBlock>>,
 ): NameConstantLines {
   const events = eventLines(entries);
+  const reads = readLines(entries);
 
   return {
-    specifiers: events.specifiers,
+    specifiers: [...events.specifiers, ...reads.specifiers],
     imports: events.imports,
     lines: [
       ...permissionLines(config),
@@ -478,6 +548,7 @@ export function nameConstantLines(
       ...topicLines(entries),
       ...pathLines(config),
       ...keyUnionLines(config),
+      ...reads.lines,
     ],
   };
 }

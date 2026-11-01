@@ -1332,7 +1332,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:ad483baaff58f0e71f6811646c42eccaca05ce7af4f961a939d9f93336a00852
+-- @bsb-hash sha256:be35df56afec5e01e671cfb6e407efa83a911ac097e2b4fa135f6e77addcfa98
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2801,6 +2801,19 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_go
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.appraisals', target_type => 'appraisal', event_prefix => 'appraisal', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_cycles', target_type => 'appraisal_cycle', event_prefix => 'appraisal_cycle', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_reviews', target_type => 'appraisal_review', event_prefix => 'appraisal_review', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_calibrations', target_type => 'appraisal_calibration', event_prefix => 'appraisal_calibration', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_goals', target_type => 'appraisal_goal', event_prefix => 'appraisal_goal', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_competencies', target_type => 'appraisal_competency', event_prefix => 'appraisal_competency', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_review_ratings', target_type => 'appraisal_review_rating', event_prefix => 'appraisal_review_rating', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

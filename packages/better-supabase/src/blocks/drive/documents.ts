@@ -77,7 +77,10 @@ export interface DriveDocuments<N> {
    * Puts a file under document control, or changes its type, owner or review
    * interval. A new document gets its number and starts as a draft.
    */
-  saveDocument(id: string, document: DriveDocumentInput): AsyncResult<N>;
+  saveDocument(input: {
+    id: string;
+    document: DriveDocumentInput;
+  }): AsyncResult<N>;
   /**
    * Sends a draft or an effective document for release: `attachmentId`, or the
    * current version. An approval request with action `release` goes to
@@ -86,27 +89,29 @@ export interface DriveDocuments<N> {
    * until the revision is approved.
    */
   submitDocument(
-    id: string,
-    options?: { readonly attachmentId?: string; readonly reason?: string },
+    input: { id: string } & {
+      readonly attachmentId?: string;
+      readonly reason?: string;
+    },
   ): AsyncResult<N>;
   /** Service role: releases `attachmentId` of a document in review or effective. */
-  releaseDocument(id: string, attachmentId: string): AsyncResult<N>;
+  releaseDocument(input: { id: string; attachmentId: string }): AsyncResult<N>;
   /** Withdraws an effective document; needs `options.control.releaseRole`. */
-  obsoleteDocument(id: string, reason: string): AsyncResult<N>;
+  obsoleteDocument(input: { id: string; reason: string }): AsyncResult<N>;
   /**
    * Records a periodic review: `unchanged` moves the next review date on,
    * `revise` leaves the document effective until a new version is released.
    */
-  reviewDocument(
-    id: string,
-    outcome: "unchanged" | "revise",
-    note?: string,
-  ): AsyncResult<N>;
+  reviewDocument(input: {
+    id: string;
+    outcome: "unchanged" | "revise";
+    note?: string | undefined;
+  }): AsyncResult<N>;
   /** The organization's document register, by number. */
-  documents(
-    organizationId: string,
-    filters?: DriveDocumentFilters,
-  ): AsyncResult<readonly N[]>;
+  documents(input: {
+    organizationId: string;
+    filters?: DriveDocumentFilters | undefined;
+  }): AsyncResult<readonly N[]>;
   /** Service role: reports the documents whose review is due, once per date. */
   notifyDueReviews(): AsyncResult<number>;
 }
@@ -146,7 +151,7 @@ export function driveDocuments(
       nodeOf(value, fn);
 
   return {
-    saveDocument: (id, document) =>
+    saveDocument: ({ id, document }) =>
       call(
         "drive_document_save",
         {
@@ -157,7 +162,7 @@ export function driveDocuments(
         },
         node("drive_document_save"),
       ),
-    submitDocument: (id, submit = {}) =>
+    submitDocument: ({ id, ...submit }) =>
       call(
         "drive_document_submit",
         {
@@ -167,25 +172,25 @@ export function driveDocuments(
         },
         node("drive_document_submit"),
       ),
-    releaseDocument: (id, attachmentId) =>
+    releaseDocument: ({ id, attachmentId }) =>
       call(
         "drive_document_release",
         { node: id, attachment: attachmentId },
         node("drive_document_release"),
       ),
-    obsoleteDocument: (id, reason) =>
+    obsoleteDocument: ({ id, reason }) =>
       call(
         "drive_document_obsolete",
         { node: id, reason },
         node("drive_document_obsolete"),
       ),
-    reviewDocument: (id, outcome, note) =>
+    reviewDocument: ({ id, outcome, note }) =>
       call(
         "drive_document_review",
         { node: id, outcome, note: note ?? null },
         node("drive_document_review"),
       ),
-    documents: (organizationId, filters = {}) =>
+    documents: ({ organizationId, filters = {} }) =>
       call("drive_documents", { tenant: organizationId, filters }, (value) =>
         nodesOf(value, "drive_documents"),
       ),

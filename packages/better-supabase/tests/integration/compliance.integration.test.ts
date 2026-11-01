@@ -45,11 +45,17 @@ describe.skipIf(!live)("compliance", () => {
       await s.as(owner);
 
       const soc2 = await controls
-        .saveFramework(org, { key: "soc2", name: "SOC 2", version: "2017" })
+        .saveFramework({
+          organizationId: org,
+          input: { key: "soc2", name: "SOC 2", version: "2017" },
+        })
         .orThrow();
 
       const again = await controls
-        .saveFramework(org, { key: "soc2", name: "SOC 2 Type II" })
+        .saveFramework({
+          organizationId: org,
+          input: { key: "soc2", name: "SOC 2 Type II" },
+        })
         .orThrow();
 
       expect(again).toMatchObject({ id: soc2.id, name: "SOC 2 Type II" });
@@ -82,27 +88,32 @@ describe.skipIf(!live)("compliance", () => {
       expect(access.status).toBe("not_started");
 
       const task = await controls
-        .saveEvidenceTask(monitoring.id, {
-          title: "Review alerts",
-          intervalDays: 30,
-          dueOn: today().subtract({ days: 1 }),
-          assigneeId: analyst.id,
+        .saveEvidenceTask({
+          controlId: monitoring.id,
+          input: {
+            title: "Review alerts",
+            intervalDays: 30,
+            dueOn: today().subtract({ days: 1 }),
+            assigneeId: analyst.id,
+          },
         })
         .orThrow();
 
       expect(task).toMatchObject({ overdue: true, active: true });
 
-      expect(await controls.posture(org).orThrow()).toEqual([
-        expect.objectContaining({
-          frameworkId: soc2.id,
-          total: 3,
-          passing: 0,
-          failing: 1,
-          notStarted: 1,
-          notApplicable: 1,
-          overdueTasks: 1,
-        }),
-      ]);
+      expect(await controls.posture({ organizationId: org }).orThrow()).toEqual(
+        [
+          expect.objectContaining({
+            frameworkId: soc2.id,
+            total: 3,
+            passing: 0,
+            failing: 1,
+            notStarted: 1,
+            notApplicable: 1,
+            overdueTasks: 1,
+          }),
+        ],
+      );
 
       await s.service();
       expect(await controls.notifyOverdue().orThrow()).toBe(1);
@@ -124,14 +135,20 @@ describe.skipIf(!live)("compliance", () => {
       ).toBe("CONTROL_FORBIDDEN");
       expect(
         await controls
-          .addEvidence(access.id, { attachmentId: crypto.randomUUID() })
+          .addEvidence({
+            controlId: access.id,
+            input: { attachmentId: crypto.randomUUID() },
+          })
           .then(hint),
       ).toBe("CONTROL_INVALID");
 
       const evidence = await controls
-        .addEvidence(access.id, {
-          note: "Quarterly access review",
-          validUntil: today().add({ days: 90 }),
+        .addEvidence({
+          controlId: access.id,
+          input: {
+            note: "Quarterly access review",
+            validUntil: today().add({ days: 90 }),
+          },
         })
         .orThrow();
 
@@ -141,9 +158,9 @@ describe.skipIf(!live)("compliance", () => {
         valid: true,
       });
       await controls
-        .addEvidence(monitoring.id, {
-          note: "Alerts reviewed",
-          evidenceTaskId: task.id,
+        .addEvidence({
+          controlId: monitoring.id,
+          input: { note: "Alerts reviewed", evidenceTaskId: task.id },
         })
         .orThrow();
 
@@ -152,48 +169,61 @@ describe.skipIf(!live)("compliance", () => {
       expect(detail.tasks[0]?.dueOn.toString()).toBe(
         today().add({ days: 30 }).toString(),
       );
-      expect((await controls.posture(org, soc2.id).orThrow())[0]).toMatchObject(
-        { passing: 2, failing: 0, overdueTasks: 0 },
-      );
+      expect(
+        (
+          await controls
+            .posture({ organizationId: org, frameworkId: soc2.id })
+            .orThrow()
+        )[0],
+      ).toMatchObject({ passing: 2, failing: 0, overdueTasks: 0 });
 
       await s.as(owner);
 
       const policy = await controls
-        .savePolicy(org, { key: "acceptable-use", title: "Acceptable use" })
+        .savePolicy({
+          organizationId: org,
+          input: { key: "acceptable-use", title: "Acceptable use" },
+        })
         .orThrow();
 
       const record = { type: "compliance_policy", id: policy.id };
 
       await s.as(analyst);
-      expect(await acks.acknowledge(record).then(hint)).toBe(
+      expect(await acks.acknowledge({ record }).then(hint)).toBe(
         "ACKNOWLEDGEMENT_NO_VERSION",
       );
 
       await s.as(owner);
 
       const published = await controls
-        .publishPolicy(
-          policy.id,
-          { body: "Use company devices for work." },
-          "v1",
-        )
+        .publishPolicy({
+          policyId: policy.id,
+          content: { body: "Use company devices for work." },
+          label: "v1",
+        })
         .orThrow();
 
       expect(published).toMatchObject({ versionNumber: 1, memberCount: 2 });
 
       await s.as(analyst);
       expect(
-        (await acks.mine(org).orThrow()).map((item) => item.record.id),
+        (await acks.mine({ organizationId: org }).orThrow()).map(
+          (item) => item.record.id,
+        ),
       ).toEqual([policy.id]);
 
-      const acknowledged = await acks.acknowledge(record).orThrow();
+      const acknowledged = await acks.acknowledge({ record }).orThrow();
 
       expect(acknowledged.versionId).toBe(published.versionId);
-      expect(await acks.mine(org).orThrow()).toEqual([]);
+      expect(await acks.mine({ organizationId: org }).orThrow()).toEqual([]);
 
       await s.as(owner);
       await controls
-        .publishPolicy(policy.id, { body: "Use company devices only." }, "v2")
+        .publishPolicy({
+          policyId: policy.id,
+          content: { body: "Use company devices only." },
+          label: "v2",
+        })
         .orThrow();
       const roster = await acks.status(record).orThrow();
       expect(roster.versionId).not.toBe(published.versionId);
@@ -205,16 +235,22 @@ describe.skipIf(!live)("compliance", () => {
       const archived = await controls.archivePolicy(policy.id).orThrow();
       expect(archived.archivedAt).toBeDefined();
       expect(
-        await controls.publishPolicy(policy.id, { body: "Again" }).then(hint),
+        await controls
+          .publishPolicy({ policyId: policy.id, content: { body: "Again" } })
+          .then(hint),
       ).toBe("COMPLIANCE_POLICY_ARCHIVED");
       await s.as(analyst);
-      expect(await acks.acknowledge(record).then(hint)).toBe(
+      expect(await acks.acknowledge({ record }).then(hint)).toBe(
         "ACKNOWLEDGEMENT_NOT_ASSIGNED",
       );
 
       await s.asRole(outsider);
-      expect(await controls.controls(org).orThrow()).toEqual([]);
-      expect(await controls.posture(org).orThrow()).toEqual([]);
+      expect(
+        await controls.controls({ organizationId: org }).orThrow(),
+      ).toEqual([]);
+      expect(await controls.posture({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
 

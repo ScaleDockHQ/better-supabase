@@ -209,24 +209,33 @@ describe("createLeases", () => {
 
     await leases.activate("l1").orThrow();
     await leases
-      .renew("l1", { endsOn: Temporal.PlainDate.from("2028-09-30") })
+      .renew({
+        leaseId: "l1",
+        renewal: { endsOn: Temporal.PlainDate.from("2028-09-30") },
+      })
       .orThrow();
     await leases
-      .renew("l1", {
-        endsOn: Temporal.PlainDate.from("2029-09-30"),
-        rent: money(125_000n, "EUR"),
+      .renew({
+        leaseId: "l1",
+        renewal: {
+          endsOn: Temporal.PlainDate.from("2029-09-30"),
+          rent: money(125_000n, "EUR"),
+        },
       })
       .orThrow();
 
     const ended = await leases
-      .terminate("l1", {
-        on: Temporal.PlainDate.from("2027-03-31"),
-        reason: "moved out",
-        depositDeduction: money(10_000n, "EUR"),
+      .terminate({
+        leaseId: "l1",
+        termination: {
+          on: Temporal.PlainDate.from("2027-03-31"),
+          reason: "moved out",
+          depositDeduction: money(10_000n, "EUR"),
+        },
       })
       .orThrow();
 
-    await leases.terminate("l1").orThrow();
+    await leases.terminate({ leaseId: "l1" }).orThrow();
     await leases.get("l1").orThrow();
 
     const list = await leases
@@ -314,17 +323,25 @@ describe("createLeases", () => {
     await leases.postDueRent().orThrow();
 
     const payment = await leases
-      .recordPayment("l1", {
-        amount: money(120_000n, "EUR"),
-        paidAt: Temporal.Instant.from(AT),
-        reference: "bank-1",
+      .recordPayment({
+        leaseId: "l1",
+        payment: {
+          amount: money(120_000n, "EUR"),
+          paidAt: Temporal.Instant.from(AT),
+          reference: "bank-1",
+        },
       })
       .orThrow();
 
-    await leases.recordPayment("l1", { amount: money(1n, "EUR") }).orThrow();
+    await leases
+      .recordPayment({ leaseId: "l1", payment: { amount: money(1n, "EUR") } })
+      .orThrow();
 
-    const [charge] = await leases.charges("l1", { pageSize: 5 }).orThrow();
-    await leases.charges("l1").orThrow();
+    const [charge] = await leases
+      .charges({ leaseId: "l1", pageSize: 5 })
+      .orThrow();
+
+    await leases.charges({ leaseId: "l1" }).orThrow();
 
     expect(posted).toBe(3);
     expect(payment).toEqual({

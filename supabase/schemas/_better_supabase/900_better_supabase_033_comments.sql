@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:b3e5c064890c6edde16dfde5c47bed06bc7ad66e878818ff994685ee2ff1c7b1
+-- @bsb-hash sha256:0adc426f32a3baa751ce8fac5a234e183085365fb031fff0fea459eec33ba539
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -207,6 +207,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -226,6 +234,14 @@ begin
     coalesce(create_comment.attachments, '{}')
   );
   perform "better_supabase"."comment_sent"((v_msg ->> 'id')::uuid);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -473,6 +489,14 @@ begin
   if found then
     return v_task;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_assign"(uuid, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
+        using assign_comment.message, assign_comment.assignee;
+    end if;
+  end;
   v_task := ("better_supabase"."create_work_item"(
     v_msg."tenant_id",
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
@@ -483,6 +507,14 @@ begin
   ) ->> 'id')::uuid;
   insert into "better_supabase"."comment_tasks" ("message_id", "organization_id", "task_id")
   values (v_msg."id", v_msg."tenant_id", v_task);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_assign"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_task;
+    end if;
+  end;
   return v_task;
 end;
 $$;

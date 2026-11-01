@@ -4,6 +4,7 @@
       "and",
       "AsyncResult",
       "BetterSupabase",
+      "blockRead",
       "cacheTargetOf",
       "column",
       "compilePostgrest",
@@ -65,6 +66,7 @@
       "PROGRAM_EVENT_MOVES",
       "provideTemporal",
       "readSetTables",
+      "readTypeSource",
       "recordStats",
       "renamed",
       "rowKey",
@@ -110,6 +112,9 @@
       "BlockEvent",
       "BlockEventType",
       "BlockProblemOptions",
+      "BlockRead",
+      "BlockReadMap",
+      "BlockReadSpecs",
       "BlocksHelper",
       "BucketRegistry",
       "BucketsHelper",
@@ -156,6 +161,7 @@
       "HasFlag",
       "HookArgs",
       "InferReadSetParams",
+      "InferReadType",
       "InferResult",
       "LogFields",
       "Logger",
@@ -198,6 +204,9 @@
       "ReadSetParamTypes",
       "ReadSetParamValue",
       "ReadSetResult",
+      "ReadType",
+      "RecordReadOptions",
+      "RecordSummaryRead",
       "RefreshEvent",
       "Repository",
       "RepositoryApi",
@@ -491,6 +500,7 @@
       "presetValueLabel",
       "PROVIDER_COMMENT",
       "readDesignFile",
+      "removeComposite",
       "resolvePreset",
       "safeDesignFileSource",
       "safeParseDesign",
@@ -503,6 +513,7 @@
       "AppColumnFormat",
       "BlockEntity",
       "BlockInstance",
+      "CompositeRemoval",
       "ConfigConventions",
       "CreateDesign",
       "DesignChange",
@@ -536,6 +547,7 @@
       "PresetSpec",
       "PresetSubjectSettings",
       "PresetValueInfo",
+      "ResolvedComposite",
       "ResolvedPreset",
       "ResolvedPresetBlock"
     ]
@@ -1110,6 +1122,8 @@
     "values": [
       "bindingCan",
       "can",
+      "copyableBindings",
+      "copyBindings",
       "countBinding",
       "createRecordController",
       "defineRecordBinding",
@@ -2588,11 +2602,14 @@
       "blockHint",
       "blockNames",
       "blockOptions",
+      "blockRead",
+      "compositeReadSet",
       "createBlockClient",
       "createBlocks",
       "dbTransport",
       "defineBlock",
       "defineBlocks",
+      "defineCompositeReadSet",
       "defineEvents",
       "defineTransportMiddleware",
       "entityNames",
@@ -2647,6 +2664,7 @@
       "BlockPorts",
       "BlockProvider",
       "BlockProvides",
+      "BlockRead",
       "Blocks",
       "BlockSchemas",
       "BlockSet",
@@ -2661,6 +2679,10 @@
       "BlockWiring",
       "BlockWorker",
       "ClientOf",
+      "ComposedParts",
+      "CompositeOptions",
+      "CompositeReadEntry",
+      "CompositeReadSet",
       "ConsumedPorts",
       "CreateBlocksOptions",
       "CursorPageOptions",
@@ -2696,6 +2718,8 @@
       "OptionKind",
       "OptionSpec",
       "OptionSpecs",
+      "PartClients",
+      "PartDefaults",
       "PortName",
       "ProvidedPorts",
       "RecordRef",
@@ -2762,7 +2786,9 @@
       "AuditLogControllerOptions",
       "AuditLogOptions",
       "AuditLogSnapshot",
+      "AuditNamedPage",
       "AuditPage",
+      "AuditPageEntry",
       "AuditRecord",
       "AuditRetentionSource",
       "AuditReverted",
@@ -2843,6 +2869,7 @@
       "OrganizationInvitationRow",
       "OrganizationMember",
       "OrganizationMembership",
+      "OrganizationOverview",
       "OrganizationRowSource",
       "Organizations",
       "OrganizationsActions",
@@ -2870,6 +2897,8 @@
       "wrapTransport"
     ],
     "types": [
+      "AvatarUpload",
+      "AvatarUploader",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -3447,6 +3476,7 @@
       "WebhookEndpoint",
       "WebhookEndpointFields",
       "WebhookEndpoints",
+      "WebhookEndpointWithSecret",
       "WebhookInput",
       "WebhookRequest",
       "WebhookResponse",
@@ -3640,6 +3670,7 @@
     "values": [
       "createOAuthConsentController",
       "createOAuthGrantsController",
+      "createSessions",
       "sessionsBlock"
     ],
     "types": [
@@ -3655,7 +3686,12 @@
       "OAuthGrantsController",
       "OAuthGrantsControllerOptions",
       "OAuthGrantsSnapshot",
-      "RawOAuthClient"
+      "RawOAuthClient",
+      "Sessions",
+      "SessionsOptions",
+      "SessionsOverview",
+      "SessionsOverviewEntry",
+      "UserSession"
     ]
   },
   "./blocks/settings": {
@@ -3745,6 +3781,8 @@
       "BillingEventData",
       "BillingEvents",
       "BillingOptions",
+      "BillingOverview",
+      "BillingReads",
       "BillingStatus",
       "BlockTransport",
       "CheckoutItem",
@@ -3955,7 +3993,8 @@
       "ScannedObject",
       "ScanVerdict",
       "SweepQueuedOptions",
-      "SweepResult"
+      "SweepResult",
+      "UploadProgress"
     ]
   },
   "./blocks/data-lifecycle": {
@@ -4903,6 +4942,8 @@
       "RpcClient",
       "ScheduledInboxMessage",
       "ScheduledMessageInput",
+      "SetupInboxInput",
+      "SetupInboxResult",
       "StartConversationInput",
       "StoredInboundEvent",
       "TemplateInput"
@@ -6293,6 +6334,7 @@
       "approvalsAction",
       "automationsBlock",
       "automationsEvents",
+      "blockActions",
       "checkRuleConditions",
       "contains",
       "createActionRegistry",
@@ -6312,6 +6354,7 @@
       "findNode",
       "insertNode",
       "moveNode",
+      "narrowClients",
       "notifyAction",
       "parentOf",
       "removeNode",
@@ -6340,6 +6383,7 @@
       "ActionDescriptor",
       "ActionHandler",
       "ActionInfo",
+      "ActionManifest",
       "ActionOrigin",
       "ActionRef",
       "ActionRegistry",
@@ -6875,7 +6919,9 @@
       "ImportPreview",
       "ImportRowError",
       "ImportRun",
+      "ImportRunEntity",
       "ImportRunError",
+      "ImportRunResult",
       "ImportRunStatus",
       "Imports",
       "ImportScopeAlias",
@@ -6886,6 +6932,7 @@
       "PreviewImportResult",
       "ResolvedImportKey",
       "RunImportResult",
+      "RunImportsOptions",
       "StartImportRunOptions",
       "UpsertBatchResult"
     ]
@@ -7384,6 +7431,7 @@
       "BlockTransport",
       "CustomEmoji",
       "CustomEmojiInput",
+      "ReactionActors",
       "ReactionCount",
       "Reactions",
       "ReactionsActions",
@@ -7412,6 +7460,7 @@
       "ApprovalApprovers",
       "ApprovalDecideOptions",
       "ApprovalDecision",
+      "ApprovalGuarded",
       "ApprovalListOptions",
       "ApprovalMode",
       "ApprovalPolicyInput",
@@ -7849,6 +7898,7 @@
       "TemplateInput",
       "TemplateJobs",
       "TemplateOccurrence",
+      "TemplatePreview",
       "TemplateRecurPayload",
       "TemplateRecurring",
       "TemplateRunStart",
@@ -7864,6 +7914,7 @@
       "TemplateStarter",
       "TemplateSubject",
       "TemplateType",
+      "TemplateVariable",
       "TemplateVersion",
       "TemplateWorkflow",
       "TemplateWorkflowInput"
@@ -8150,8 +8201,11 @@
     "values": [
       "createQuotes",
       "dbTransport",
+      "DEAL_TO_QUOTE",
       "extendBlock",
       "QUOTE_TO_ORDER",
+      "quoteFromDealAction",
+      "quoteFromDealFactory",
       "QUOTES_AUTOMATIONS",
       "quotesBlock",
       "quotesEvents",
@@ -8172,6 +8226,8 @@
       "Quote",
       "QuoteAnswer",
       "QuoteDecision",
+      "QuoteFromDealClients",
+      "QuoteFromDealOptions",
       "QuoteInput",
       "QuoteLine",
       "QuoteLineInput",
@@ -8536,8 +8592,12 @@
       "Inventory",
       "InventoryCounts",
       "InventoryEvents",
+      "InventoryExpiringLot",
+      "InventoryLowStock",
       "InventoryOptions",
+      "InventoryOverview",
       "InventoryProcurement",
+      "InventoryReads",
       "InventoryTracking",
       "LocationAddress",
       "LocationInput",
@@ -8632,6 +8692,7 @@
       "OrderMetrics",
       "OrderMetricsOptions",
       "OrderPayment",
+      "OrderReads",
       "OrderRefund",
       "OrderRefundStatus",
       "OrderReturn",
@@ -8639,6 +8700,10 @@
       "OrdersEvents",
       "OrdersOptions",
       "OrderStatus",
+      "OrderStatusBoard",
+      "OrderStatusCard",
+      "OrderStatusColumn",
+      "OrderStatusTotal",
       "OrderVariants",
       "PaymentEventOutcome",
       "PaymentRecord",
@@ -8920,6 +8985,7 @@
       "declaredTables",
       "declaredUpdatedAtTriggers",
       "declaredViews",
+      "declareRead",
       "DEFAULT_ROLES",
       "disallowedPolicyCalls",
       "entityRenamePlan",
@@ -8956,6 +9022,8 @@
       "POLICY_FUNCTIONS",
       "policyFunctionsSql",
       "policyGrants",
+      "readArgSource",
+      "readArgSqlType",
       "readGrants",
       "readPolicies",
       "readPolicy",
@@ -8981,6 +9049,7 @@
       "scopeProblems",
       "SECRET_COLUMNS",
       "setBsbTag",
+      "setFeatureStatement",
       "setTableFeature",
       "sharedRolesProblems",
       "SQL_MODULES",
@@ -9016,6 +9085,9 @@
       "BlockSqlLayout",
       "BlockSqlNames",
       "BlockSqlPermissionKey",
+      "BlockSqlRead",
+      "BlockSqlReadArg",
+      "BlockSqlReadArgType",
       "BlockSqlTableSpec",
       "BlockSqlTestFile",
       "BlockSqlTopic",
@@ -9400,6 +9472,7 @@
       "PassRejection",
       "PassRevokedEventData",
       "PassScan",
+      "PassScanOutcome",
       "PassSectionInput",
       "PassStatus",
       "PassTokenClaims",
@@ -9838,6 +9911,7 @@
       "CaseStatsGroup",
       "CaseStatsOptions",
       "CaseStatus",
+      "CaseTryClose",
       "CaseUpdatedEventData",
       "RpcClient"
     ]
@@ -10080,6 +10154,252 @@
       "OdrlPermission",
       "OdrlPolicy",
       "RpcClient"
+    ]
+  },
+  "./blocks/sales": {
+    "values": [
+      "createDealClosers",
+      "createSales",
+      "salesBlock",
+      "salesParts"
+    ],
+    "types": [
+      "AcceptedQuote",
+      "BilledQuote",
+      "ClosedWon",
+      "Sales",
+      "SalesClients",
+      "SalesOptions",
+      "SalesParts"
+    ]
+  },
+  "./blocks/saas": {
+    "values": [
+      "createSaas",
+      "saasBlock",
+      "saasParts"
+    ],
+    "types": [
+      "Saas",
+      "SaasOptions",
+      "SaasParts"
+    ]
+  },
+  "./blocks/collaboration": {
+    "values": [
+      "collaborationBlock",
+      "collaborationParts",
+      "createCollaboration"
+    ],
+    "types": [
+      "Collaboration",
+      "CollaborationOptions",
+      "CollaborationParts",
+      "Discussion"
+    ]
+  },
+  "./blocks/governance": {
+    "values": [
+      "createGovernance",
+      "governanceBlock",
+      "governanceParts"
+    ],
+    "types": [
+      "Governance",
+      "GovernanceOptions",
+      "GovernanceParts",
+      "SubjectExport"
+    ]
+  },
+  "./blocks/commerce": {
+    "values": [
+      "commerceBlock",
+      "commerceParts",
+      "createCommerce"
+    ],
+    "types": [
+      "Commerce",
+      "CommerceOptions",
+      "CommerceParts",
+      "PaidAndFulfilled"
+    ]
+  },
+  "./blocks/procurement": {
+    "values": [
+      "createProcurement",
+      "procurementBlock",
+      "procurementParts"
+    ],
+    "types": [
+      "Procurement",
+      "ProcurementOptions",
+      "ProcurementParts"
+    ]
+  },
+  "./blocks/finance": {
+    "values": [
+      "createFinance",
+      "financeBlock",
+      "financeParts"
+    ],
+    "types": [
+      "Finance",
+      "FinanceOptions",
+      "FinanceParts"
+    ]
+  },
+  "./blocks/support": {
+    "values": [
+      "createSupport",
+      "supportBlock",
+      "supportParts"
+    ],
+    "types": [
+      "OpenedTicket",
+      "Support",
+      "SupportOptions",
+      "SupportParts"
+    ]
+  },
+  "./blocks/projects": {
+    "values": [
+      "createProjects",
+      "projectsBlock",
+      "projectsParts"
+    ],
+    "types": [
+      "ApprovedAndInvoiced",
+      "Projects",
+      "ProjectsOptions",
+      "ProjectsParts"
+    ]
+  },
+  "./blocks/service": {
+    "values": [
+      "createService",
+      "serviceBlock",
+      "serviceParts"
+    ],
+    "types": [
+      "CompletedVisit",
+      "Service",
+      "ServiceOptions",
+      "ServiceParts"
+    ]
+  },
+  "./blocks/people": {
+    "values": [
+      "createPeople",
+      "peopleBlock",
+      "peopleParts"
+    ],
+    "types": [
+      "Offboarded",
+      "Onboarded",
+      "People",
+      "PeopleOptions",
+      "PeopleParts"
+    ]
+  },
+  "./blocks/recruiting": {
+    "values": [
+      "createRecruiting",
+      "recruitingBlock",
+      "recruitingParts"
+    ],
+    "types": [
+      "Recruiting",
+      "RecruitingOptions",
+      "RecruitingParts"
+    ]
+  },
+  "./blocks/scheduling": {
+    "values": [
+      "createScheduling",
+      "schedulingBlock",
+      "schedulingParts"
+    ],
+    "types": [
+      "BookedWithReminder",
+      "Scheduling",
+      "SchedulingOptions",
+      "SchedulingParts"
+    ]
+  },
+  "./blocks/learning": {
+    "values": [
+      "createLearning",
+      "learningBlock",
+      "learningParts"
+    ],
+    "types": [
+      "AssignedTraining",
+      "Learning",
+      "LearningOptions",
+      "LearningParts"
+    ]
+  },
+  "./blocks/events": {
+    "values": [
+      "createEvents",
+      "eventsBlock",
+      "eventsParts"
+    ],
+    "types": [
+      "Events",
+      "EventsOptions",
+      "EventsParts",
+      "SoldTicket"
+    ]
+  },
+  "./blocks/cms": {
+    "values": [
+      "cmsBlock",
+      "cmsParts",
+      "createCms"
+    ],
+    "types": [
+      "Cms",
+      "CmsOptions",
+      "CmsParts",
+      "PublishedVersion"
+    ]
+  },
+  "./blocks/care": {
+    "values": [
+      "careBlock",
+      "careParts",
+      "createCare"
+    ],
+    "types": [
+      "Care",
+      "CareOptions",
+      "CareParts"
+    ]
+  },
+  "./blocks/filespace": {
+    "values": [
+      "createFilespace",
+      "filespaceBlock",
+      "filespaceParts"
+    ],
+    "types": [
+      "Filespace",
+      "FilespaceOptions",
+      "FilespaceParts"
+    ]
+  },
+  "./blocks/crm": {
+    "values": [
+      "createCrm",
+      "crmBlock",
+      "crmParts",
+      "crmReadSets"
+    ],
+    "types": [
+      "Crm",
+      "CrmOptions",
+      "CrmParts"
     ]
   },
   "./blocks/rfqs": {
@@ -10690,6 +11010,9 @@
     "types": [
       "BankAccount",
       "BankAccountInput",
+      "BankBoardLine",
+      "BankBoardStatus",
+      "BankBoardSuggestion",
       "BankDate",
       "BankFeed",
       "BankFeedAccount",
@@ -10702,7 +11025,10 @@
       "BankMatchReason",
       "BankMatchSuggestion",
       "BankMatchTarget",
+      "BankReads",
       "BankReconciliation",
+      "BankReconciliationBoard",
+      "BankReviewItem",
       "BankRule",
       "BankRuleInput",
       "BankRuleRun",

@@ -53,18 +53,21 @@ export const shareLinksBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
   module: "share-links",
-  load: (client: ShareLinks, subject) => client.list(subject),
+  load: (client: ShareLinks, subject) => client.list({ subject }),
   events: ["share_link.*"],
   writes: {
     create: {
       input: shareLinkInput,
       run: (client: ShareLinks, subject, input: ShareLinkInput) =>
-        client.create(subject, {
-          ...(input.role === undefined ? {} : { role: input.role }),
-          ...(input.maxUses === undefined ? {} : { maxUses: input.maxUses }),
-          ...(input.expiresAt === undefined
-            ? {}
-            : { expiresAt: toInstant(input.expiresAt) }),
+        client.create({
+          subject,
+          options: {
+            ...(input.role === undefined ? {} : { role: input.role }),
+            ...(input.maxUses === undefined ? {} : { maxUses: input.maxUses }),
+            ...(input.expiresAt === undefined
+              ? {}
+              : { expiresAt: toInstant(input.expiresAt) }),
+          },
         }),
     },
     revoke: {

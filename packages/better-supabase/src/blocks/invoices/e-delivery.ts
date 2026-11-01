@@ -104,60 +104,52 @@ export interface InvoiceEDelivery<I> {
    * company. A delivered invoice is refused unless `resend` is set.
    */
   sendEInvoice(
-    invoice: I,
-    options: SendEInvoiceOptions,
+    input: { readonly invoice: I } & SendEInvoiceOptions,
   ): AsyncResult<EInvoiceDelivery>;
   /**
    * Logs a document the channel already accepted, as `pending`. Use it with the
    * message id a failed `sendEInvoice` names instead of sending again; the same
    * channel and message id return the first row.
    */
-  recordEInvoiceDelivery(
-    invoice: I,
-    input: {
-      readonly channel: string;
-      readonly format: string;
-      readonly messageId: string;
-    },
-  ): AsyncResult<EInvoiceDeliveryRecord>;
+  recordEInvoiceDelivery(input: {
+    readonly invoice: I;
+    readonly channel: string;
+    readonly format: string;
+    readonly messageId: string;
+  }): AsyncResult<EInvoiceDeliveryRecord>;
   /** Asks the channel about every pending delivery and records the answer. */
-  syncEInvoices(
-    organizationId: string,
-    options: {
-      readonly channel: EInvoiceChannel;
-      readonly signal?: AbortSignal;
-    },
-  ): AsyncResult<EInvoiceSync>;
+  syncEInvoices(input: {
+    readonly organizationId: string;
+    readonly channel: EInvoiceChannel;
+    readonly signal?: AbortSignal;
+  }): AsyncResult<EInvoiceSync>;
   /**
    * Takes the documents the channel has for the organization and creates a
    * purchase bill for each whose sender is a known company. The log makes a
    * replay add nothing.
    */
   receiveEInvoices(
-    organizationId: string,
-    options: ReceiveEInvoicesOptions,
+    input: { readonly organizationId: string } & ReceiveEInvoicesOptions,
   ): AsyncResult<EInvoiceReceipt>;
   /**
    * Sets, or with `null` clears, the participant id of an organization, legal
    * entity or company.
    */
-  setEInvoiceEndpoint(
-    organizationId: string,
-    partyKind: EInvoicePartyKind,
-    partyId: string,
-    endpoint: EInvoiceEndpoint | null,
-  ): AsyncResult<EInvoiceEndpoint | null>;
+  setEInvoiceEndpoint(input: {
+    readonly organizationId: string;
+    readonly partyKind: EInvoicePartyKind;
+    readonly partyId: string;
+    readonly endpoint: EInvoiceEndpoint | null;
+  }): AsyncResult<EInvoiceEndpoint | null>;
   /** The participant ids of an invoice's seller and buyer. */
   eInvoiceEndpoints(invoiceId: string): AsyncResult<EInvoiceEndpoints>;
   /** The delivery log, newest first. */
-  eInvoiceDeliveries(
-    organizationId: string,
-    options?: {
-      readonly direction?: "outbound" | "inbound";
-      readonly state?: EInvoiceDeliveryState;
-      readonly invoiceId?: string;
-    },
-  ): AsyncResult<readonly EInvoiceDeliveryRecord[]>;
+  eInvoiceDeliveries(input: {
+    readonly organizationId: string;
+    readonly direction?: "outbound" | "inbound";
+    readonly state?: EInvoiceDeliveryState;
+    readonly invoiceId?: string;
+  }): AsyncResult<readonly EInvoiceDeliveryRecord[]>;
 }
 
 export interface ReceiveEInvoicesOptions extends FromUblOptions {
@@ -226,11 +218,11 @@ const invalid = (message: string, hint: string): Err =>
 /** The e-invoice delivery methods of the invoices client. */
 export function invoiceEDelivery<F extends object>(
   call: BlockCall,
-  create: (
-    organizationId: string,
-    input: InvoiceInput<F>,
-    lines: readonly LineInput[],
-  ) => AsyncResult<Invoice<F>>,
+  create: (input: {
+    organizationId: string;
+    input: InvoiceInput<F>;
+    lines: readonly LineInput[];
+  }) => AsyncResult<Invoice<F>>,
 ): InvoiceEDelivery<Invoice<F>> {
   const record = (
     organizationId: string,
@@ -253,7 +245,7 @@ export function invoiceEDelivery<F extends object>(
     );
 
   const client: InvoiceEDelivery<Invoice<F>> = {
-    sendEInvoice: (invoice, options) =>
+    sendEInvoice: ({ invoice, ...options }) =>
       AsyncResult.from(async () => {
         if (invoice.status === "draft" || invoice.status === "void") {
           return invalid(
@@ -281,7 +273,8 @@ export function invoiceEDelivery<F extends object>(
         }
 
         if (options.resend !== true) {
-          const sent = await client.eInvoiceDeliveries(invoice.organizationId, {
+          const sent = await client.eInvoiceDeliveries({
+            organizationId: invoice.organizationId,
             direction: "outbound",
             invoiceId: invoice.id,
           });
@@ -345,7 +338,7 @@ export function invoiceEDelivery<F extends object>(
 
         return ok({ delivery: logged.data.delivery, document });
       }),
-    recordEInvoiceDelivery: (invoice, input) =>
+    recordEInvoiceDelivery: ({ invoice, ...input }) =>
       record(invoice.organizationId, {
         direction: "outbound",
         channel: input.channel,
@@ -353,7 +346,7 @@ export function invoiceEDelivery<F extends object>(
         format: input.format,
         invoice: invoice.id,
       }).map((logged) => logged.delivery),
-    syncEInvoices: (organizationId, options) =>
+    syncEInvoices: ({ organizationId, ...options }) =>
       AsyncResult.from(async () => {
         const channel = eInvoiceChannelOf(options.channel);
 
@@ -364,7 +357,8 @@ export function invoiceEDelivery<F extends object>(
           );
         }
 
-        const pending = await client.eInvoiceDeliveries(organizationId, {
+        const pending = await client.eInvoiceDeliveries({
+          organizationId,
           direction: "outbound",
           state: "pending",
         });
@@ -418,7 +412,7 @@ export function invoiceEDelivery<F extends object>(
 
         return ok({ checked, delivered, rejected });
       }),
-    receiveEInvoices: (organizationId, options) =>
+    receiveEInvoices: ({ organizationId, ...options }) =>
       AsyncResult.from(async () => {
         const channel = eInvoiceChannelOf(options.channel);
 
@@ -483,16 +477,16 @@ export function invoiceEDelivery<F extends object>(
             continue;
           }
 
-          const bill = await create(
+          const bill = await create({
             organizationId,
             // SAFETY: the bill's input carries no extra columns, so it fits InvoiceInput<F>.
-            {
+            input: {
               ...outcome.bill.input,
               direction: "purchase",
               company: { type: "company", id: outcome.companyId },
             },
-            outcome.bill.lines,
-          );
+            lines: outcome.bill.lines,
+          });
 
           if (!bill.ok) {
             return bill;
@@ -517,7 +511,7 @@ export function invoiceEDelivery<F extends object>(
 
         return ok({ created, skipped, unmatched });
       }),
-    setEInvoiceEndpoint: (organizationId, partyKind, partyId, endpoint) =>
+    setEInvoiceEndpoint: ({ organizationId, partyKind, partyId, endpoint }) =>
       call(
         "set_invoice_e_endpoint",
         {
@@ -531,7 +525,7 @@ export function invoiceEDelivery<F extends object>(
       ),
     eInvoiceEndpoints: (invoiceId) =>
       call("invoice_e_endpoints", { invoice: invoiceId }, endpointsOf),
-    eInvoiceDeliveries: (organizationId, options = {}) =>
+    eInvoiceDeliveries: ({ organizationId, ...options }) =>
       call(
         "list_e_invoice_deliveries",
         {

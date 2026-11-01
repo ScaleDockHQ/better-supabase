@@ -309,6 +309,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0193: DAM reads C2PA manifests through a port and exports usage rights as ODRL.
 - 0194: Content writes sitemaps, robots.txt and JSON-LD as pure functions.
 - 0195: Maintenance ingests meter telemetry through a Fetch handler.
+- 0196: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
 
 ## Pre-release pins
 

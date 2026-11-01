@@ -203,12 +203,15 @@ export interface AiFiles<F extends object = Record<never, never>> {
      * Reserves the file and returns a signed upload URL for its path. Keys
      * besides the input's own are the file's extra columns.
      */
-    upload(
-      organizationId: string,
-      file: NewAiFile & Partial<F>,
-    ): AsyncResult<AiFileUpload<F>>;
+    upload(input: {
+      organizationId: string;
+      file: NewAiFile & Partial<F>;
+    }): AsyncResult<AiFileUpload<F>>;
     /** Marks the upload done once the object exists. */
-    confirm(fileId: string, sha256?: string): AsyncResult<AiFile & F>;
+    confirm(input: {
+      fileId: string;
+      sha256?: string | undefined;
+    }): AsyncResult<AiFile & F>;
     get(fileId: string): AsyncResult<AiFile & F>;
     /** The file a `supabase-storage://` URL names, when the caller may read it. */
     resolve(url: string | URL): AsyncResult<AiFile & F>;
@@ -222,10 +225,10 @@ export interface AiFiles<F extends object = Record<never, never>> {
     /** Deletes the object and the record. */
     remove(fileId: string): AsyncResult<boolean>;
     /** Writes a ready file for `ownerId` from the server (service role). */
-    store(
-      organizationId: string,
-      file: StoredAiFile & Partial<F>,
-    ): AsyncResult<AiFile & F>;
+    store(input: {
+      organizationId: string;
+      file: StoredAiFile & Partial<F>;
+    }): AsyncResult<AiFile & F>;
     /**
      * Deletes stale pending uploads, expired files and the files of deleted
      * chats, then their objects (service role). Returns how many.
@@ -237,55 +240,63 @@ export interface AiFiles<F extends object = Record<never, never>> {
   };
   readonly providerFiles: {
     /** The provider's reference while it is valid (service role). */
-    get(
-      fileId: string,
-      provider: string,
-    ): AsyncResult<AiProviderFile | undefined>;
-    upsert(
-      fileId: string,
-      provider: string,
-      reference: string,
-      expiresAt?: Temporal.Instant,
-    ): AsyncResult<boolean>;
+    get(input: {
+      fileId: string;
+      provider: string;
+    }): AsyncResult<AiProviderFile | undefined>;
+    upsert(input: {
+      fileId: string;
+      provider: string;
+      reference: string;
+      expiresAt?: Temporal.Instant | undefined;
+    }): AsyncResult<boolean>;
     /** References that expire within `horizon` (an interval, default `1 day`). */
-    expiring(
-      horizon?: string,
-      batch?: number,
-    ): AsyncResult<readonly AiProviderFile[]>;
+    expiring(input?: {
+      horizon?: string | undefined;
+      batch?: number | undefined;
+    }): AsyncResult<readonly AiProviderFile[]>;
   };
   readonly documents: {
-    create(
-      organizationId: string,
-      document: NewAiDocument,
-    ): AsyncResult<AiDocument>;
+    create(input: {
+      organizationId: string;
+      document: NewAiDocument;
+    }): AsyncResult<AiDocument>;
     get(documentId: string): AsyncResult<AiDocumentWithContent>;
     /**
      * Writes the next version through the versions block. An edit with the same
      * content and message as the current version writes none, and the document
      * keeps its version number.
      */
-    update(documentId: string, edit: AiDocumentEdit): AsyncResult<AiDocument>;
+    update(input: {
+      documentId: string;
+      edit: AiDocumentEdit;
+    }): AsyncResult<AiDocument>;
     /** Writes `version` as the newest version again. */
-    rollback(documentId: string, version: number): AsyncResult<AiDocument>;
+    rollback(input: {
+      documentId: string;
+      version: number;
+    }): AsyncResult<AiDocument>;
     /**
      * Newest first. The versions block keeps the newest
      * `blocks.versions.options.keep` (default 50) of them.
      */
     versions(documentId: string): AsyncResult<readonly AiDocumentVersion[]>;
     remove(documentId: string): AsyncResult<boolean>;
-    suggest(
-      documentId: string,
+    suggest(input: {
+      documentId: string;
       suggestion: {
         readonly originalText: string;
         readonly suggestedText: string;
         readonly description?: string;
-      },
-    ): AsyncResult<AiSuggestion>;
+      };
+    }): AsyncResult<AiSuggestion>;
     suggestions(
-      documentId: string,
-      options?: { readonly openOnly?: boolean },
+      input: { documentId: string } & { readonly openOnly?: boolean },
     ): AsyncResult<readonly AiSuggestion[]>;
-    resolve(suggestionId: string, accepted: boolean): AsyncResult<AiSuggestion>;
+    resolve(input: {
+      suggestionId: string;
+      accepted: boolean;
+    }): AsyncResult<AiSuggestion>;
   };
   /**
    * Replaces the `supabase-storage://` URLs of file parts with signed download

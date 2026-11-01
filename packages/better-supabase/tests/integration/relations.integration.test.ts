@@ -232,19 +232,19 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     await db.as(owner);
 
     const moved = await relations
-      .link(
-        { type: "task", id: task(3) },
-        { type: "task", id: task(1) },
-        { kind: "parent" },
-      )
+      .link({
+        source: { type: "task", id: task(3) },
+        target: { type: "task", id: task(1) },
+        input: { kind: "parent" },
+      })
       .orThrow();
 
     const again = await relations
-      .link(
-        { type: "task", id: task(3) },
-        { type: "task", id: task(5) },
-        { kind: "parent" },
-      )
+      .link({
+        source: { type: "task", id: task(3) },
+        target: { type: "task", id: task(5) },
+        input: { kind: "parent" },
+      })
       .orThrow();
 
     expect(moved.created && again.replaced?.target.id).toBe(task(1));
@@ -253,7 +253,7 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
       .orThrow();
 
     const up = await relations
-      .ancestors({ type: "task", id: task(3) }, "parent")
+      .ancestors({ subject: { type: "task", id: task(3) }, kind: "parent" })
       .orThrow();
 
     expect(up.map((node) => node.id)).toEqual([task(1)]);
@@ -289,7 +289,10 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     expect(lineage.conversions.map((node) => node.id)).toEqual([task(9)]);
     expect(
       await relations
-        .convertedInto({ type: "task", id: task(8) }, "task")
+        .convertedInto({
+          origin: { type: "task", id: task(8) },
+          intoType: "task",
+        })
         .orThrow(),
     ).toBe(task(9));
   });

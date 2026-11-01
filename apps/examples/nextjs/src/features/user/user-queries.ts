@@ -1,10 +1,14 @@
 import "server-only";
 import type { AuthSession } from "better-supabase/next";
 
+import * as v from "valibot";
+
 import type { Claims, Profile } from "@/lib/claims";
 
 import { avatarSrc } from "@/lib/buckets";
 import { bsb } from "@/lib/supabase/server";
+
+import { ProfileRow } from "./profile-row";
 
 /**
  * The verified session, cached per browser session. The proxy refreshes the
@@ -42,18 +46,22 @@ export async function getMyProfile(): Promise<MyProfile | null> {
     return null;
   }
 
-  const rows = await db.$rpc("my_profile").orThrow();
-  const row = rows[0];
+  const found = await db.profiles.mine().orThrow();
 
-  if (!row) {
+  if (!found) {
     return null;
   }
 
+  const row = v.parse(ProfileRow, found);
+
   return {
-    fullName: row.fullName,
+    fullName: row.full_name,
     email: row.email,
     username: row.username,
-    avatarUrl: avatarSrc(db.$buckets.avatars, row),
-    avatarPath: row.avatarPath,
+    avatarUrl: avatarSrc(db.$buckets.avatars, {
+      avatarPath: row.avatar_path,
+      avatarUrl: row.avatar_url,
+    }),
+    avatarPath: row.avatar_path,
   };
 }

@@ -129,7 +129,10 @@ export interface DriveTextJob {
 
 export interface DriveText {
   /** Extracts and stores the text of a node's current content. */
-  extract(nodeId: string, signal?: AbortSignal): AsyncResult<DriveTextOutcome>;
+  extract(input: {
+    nodeId: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<DriveTextOutcome>;
   /**
    * A jobs handler: `queue.work('drive-texts', text.job)`. Errors throw so the
    * queue retries.
@@ -216,7 +219,11 @@ export function createDriveText(options: DriveTextOptions): DriveText {
     const subject = { type: subjectType, id: source.nodeId };
 
     return knowledge.documents
-      .list(source.organizationId, { scope: "subject", subject })
+      .list({
+        organizationId: source.organizationId,
+        scope: "subject",
+        subject,
+      })
       .andThen(async (documents) => {
         for (const document of documents) {
           const removed = await knowledge.documents.remove(document.id);
@@ -230,16 +237,19 @@ export function createDriveText(options: DriveTextOptions): DriveText {
           return ok(undefined);
         }
 
-        const created = await knowledge.ingest.text(source.organizationId, {
-          title: source.name,
-          scope: "subject",
-          subject,
-          source: source.name,
-          metadata: {
-            nodeId: source.nodeId,
-            attachmentId: source.attachmentId,
+        const created = await knowledge.ingest.text({
+          organizationId: source.organizationId,
+          document: {
+            title: source.name,
+            scope: "subject",
+            subject,
+            source: source.name,
+            metadata: {
+              nodeId: source.nodeId,
+              attachmentId: source.attachmentId,
+            },
+            text: content,
           },
-          text: content,
         });
 
         return created.ok ? ok(undefined) : created;
@@ -289,7 +299,7 @@ export function createDriveText(options: DriveTextOptions): DriveText {
     });
 
   return {
-    extract: (nodeId, signal) => run({ node: nodeId }, signal),
+    extract: ({ nodeId, signal }) => run({ node: nodeId }, signal),
     job: async (payload, _job, signal) => {
       await run({ node: payload.nodeId }, signal).orThrow();
     },

@@ -211,32 +211,39 @@ export interface Inspections<F extends object = Record<never, never>> {
   /** Schedules a planned inspection; needs `inspections.manage`. */
   schedule(input: InspectionInput<F>): AsyncResult<Inspection<F>>;
   /** Changes an inspection, as its lead or with `inspections.manage`. */
-  update(
-    inspectionId: string,
-    change: InspectionChange<F>,
-  ): AsyncResult<Inspection<F>>;
+  update(input: {
+    inspectionId: string;
+    change: InspectionChange<F>;
+  }): AsyncResult<Inspection<F>>;
   /** Replaces the team; the lead stays unless `members` names a new one. */
-  setMembers(
-    inspectionId: string,
-    members: readonly InspectionMember[],
-  ): AsyncResult<Inspection<F>>;
+  setMembers(input: {
+    inspectionId: string;
+    members: readonly InspectionMember[];
+  }): AsyncResult<Inspection<F>>;
   /** Starts the fieldwork and opens a draft of the checklist form. */
   start(inspectionId: string): AsyncResult<Inspection<F>>;
   /** Saves the checklist answers; `draft: false` submits them. */
   saveChecklist(
-    inspectionId: string,
-    answers: Readonly<Record<string, unknown>>,
-    options?: { readonly draft?: boolean },
+    input: {
+      inspectionId: string;
+      answers: Readonly<Record<string, unknown>>;
+    } & { readonly draft?: boolean },
   ): AsyncResult<{ readonly submissionId: string }>;
   /** Ends the fieldwork; the checklist must be submitted. */
-  complete(inspectionId: string, summary?: string): AsyncResult<Inspection<F>>;
+  complete(input: {
+    inspectionId: string;
+    summary?: string | undefined;
+  }): AsyncResult<Inspection<F>>;
   /**
    * Closes the inspection; fails with `INSPECTION_FINDINGS_OPEN` while a
    * finding that needs a case has none.
    */
   close(inspectionId: string): AsyncResult<Inspection<F>>;
   /** Cancels an inspection that hasn't closed; needs `inspections.manage`. */
-  cancel(inspectionId: string, reason?: string): AsyncResult<Inspection<F>>;
+  cancel(input: {
+    inspectionId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Inspection<F>>;
   /**
    * Tells the lead (or the auditors) of each planned or running inspection past
    * its planned end, once per planned end, and returns how many it found.
@@ -245,20 +252,22 @@ export interface Inspections<F extends object = Record<never, never>> {
   notifyOverdue(): AsyncResult<number>;
   get(inspectionId: string): AsyncResult<InspectionDetail<F>>;
   list(options?: InspectionListOptions): AsyncResult<readonly Inspection<F>[]>;
-  addFinding(
-    inspectionId: string,
-    input: InspectionFindingInput,
-  ): AsyncResult<InspectionFinding>;
-  updateFinding(
-    findingId: string,
-    change: Partial<InspectionFindingInput>,
-  ): AsyncResult<InspectionFinding>;
+  addFinding(input: {
+    inspectionId: string;
+    input: InspectionFindingInput;
+  }): AsyncResult<InspectionFinding>;
+  updateFinding(input: {
+    findingId: string;
+    change: Partial<InspectionFindingInput>;
+  }): AsyncResult<InspectionFinding>;
   /** Deletes a finding that has no case. */
   deleteFinding(findingId: string): AsyncResult<InspectionFinding>;
   /** Opens a case for the finding through the cases block. */
   raiseCase(
-    findingId: string,
-    options?: { readonly kind?: string; readonly ownerId?: string },
+    input: { findingId: string } & {
+      readonly kind?: string;
+      readonly ownerId?: string;
+    },
   ): AsyncResult<InspectionFinding>;
 }
 
@@ -518,7 +527,7 @@ export function createInspections<
             ).andThen(fields.row),
           ),
       ),
-    update: (inspectionId, change) =>
+    update: ({ inspectionId, change }) =>
       fields
         .args(change.fields)
         .andThen((checked) =>
@@ -531,7 +540,7 @@ export function createInspections<
             one("update_inspection"),
           ).andThen(fields.row),
         ),
-    setMembers: (inspectionId, members) =>
+    setMembers: ({ inspectionId, members }) =>
       call(
         "set_inspection_members",
         { inspection_id: inspectionId, members },
@@ -543,7 +552,7 @@ export function createInspections<
         { inspection_id: inspectionId },
         one("start_inspection"),
       ).andThen(fields.row),
-    saveChecklist: (inspectionId, answers, save = {}) =>
+    saveChecklist: ({ inspectionId, answers, ...save }) =>
       call(
         "save_inspection_checklist",
         { inspection_id: inspectionId, answers, draft: save.draft ?? true },
@@ -553,7 +562,7 @@ export function createInspections<
           ),
         }),
       ),
-    complete: (inspectionId, summary) =>
+    complete: ({ inspectionId, summary }) =>
       call(
         "complete_inspection",
         { inspection_id: inspectionId, summary: summary ?? null },
@@ -565,7 +574,7 @@ export function createInspections<
         { inspection_id: inspectionId },
         one("close_inspection"),
       ).andThen(fields.row),
-    cancel: (inspectionId, reason) =>
+    cancel: ({ inspectionId, reason }) =>
       call(
         "cancel_inspection",
         { inspection_id: inspectionId, reason: reason ?? null },
@@ -603,7 +612,7 @@ export function createInspections<
             ),
         ).andThen(fields.rows),
       ),
-    addFinding: (inspectionId, input) =>
+    addFinding: ({ inspectionId, input }) =>
       call(
         "add_inspection_finding",
         {
@@ -617,7 +626,7 @@ export function createInspections<
         },
         finding("add_inspection_finding"),
       ),
-    updateFinding: (findingId, change) =>
+    updateFinding: ({ findingId, change }) =>
       call(
         "update_inspection_finding",
         { finding_id: findingId, changes: definedOf(change) },
@@ -629,7 +638,7 @@ export function createInspections<
         { finding_id: findingId },
         finding("delete_inspection_finding"),
       ),
-    raiseCase: (findingId, raise = {}) =>
+    raiseCase: ({ findingId, ...raise }) =>
       call(
         "raise_inspection_finding_case",
         {

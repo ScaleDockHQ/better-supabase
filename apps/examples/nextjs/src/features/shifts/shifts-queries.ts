@@ -53,7 +53,11 @@ async function loadRoster(week: string): Promise<readonly RosterRow[] | null> {
   const monday = Temporal.PlainDate.from(week);
 
   const shifts = await db.shifts
-    .roster(tenant, monday, monday.add({ days: 6 }))
+    .roster({
+      organizationId: tenant,
+      from: monday,
+      until: monday.add({ days: 6 }),
+    })
     .orThrow();
 
   return shifts.map((shift) => ({

@@ -91,16 +91,16 @@ installs without one.
 
 Each call takes the record as a subject, `deal` being `{ type: "deal", id: dealId }`, and acts in the tenant of the block client (see [one block per request](/docs/blocks/create-blocks#one-block-per-request)).
 
-| The user                  | Call                                                   | Event                                    | Watchers get                                           |
-| ------------------------- | ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
-| Creates a deal            | `deals.create(organizationId, { name, closeOn, ... })` | `deal.created`                           | nothing; the owner starts watching                     |
-| Comments on a deal        | `comments.create(deal, { body })`                      | `message.sent`                           | `comment.posted`, from comments                        |
-| Tags it                   | `tags.attach(deal, tagId)`                             | `subject.tagged`                         | `subject.tagged`                                       |
-| Moves it to another stage | `deals.update([{ dealId, field: "stageId", value }])`  | `deal.updated`, `pipeline.stage_changed` | `pipeline.stage_changed`, from pipelines               |
-| Marks it won or lost      | `deals.win(dealId)` or `deals.lose(dealId, reason)`    | `pipeline.stage_changed`, `deal.closed`  | `pipeline.stage_changed` and `deal.closed`, from deals |
-| Sends a quote             | `quotes.fromDeal(dealId)`                              | `quote.created`                          | map it if you want                                     |
-| Sets a custom field       | `customFields.setValue(deal, fieldId, value)`          | `field_value.set`                        | `subject.field_changed`                                |
-| Gets a follow-up reminder | `reminders.deliver(payload)`                           | `reminder.sent`                          | `reminder.due`                                         |
+| The user                  | Call                                                               | Event                                    | Watchers get                                           |
+| ------------------------- | ------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
+| Creates a deal            | `deals.create(organizationId, { name, closeOn, ... })`             | `deal.created`                           | nothing; the owner starts watching                     |
+| Comments on a deal        | `comments.create(deal, { body })`                                  | `message.sent`                           | `comment.posted`, from comments                        |
+| Tags it                   | `tags.attach(deal, tagId)`                                         | `subject.tagged`                         | `subject.tagged`                                       |
+| Moves it to another stage | `deals.update({ changes: [{ dealId, field: "stageId", value }] })` | `deal.updated`, `pipeline.stage_changed` | `pipeline.stage_changed`, from pipelines               |
+| Marks it won or lost      | `deals.win(dealId)` or `deals.lose(dealId, reason)`                | `pipeline.stage_changed`, `deal.closed`  | `pipeline.stage_changed` and `deal.closed`, from deals |
+| Sends a quote             | `quotes.fromDeal(dealId)`                                          | `quote.created`                          | map it if you want                                     |
+| Sets a custom field       | `customFields.setValue(deal, fieldId, value)`                      | `field_value.set`                        | `subject.field_changed`                                |
+| Gets a follow-up reminder | `reminders.deliver(payload)`                                       | `reminder.sent`                          | `reminder.due`                                         |
 
 Comments and pipelines notify the deal's watchers themselves; the outbox
 events in the other rows reach them through a

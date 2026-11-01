@@ -68,6 +68,12 @@ export interface SubjectConfig {
   /** Delete module rows for a subject when its row is deleted. */
   readonly cascade?: boolean;
   /**
+   * The columns whose old and new values the `field-history` block keeps on
+   * update. A block's entities declare it; `blocks.field-history.on` wins for a
+   * type it lists.
+   */
+  readonly history?: readonly string[];
+  /**
    * The column holding the soft-delete time. Blocks hide rows where it is set,
    * metrics skip them, and `gen` makes it the table's `trashExtension()`
    * column.

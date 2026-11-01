@@ -64,7 +64,8 @@ export function entrySql(ctx: BlockSqlContext): string {
     into entry
     from (select 1) one
     left join ${ctx.table("registry")} a on a.${ctx.col("registry", "target")} = tg_relid::regclass;
-  end if;`;
+  end if;
+${recordedSkipSql()}`;
 }
 
 /**
@@ -89,5 +90,22 @@ export function tenantFallbackSql(idType: BlockSqlIdType): string {
   if row_tenant is null and entry.tenant_function is not null then
     execute format('select %s($1)::text', (entry.tenant_function::regprocedure)::oid::regproc) into path_value using row_data;
     row_tenant := ${cast};
+  end if;`;
+}
+
+/**
+ * In the row trigger: skips a row `audit_event` already recorded
+ * (`bsb.recorded`).
+ */
+function recordedSkipSql(): string {
+  return `  if position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\\n') > 0 then
+    return null;
+  end if;`;
+}
+
+/** In `audit_event`: marks the record so the row trigger skips it. */
+export function recordedMarkSql(): string {
+  return `  if audit_event.target_type is not null and audit_event.record_id is not null then
+    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;`;
 }

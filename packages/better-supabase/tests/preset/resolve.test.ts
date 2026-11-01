@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PresetCatalog } from "../../src/preset/catalog-types.ts";
 import type { Preset } from "../../src/preset/fields.ts";
 
+import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import {
   namedPreset,
@@ -230,13 +231,39 @@ describe("resolvePreset", () => {
   });
 });
 
+/** `names` with each composite replaced by the blocks it is made of. */
+const withoutComposites = (names: readonly string[]): string[] =>
+  names.flatMap((name) => {
+    if (name === "support") {
+      // The inbox block also installs the Chat SDK state tables.
+      return ["chat-sdk-state", ...withoutComposites(PARTS_OF(name))];
+    }
+
+    if (name === "saas") {
+      // `invitations` is an SQL module of `organizations`, not a part.
+      return ["invitations", ...withoutComposites(PARTS_OF(name))];
+    }
+
+    const parts = Object.keys(
+      BLOCK_MANIFESTS.find((block) => block.name === name)?.composes ?? {},
+    );
+
+    return parts.length === 0 ? [name] : withoutComposites(parts);
+  });
+
+const PARTS_OF = (name: string): string[] =>
+  Object.keys(
+    BLOCK_MANIFESTS.find((block) => block.name === name)?.composes ?? {},
+  );
+
 describe("named presets", () => {
   it.each(PRESET_NAMES)("%s resolves without conflicts and renders", (name) => {
     const resolved = resolvePreset(namedPreset(name));
     expect(resolved.conflicts).toEqual([]);
     const names = resolved.blocks.map((block) => block.name);
     // The resolver agrees with the SQL registry on the full set.
-    const { blocks, instances = {} } = PRESETS[name];
+    const { instances = {} } = PRESETS[name];
+    const blocks = withoutComposites(PRESETS[name].blocks);
     const own = new Set(resolveBlocks(blocks).map((module) => module.name));
 
     const extra = Object.entries(instances).map(
@@ -258,8 +285,14 @@ describe("named presets", () => {
         continue;
       }
 
-      expect(PRESETS[name].blocks).toEqual(
-        expect.arrayContaining([...PRESETS.saas.blocks]),
+      const installed = resolvePreset(namedPreset(name)).blocks.map(
+        (block) => block.name,
+      );
+
+      expect(installed).toEqual(
+        expect.arrayContaining(
+          resolvePreset(namedPreset("saas")).blocks.map((block) => block.name),
+        ),
       );
     }
   });

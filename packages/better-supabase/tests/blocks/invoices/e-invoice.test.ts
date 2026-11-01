@@ -135,7 +135,8 @@ describe("sendEInvoice", () => {
     const { t, invoices } = client();
     const { channel, sent } = memoryChannel();
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
     });
@@ -160,7 +161,8 @@ describe("sendEInvoice", () => {
     const { invoices } = client();
     const { channel, sent } = memoryChannel();
 
-    const result = await invoices.sendEInvoice(invoice(status), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice(status),
       format,
       channel,
     });
@@ -175,7 +177,8 @@ describe("sendEInvoice", () => {
     const { invoices } = client({ invoice_e_endpoints: () => ({}) });
     const { channel } = memoryChannel();
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
     });
@@ -192,7 +195,8 @@ describe("sendEInvoice", () => {
       lookup: () => Promise.resolve(false),
     });
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
     });
@@ -210,7 +214,8 @@ describe("sendEInvoice", () => {
 
     const { channel, sent } = memoryChannel();
 
-    const first = await invoices.sendEInvoice(invoice("issued"), {
+    const first = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
     });
@@ -219,7 +224,8 @@ describe("sendEInvoice", () => {
       "EINVOICE_ALREADY_SENT",
     );
 
-    const again = await invoices.sendEInvoice(invoice("issued"), {
+    const again = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
       resend: true,
@@ -232,7 +238,8 @@ describe("sendEInvoice", () => {
   it("returns a failing channel as an error result", async () => {
     const { invoices } = client();
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel: {
         apiVersion: 1,
@@ -251,7 +258,8 @@ describe("sendEInvoice", () => {
 
     const { channel, sent } = memoryChannel();
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
     });
@@ -263,7 +271,8 @@ describe("sendEInvoice", () => {
   it("records a delivery the channel already accepted", async () => {
     const { t, invoices } = client();
 
-    const result = await invoices.recordEInvoiceDelivery(invoice("issued"), {
+    const result = await invoices.recordEInvoiceDelivery({
+      invoice: invoice("issued"),
       channel: "memory",
       format: "peppol-bis-3",
       messageId: "m-1",
@@ -316,7 +325,10 @@ describe("syncEInvoices", () => {
         ),
     });
 
-    const result = await invoices.syncEInvoices("o", { channel });
+    const result = await invoices.syncEInvoices({
+      organizationId: "o",
+      channel,
+    });
 
     expect(result.ok && result.data).toEqual({
       checked: 2,
@@ -332,7 +344,10 @@ describe("syncEInvoices", () => {
     const { invoices } = client();
     const { channel } = memoryChannel();
 
-    const result = await invoices.syncEInvoices("o", { channel });
+    const result = await invoices.syncEInvoices({
+      organizationId: "o",
+      channel,
+    });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
       "EINVOICE_CHANNEL_UNSUPPORTED",
@@ -358,7 +373,10 @@ describe("receiveEInvoices", () => {
         ]),
     });
 
-    const result = await invoices.receiveEInvoices("o", { channel });
+    const result = await invoices.receiveEInvoices({
+      organizationId: "o",
+      channel,
+    });
 
     expect(result.ok && result.data.unmatched).toHaveLength(1);
     expect(result.ok && result.data.created).toHaveLength(0);
@@ -382,7 +400,10 @@ describe("receiveEInvoices", () => {
         ]),
     });
 
-    const result = await invoices.receiveEInvoices("o", { channel });
+    const result = await invoices.receiveEInvoices({
+      organizationId: "o",
+      channel,
+    });
 
     expect(result.ok && result.data.skipped).toBe(1);
   });
@@ -400,10 +421,12 @@ describe("error paths", () => {
       { invoice_e_endpoints: down },
       { list_e_invoice_deliveries: down },
     ]) {
-      const result = await client(over).invoices.sendEInvoice(
-        invoice("issued"),
-        { format, channel, signal },
-      );
+      const result = await client(over).invoices.sendEInvoice({
+        invoice: invoice("issued"),
+        format,
+        channel,
+        signal,
+      });
 
       expect(result.ok).toBe(false);
     }
@@ -426,7 +449,8 @@ describe("error paths", () => {
       },
     });
 
-    const result = await invoices.sendEInvoice(invoice("issued"), {
+    const result = await invoices.sendEInvoice({
+      invoice: invoice("issued"),
       format,
       channel,
       signal,
@@ -437,7 +461,7 @@ describe("error paths", () => {
 
     const pending = await client({
       list_e_invoice_deliveries: () => [delivery()],
-    }).invoices.sendEInvoice(invoice("issued"), { format, channel });
+    }).invoices.sendEInvoice({ invoice: invoice("issued"), format, channel });
 
     expect(pending.ok ? undefined : pending.error.hint).toBe(
       "EINVOICE_ALREADY_SENT",
@@ -449,7 +473,10 @@ describe("error paths", () => {
       list_e_invoice_deliveries: () => [delivery({ state: "lost" })],
     });
 
-    const result = await invoices.eInvoiceDeliveries("o", { state: "pending" });
+    const result = await invoices.eInvoiceDeliveries({
+      organizationId: "o",
+      state: "pending",
+    });
 
     expect(result.ok).toBe(false);
   });
@@ -461,7 +488,7 @@ describe("error paths", () => {
 
     const skipped = await client({
       list_e_invoice_deliveries: () => [delivery()],
-    }).invoices.syncEInvoices("o", { channel, signal });
+    }).invoices.syncEInvoices({ organizationId: "o", channel, signal });
 
     expect(skipped.ok && skipped.data).toEqual({
       checked: 1,
@@ -471,14 +498,15 @@ describe("error paths", () => {
 
     const unread = await client({
       list_e_invoice_deliveries: down,
-    }).invoices.syncEInvoices("o", { channel });
+    }).invoices.syncEInvoices({ organizationId: "o", channel });
 
     expect(unread.ok).toBe(false);
 
     const unmoved = await client({
       list_e_invoice_deliveries: () => [delivery()],
       set_e_invoice_delivery_state: down,
-    }).invoices.syncEInvoices("o", {
+    }).invoices.syncEInvoices({
+      organizationId: "o",
       channel: memoryChannel({
         status: () => Promise.resolve({ state: "delivered" }),
       }).channel,
@@ -488,7 +516,8 @@ describe("error paths", () => {
   });
 
   it("receiveEInvoices refuses a channel that can't receive", async () => {
-    const result = await client().invoices.receiveEInvoices("o", {
+    const result = await client().invoices.receiveEInvoices({
+      organizationId: "o",
       channel: memoryChannel().channel,
     });
 
@@ -507,13 +536,13 @@ describe("error paths", () => {
 
     const unlogged = await client({
       record_e_invoice_delivery: down,
-    }).invoices.receiveEInvoices("o", { channel, signal });
+    }).invoices.receiveEInvoices({ organizationId: "o", channel, signal });
 
     expect(unlogged.ok).toBe(false);
 
     const unmoved = await client({
       set_e_invoice_delivery_state: down,
-    }).invoices.receiveEInvoices("o", { channel });
+    }).invoices.receiveEInvoices({ organizationId: "o", channel });
 
     expect(unmoved.ok).toBe(false);
   });
@@ -590,7 +619,10 @@ describe("receiveEInvoices with a readable bill", () => {
       set_e_invoice_delivery_state: setState,
     });
 
-    const result = await invoices.receiveEInvoices("o", { channel: inbound() });
+    const result = await invoices.receiveEInvoices({
+      organizationId: "o",
+      channel: inbound(),
+    });
 
     expect(result.ok && result.data.created).toHaveLength(1);
     expect(
@@ -617,7 +649,8 @@ describe("receiveEInvoices with a readable bill", () => {
         set_e_invoice_delivery_state: setState,
       });
 
-      const result = await invoices.receiveEInvoices("o", {
+      const result = await invoices.receiveEInvoices({
+        organizationId: "o",
         channel: inbound({ scheme: "0106", id: "11111111" }),
       });
 
@@ -632,7 +665,7 @@ describe("receiveEInvoices with a readable bill", () => {
       record_e_invoice_delivery: logged,
       find_e_endpoint_party: found,
       create_invoice: down,
-    }).invoices.receiveEInvoices("o", { channel: inbound() });
+    }).invoices.receiveEInvoices({ organizationId: "o", channel: inbound() });
 
     expect(uncreated.ok).toBe(false);
 
@@ -641,7 +674,7 @@ describe("receiveEInvoices with a readable bill", () => {
       find_e_endpoint_party: found,
       create_invoice: () => BILL,
       set_e_invoice_delivery_state: down,
-    }).invoices.receiveEInvoices("o", { channel: inbound() });
+    }).invoices.receiveEInvoices({ organizationId: "o", channel: inbound() });
 
     expect(unmoved.ok).toBe(false);
   });
@@ -652,7 +685,8 @@ describe("receiveEInvoices with a readable bill", () => {
       set_e_invoice_delivery_state: setState,
     });
 
-    const result = await invoices.receiveEInvoices("o", {
+    const result = await invoices.receiveEInvoices({
+      organizationId: "o",
       channel: inbound(),
       xmlParser: {
         XMLParser: class {
@@ -679,14 +713,19 @@ describe("endpoints", () => {
           : { scheme: args["scheme"], id: args["endpoint_id"] },
     });
 
-    const set = await invoices.setEInvoiceEndpoint("o", "company", "c1", buyer);
+    const set = await invoices.setEInvoiceEndpoint({
+      organizationId: "o",
+      partyKind: "company",
+      partyId: "c1",
+      endpoint: buyer,
+    });
 
-    const cleared = await invoices.setEInvoiceEndpoint(
-      "o",
-      "company",
-      "c1",
-      null,
-    );
+    const cleared = await invoices.setEInvoiceEndpoint({
+      organizationId: "o",
+      partyKind: "company",
+      partyId: "c1",
+      endpoint: null,
+    });
 
     expect(set.ok && set.data).toEqual(buyer);
     expect(cleared.ok && cleared.data).toBeNull();

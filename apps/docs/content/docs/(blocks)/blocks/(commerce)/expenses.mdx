@@ -362,3 +362,7 @@ const expenses = createExpenses({
   fields: v.object({ project_code: v.optional(v.string()) }),
 });
 ```
+
+## File a report
+
+`file({ title, currency, note, lines, submit })` creates the report, adds each line and submits it. Pass `submit: false` to leave it as a draft.

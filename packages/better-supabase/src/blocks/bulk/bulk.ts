@@ -166,9 +166,12 @@ export interface Bulk {
   /** A run the caller started, with its per-row results; `null` for anyone else. */
   get(id: string): AsyncResult<BulkRun | null>;
   /** Service role: runs the next rows of a run as the user who started it. */
-  step(id: string, size?: number): AsyncResult<BulkProgress>;
+  step(input: {
+    id: string;
+    size?: number | undefined;
+  }): AsyncResult<BulkProgress>;
   /** Service role: steps until the run is done or `signal` aborts. */
-  drain(id: string, options?: BulkDrainOptions): AsyncResult<BulkProgress>;
+  drain(input: { id: string } & BulkDrainOptions): AsyncResult<BulkProgress>;
   /**
    * A handler for the jobs queue `bulk`: `jobs.work({ handlers: { bulk:
    * bulk.handler() } })`.
@@ -287,14 +290,14 @@ export function createBulk(options: BulkOptions): Bulk {
   const startIds = (input: BulkInput, ids: readonly string[]) =>
     call("start_bulk", args(input, ids), startedOf);
 
-  const step = (id: string, size?: number) =>
+  const step = ({ id, size }: { id: string; size?: number | undefined }) =>
     call("bulk_step", { run_id: id, size: size ?? null }, progressOf);
 
-  const drain = (id: string, drainOptions: BulkDrainOptions = {}) =>
+  const drain = ({ id, ...drainOptions }: { id: string } & BulkDrainOptions) =>
     AsyncResult.from(async () => {
       for (;;) {
         drainOptions.signal?.throwIfAborted();
-        const result = await step(id, drainOptions.size);
+        const result = await step({ id, size: drainOptions.size });
 
         if (!result.ok || result.data.done) {
           return result;
@@ -339,7 +342,7 @@ export function createBulk(options: BulkOptions): Bulk {
           throw new TypeError("a bulk job needs { run: <id> }");
         }
 
-        await drain(run, { ...handlerOptions, signal }).orThrow();
+        await drain({ id: run, ...handlerOptions, signal }).orThrow();
       },
   };
 

@@ -150,7 +150,8 @@ fails or returns a wrong order falls back to nearest neighbour, and the result's
 
 ```ts
 const routed = await db.warehouse
-  .optimizePickRoute(list.id, {
+  .optimizePickRoute({
+    pickListId: list.id,
     locate: (line) => binPoints.get(line.binId ?? ""),
     start: packingDesk,
   })

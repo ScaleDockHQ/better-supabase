@@ -115,7 +115,10 @@ describe("createModeration", () => {
     });
 
     const report = await moderation
-      .report({ type: "comment", id: "c1" }, { reason: "spam", note: "Ads" })
+      .report({
+        subject: { type: "comment", id: "c1" },
+        report: { reason: "spam", note: "Ads" },
+      })
       .orThrow();
 
     expect(report).toMatchObject({
@@ -205,14 +208,19 @@ describe("createModeration", () => {
 
     expect(
       await moderation
-        .report({ type: "post", id: "p1" }, { reason: "spam" })
+        .report({
+          subject: { type: "post", id: "p1" },
+          report: { reason: "spam" },
+        })
         .orThrow(),
     ).toMatchObject({ autoHidden: false });
     expect(await moderation.queue().orThrow()).toEqual([]);
     expect(
       await moderation.item({ type: "post", id: "p1" }).orThrow(),
     ).toBeNull();
-    expect(await moderation.statuses("post", ["p1"]).orThrow()).toEqual({});
+    expect(
+      await moderation.statuses({ subjectType: "post", ids: ["p1"] }).orThrow(),
+    ).toEqual({});
     expect(await moderation.bans().orThrow()).toEqual([]);
     expect(fake.calls.map(([, args]) => args)).toEqual([
       {
@@ -249,16 +257,22 @@ describe("createModeration", () => {
       tenant: "org-1",
     });
 
-    expect((await moderation.decide("i1", "restore").orThrow()).status).toBe(
-      "visible",
-    );
-    await moderation.decide("i1", "ban", { reason: "Spam ring" }).orThrow();
     expect(
-      await moderation.statuses("comment", ["c1", "c2", "c3"]).orThrow(),
+      (await moderation.decide({ itemId: "i1", decision: "restore" }).orThrow())
+        .status,
+    ).toBe("visible");
+    await moderation
+      .decide({ itemId: "i1", decision: "ban", reason: "Spam ring" })
+      .orThrow();
+    expect(
+      await moderation
+        .statuses({ subjectType: "comment", ids: ["c1", "c2", "c3"] })
+        .orThrow(),
     ).toEqual({ c1: "hidden", c2: "pending" });
 
     const ban = await moderation
-      .ban("u1", {
+      .ban({
+        userId: "u1",
         reason: "Spam",
         expiresAt: Temporal.Instant.from("2026-10-23T10:00:00Z"),
       })
@@ -274,7 +288,7 @@ describe("createModeration", () => {
 
     expect(bans[1]?.liftedAt?.toString()).toBe(AT);
     expect(bans[1]?.expiresAt).toBeUndefined();
-    await moderation.ban("u2").orThrow();
+    await moderation.ban({ userId: "u2" }).orThrow();
 
     expect(fake.calls).toEqual([
       ["moderate", { item_id: "i1", action: "restore", reason: null }],
@@ -314,8 +328,12 @@ describe("createModeration", () => {
       tenant: "org-1",
     });
 
-    expect((await moderation.decide("i1", "hide")).ok).toBe(false);
-    expect((await moderation.statuses("comment", ["c1"])).ok).toBe(false);
+    expect(
+      (await moderation.decide({ itemId: "i1", decision: "hide" })).ok,
+    ).toBe(false);
+    expect(
+      (await moderation.statuses({ subjectType: "comment", ids: ["c1"] })).ok,
+    ).toBe(false);
   });
 
   it("fails tenant-scoped calls without a tenant", async () => {
@@ -324,14 +342,14 @@ describe("createModeration", () => {
 
     expect(
       (
-        await moderation.report(
-          { type: "comment", id: "c1" },
-          { reason: "spam" },
-        )
+        await moderation.report({
+          subject: { type: "comment", id: "c1" },
+          report: { reason: "spam" },
+        })
       ).ok,
     ).toBe(false);
     expect((await moderation.queue()).ok).toBe(false);
-    expect((await moderation.ban("u1")).ok).toBe(false);
+    expect((await moderation.ban({ userId: "u1" })).ok).toBe(false);
     expect(fake.calls).toEqual([]);
   });
 });

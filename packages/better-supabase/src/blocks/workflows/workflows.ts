@@ -255,7 +255,10 @@ export interface Workflows {
      */
     create(input: WorkflowScheduleInput): AsyncResult<WorkflowSchedule>;
     list(tenant?: string): AsyncResult<readonly WorkflowSchedule[]>;
-    pause(id: string, paused?: boolean): AsyncResult<boolean>;
+    pause(input: {
+      id: string;
+      paused?: boolean | undefined;
+    }): AsyncResult<boolean>;
     remove(id: string): AsyncResult<boolean>;
     /**
      * Starts every due schedule once (service role), with the idempotency key
@@ -269,12 +272,12 @@ export interface Workflows {
      * Takes one of `max` slots of `key` for `holder`, for `ttl` seconds
      * (default 300).
      */
-    acquire(
-      key: string,
-      holder: string,
-      options: { readonly max: number; readonly ttl?: number },
-    ): AsyncResult<boolean>;
-    release(key: string, holder: string): AsyncResult<boolean>;
+    acquire(input: {
+      key: string;
+      holder: string;
+      options: { readonly max: number; readonly ttl?: number };
+    }): AsyncResult<boolean>;
+    release(input: { key: string; holder: string }): AsyncResult<boolean>;
   };
   readonly admission: {
     /** Queues a start under its key's concurrency, debounce and singleton rules. */
@@ -520,7 +523,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
         call("workflow_schedules_list", { tenant }, (value) =>
           recordsOf(value, "workflow_schedules_list").map(scheduleOf),
         ),
-      pause: (id, paused = true) =>
+      pause: ({ id, paused = true }) =>
         call(
           "pause_workflow_schedule",
           { schedule: id, paused },
@@ -567,7 +570,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
         }),
     },
     semaphores: {
-      acquire: (key, holder, semaphore) =>
+      acquire: ({ key, holder, options: semaphore }) =>
         call(
           "acquire_workflow_semaphore",
           {
@@ -578,7 +581,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
           },
           (value) => value === true,
         ),
-      release: (key, holder) =>
+      release: ({ key, holder }) =>
         call(
           "release_workflow_semaphore",
           { key, holder },

@@ -196,7 +196,7 @@ describe("createAutomations", () => {
     const rules = createAutomations({ transport });
 
     const [listed] = await rules
-      .list("org-1", { trigger: "expense.submitted" })
+      .list({ organizationId: "org-1", trigger: "expense.submitted" })
       .orThrow();
 
     expect(listed).toMatchObject({ id: "r1", enabled: true, version: 3 });
@@ -205,17 +205,23 @@ describe("createAutomations", () => {
     expect(await rules.get("missing").orThrow()).toBeUndefined();
 
     const saved = await rules
-      .upsert("org-1", { id: "r1", version: 3, name: "Large" })
+      .upsert({
+        organizationId: "org-1",
+        input: { id: "r1", version: 3, name: "Large" },
+      })
       .orThrow();
 
     expect(saved.version).toBe(4);
     expect((await rules.versions("r1").orThrow())[0]?.savedBy).toBeUndefined();
 
     const matches = await rules
-      .matching("org-1", {
-        subjectType: "expense",
-        trigger: "expense.submitted",
-        subject: { status: "submitted", amount: 900 },
+      .matching({
+        organizationId: "org-1",
+        input: {
+          subjectType: "expense",
+          trigger: "expense.submitted",
+          subject: { status: "submitted", amount: 900 },
+        },
       })
       .orThrow();
 
@@ -279,11 +285,11 @@ describe("createAutomations", () => {
     const [rule] = await createAutomations({
       transport: fakeTransport({ rules_list: [ruleRow()] }).transport,
     })
-      .list("org-1")
+      .list({ organizationId: "org-1" })
       .orThrow();
 
     const tested = await rules
-      .test(rule!, { status: "draft", amount: 900 })
+      .test({ rule: rule!, subject: { status: "draft", amount: 900 } })
       .orThrow();
 
     expect(tested).toEqual({
@@ -325,12 +331,15 @@ describe("createAutomationsAdmin", () => {
     expect(await admin.syncFields(expenses).orThrow()).toBe(3);
     expect(
       await admin
-        .run("org-1", {
-          subjectType: "expense",
-          trigger: "expense.submitted",
-          subjectId: "e1",
-          subject: {},
-          timeZone: "Europe/Amsterdam",
+        .run({
+          organizationId: "org-1",
+          input: {
+            subjectType: "expense",
+            trigger: "expense.submitted",
+            subjectId: "e1",
+            subject: {},
+            timeZone: "Europe/Amsterdam",
+          },
         })
         .orThrow(),
     ).toEqual([]);
@@ -408,8 +417,8 @@ describe("createRuleDispatcher", () => {
     );
 
     const outcomes = await dispatcher
-      .dispatch(
-        [
+      .dispatch({
+        matches: [
           {
             rule: rule([
               { kind: "ok" },
@@ -420,8 +429,12 @@ describe("createRuleDispatcher", () => {
             results: {},
           },
         ],
-        { organizationId: "org-1", subjectType: "expense", subjectId: "ctx" },
-      )
+        context: {
+          organizationId: "org-1",
+          subjectType: "expense",
+          subjectId: "ctx",
+        },
+      })
       .orThrow();
 
     expect(
@@ -458,8 +471,8 @@ describe("createRuleDispatcher", () => {
     );
 
     const outcomes = await dispatcher
-      .dispatch(
-        [
+      .dispatch({
+        matches: [
           {
             rule: rule([
               { kind: "typed", config: { n: 1 } },
@@ -468,8 +481,8 @@ describe("createRuleDispatcher", () => {
             results: {},
           },
         ],
-        { organizationId: "org-1", subjectType: "", subjectId: "e1" },
-      )
+        context: { organizationId: "org-1", subjectType: "", subjectId: "e1" },
+      })
       .orThrow();
 
     expect(outcomes[0]).toMatchObject({ ok: true, value: "ran" });
@@ -492,7 +505,7 @@ describe("createRuleDispatcher", () => {
     const requests: unknown[] = [];
 
     const action = approvalsAction({
-      request: (subject, input) => {
+      request: ({ subject, input }) => {
         requests.push({ subject, ...input });
 
         return AsyncResult.ok({ id: "a1" });
@@ -509,8 +522,8 @@ describe("createRuleDispatcher", () => {
     };
 
     const outcomes = await dispatcher
-      .dispatch(
-        [
+      .dispatch({
+        matches: [
           {
             rule: rule([
               { kind: "approvals.request", config: { action: "finance" } },
@@ -520,7 +533,7 @@ describe("createRuleDispatcher", () => {
           },
         ],
         context,
-      )
+      })
       .orThrow();
 
     expect(requests).toEqual([
@@ -550,7 +563,7 @@ describe("createRuleDispatcher", () => {
 
     const dispatcher = registry(
       notifyAction({
-        send: (type, input) => {
+        send: ({ type, input }) => {
           calls.push(["notify", type, input]);
 
           return "sent";
@@ -578,8 +591,8 @@ describe("createRuleDispatcher", () => {
     );
 
     const outcomes = await dispatcher
-      .dispatch(
-        [
+      .dispatch({
+        matches: [
           {
             rule: rule([
               {
@@ -601,7 +614,7 @@ describe("createRuleDispatcher", () => {
           },
         ],
         context,
-      )
+      })
       .orThrow();
 
     expect(outcomes.every((outcome) => outcome.ok)).toBe(true);
@@ -663,8 +676,8 @@ describe("createRuleDispatcher", () => {
     );
 
     const outcomes = await dispatcher
-      .dispatch(
-        [
+      .dispatch({
+        matches: [
           {
             rule: rule([
               { kind: "notify", config: { type: "task.assigned" } },
@@ -676,7 +689,7 @@ describe("createRuleDispatcher", () => {
           },
         ],
         context,
-      )
+      })
       .orThrow();
 
     expect(
@@ -696,7 +709,7 @@ describe("createRuleDispatcher", () => {
 
     const sink = createRuleSink({
       rules: {
-        run: (organizationId, input) => {
+        run: ({ organizationId, input }) => {
           runs.push([organizationId, input]);
 
           return AsyncResult.ok(input.subjectId === "t1" ? [match] : []);
@@ -755,7 +768,7 @@ describe("createRuleDispatcher", () => {
 
     const sink = createRuleSink({
       rules: {
-        run: (_, input) => {
+        run: ({ input }) => {
           triggers.push(input.trigger);
 
           return AsyncResult.ok(
@@ -792,7 +805,7 @@ describe("createRuleDispatcher", () => {
 
     const sink = createRuleSink({
       rules: {
-        run: (organizationId, input) => {
+        run: ({ organizationId, input }) => {
           runs.push([organizationId, input]);
 
           return AsyncResult.ok([{ rule: shipped, results: {} }]);

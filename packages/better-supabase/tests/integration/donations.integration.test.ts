@@ -86,7 +86,7 @@ describe.skipIf(!live)("donations", () => {
       await s.as(owner);
 
       const company = await createContacts({ transport })
-        .saveCompany(tenant, { name: "Acme" })
+        .saveCompany({ organizationId: tenant, input: { name: "Acme" } })
         .orThrow();
 
       const donor = { type: "company", id: company.id };
@@ -197,7 +197,9 @@ describe.skipIf(!live)("donations", () => {
         receipt.id,
       );
 
-      const summary = await donations.givingSummary(donor, 2026).orThrow();
+      const summary = await donations
+        .givingSummary({ donor, year: 2026 })
+        .orThrow();
 
       expect(summary.totals).toEqual([
         { amount: money(35_000n, "EUR"), gifts: 2 },

@@ -619,3 +619,9 @@ export async function addEndpoint(
   return webhooks.rotateSecret(endpoint.id).orThrow();
 }
 ```
+
+## Endpoint helpers
+
+`createEndpoint({ tenant, url, withSecret: true })` creates the endpoint and its signing secret in one call and returns the endpoint with `secret`. If the secret can't be created, the endpoint is deleted again and the error comes back. Without `withSecret` it adds the row only.
+
+`setEnabled({ endpointId, enabled })` turns an endpoint on or off without touching its other fields.

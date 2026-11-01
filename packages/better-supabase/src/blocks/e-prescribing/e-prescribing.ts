@@ -160,8 +160,7 @@ export interface EPrescribingClient {
    * `e_prescribing.write`.
    */
   create(
-    orderId: string,
-    input?: {
+    input: { orderId: string } & {
       readonly prescriberId?: string;
       readonly prescriberName?: string;
     },
@@ -178,21 +177,21 @@ export interface EPrescribingClient {
    * `PRESCRIPTION_DELIVERY_FAILED`. Needs `e_prescribing.write`.
    */
   send(
-    prescriptionId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { prescriptionId: string } & { readonly signal?: AbortSignal },
   ): AsyncResultType<Prescription>;
   /** Marks a sent prescription as dispensed. Needs `e_prescribing.write`. */
   dispense(
-    prescriptionId: string,
-    options?: { readonly at?: Temporal.Instant },
+    input: { prescriptionId: string } & { readonly at?: Temporal.Instant },
   ): AsyncResultType<Prescription>;
   /**
    * Cancels a prescription that is not dispensed. A signed or sent one needs a
    * `reason`. Needs to be the prescriber or hold `e_prescribing.manage`.
    */
   cancel(
-    prescriptionId: string,
-    options?: { readonly reason?: string; readonly signal?: AbortSignal },
+    input: { prescriptionId: string } & {
+      readonly reason?: string;
+      readonly signal?: AbortSignal;
+    },
   ): AsyncResultType<Prescription>;
   get(prescriptionId: string): AsyncResultType<Prescription>;
   list(
@@ -449,7 +448,7 @@ export function createEPrescribing(
     });
 
   const client: EPrescribingClient = {
-    create: (orderId, input = {}) =>
+    create: ({ orderId, ...input }) =>
       tenant().andThen((organizationId) =>
         one("create_prescription", {
           tenant: organizationId,
@@ -459,16 +458,16 @@ export function createEPrescribing(
       ),
     sign: (prescriptionId) =>
       one("sign_prescription", { prescription_id: prescriptionId }),
-    send: (prescriptionId, run = {}) =>
+    send: ({ prescriptionId, ...run }) =>
       get(prescriptionId).andThen((prescription) =>
         deliver(prescription, run.signal),
       ),
-    dispense: (prescriptionId, run = {}) =>
+    dispense: ({ prescriptionId, ...run }) =>
       one("record_prescription_dispense", {
         prescription_id: prescriptionId,
         ...(run.at === undefined ? {} : { dispensed_at: run.at.toString() }),
       }),
-    cancel: (prescriptionId, run = {}) =>
+    cancel: ({ prescriptionId, ...run }) =>
       get(prescriptionId)
         .andThen((prescription) =>
           withdraw(prescription, run.reason, run.signal),

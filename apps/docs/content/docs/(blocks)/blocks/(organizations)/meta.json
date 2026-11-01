@@ -25,6 +25,8 @@
     "mfa",
     "sessions",
     "impersonation",
-    "reserved-slugs"
+    "reserved-slugs",
+    "governance",
+    "saas"
   ]
 }

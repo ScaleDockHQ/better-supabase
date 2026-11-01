@@ -51,7 +51,9 @@ describe("quote variants", () => {
     const quotes = createQuotes({ transport: t });
 
     expect(
-      await quotes.createVariant("q1", "Option B").orThrow(),
+      await quotes
+        .createVariant({ quoteId: "q1", label: "Option B" })
+        .orThrow(),
     ).toStrictEqual({ id: "q2" });
 
     const listed = await quotes.listVariants("q1").orThrow();
@@ -63,7 +65,7 @@ describe("quote variants", () => {
     });
 
     const selection = await quotes
-      .selectVariant("q2", { forward: "order" })
+      .selectVariant({ quoteId: "q2", options: { forward: "order" } })
       .orThrow();
 
     expect(selection).toMatchObject({ selectedId: "q2", orderId: "o1" });
@@ -86,9 +88,11 @@ describe("order variants", () => {
     const orders = createOrders({ transport: t });
 
     expect(
-      await orders.setVariant("q2", "q1", "Option B").orThrow(),
+      await orders
+        .setVariant({ orderId: "q2", variantOf: "q1", label: "Option B" })
+        .orThrow(),
     ).toMatchObject({ id: "q2", variantOf: "q1" });
-    await orders.setVariant("q2", null).orThrow();
+    await orders.setVariant({ orderId: "q2", variantOf: null }).orThrow();
     expect(t.calls.at(-1)?.[1]).toStrictEqual({
       id: "q2",
       variant_of: null,
@@ -137,15 +141,15 @@ describe("collective invoicing", () => {
     const party = { type: "company", id: "c1" };
 
     const done = await invoices
-      .invoiceFromSources(
-        "org",
+      .invoiceFromSources({
+        organizationId: "org",
         party,
-        [
+        sources: [
           { type: "order", id: "o1", lines: [{ id: "l1", quantity: 2 }] },
           { type: "shipment", id: "s1" },
         ],
-        { title: "October" },
-      )
+        title: "October",
+      })
       .orThrow();
 
     expect(done.invoices.map((each) => each.total.amount)).toStrictEqual([
@@ -159,7 +163,9 @@ describe("collective invoicing", () => {
       options: { title: "October" },
     });
 
-    const ready = await invoices.sourcesReadyToInvoice("org", party).orThrow();
+    const ready = await invoices
+      .sourcesReadyToInvoice({ organizationId: "org", party })
+      .orThrow();
 
     expect(ready.map((each) => each.type)).toStrictEqual(["order", "time"]);
     expect(ready[1]?.id).toBeUndefined();
@@ -204,13 +210,13 @@ describe("variant rows and selections", () => {
     });
 
     const picked = await quotes
-      .selectVariant("q2", { forward: "invoice" })
+      .selectVariant({ quoteId: "q2", options: { forward: "invoice" } })
       .orThrow();
 
     expect(picked.invoiceId).toBe("i1");
     expect(picked.orderId).toBeUndefined();
 
-    const plain = await quotes.selectVariant("q2").orThrow();
+    const plain = await quotes.selectVariant({ quoteId: "q2" }).orThrow();
 
     expect(plain.invoiceId).toBe("i1");
     expect(t.calls.at(-1)?.[1]).toStrictEqual({ quote: "q2", options: null });
@@ -230,7 +236,9 @@ describe("variant rows and selections", () => {
     });
 
     await expect(
-      createInvoices({ transport: t }).sourcesReadyToInvoice("org").orThrow(),
+      createInvoices({ transport: t })
+        .sourcesReadyToInvoice({ organizationId: "org" })
+        .orThrow(),
     ).rejects.toThrow("mystery");
   });
 });

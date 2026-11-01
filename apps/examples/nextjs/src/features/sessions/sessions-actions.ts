@@ -13,13 +13,13 @@ import { bsb } from "@/lib/supabase/server";
 export const endSession = bsb.action(
   { input: v.object({ id: v.pipe(v.string(), v.uuid()) }) },
   async ({ id }, { db, auth }) => {
-    const ended = await db.$api("end_my_session", { session: id });
+    const ended = await db.$blocks.sessions.end({ sessionId: id });
 
     if (!ended.ok) {
       return ended;
     }
 
-    if (ended.data !== true) {
+    if (!ended.data) {
       return err(dbError("not_found", "Session not found"));
     }
 

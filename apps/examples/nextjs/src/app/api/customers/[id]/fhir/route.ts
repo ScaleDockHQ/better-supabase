@@ -20,11 +20,14 @@ export const GET = bsb.route<{ id: string }, true>(
 
     const [summaries, observations, definitions, orders, consents] =
       await Promise.all([
-        db.carePlans.list(subject.type, subject.id),
-        db.observations.list(subject.type, subject.id),
-        db.observations.definitions(organizationId),
-        db.medications.ordersOf(subject),
-        db.consents.list(subject),
+        db.carePlans.list({ subjectType: subject.type, subjectId: subject.id }),
+        db.observations.list({
+          subjectType: subject.type,
+          subjectId: subject.id,
+        }),
+        db.observations.definitions({ organizationId }),
+        db.medications.ordersOf({ subject }),
+        db.consents.list({ subject }),
       ]);
 
     if (!summaries.ok) {

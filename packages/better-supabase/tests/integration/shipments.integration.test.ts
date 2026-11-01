@@ -67,7 +67,7 @@ describe.skipIf(!live)("shipments", () => {
         1000, 500,
       ]);
 
-      const rates = await shipments.rates(draft.id).orThrow();
+      const rates = await shipments.rates({ id: draft.id }).orThrow();
 
       expect(rates.map((rate) => [rate.service, rate.amount])).toEqual([
         ["standard", money(695, "EUR")],
@@ -75,7 +75,10 @@ describe.skipIf(!live)("shipments", () => {
       ]);
 
       const labeled = await shipments
-        .buyLabel(draft.id, { carrier: "flat-rate", service: "standard" })
+        .buyLabel({
+          id: draft.id,
+          choice: { carrier: "flat-rate", service: "standard" },
+        })
         .orThrow();
 
       expect(labeled).toMatchObject({
@@ -85,21 +88,27 @@ describe.skipIf(!live)("shipments", () => {
       });
       expect(
         await shipments
-          .buyLabel(draft.id, { carrier: "flat-rate", service: "express" })
+          .buyLabel({
+            id: draft.id,
+            choice: { carrier: "flat-rate", service: "express" },
+          })
           .then(hint),
       ).toBe("SHIPMENT_NOT_DRAFT");
 
       const trackingNumber = labeled.trackingNumber ?? "";
 
       const moved = await shipments
-        .recordTracking(draft.id, [
-          {
-            id: "scan-1",
-            status: "in_transit",
-            occurredAt: Temporal.Instant.from("2030-01-07T10:00:00Z"),
-            location: "Utrecht",
-          },
-        ])
+        .recordTracking({
+          id: draft.id,
+          events: [
+            {
+              id: "scan-1",
+              status: "in_transit",
+              occurredAt: Temporal.Instant.from("2030-01-07T10:00:00Z"),
+              location: "Utrecht",
+            },
+          ],
+        })
         .orThrow();
 
       expect(moved).toMatchObject({
@@ -123,7 +132,7 @@ describe.skipIf(!live)("shipments", () => {
       await s.service();
 
       const ingested = await shipments
-        .ingest("flat-rate", { headers, body })
+        .ingest({ carrier: "flat-rate", request: { headers, body } })
         .orThrow();
 
       expect(ingested).toEqual([
@@ -135,15 +144,18 @@ describe.skipIf(!live)("shipments", () => {
         },
       ]);
       expect(
-        (await shipments.ingest("flat-rate", { headers, body }).orThrow())[0]
-          ?.recorded,
+        (
+          await shipments
+            .ingest({ carrier: "flat-rate", request: { headers, body } })
+            .orThrow()
+        )[0]?.recorded,
       ).toBe(0);
 
       const forged = await signWebhook("whsec_Zm9yZ2Vk", { id: "msg_2", body });
 
       expect(
         await shipments
-          .ingest("flat-rate", { headers: forged, body })
+          .ingest({ carrier: "flat-rate", request: { headers: forged, body } })
           .then((result) => (result.ok ? "ok" : result.error.kind)),
       ).toBe("unauthorized");
 
@@ -213,7 +225,10 @@ describe.skipIf(!live)("shipments", () => {
       expect(draft.reference).toMatch(/^SHP-[0-9A-F]{10}$/);
 
       await shipments
-        .buyLabel(draft.id, { carrier: "flat-rate", service: "express" })
+        .buyLabel({
+          id: draft.id,
+          choice: { carrier: "flat-rate", service: "express" },
+        })
         .orThrow();
 
       const cancelled = await shipments.cancel(draft.id).orThrow();

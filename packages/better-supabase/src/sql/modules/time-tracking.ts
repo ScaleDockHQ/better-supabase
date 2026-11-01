@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -92,6 +93,7 @@ const EVENTS: BlockSqlEvents<TimeTrackingEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [link("task", "reference", "time_entry", "tasks", "task")],
   entities: {
     time_entry: {
       table: "entries",

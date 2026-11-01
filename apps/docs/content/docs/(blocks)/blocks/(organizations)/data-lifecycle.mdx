@@ -551,10 +551,13 @@ const request = await db.dataLifecycle
   .orThrow();
 
 await db.dataLifecycle
-  .verifyDataSubjectRequest(request.id, "email link")
+  .verifyDataSubjectRequest({ requestId: request.id, method: "email link" })
   .orThrow();
 await db.dataLifecycle
-  .fulfilDataSubjectRequest(request.id, "export sent")
+  .fulfilDataSubjectRequest({
+    requestId: request.id,
+    resolution: "export sent",
+  })
   .orThrow();
 ```
 
@@ -619,3 +622,7 @@ await lifecycle.requestExport({ organizationId }).orThrow();
 Read through a `Db` with the block installed through `.blocks()`,
 `db.$blocks.dataLifecycle` gets the `Db`'s Storage (`db.$storage`), so
 `download` signs the export files as the same caller.
+
+## Exporting in one call
+
+`exportNow({ organizationId?, timeoutMs?, intervalMs? })` requests an export, polls `exports` every `intervalMs` (default 1000) for at most `timeoutMs` (default 30000), and returns the signed URLs through `download`. A failed export fails with `invalid_request` and the hint `DATA_EXPORT_FAILED`. An export that is not ready in time fails with `DATA_EXPORT_NOT_READY` and keeps running, so fetch it later with `exports` and `download`.

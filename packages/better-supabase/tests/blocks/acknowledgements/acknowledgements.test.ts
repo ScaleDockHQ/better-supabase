@@ -67,7 +67,12 @@ describe("acknowledgements client", () => {
     const acks = createAcknowledgements({ transport: fake });
 
     const assigned = await acks
-      .assign("o", POLICY, { type: "role", id: "member" }, { dueInDays: 14 })
+      .assign({
+        organizationId: "o",
+        record: POLICY,
+        principal: { type: "role", id: "member" },
+        dueInDays: 14,
+      })
       .orThrow();
 
     expect(assigned).toEqual({
@@ -86,7 +91,7 @@ describe("acknowledgements client", () => {
     expect(await acks.assignments(POLICY).orThrow()).toHaveLength(1);
 
     const ack = await acks
-      .acknowledge(POLICY, { versionId: "v1", signatureId: "s1" })
+      .acknowledge({ record: POLICY, versionId: "v1", signatureId: "s1" })
       .orThrow();
 
     expect(ack).toMatchObject({
@@ -94,19 +99,22 @@ describe("acknowledgements client", () => {
       method: "signature",
       signatureId: "s1",
     });
-    await acks.acknowledge(POLICY);
+    await acks.acknowledge({ record: POLICY });
 
-    const [mine] = await acks.mine("o").orThrow();
+    const [mine] = await acks.mine({ organizationId: "o" }).orThrow();
     expect(mine?.title).toBe("Security policy");
     expect(mine?.dueOn?.toString()).toBe("2026-10-15");
     expect(mine?.acknowledgedAt).toBeUndefined();
-    await acks.mine("o", { pendingOnly: false });
+    await acks.mine({ organizationId: "o", pendingOnly: false });
 
     const status = await acks.status(POLICY).orThrow();
     expect(status.required).toBe(2);
     expect(status.pending[0]?.overdue).toBe(true);
 
-    const [plain] = await acks.of(POLICY, "v1").orThrow();
+    const [plain] = await acks
+      .of({ record: POLICY, versionId: "v1" })
+      .orThrow();
+
     expect(plain?.method).toBeUndefined();
     expect(await acks.notifyDue().orThrow()).toBe(3);
 

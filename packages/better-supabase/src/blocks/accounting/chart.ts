@@ -152,9 +152,9 @@ export function importChart(
       const parent =
         parentCode === undefined ? undefined : saved.get(parentCode);
 
-      const result = await accounting.saveAccount(organizationId, {
-        ...input,
-        ...(parent ? { parentId: parent.id } : {}),
+      const result = await accounting.saveAccount({
+        organizationId,
+        input: { ...input, ...(parent ? { parentId: parent.id } : {}) },
       });
 
       if (!result.ok) {
@@ -172,11 +172,11 @@ export function importChart(
     let mapped: Readonly<Partial<Record<AccountRole, string>>> = {};
 
     for (const [role, accountId] of assignments) {
-      const result = await accounting.setAccountRole(
+      const result = await accounting.setAccountRole({
         organizationId,
         role,
         accountId,
-      );
+      });
 
       if (!result.ok) {
         return result;

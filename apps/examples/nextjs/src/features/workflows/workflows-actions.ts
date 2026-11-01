@@ -194,7 +194,7 @@ export const pauseSchedule = bsb.action(
     requireTenant: true,
   },
   async ({ id, paused }, { db }) => {
-    const updated = await db.workflows.schedules.pause(id, paused);
+    const updated = await db.workflows.schedules.pause({ id, paused });
 
     if (!updated.ok) {
       return updated;

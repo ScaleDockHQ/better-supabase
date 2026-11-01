@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:4269d9e59caed7c284226a35598edeeb54adb38b7e49a4f76f1cf090faf14cae
+-- @bsb-hash sha256:769f6be6e8d8d77e370ca84b504b2aca3f765a0925a1beb9a36d8700174aac65
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1188,6 +1188,15 @@ drop trigger if exists "bsb_search_risk_index" on "better_supabase"."risks";
 create trigger "bsb_search_risk_index"
   after insert or delete or update of "id", "tenant_id", "title", "number", "description", "cause", "consequence", "archived_at" on "better_supabase"."risks"
   for each row execute function "better_supabase"."search_index_row"('risk', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.risks', target_type => 'risk', event_prefix => 'risk', deferred => true);
+  perform better_supabase.audit('better_supabase.risk_matrices', target_type => 'risk_matrix', event_prefix => 'risk_matrix', deferred => true);
+  perform better_supabase.audit('better_supabase.risk_assessments', target_type => 'risk_assessment', event_prefix => 'risk_assessment', deferred => true);
+end;
+$$;
 
 -- blocks.risks.api: entry points for the Data API.
 create schema if not exists "api";

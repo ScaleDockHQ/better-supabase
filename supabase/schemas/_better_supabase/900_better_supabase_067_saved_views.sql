@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:2b8dfd0a44e25fb4d1dbba81caee5628960f8ae9143aacad8e6f7a0c3fabd4d8
+-- @bsb-hash sha256:8a7e9cbb80718f568ae6879f688b0a12f40c04c85f94ff2630bbd140aedd071b
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -499,6 +499,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_p
 create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.shared_views', target_type => 'saved_view', event_prefix => 'saved_view', deferred => true);
+end;
+$$;
 
 -- blocks.saved-views.api: entry points for the Data API.
 create schema if not exists "api";

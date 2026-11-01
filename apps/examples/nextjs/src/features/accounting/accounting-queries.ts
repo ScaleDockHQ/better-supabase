@@ -80,10 +80,14 @@ async function loadBooks(): Promise<Books | "not-set-up" | null> {
       : yearStart;
 
   const [trial, sheet, pnl, tax] = await Promise.all([
-    accounting.trialBalance(tenant, { until: today }).orThrow(),
-    accounting.balanceSheet(tenant, { asOf: today }).orThrow(),
-    accounting.profitAndLoss(tenant, { since, until: today }).orThrow(),
-    accounting.taxReport(tenant, since, today).orThrow(),
+    accounting.trialBalance({ organizationId: tenant, until: today }).orThrow(),
+    accounting.balanceSheet({ organizationId: tenant, asOf: today }).orThrow(),
+    accounting
+      .profitAndLoss({ organizationId: tenant, since, until: today })
+      .orThrow(),
+    accounting
+      .taxReport({ organizationId: tenant, since, until: today })
+      .orThrow(),
   ]);
 
   const json = (amount: bigint): MoneyJson =>

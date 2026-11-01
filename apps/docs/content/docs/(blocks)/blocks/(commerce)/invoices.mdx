@@ -40,7 +40,7 @@ const draft = await db.invoices
     ],
   )
   .orThrow();
-const invoice = await db.invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
+const invoice = await db.invoices.issue({ invoiceId: draft.id }).orThrow(); // INV-1, due in 30 days
 await db.invoices
   .recordPayment(invoice.id, {
     amount: money(137_940n, "EUR"),
@@ -329,7 +329,7 @@ const bill = await db.invoices
   )
   .orThrow();
 
-await db.invoices.issue(bill.id).orThrow(); // books the bill: BILL-1
+await db.invoices.issue({ invoiceId: bill.id }).orThrow(); // books the bill: BILL-1
 const match = await db.invoices.match(bill.id).orThrow();
 // { status: "matched", lines: [{ variantId, quantity: "60", receivedQuantity: "60", ... }] }
 ```
@@ -539,20 +539,25 @@ an id as `EINVOICE_NO_RECIPIENT`, an unreachable buyer as
 throws comes back as an error result.
 
 ```ts
-await invoices.setEInvoiceEndpoint(orgId, "company", companyId, {
-  scheme: "0106",
-  id: "12345678",
+await invoices.setEInvoiceEndpoint({
+  organizationId: orgId,
+  partyKind: "company",
+  partyId: companyId,
+  endpoint: { scheme: "0106", id: "12345678" },
 });
 
 const sent = await invoices
-  .sendEInvoice(await invoices.issue(draft.id).orThrow(), {
+  .sendEInvoice({
+    invoice: await invoices.issue({ invoiceId: draft.id }).orThrow(),
     format: myPeppolFormat,
     channel: myAccessPoint,
   })
   .orThrow();
 
 // Later, on a schedule:
-await invoices.syncEInvoices(orgId, { channel: myAccessPoint }).orThrow();
+await invoices
+  .syncEInvoices({ organizationId: orgId, channel: myAccessPoint })
+  .orThrow();
 ```
 
 `syncEInvoices` moves pending deliveries to `delivered` or `rejected`, and
@@ -653,6 +658,8 @@ the period is closed, so the books are corrected with an entry of your own.
 ## Aging
 
 `aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
+
+Aging has no separate read to add: `aging` already returns the buckets for sales invoices and, with `direction: "purchase"`, for payables, in one call per currency. `accounting.trialBalance` and the other [reports](/docs/blocks/accounting#reports) cover the finance pages the same way.
 
 ## Events
 
@@ -755,7 +762,7 @@ const draft = await invoices
     ],
   )
   .orThrow();
-const invoice = await invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
+const invoice = await invoices.issue({ invoiceId: draft.id }).orThrow(); // INV-1, due in 30 days
 await invoices
   .recordPayment(invoice.id, {
     amount: money(137_940n, "EUR"),
@@ -810,3 +817,7 @@ result.skipped; // sources that were already invoiced
 | `INVOICE_SOURCE_QUANTITY`    | a line is invoiced for more than is delivered and not yet invoiced                              |
 | `INVOICE_SOURCE_PARTY`       | an order was placed by another buyer than the party                                             |
 | `INVOICE_SOURCES_IMPORTING`  | the call ran in import mode                                                                     |
+
+## Invoice helpers
+
+`createAndIssue({ organizationId, input, lines, issuedOn, dueOn })` creates a draft with its lines and issues it. `markPaid({ invoice, method, reference })` records a payment for the invoice's whole `balance`; the reference defaults to `paid:<id>`, so retries are safe. `issueAndSend({ invoiceId, format, channel })` issues the invoice, then sends it as an e-invoice, and returns `{ invoice, delivery }`.

@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:386bb2ecdd0ff5ca02f2bd8fcaa8bc8bc39d0652b24209b9ab193a0521c37a54
+-- @bsb-hash sha256:fdf0dd9b5b9ea663271fae1a549c04c0ad2a3a7b397b2a0041b7008f382da7c6
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2152,6 +2152,14 @@ drop trigger if exists "bsb_search_message_index" on "better_supabase"."messages
 create trigger "bsb_search_message_index"
   after insert or delete or update of "id", "tenant_id", "body", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."search_index_row"('message', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.messages', target_type => 'message', event_prefix => 'message', deferred => true);
+  perform better_supabase.audit('better_supabase.conversations', target_type => 'conversation', event_prefix => 'conversation', deferred => true);
+end;
+$$;
 
 -- blocks.messaging.api: entry points for the Data API.
 create schema if not exists "api";

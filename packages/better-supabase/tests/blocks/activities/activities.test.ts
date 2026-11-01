@@ -47,9 +47,11 @@ describe("engagements block", () => {
     const due = Temporal.Instant.from("2026-10-16T09:00:00Z");
 
     const engagement = await createActivities({ transport: t })
-      .log("o", { type: "task", title: "Send proposal", dueAt: due }, [
-        { type: "deal", id: "d1" },
-      ])
+      .log({
+        organizationId: "o",
+        input: { type: "task", title: "Send proposal", dueAt: due },
+        subjects: [{ type: "deal", id: "d1" }],
+      })
       .orThrow();
 
     expect(t.calls[0]).toEqual([
@@ -101,7 +103,10 @@ describe("engagements block", () => {
     });
 
     const engagements = createActivities({ transport: t });
-    const addendum = await engagements.amend("e0", "Also ate well").orThrow();
+
+    const addendum = await engagements
+      .amend({ id: "e0", body: "Also ate well" })
+      .orThrow();
 
     expect(addendum).toMatchObject({
       audience: "restricted",
@@ -113,7 +118,9 @@ describe("engagements block", () => {
     expect(addendum.lockedAt?.toString()).toBe("2026-10-15T09:00:00Z");
     expect(addendum.markedErrorAt).toBeUndefined();
 
-    const flagged = await engagements.markError("e1", "Wrong client").orThrow();
+    const flagged = await engagements
+      .markError({ id: "e1", reason: "Wrong client" })
+      .orThrow();
 
     expect(flagged).toMatchObject({
       markedErrorBy: "u1",
@@ -130,7 +137,7 @@ describe("engagements block", () => {
   it("clears with null and keeps records unless given", async () => {
     const t = transport({ update_activity: () => ROW });
     await createActivities({ transport: t })
-      .update("e1", { dueAt: null, body: null })
+      .update({ id: "e1", input: { dueAt: null, body: null } })
       .orThrow();
     expect(t.calls[0]?.[1]).toEqual({
       engagement: "e1",
@@ -150,18 +157,21 @@ describe("engagements block", () => {
 
     const engagements = createActivities({ transport: t });
     expect(
-      (await engagements.complete("e1", { outcome: "sent" }).orThrow()).doneAt,
+      (await engagements.complete({ id: "e1", outcome: "sent" }).orThrow())
+        .doneAt,
     ).toBeDefined();
     expect(await engagements.remove("e1").orThrow()).toBe(true);
     expect(
       await engagements
-        .of({ type: "deal", id: "d1" }, { types: ["call"], limit: 10 })
+        .of({ subject: { type: "deal", id: "d1" }, types: ["call"], limit: 10 })
         .orThrow(),
     ).toHaveLength(1);
     expect(
       await engagements.next({ type: "deal", id: "d1" }).orThrow(),
     ).toBeUndefined();
-    expect(await engagements.open("o").orThrow()).toHaveLength(1);
+    expect(
+      await engagements.open({ organizationId: "o" }).orThrow(),
+    ).toHaveLength(1);
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
       ["complete_activity", { engagement: "e1", done: true, outcome: "sent" }],
       ["delete_activity", { engagement: "e1" }],
@@ -214,7 +224,10 @@ describe("engagements block, optional fields", () => {
       hooks: { next: { after: () => undefined } },
     });
 
-    const done = await engagements.complete("e1", { done: false }).orThrow();
+    const done = await engagements
+      .complete({ id: "e1", done: false })
+      .orThrow();
+
     expect(done).toMatchObject({
       body: "Notes",
       outcome: "connected",
@@ -241,12 +254,18 @@ describe("engagements block, optional fields", () => {
 
     const engagements = createActivities({ transport: t });
     const at = Temporal.Instant.from("2026-10-14T00:00:00Z");
-    await engagements.of({ type: "deal", id: "d1" }, { before: at }).orThrow();
     await engagements
-      .open("o", { ownerId: "u2", dueBefore: at, limit: 5 })
+      .of({ subject: { type: "deal", id: "d1" }, before: at })
       .orThrow();
     await engagements
-      .update("e1", { doneAt: at }, [{ type: "deal", id: "d1" }])
+      .open({ organizationId: "o", ownerId: "u2", dueBefore: at, limit: 5 })
+      .orThrow();
+    await engagements
+      .update({
+        id: "e1",
+        input: { doneAt: at },
+        subjects: [{ type: "deal", id: "d1" }],
+      })
       .orThrow();
     expect(t.calls.map(([, args]) => args)).toEqual([
       {

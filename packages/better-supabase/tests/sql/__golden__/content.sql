@@ -710,7 +710,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:1b1f170023d90ed64f89d817901fa9f54ef4d067495676b68ceed44dc3dd9684
+-- @bsb-hash sha256:725d393e21c4a7c23408caf7719fc04fe225759453124025ee987eebf840effc
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1452,6 +1452,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entr
 create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.content_entries', target_type => 'content_entry', event_prefix => 'content_entry', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

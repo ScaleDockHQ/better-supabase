@@ -48,7 +48,12 @@ describe("drive changes and retention", () => {
     const drive = createDrive({ transport: fake });
 
     const page = await drive
-      .changes("o", { cursor: "c0", pageSize: 2, driveId: "d1" })
+      .changes({
+        organizationId: "o",
+        cursor: "c0",
+        pageSize: 2,
+        driveId: "d1",
+      })
       .orThrow();
 
     expect(page.more).toBe(true);
@@ -72,7 +77,9 @@ describe("drive changes and retention", () => {
       drive_changes: () => ({ changes: [], cursor: null, more: false }),
     });
 
-    const page = await createDrive({ transport: fake }).changes("o").orThrow();
+    const page = await createDrive({ transport: fake })
+      .changes({ organizationId: "o" })
+      .orThrow();
 
     expect(page.cursor).toBeUndefined();
     expect(page.changes).toEqual([]);

@@ -153,7 +153,7 @@ describe("bulk client", () => {
     });
 
     const bulk = createBulk({ transport: fake });
-    expect(await bulk.drain("run-1", { size: 2 }).orThrow()).toMatchObject({
+    expect(await bulk.drain({ id: "run-1", size: 2 }).orThrow()).toMatchObject({
       status: "completed",
       done: true,
     });
@@ -166,7 +166,7 @@ describe("bulk client", () => {
     );
     const aborted = new AbortController();
     aborted.abort();
-    const result = await bulk.drain("run-1", { signal: aborted.signal });
+    const result = await bulk.drain({ id: "run-1", signal: aborted.signal });
     expect(result.ok).toBe(false);
   });
 

@@ -140,6 +140,12 @@ blocks: {
 A value that doesn't parse as the column's type stores `null` instead of
 failing the audited write.
 
+## Row entries for block tables
+
+Every table a block owns writes a row entry when something changes it outside a block function. Block functions already call `ctx.record`, and the row trigger skips a row that function recorded in the same transaction, so a change appears once. The triggers are deferred to commit, so a later direct write to the same row in that transaction is not listed.
+
+`blocks.audit.options.blockTables` sets the scope: `"entities"` (the default) covers each module's entity tables, `"all"` adds the other block tables, and `"none"` turns it off. The audit block's own tables never write row entries.
+
 ## Module actions
 
 Every SQL module records its security-relevant actions in the log once the
@@ -471,6 +477,16 @@ export function AuditLog(props: { organizationId: string }) {
 }
 ```
 
+## A page with the total and actor names
+
+`page(options)` is `list` with the total for the same filters, shaped for an audit screen: `entries`, `next` and `total`, with an `actorName` on each entry. `actorName` is the entry's `actorLabel`, the name or service the writer recorded when the entry was made, so it needs no join and stays correct after the member is renamed or removed; it is `null` for an entry without a label. `page` calls `list` with `count: true`, so `list` hooks run and the read policy decides which entries are counted. It takes the same filters as `list`, except `count`.
+
+```ts
+const { entries, total, next } = await audit
+  .page({ organizationId, category: "billing", limit: 25 })
+  .orThrow();
+```
+
 ## Reverting changes
 
 `audit.revert(entryIds)` writes the old values of row changes back, newest
@@ -703,3 +719,7 @@ const audit = createAudit<{ ticket_id: string | null; priority: number }>({
 const page = await audit.list({ organizationId }).orThrow();
 // page.entries[0].columns: { ticket_id: "...", priority: 2 }
 ```
+
+## One request's entries
+
+`correlated({ correlationId, organizationId?, limit? })` returns every entry the caller can read that shares the correlation id, oldest first, so one request or job reads as one story. It pages through `list` (200 entries per page, up to `limit`, default 1000), so your `list` hooks see each page.

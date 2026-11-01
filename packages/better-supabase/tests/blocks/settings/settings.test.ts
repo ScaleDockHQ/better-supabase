@@ -59,22 +59,32 @@ describe("defineSettings", () => {
   it("reads a stored value that fails its schema as the default", async () => {
     const { transport } = fakeTransport(() => ({ seats: -1 }));
     const client = createSettings({ settings, transport, schema: "app" });
-    expect(await client.getOrganization("org-1", "seats").orThrow()).toBe(5);
-    expect(await client.getOrganization("org-1").orThrow()).toEqual({
-      seats: 5,
-    });
+    expect(
+      await client
+        .getOrganization({ organizationId: "org-1", key: "seats" })
+        .orThrow(),
+    ).toBe(5);
+    expect(
+      await client.getOrganization({ organizationId: "org-1" }).orThrow(),
+    ).toEqual({ seats: 5 });
   });
 
   it("validates before writing", async () => {
     const { transport, calls } = fakeTransport(() => null);
     const client = createSettings({ settings, transport });
     // @ts-expect-error not one of the enum values
-    const bad = await client.setUser("theme", "neon");
+    const bad = await client.setUser({ key: "theme", value: "neon" });
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(calls).toHaveLength(0);
 
-    expect(await client.setUser("theme", "light").orThrow()).toBe("light");
-    expect(await client.setOrganization("org-1", "seats", 9).orThrow()).toBe(9);
+    expect(
+      await client.setUser({ key: "theme", value: "light" }).orThrow(),
+    ).toBe("light");
+    expect(
+      await client
+        .setOrganization({ organizationId: "org-1", key: "seats", value: 9 })
+        .orThrow(),
+    ).toBe(9);
     expect(calls).toEqual([
       [
         "better_supabase",
@@ -95,9 +105,13 @@ describe("defineSettings", () => {
     // @ts-expect-error not a declared key
     const read = await client.getUser("color");
     // @ts-expect-error not a declared key
-    const write = await client.setUser("color", "red");
-    // @ts-expect-error not a declared key
-    const reset = await client.resetOrganization("org-1", "color");
+    const write = await client.setUser({ key: "color", value: "red" });
+
+    const reset = await client.resetOrganization({
+      organizationId: "org-1",
+      // @ts-expect-error not a declared key
+      key: "color",
+    });
 
     for (const result of [read, write, reset]) {
       expect(result).toMatchObject({
@@ -108,9 +122,11 @@ describe("defineSettings", () => {
 
     expect(calls).toHaveLength(0);
     expect(await client.resetUser("theme").orThrow()).toBe(true);
-    expect(await client.resetOrganization("org-1", "seats").orThrow()).toBe(
-      true,
-    );
+    expect(
+      await client
+        .resetOrganization({ organizationId: "org-1", key: "seats" })
+        .orThrow(),
+    ).toBe(true);
   });
 
   it("types values per key", () => {
@@ -126,7 +142,9 @@ describe("defineSettings", () => {
       { weekly: boolean } | undefined
     >();
     expectTypeOf(
-      client.getOrganization("org-1", "seats").orThrow(),
+      client
+        .getOrganization({ organizationId: "org-1", key: "seats" })
+        .orThrow(),
     ).resolves.toEqualTypeOf<number>();
   });
 
@@ -164,7 +182,9 @@ describe("defineSettings", () => {
 
     const client = createSettings({ settings: platform, transport });
     expect(await client.getPlatform("fee").orThrow()).toBe(2);
-    expect(await client.setPlatform("fee", 3).orThrow()).toBe(3);
+    expect(await client.setPlatform({ key: "fee", value: 3 }).orThrow()).toBe(
+      3,
+    );
     expect(await client.resetPlatform("fee").orThrow()).toBe(true);
     expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
       ["get_platform_settings", {}],
@@ -172,7 +192,7 @@ describe("defineSettings", () => {
       ["reset_platform_setting", { key: "fee" }],
     ]);
     expectTypeOf<
-      Parameters<typeof client.setPlatform<"fee">>[1]
+      Parameters<typeof client.setPlatform<"fee">>[0]["value"]
     >().toEqualTypeOf<number>();
   });
 });
@@ -191,11 +211,19 @@ describe("resolve", () => {
 
     expect(
       await client
-        .resolve("org-1", "seats", { legalEntityId: "le1" })
+        .resolve({
+          organizationId: "org-1",
+          key: "seats",
+          legalEntityId: "le1",
+        })
         .orThrow(),
     ).toBe(8);
-    expect(await client.resolve("org-1", "seats").orThrow()).toBe(3);
-    expect(await client.resolve("org-1", "seats").orThrow()).toBe(5);
+    expect(
+      await client.resolve({ organizationId: "org-1", key: "seats" }).orThrow(),
+    ).toBe(3);
+    expect(
+      await client.resolve({ organizationId: "org-1", key: "seats" }).orThrow(),
+    ).toBe(5);
     expect(calls[0]).toEqual([
       "better_supabase",
       "resolve_setting",

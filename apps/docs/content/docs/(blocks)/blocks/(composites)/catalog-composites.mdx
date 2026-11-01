@@ -1,0 +1,34 @@
+---
+title: Composites
+description: Blocks made of other blocks, installed as one, for SaaS, sales, CRM, finance, support, scheduling, care, filespace and more.
+---
+
+A composite block installs a set of blocks that belong together and adds helpers that span them. Presets list composites instead of long block arrays, and `add` and `remove` work on a composite by name. How a composite is declared is in [Composite blocks](/docs/extending/composite-blocks).
+
+<Cards>
+  <Card title="SaaS" href="/docs/blocks/saas" />
+  <Card title="Sales" href="/docs/blocks/sales" />
+  <Card title="CRM" href="/docs/blocks/crm" />
+  <Card title="Commerce" href="/docs/blocks/commerce" />
+  <Card title="Procurement" href="/docs/blocks/procurement" />
+  <Card title="Finance" href="/docs/blocks/finance" />
+  <Card title="Support" href="/docs/blocks/support" />
+  <Card title="Projects" href="/docs/blocks/projects" />
+  <Card title="Service" href="/docs/blocks/service" />
+  <Card title="People" href="/docs/blocks/people" />
+  <Card title="Recruiting" href="/docs/blocks/recruiting" />
+  <Card title="Scheduling" href="/docs/blocks/scheduling" />
+  <Card title="Learning" href="/docs/blocks/learning" />
+  <Card title="Events" href="/docs/blocks/events" />
+  <Card title="CMS" href="/docs/blocks/cms" />
+  <Card title="Care" href="/docs/blocks/care" />
+  <Card title="Filespace" href="/docs/blocks/filespace" />
+  <Card title="Collaboration" href="/docs/blocks/collaboration" />
+  <Card title="Governance" href="/docs/blocks/governance" />
+</Cards>
+
+## The names
+
+The Drive-style composite is `filespace`, not `documents`, because `documents` is already the block for collaborative documents. The compliance composite is `governance`, not `compliance`, because `compliance` is already the block for policies and controls. Both keep the parts the plan listed that exist today, which are the drive, versions, share links, search and the bin for `filespace`, and audit, field history and data lifecycle for `governance`.
+
+Each composite lists only the parts it installs. Blocks that are not parts, such as `signatures` or `retention` next to `filespace` and `governance`, stay separate, so add them next to the composite when an app needs them.

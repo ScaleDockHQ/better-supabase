@@ -1,4 +1,4 @@
-import type { BlockCategory } from "../blocks/define-block.ts";
+import type { BlockCategory, PartDefaults } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
 import type {
   BlockEnvKey,
@@ -8,6 +8,8 @@ import type {
 import type { ActionDescriptor, BlockSchedule } from "../core/automation.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { BlockSqlEntitySpec, BlockSqlTableSpec } from "../sql/context.ts";
+import type { BlockSqlLink } from "../sql/links.ts";
+import type { BlockSqlRead } from "../sql/reads.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
 /** One SQL module in the preset catalog: a key of `blocks` in the config. */
@@ -39,6 +41,26 @@ export interface PresetCatalogBlock {
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */
   readonly manifest: string;
+  /** The generic blocks it adds contributions to (`BlockSql.contributes`). */
+  readonly contributes?: readonly string[];
+  /** The links it declares to other blocks' entities (ADR 0196). */
+  readonly links?: readonly BlockSqlLink[];
+  /** The composed reads the block ships (ADR 0196). */
+  readonly reads?: readonly BlockSqlRead[];
+}
+
+/** An automation a block ships as a default `automation_defaults` row. */
+export interface PresetCatalogAutomation {
+  readonly key: string;
+  readonly name: string;
+  /** The event type that starts it, with the default names. */
+  readonly trigger: string;
+  readonly subjectType: string;
+  /** The action kinds it runs. */
+  readonly actions: readonly string[];
+  /** False when it ships turned off. */
+  readonly enabled: boolean;
+  readonly requires: readonly string[];
 }
 
 /** A block's entities as the catalog carries them. */
@@ -101,6 +123,14 @@ export interface PresetCatalogManifest {
   readonly actions?: readonly ActionDescriptor[];
   /** The timers it runs on the queue's `block_ticks`. */
   readonly schedules?: readonly BlockSchedule[];
+  /** The automations it ships as default rows. */
+  readonly automations?: readonly PresetCatalogAutomation[];
+  /** The blocks it is built from (a composite, ADR 0196). */
+  readonly composes?: readonly string[];
+  /** What a composite sets on each part until the app does. */
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
+  /** The composites that list it as a part. */
+  readonly composedBy?: readonly string[];
 }
 
 /** One entity's input schemas, in the block's default names. */

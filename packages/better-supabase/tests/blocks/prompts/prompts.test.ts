@@ -56,11 +56,11 @@ describe("createPrompts", () => {
   it("creates with the placeholders as variables", async () => {
     const { transport, calls } = fake({ create_prompt_version: () => row() });
 
-    const saved = await createPrompts({ transport }).create(
-      "greet",
-      "Hello {{name}}",
-      { label: "production" },
-    );
+    const saved = await createPrompts({ transport }).create({
+      name: "greet",
+      template: "Hello {{name}}",
+      label: "production",
+    });
 
     expect(saved.ok).toBe(true);
     expect(calls[0]?.args).toMatchObject({
@@ -72,7 +72,10 @@ describe("createPrompts", () => {
 
   it("reads production by default and renders", async () => {
     const { transport, calls } = fake({ get_prompt: () => row() });
-    const got = await createPrompts({ transport }).get("greet").orThrow();
+
+    const got = await createPrompts({ transport })
+      .get({ name: "greet" })
+      .orThrow();
 
     expect(calls[0]?.args).toMatchObject({ label: "production" });
     expect(got?.render({ name: "Ada" })).toBe("Hello Ada");
@@ -80,7 +83,10 @@ describe("createPrompts", () => {
 
   it("returns undefined for a missing prompt", async () => {
     const { transport } = fake({ get_prompt: () => null });
-    const got = await createPrompts({ transport }).get("nope").orThrow();
+
+    const got = await createPrompts({ transport })
+      .get({ name: "nope" })
+      .orThrow();
 
     expect(got).toBeUndefined();
   });
@@ -90,7 +96,9 @@ describe("createPrompts", () => {
       list_prompt_versions: () => [row({ labels: ["production"] })],
     });
 
-    const list = await createPrompts({ transport }).versions("greet").orThrow();
+    const list = await createPrompts({ transport })
+      .versions({ name: "greet" })
+      .orThrow();
 
     expect(list[0]?.labels).toEqual(["production"]);
   });

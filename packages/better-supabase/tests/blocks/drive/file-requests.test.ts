@@ -91,11 +91,14 @@ describe("drive contributions", () => {
     const drive = createDrive({ transport: fake, storage: store });
 
     const pending = await drive
-      .contribute("o", {
-        parentId: "f1",
-        name: "scan.pdf",
-        mimeType: "application/pdf",
-        size: 4,
+      .contribute({
+        organizationId: "o",
+        file: {
+          parentId: "f1",
+          name: "scan.pdf",
+          mimeType: "application/pdf",
+          size: 4,
+        },
       })
       .orThrow();
 
@@ -120,7 +123,7 @@ describe("drive contributions", () => {
     ]);
 
     await expect(
-      drive.commitContribution("n1", "a1").orThrow(),
+      drive.commitContribution({ id: "n1", attachmentId: "a1" }).orThrow(),
     ).resolves.toEqual({ id: "n1", attachmentId: "a1" });
   });
 
@@ -133,28 +136,34 @@ describe("drive contributions", () => {
     const drive = createDrive({ transport: fake, storage: storage().store });
 
     const pending = await drive
-      .contribute("o", {
-        parentId: "f1",
-        name: "scan.pdf",
-        mimeType: "application/pdf",
-        size: 4,
+      .contribute({
+        organizationId: "o",
+        file: {
+          parentId: "f1",
+          name: "scan.pdf",
+          mimeType: "application/pdf",
+          size: 4,
+        },
       })
       .orThrow();
 
     expect(pending.id).toBe("n1");
     await expect(
-      drive.commitContribution("n1", "a1").orThrow(),
+      drive.commitContribution({ id: "n1", attachmentId: "a1" }).orThrow(),
     ).resolves.toEqual({ id: "n1", attachmentId: "a1" });
   });
 
   it("needs storage to sign the upload", async () => {
     const drive = createDrive({ transport: transport({}) });
 
-    const result = await drive.contribute("o", {
-      parentId: "f1",
-      name: "scan.pdf",
-      mimeType: "application/pdf",
-      size: 4,
+    const result = await drive.contribute({
+      organizationId: "o",
+      file: {
+        parentId: "f1",
+        name: "scan.pdf",
+        mimeType: "application/pdf",
+        size: 4,
+      },
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
@@ -173,7 +182,8 @@ describe("drive file requests", () => {
 
     await expect(
       drive
-        .createFileRequest("f1", {
+        .createFileRequest({
+          folderId: "f1",
           expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
           maxUses: 5,
           password: "hunter2",
@@ -190,7 +200,7 @@ describe("drive file requests", () => {
       },
     ]);
 
-    await drive.createFileRequest("f1").orThrow();
+    await drive.createFileRequest({ folderId: "f1" }).orThrow();
     expect(fake.calls[1]?.[1]).toEqual({
       folder: "f1",
       expires_at: null,
@@ -216,7 +226,11 @@ describe("drive file requests", () => {
 
     await expect(
       drive
-        .uploadToRequest("tok", file, { name: "scan.pdf", password: "pw" })
+        .uploadToRequest({
+          token: "tok",
+          file,
+          options: { name: "scan.pdf", password: "pw" },
+        })
         .orThrow(),
     ).resolves.toEqual({
       passwordRequired: false,
@@ -251,7 +265,11 @@ describe("drive file requests", () => {
 
     await expect(
       drive
-        .uploadToRequest("tok", new Blob(["x"]), { name: "notes" })
+        .uploadToRequest({
+          token: "tok",
+          file: new Blob(["x"]),
+          options: { name: "notes" },
+        })
         .orThrow(),
     ).resolves.toEqual({ passwordRequired: true });
     expect(fake.calls[0]?.[1]).toMatchObject({
@@ -260,9 +278,10 @@ describe("drive file requests", () => {
     });
 
     await drive
-      .uploadToRequest("tok", new Blob(["x"]), {
-        name: "notes",
-        mimeType: "text/plain",
+      .uploadToRequest({
+        token: "tok",
+        file: new Blob(["x"]),
+        options: { name: "notes", mimeType: "text/plain" },
       })
       .orThrow();
     expect(fake.calls[1]?.[1]).toMatchObject({ mime_type: "text/plain" });
@@ -276,18 +295,18 @@ describe("drive file requests", () => {
 
     const file = new Blob(["%PDF"]);
 
-    const none = await createDrive({ transport: pending() }).uploadToRequest(
-      "tok",
+    const none = await createDrive({ transport: pending() }).uploadToRequest({
+      token: "tok",
       file,
-      { name: "scan.pdf" },
-    );
+      options: { name: "scan.pdf" },
+    });
 
     expect(none.ok ? undefined : none.error.hint).toBe("DRIVE_STORAGE_CLIENT");
 
     const noUpload = await createDrive({
       transport: pending(),
       storage: storage({ upload: false }).store,
-    }).uploadToRequest("tok", file, { name: "scan.pdf" });
+    }).uploadToRequest({ token: "tok", file, options: { name: "scan.pdf" } });
 
     expect(noUpload.ok ? undefined : noUpload.error.hint).toBe(
       "DRIVE_STORAGE_CLIENT",
@@ -296,7 +315,7 @@ describe("drive file requests", () => {
     const failed = await createDrive({
       transport: pending(),
       storage: storage({ failUpload: true }).store,
-    }).uploadToRequest("tok", file, { name: "scan.pdf" });
+    }).uploadToRequest({ token: "tok", file, options: { name: "scan.pdf" } });
 
     expect(failed.ok).toBe(false);
   });

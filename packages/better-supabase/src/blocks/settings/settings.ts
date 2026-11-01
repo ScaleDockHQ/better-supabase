@@ -94,26 +94,28 @@ export interface Settings<
   getUser(): AsyncResult<SettingValues<U>>;
   getUser<K extends keyof U & string>(key: K): AsyncResult<SettingValues<U>[K]>;
   /** Validates `value` with the key's schema, then stores the output. */
-  setUser<K extends keyof U & string>(
-    key: K,
-    value: SettingInputs<U>[K],
-  ): AsyncResult<SettingValues<U>[K]>;
+  setUser<K extends keyof U & string>(input: {
+    key: K;
+    value: SettingInputs<U>[K];
+  }): AsyncResult<SettingValues<U>[K]>;
   /** Removes the stored value, so `getUser` returns the default again. */
   resetUser(key: keyof U & string): AsyncResult<boolean>;
-  getOrganization(organizationId: string): AsyncResult<SettingValues<O>>;
-  getOrganization<K extends keyof O & string>(
-    organizationId: string,
-    key: K,
-  ): AsyncResult<SettingValues<O>[K]>;
-  setOrganization<K extends keyof O & string>(
-    organizationId: string,
-    key: K,
-    value: SettingInputs<O>[K],
-  ): AsyncResult<SettingValues<O>[K]>;
-  resetOrganization(
-    organizationId: string,
-    key: keyof O & string,
-  ): AsyncResult<boolean>;
+  getOrganization(input: {
+    organizationId: string;
+  }): AsyncResult<SettingValues<O>>;
+  getOrganization<K extends keyof O & string>(input: {
+    organizationId: string;
+    key: K;
+  }): AsyncResult<SettingValues<O>[K]>;
+  setOrganization<K extends keyof O & string>(input: {
+    organizationId: string;
+    key: K;
+    value: SettingInputs<O>[K];
+  }): AsyncResult<SettingValues<O>[K]>;
+  resetOrganization(input: {
+    organizationId: string;
+    key: keyof O & string;
+  }): AsyncResult<boolean>;
   /**
    * One organization setting for a legal entity: its own value, else the
    * organization's, else the key's default. Without `legalEntityId` the
@@ -121,18 +123,18 @@ export interface Settings<
    * block; without it, use `getOrganization`.
    */
   resolve<K extends keyof O & string>(
-    organizationId: string,
-    key: K,
-    options?: { readonly legalEntityId?: string },
+    input: { organizationId: string; key: K } & {
+      readonly legalEntityId?: string;
+    },
   ): AsyncResult<SettingValues<O>[K]>;
   getPlatform(): AsyncResult<SettingValues<P>>;
   getPlatform<K extends keyof P & string>(
     key: K,
   ): AsyncResult<SettingValues<P>[K]>;
-  setPlatform<K extends keyof P & string>(
-    key: K,
-    value: SettingInputs<P>[K],
-  ): AsyncResult<SettingValues<P>[K]>;
+  setPlatform<K extends keyof P & string>(input: {
+    key: K;
+    value: SettingInputs<P>[K];
+  }): AsyncResult<SettingValues<P>[K]>;
   resetPlatform(key: keyof P & string): AsyncResult<boolean>;
 }
 
@@ -196,17 +198,20 @@ export function createSettings<
     return reader(user, call, "get_user_settings", {}, key);
   }
 
-  function getOrganization(
-    organizationId: string,
-  ): AsyncResult<SettingValues<O>>;
-  function getOrganization<K extends keyof O & string>(
-    organizationId: string,
-    key: K,
-  ): AsyncResult<SettingValues<O>[K]>;
-  function getOrganization(
-    organizationId: string,
-    key?: string,
-  ): AsyncResult<unknown> {
+  function getOrganization(input: {
+    organizationId: string;
+  }): AsyncResult<SettingValues<O>>;
+  function getOrganization<K extends keyof O & string>(input: {
+    organizationId: string;
+    key: K;
+  }): AsyncResult<SettingValues<O>[K]>;
+  function getOrganization({
+    organizationId,
+    key,
+  }: {
+    organizationId: string;
+    key?: string;
+  }): AsyncResult<unknown> {
     return reader(
       organization,
       call,
@@ -226,14 +231,14 @@ export function createSettings<
 
   const client: Settings<U, O, P> = {
     getUser,
-    setUser: (key, value) =>
+    setUser: ({ key, value }) =>
       // SAFETY: writer returns the key's schema output, SettingValues<U>[K].
       writer(user, call, "set_user_setting", {}, key, value) as AsyncResult<
         SettingValues<U>[typeof key]
       >,
     resetUser: (key) => remover(user, call, "reset_user_setting", {}, key),
     getOrganization,
-    setOrganization: (organizationId, key, value) =>
+    setOrganization: ({ organizationId, key, value }) =>
       // SAFETY: writer returns the key's schema output, SettingValues<O>[K].
       writer(
         organization,
@@ -243,7 +248,7 @@ export function createSettings<
         key,
         value,
       ) as AsyncResult<SettingValues<O>[typeof key]>,
-    resetOrganization: (organizationId, key) =>
+    resetOrganization: ({ organizationId, key }) =>
       remover(
         organization,
         call,
@@ -251,17 +256,17 @@ export function createSettings<
         { tenant: organizationId },
         key,
       ),
-    resolve: (organizationId, key, resolveOptions) =>
+    resolve: ({ organizationId, key, ...resolveOptions }) =>
       // SAFETY: resolver returns the key's schema output, SettingValues<O>[K].
       resolver(
         organization,
         call,
         organizationId,
         key,
-        resolveOptions?.legalEntityId,
+        resolveOptions.legalEntityId,
       ) as AsyncResult<SettingValues<O>[typeof key]>,
     getPlatform,
-    setPlatform: (key, value) =>
+    setPlatform: ({ key, value }) =>
       // SAFETY: writer returns the key's schema output, SettingValues<P>[K].
       writer(
         platform,

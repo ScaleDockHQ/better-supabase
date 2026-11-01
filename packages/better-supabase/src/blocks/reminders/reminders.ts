@@ -59,14 +59,19 @@ function notifyThrough(
   }
 
   return (delivery) =>
-    notifier.send(notification, {
-      recipients: delivery.userId === undefined ? [] : [delivery.userId],
-      tenant: delivery.organizationId,
-      key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt.toString()}`,
-      ...(delivery.subject === undefined ? {} : { subject: delivery.subject }),
-      data: {
-        reminderId: delivery.reminderId,
-        occurrenceAt: delivery.occurrenceAt.toString(),
+    notifier.send({
+      type: notification,
+      input: {
+        recipients: delivery.userId === undefined ? [] : [delivery.userId],
+        tenant: delivery.organizationId,
+        key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt.toString()}`,
+        ...(delivery.subject === undefined
+          ? {}
+          : { subject: delivery.subject }),
+        data: {
+          reminderId: delivery.reminderId,
+          occurrenceAt: delivery.occurrenceAt.toString(),
+        },
       },
     });
 }
@@ -89,11 +94,11 @@ export interface ReminderJobPayload {
  * shape so this block doesn't need it.
  */
 export interface ReminderJobs {
-  enqueueOnce(
-    queue: typeof REMINDER_DELIVERY_QUEUE,
-    payload: ReminderJobPayload,
-    options: EnqueueOnceOptions,
-  ): AsyncResult<EnqueueOnceResult>;
+  enqueueOnce(input: {
+    queue: typeof REMINDER_DELIVERY_QUEUE;
+    payload: ReminderJobPayload;
+    options: EnqueueOnceOptions;
+  }): AsyncResult<EnqueueOnceResult>;
 }
 
 /** What `schedule` plans and when. */
@@ -202,11 +207,11 @@ export interface Reminders<F extends object = Record<never, never>> {
    * Sets a reminder on `subject`: `offsetMinutes` before each occurrence, or
    * once at `{ at }`. `fields` fills the app's extra columns.
    */
-  upsert(
-    subject: RecordRef,
-    when?: ReminderWhen,
-    fields?: Partial<F> & Readonly<Record<string, unknown>>,
-  ): AsyncResult<SavedReminder<F>>;
+  upsert(input: {
+    subject: RecordRef;
+    when?: ReminderWhen | undefined;
+    fields?: (Partial<F> & Readonly<Record<string, unknown>>) | undefined;
+  }): AsyncResult<SavedReminder<F>>;
   /**
    * The caller's reminders on `subject`, the earliest before the occurrence
    * first.
@@ -218,10 +223,10 @@ export interface Reminders<F extends object = Record<never, never>> {
    * Service role. Records one delivery and the reminder.sent event. Resolves to
    * `false` when the occurrence was already delivered.
    */
-  markSent(
-    reminderId: string,
-    occurrenceAt: Temporal.Instant,
-  ): AsyncResult<boolean>;
+  markSent(input: {
+    reminderId: string;
+    occurrenceAt: Temporal.Instant;
+  }): AsyncResult<boolean>;
   /**
    * Checks `audience`, then `markSent`, then `notifyDelivery` when this run
    * recorded the occurrence and the audience kept the user.
@@ -422,7 +427,7 @@ export function createReminders<
           );
     });
 
-  const markSent: Reminders["markSent"] = (reminderId, occurrenceAt) =>
+  const markSent: Reminders["markSent"] = ({ reminderId, occurrenceAt }) =>
     call(
       "mark_reminder_sent",
       { reminder: reminderId, occurrence_at: occurrenceAt },
@@ -435,7 +440,10 @@ export function createReminders<
       : permitted(delivery)
     ).andThen((allowed) =>
       hooked
-        .markSent(delivery.reminderId, delivery.occurrenceAt)
+        .markSent({
+          reminderId: delivery.reminderId,
+          occurrenceAt: delivery.occurrenceAt,
+        })
         .andThen(async (sent) => {
           if (sent && allowed && notifyDelivery !== undefined) {
             const outcome: unknown = await notifyDelivery(delivery);
@@ -486,21 +494,21 @@ export function createReminders<
       let enqueued = 0;
 
       for (const { row, occurrenceAt, runAt, dedupeKey } of planned) {
-        const job = await jobs.enqueueOnce(
-          REMINDER_DELIVERY_QUEUE,
-          {
+        const job = await jobs.enqueueOnce({
+          queue: REMINDER_DELIVERY_QUEUE,
+          payload: {
             reminderId: row.reminder,
             occurrenceAt: occurrenceAt.toString(),
             organizationId: row.organizationId,
             ...(row.userId === undefined ? {} : { userId: row.userId }),
             ...(row.subject === undefined ? {} : { subject: row.subject }),
           },
-          {
+          options: {
             dedupeKey,
             runAt: temporal().Instant.compare(runAt, now) < 0 ? now : runAt,
             context: { tenant: row.organizationId },
           },
-        );
+        });
 
         if (!job.ok) {
           return job;
@@ -518,7 +526,7 @@ export function createReminders<
     });
 
   const client: Reminders<F> = {
-    upsert: (subject, when, values) =>
+    upsert: ({ subject, when, fields: values }) =>
       tenant().andThen((organizationId) =>
         writeFields(fields, values, (checked) =>
           call(

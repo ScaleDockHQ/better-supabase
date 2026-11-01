@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createTasks } from "../../../src/blocks/tasks/index.ts";
 import { money } from "../../../src/commerce/money.ts";
+import { dbError } from "../../../src/core/errors.ts";
+import { AsyncResult } from "../../../src/core/result.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -61,14 +63,14 @@ describe("tasks block", () => {
     const t = transport({ create_task: () => ROW });
 
     const item = await createTasks({ transport: t })
-      .create(
-        "o",
-        {
+      .create({
+        organizationId: "o",
+        input: {
           title: "Payment API",
           startAt: Temporal.Instant.from("2026-10-20T09:00:00Z"),
         },
-        ["u1"],
-      )
+        assigneeIds: ["u1"],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -102,7 +104,8 @@ describe("tasks block", () => {
     const t = transport({ list_tasks: () => [sparse] });
 
     const [item] = await createTasks({ transport: t })
-      .list("o", {
+      .list({
+        organizationId: "o",
         teamId: "t1",
         states: ["started"],
         open: true,
@@ -159,13 +162,15 @@ describe("tasks block", () => {
     const items = createTasks({ transport: t });
 
     const result = await items
-      .update([
-        {
-          workItemId: "w1",
-          field: "endAt",
-          value: Temporal.Instant.from("2026-10-23T09:00:00Z"),
-        },
-      ])
+      .update({
+        changes: [
+          {
+            workItemId: "w1",
+            field: "endAt",
+            value: Temporal.Instant.from("2026-10-23T09:00:00Z"),
+          },
+        ],
+      })
       .orThrow();
 
     expect(result.rejected[0]?.hint).toBe("TASK_LOCKED");
@@ -175,8 +180,8 @@ describe("tasks block", () => {
       ],
     });
     await items
-      .update(
-        [
+      .update({
+        changes: [
           {
             workItemId: "w1",
             field: "window",
@@ -186,8 +191,8 @@ describe("tasks block", () => {
             },
           },
         ],
-        { atomic: true },
-      )
+        atomic: true,
+      })
       .orThrow();
     expect(t.calls[1]?.[1]).toEqual({
       changes: [
@@ -199,8 +204,20 @@ describe("tasks block", () => {
       ],
       atomic: true,
     });
-    expect(await items.assign("w1", ["u1", "u2"]).orThrow()).toBe(2);
-    expect(await items.archive("w1").orThrow()).toBe(true);
+
+    const strict = await items.update({
+      changes: [{ workItemId: "w1", field: "dueAt", value: null }],
+      strict: true,
+    });
+
+    expect(strict.ok ? undefined : strict.error).toMatchObject({
+      kind: "raised",
+      hint: "TASK_LOCKED",
+    });
+    expect(
+      await items.assign({ workItemId: "w1", userIds: ["u1", "u2"] }).orThrow(),
+    ).toBe(2);
+    expect(await items.archive({ workItemId: "w1" }).orThrow()).toBe(true);
     expect(await items.remove("w1").orThrow()).toBe(true);
     expect((await items.tree("w1").orThrow())[0]).toMatchObject({
       depth: 0,
@@ -232,10 +249,13 @@ describe("tasks block", () => {
     const items = createTasks({ transport: t });
 
     const project = await items
-      .saveProject("o", {
-        key: "PAY",
-        name: "Payments",
-        startOn: Temporal.PlainDate.from("2026-10-01"),
+      .saveProject({
+        organizationId: "o",
+        project: {
+          key: "PAY",
+          name: "Payments",
+          startOn: Temporal.PlainDate.from("2026-10-01"),
+        },
       })
       .orThrow();
 
@@ -243,7 +263,10 @@ describe("tasks block", () => {
     expect(project.startOn?.toString()).toBe("2026-10-01");
 
     const sprint = await items
-      .saveIteration("o", { id: "i1", name: "Sprint 1" })
+      .saveIteration({
+        organizationId: "o",
+        iteration: { id: "i1", name: "Sprint 1" },
+      })
       .orThrow();
 
     expect(sprint.endsOn.toString()).toBe("2026-11-01");
@@ -329,7 +352,10 @@ describe("tasks block, sparse rows and options", () => {
       hooks: { tree: { after: () => undefined } },
     });
 
-    const item = await items.create("o", { title: "x" }).orThrow();
+    const item = await items
+      .create({ organizationId: "o", input: { title: "x" } })
+      .orThrow();
+
     expect(item).toMatchObject({
       number: 3n,
       estimate: 2,
@@ -349,12 +375,19 @@ describe("tasks block, sparse rows and options", () => {
     expect(node?.dueAt).toBeDefined();
 
     const project = await items
-      .saveProject("o", { id: "p1", startOn: null })
+      .saveProject({
+        organizationId: "o",
+        project: { id: "p1", startOn: null },
+      })
       .orThrow();
 
     expect(project).toMatchObject({ ownerId: "u1", status: "planned" });
     expect(project.startOn).toBeUndefined();
-    const sprint = await items.saveIteration("o", { name: "Sprint" }).orThrow();
+
+    const sprint = await items
+      .saveIteration({ organizationId: "o", iteration: { name: "Sprint" } })
+      .orThrow();
+
     expect(sprint.teamId).toBe("t1");
     expect(sprint.startsOn.toString()).toBe("1970-01-01");
   });
@@ -404,7 +437,10 @@ describe("tasks block, sparse rows and options", () => {
     const items = createTasks({ transport: t });
 
     const item = await items
-      .create("o", { title: "Report", attachmentIds: ["a1"] })
+      .create({
+        organizationId: "o",
+        input: { title: "Report", attachmentIds: ["a1"] },
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({
@@ -427,7 +463,11 @@ describe("tasks block, sparse rows and options", () => {
     ]);
 
     const saved = await items
-      .saveChecklistItem("w1", { done: false }, "c1")
+      .saveChecklistItem({
+        workItemId: "w1",
+        input: { done: false },
+        checklistItemId: "c1",
+      })
       .orThrow();
 
     expect(saved.doneAt).toBeUndefined();
@@ -436,28 +476,40 @@ describe("tasks block, sparse rows and options", () => {
       checklist_item: "c1",
       attrs: { done: false },
     });
-    await items.saveChecklistItem("w1", { title: "Send" }).orThrow();
+    await items
+      .saveChecklistItem({ workItemId: "w1", input: { title: "Send" } })
+      .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ checklist_item: null });
     expect(await items.removeChecklistItem("c1").orThrow()).toBe(true);
 
     expect(
-      (await items.setRecurrence("w1", { rrule: "FREQ=WEEKLY" }).orThrow())
-        ?.dtstart,
+      (
+        await items
+          .setRecurrence({ workItemId: "w1", rule: { rrule: "FREQ=WEEKLY" } })
+          .orThrow()
+      )?.dtstart,
     ).toEqual(Temporal.Instant.from(rule.dtstart));
     expect(t.calls.at(-1)?.[1]).toEqual({
       work_item: "w1",
       rrule: "FREQ=WEEKLY",
       tzid: "UTC",
     });
-    expect(await items.setRecurrence("w1", null).orThrow()).toBeUndefined();
+    expect(
+      await items.setRecurrence({ workItemId: "w1", rule: null }).orThrow(),
+    ).toBeUndefined();
 
     const next = Temporal.Instant.from("2026-10-31T09:00:00Z");
-    expect((await items.repeat("w1", next).orThrow()).recursFromId).toBe("w1");
+    expect(
+      (await items.repeat({ workItemId: "w1", dueAt: next }).orThrow())
+        .recursFromId,
+    ).toBe("w1");
     expect(t.calls.at(-1)?.[1]).toEqual({
       work_item: "w1",
       due_at: "2026-10-31T09:00:00Z",
     });
-    expect(await items.watch("w1", "all").orThrow()).toBe(true);
+    expect(
+      await items.watch({ workItemId: "w1", level: "all" }).orThrow(),
+    ).toBe(true);
     expect(await items.watchers("w1").orThrow()).toEqual([
       { userId: "u2", level: "all" },
     ]);
@@ -487,11 +539,14 @@ describe("project budgets", () => {
     const items = createTasks({ transport: t });
 
     const project = await items
-      .saveProject("o", {
-        key: "APO",
-        name: "Apollo",
-        budget: money(50_000n, "EUR"),
-        budgetHours: 10.5,
+      .saveProject({
+        organizationId: "o",
+        project: {
+          key: "APO",
+          name: "Apollo",
+          budget: money(50_000n, "EUR"),
+          budgetHours: 10.5,
+        },
       })
       .orThrow();
 
@@ -517,7 +572,10 @@ describe("project budgets", () => {
     const items = createTasks({ transport: t });
 
     const project = await items
-      .saveProject("o", { id: "p1", budget: null, budgetHours: null })
+      .saveProject({
+        organizationId: "o",
+        project: { id: "p1", budget: null, budgetHours: null },
+      })
       .orThrow();
 
     expect(project.budget).toBeUndefined();
@@ -527,5 +585,60 @@ describe("project budgets", () => {
       project: "p1",
       attrs: { budgetHours: null, budgetAmount: null, budgetCurrency: null },
     });
+  });
+});
+
+describe("tasks.create with custom values", () => {
+  const custom = { d1: "red", d2: "5" };
+
+  it("sets each value on the new task through the port", async () => {
+    const t = transport({ create_task: () => ROW });
+    const setValue = vi.fn(() => AsyncResult.ok({} as never));
+
+    await createTasks({ transport: t, customFields: { setValue } })
+      .create({ organizationId: "o", input: { title: "x" }, custom })
+      .orThrow();
+
+    expect(setValue.mock.calls).toEqual([
+      [
+        {
+          subject: { type: "task", id: "w1" },
+          definitionId: "d1",
+          value: "red",
+        },
+      ],
+      [{ subject: { type: "task", id: "w1" }, definitionId: "d2", value: "5" }],
+    ]);
+  });
+
+  it("removes the task when a value is refused", async () => {
+    const t = transport({ create_task: () => ROW, delete_task: () => true });
+
+    const setValue = vi.fn(() =>
+      AsyncResult.err(dbError("invalid_value", "no")),
+    );
+
+    const result = await createTasks({
+      transport: t,
+      customFields: { setValue },
+    }).create({ organizationId: "o", input: { title: "x" }, custom });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls.map((each) => each[0])).toEqual([
+      "create_task",
+      "delete_task",
+    ]);
+  });
+
+  it("needs the port when custom values are given", async () => {
+    const result = await createTasks({ transport: transport({}) }).create({
+      organizationId: "o",
+      input: { title: "x" },
+      custom,
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "TASKS_CUSTOM_FIELDS_MISSING",
+    );
   });
 });

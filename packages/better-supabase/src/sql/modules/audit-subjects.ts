@@ -92,7 +92,7 @@ $$;`;
  * The `staff` actor kind's test, from `blocks.audit.options.staffClaim` (a
  * dotted JWT path such as `app_metadata.platform_role`), or undefined.
  */
-export function staffTest(ctx: BlockSqlContext): string | undefined {
+function staffTest(ctx: BlockSqlContext): string | undefined {
   const raw = ctx.option("staffClaim");
 
   if (raw === undefined) {
@@ -208,4 +208,24 @@ export function subjectColumnsSql(
 create index if not exists ${sqlIdent(`audit_events_${name}_idx`)} on ${log} (${column}) where ${column} is not null;`;
     })
     .join("\n");
+}
+
+/**
+ * How the caller acted: service, support, impersonation, oauth-client, staff
+ * (with `staffClaim`), user or system.
+ */
+export function actorKind(ctx: BlockSqlContext): string {
+  const staff = staffTest(ctx);
+
+  return `case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
+      when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' is not null then 'impersonation'
+      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'${
+        staff === undefined ? "" : `\n      when ${staff} then 'staff'`
+      }
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end`;
 }

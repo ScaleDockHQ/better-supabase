@@ -64,7 +64,13 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
 
       return AsyncResult.ok(opened);
     },
-    push: (_id: string, update: Uint8Array) => {
+    push: ({
+      documentId: _id,
+      update,
+    }: {
+      documentId: string;
+      update: Uint8Array;
+    }) => {
       push();
 
       if (offline) {
@@ -80,8 +86,9 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
 
       return AsyncResult.ok(seq);
     },
-    pull: (_id, after) => AsyncResult.ok(stateAfter(after)),
-    compact: (_id, state, through) => {
+    pull: ({ documentId: _id, afterSeq: after }) =>
+      AsyncResult.ok(stateAfter(after)),
+    compact: ({ documentId: _id, state, throughSeq: through }) => {
       snapshot = { state, seq: through };
       updates = updates.filter((item) => item.seq > through);
 
@@ -90,7 +97,7 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
     saveVersion: () => AsyncResult.ok({ id: "v", number: 1 }),
     versions: () => AsyncResult.ok([]),
     nameVersion: () => AsyncResult.ok(true),
-    suggest: (documentId, update, summary) => {
+    suggest: ({ documentId, update, summary }) => {
       const suggestion: DocumentSuggestion = {
         id: `s${String(suggestions.length + 1)}`,
         documentId,
@@ -105,7 +112,7 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
       return AsyncResult.ok(suggestion);
     },
     suggestions: () => AsyncResult.ok(suggestions),
-    decideSuggestion: (id, decision) => {
+    decideSuggestion: ({ suggestionId: id, decision }) => {
       const found = suggestions.find((item) => item.id === id);
 
       if (found === undefined) {
@@ -127,6 +134,10 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
     },
     version: () => AsyncResult.ok(new Uint8Array()),
     toCompact: () => AsyncResult.ok([DOC_ID]),
+    page: (ref) =>
+      documents
+        .open(ref)
+        .map((opened) => ({ ...opened, versions: [], suggestions: [] })),
   };
 
   return {
@@ -307,7 +318,10 @@ describe("createDocumentProvider", () => {
       expect(server.count()).toBe(1);
     });
     const copy = new Y.Doc();
-    const state = await server.documents.pull(DOC_ID, 0).orThrow();
+
+    const state = await server.documents
+      .pull({ documentId: DOC_ID, afterSeq: 0 })
+      .orThrow();
 
     for (const item of state.updates) {
       Y.applyUpdate(copy, item.update);
@@ -405,16 +419,16 @@ describe("createDocumentProvider", () => {
     const provider = createDocumentProvider({
       documents: {
         ...server.documents,
-        suggest: (documentId, update, summary) =>
+        suggest: ({ documentId, update, summary }) =>
           failing
             ? AsyncResult.err<DocumentSuggestion>({
                 kind: "network",
                 message: "offline",
               } as never)
-            : server.documents.suggest(documentId, update, summary),
-        decideSuggestion: (id, decision) =>
+            : server.documents.suggest({ documentId, update, summary }),
+        decideSuggestion: ({ suggestionId: id, decision }) =>
           server.documents
-            .decideSuggestion(id, decision)
+            .decideSuggestion({ suggestionId: id, decision })
             .map((decided) => ({ ...decided, seq: 5 })),
       },
       client: fakeBus().client().client,
@@ -563,7 +577,7 @@ describe("createDocumentProvider", () => {
     const server = fakeServer();
     const seed = new Y.Doc();
     seed.on("update", (update: Uint8Array) => {
-      void server.documents.push(DOC_ID, update);
+      void server.documents.push({ documentId: DOC_ID, update });
     });
     seed.getText("t").insert(0, "saved");
     await compactDocument({
@@ -640,7 +654,7 @@ describe("compactDocument", () => {
     const server = fakeServer();
     const doc = new Y.Doc();
     doc.on("update", (update: Uint8Array) => {
-      void server.documents.push(DOC_ID, update);
+      void server.documents.push({ documentId: DOC_ID, update });
     });
     doc.getText("t").insert(0, "one ");
     doc.getText("t").insert(4, "two");
@@ -656,7 +670,11 @@ describe("compactDocument", () => {
     expect(server.snapshotSeq()).toBe(2);
 
     const copy = new Y.Doc();
-    const state = await server.documents.pull(DOC_ID, 0).orThrow();
+
+    const state = await server.documents
+      .pull({ documentId: DOC_ID, afterSeq: 0 })
+      .orThrow();
+
     Y.applyUpdate(copy, state.snapshot!);
     expect(copy.getText("t").toString()).toBe("one two");
     expect(

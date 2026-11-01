@@ -147,6 +147,7 @@ declare
   v_changes jsonb;
   v_lines jsonb;
   v_closed jsonb;
+  v_board jsonb;
 begin
   ${SERVICE}
   v_deal := better_supabase.create_deal('${TENANT}', '{"name": "Acme renewal", "closeOn": "2026-12-01", "amount": "5000", "currency": "eur", "forecast": "pipeline"}'::jsonb, null);
@@ -178,6 +179,12 @@ begin
   perform better_supabase.set_deal_members(v_id, jsonb_build_array(jsonb_build_object('userId', '${USER}', 'role', 'lead')));
   if (better_supabase.deal_health((select pipeline_id from public.opportunities where id = v_id)) -> 0 ->> 'noNextStep')::boolean is not true then
     raise exception 'health %', better_supabase.deal_health((select pipeline_id from public.opportunities where id = v_id));
+  end if;
+  v_board := better_supabase.deal_board((select pipeline_id from public.opportunities where id = v_id));
+  if jsonb_array_length(v_board -> 'stages') < 1
+    or (select sum(jsonb_array_length(st -> 'deals')) from jsonb_array_elements(v_board -> 'stages') st) <> 1
+    or v_board #>> '{weighted,0,currency}' <> 'EUR' then
+    raise exception 'board %', v_board;
   end if;
   v_closed := better_supabase.close_deal(v_id, 'lost', 'went elsewhere');
   if (select result from public.opportunities where id = v_id) <> 'lost'

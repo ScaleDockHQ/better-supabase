@@ -122,7 +122,9 @@ describe.skipIf(!live)("observations", () => {
 
       await s.asRole(nurse);
 
-      const definitions = await observations.definitions(org).orThrow();
+      const definitions = await observations
+        .definitions({ organizationId: org })
+        .orThrow();
 
       expect(definitions.map((d) => d.key)).toContain("blood_pressure");
       expect(definitions.find((d) => d.key === "heart_rate")).toMatchObject({
@@ -135,17 +137,26 @@ describe.skipIf(!live)("observations", () => {
 
       expect(
         await observations
-          .record(org, { ...pulse, definitionKey: "heart_rate", value: 900 })
+          .record({
+            organizationId: org,
+            input: { ...pulse, definitionKey: "heart_rate", value: 900 },
+          })
           .then(hint),
       ).toBe("OBSERVATION_VALUE_INVALID");
       expect(
         await observations
-          .record(org, { ...pulse, definitionKey: "mood", value: "ok" })
+          .record({
+            organizationId: org,
+            input: { ...pulse, definitionKey: "mood", value: "ok" },
+          })
           .then(hint),
       ).toBe("OBSERVATION_DEFINITION_NOT_FOUND");
 
       const critical = await observations
-        .record(org, { ...pulse, definitionKey: "heart_rate", value: 135 })
+        .record({
+          organizationId: org,
+          input: { ...pulse, definitionKey: "heart_rate", value: 135 },
+        })
         .orThrow();
 
       expect(critical).toMatchObject({ flag: "critical_high", value: 135 });
@@ -170,21 +181,35 @@ describe.skipIf(!live)("observations", () => {
       await s.asRole(nurse);
 
       const amended = await observations
-        .amend(critical.id, { value: 115 }, "wrong monitor")
+        .amend({
+          observationId: critical.id,
+          changes: { value: 115 },
+          reason: "wrong monitor",
+        })
         .orThrow();
 
       expect(amended).toMatchObject({ replacesId: critical.id, flag: "high" });
       expect(
-        (await observations.list("patient", patient).orThrow()).map(
-          (o) => o.id,
-        ),
+        (
+          await observations
+            .list({ subjectType: "patient", subjectId: patient })
+            .orThrow()
+        ).map((o) => o.id),
       ).toEqual([amended.id]);
 
       await s.asRole(outsider);
-      expect(await observations.list("patient", patient).orThrow()).toEqual([]);
       expect(
         await observations
-          .saveDefinition(org, "mews", { title: "MEWS", valueType: "integer" })
+          .list({ subjectType: "patient", subjectId: patient })
+          .orThrow(),
+      ).toEqual([]);
+      expect(
+        await observations
+          .saveDefinition({
+            organizationId: org,
+            key: "mews",
+            input: { title: "MEWS", valueType: "integer" },
+          })
           .then(hint),
       ).toBe("OBSERVATION_FORBIDDEN");
 
@@ -217,7 +242,9 @@ describe.skipIf(!live)("observations", () => {
       // Every row of this transaction shares now(), so the form's rows are
       // picked by source rather than through latest().
       const fromForm = (
-        await observations.list("patient", patient).orThrow()
+        await observations
+          .list({ subjectType: "patient", subjectId: patient })
+          .orThrow()
       ).filter((o) => o.submissionId === submission.id);
 
       expect(

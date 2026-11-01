@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:a08dcbd72f5473d9ee106f0916dcdf12ff59763d333021965663aab3f1cf0596
+-- @bsb-hash sha256:371eefd4b98c8d2400cea50aed57ebaa7b6ec566e62395a979c52184389cf1ca
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1133,6 +1133,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_quote_li
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.rfqs', target_type => 'rfq', event_prefix => 'rfq', deferred => true);
+  perform better_supabase.audit('better_supabase.rfq_lines', target_type => 'rfq_line', event_prefix => 'rfq_line', deferred => true);
+  perform better_supabase.audit('better_supabase.rfq_suppliers', target_type => 'rfq_supplier', event_prefix => 'rfq_supplier', deferred => true);
+  perform better_supabase.audit('better_supabase.rfq_quotes', target_type => 'rfq_quote', event_prefix => 'rfq_quote', deferred => true);
+  perform better_supabase.audit('better_supabase.rfq_quote_lines', target_type => 'rfq_quote_line', event_prefix => 'rfq_quote_line', deferred => true);
+end;
+$$;
 
 -- blocks.rfqs.api: entry points for the Data API.
 create schema if not exists "api";

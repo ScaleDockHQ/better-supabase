@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { locationsOf } from "./inventory-stock.ts";
@@ -50,6 +51,9 @@ const EVENTS: BlockSqlEvents<WarehouseEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link("task", "relation", "pick_list", "tasks", "task", "created_from"),
+  ],
   entities: {
     pick_list: { table: "lists", singular: "pick_list", primary: true },
     pick_wave: { table: "waves", singular: "pick_wave" },

@@ -15,6 +15,8 @@ export const TABLE_FEATURES = [
   "server",
   "events",
   "vector-search",
+  "history",
+  "lifecycle",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];
@@ -127,4 +129,74 @@ export function tableTagComments(
       ? [{ schema: match[1] ?? "public", name, comment }]
       : [];
   });
+}
+
+/**
+ * The statement a feature needs besides its tag: `audit` registers the row
+ * trigger through a static `audit()` call, which pg-delta keeps in the schema
+ * file's diff, and `expose` grants the Data API privileges (row level security
+ * still decides the rows). Other features are read from the tag alone.
+ */
+function featureStatement(
+  feature: TableFeature,
+  schema: string,
+  table: string,
+): string | undefined {
+  if (feature === "audit") {
+    return `select better_supabase.audit('${schema}.${table}');`;
+  }
+
+  if (feature === "events") {
+    return `select better_supabase.track_events('${schema}.${table}');`;
+  }
+
+  if (feature === "audit-reads") {
+    // A Data API select can't be logged, so reads go through this function: it
+    // logs the read for the table's subject type (the table name unless the
+    // subject tag names another), then returns the row as the caller.
+    return `create or replace function ${schema}.read_${table}(p_id text, p_purpose text default null)
+returns setof ${schema}.${table}
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+begin
+  perform better_supabase.record_subject_read('${table}', p_id, p_purpose, null, 'read_${table}');
+  return query select t.* from ${schema}.${table} t where t.id::text = p_id;
+end;
+$$;`;
+  }
+
+  return feature === "expose"
+    ? `grant select, insert, update, delete on ${schema}.${table} to authenticated;`
+    : undefined;
+}
+
+/**
+ * `sql` with `feature`'s statement present or absent for `table`; `sql` itself
+ * when the feature has none or the file is already in the wanted state.
+ */
+export function setFeatureStatement(
+  sql: string,
+  schema: string,
+  table: string,
+  feature: TableFeature,
+  enabled: boolean,
+): string {
+  const statement = featureStatement(feature, schema, table);
+
+  if (statement === undefined) {
+    return sql;
+  }
+
+  const present = sql.includes(statement);
+
+  if (enabled) {
+    return present ? sql : `${sql.replace(/\n*$/u, "")}\n\n${statement}\n`;
+  }
+
+  return present
+    ? sql.replace(`\n${statement}`, "").replace(statement, "")
+    : sql;
 }

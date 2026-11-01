@@ -400,11 +400,11 @@ export interface Manufacturing<F extends object = Record<never, never>> {
    * Saves a new version of the variant's bill of materials, or changes a draft
    * one (`bomId`). Needs `manufacturing.write`.
    */
-  saveBom(
-    variantId: string,
-    input: BomInput,
-    bomId?: string,
-  ): AsyncResult<BomDetail>;
+  saveBom(input: {
+    variantId: string;
+    input: BomInput;
+    bomId?: string | undefined;
+  }): AsyncResult<BomDetail>;
   /**
    * Makes a version the active one and archives the previous; fails with
    * `BOM_CYCLE` when the variant would end up in its own components. Needs
@@ -415,14 +415,17 @@ export interface Manufacturing<F extends object = Record<never, never>> {
   /** Every version, by variant and the latest first. */
   listBoms(variantId?: string): AsyncResult<readonly Bom[]>;
   /** The components of `quantity` units at every level of active versions. */
-  explodeBom(variantId: string, quantity: number): AsyncResult<BomExplosion>;
+  explodeBom(input: {
+    variantId: string;
+    quantity: number;
+  }): AsyncResult<BomExplosion>;
   /** The bills of materials the variant goes into, every level up. */
   whereUsed(variantId: string): AsyncResult<readonly BomUse[]>;
   /** Creates a work center or changes one; needs `manufacturing.manage`. */
-  saveWorkCenter(
-    input: WorkCenterInput,
-    workCenterId?: string,
-  ): AsyncResult<WorkCenter>;
+  saveWorkCenter(input: {
+    input: WorkCenterInput;
+    workCenterId?: string | undefined;
+  }): AsyncResult<WorkCenter>;
   workCenters(): AsyncResult<readonly WorkCenter[]>;
   /** A draft order numbered `MO-2026-0001`; needs `manufacturing.write`. */
   createOrder(
@@ -434,46 +437,46 @@ export interface Manufacturing<F extends object = Record<never, never>> {
    * `allowShortage`.
    */
   release(
-    orderId: string,
-    options?: { readonly allowShortage?: boolean },
+    input: { orderId: string } & { readonly allowShortage?: boolean },
   ): AsyncResult<ProductionOrderDetail<F>>;
   /** Starts an operation; schedules its inspection template. */
   startOperation(operationId: string): AsyncResult<ProductionOrderDetail<F>>;
   /** Finishes an operation; `minutes` defaults to the time since its start. */
-  finishOperation(
-    operationId: string,
-    minutes?: number,
-  ): AsyncResult<ProductionOrderDetail<F>>;
+  finishOperation(input: {
+    operationId: string;
+    minutes?: number | undefined;
+  }): AsyncResult<ProductionOrderDetail<F>>;
   /** Takes a component from stock; `detail` picks the bin, lot or serials. */
-  recordConsumption(
-    orderId: string,
-    variantId: string,
-    quantity: number,
-    detail?: StockDetail,
-  ): AsyncResult<ProductionOrderDetail<F>>;
+  recordConsumption(input: {
+    orderId: string;
+    variantId: string;
+    quantity: number;
+    detail?: StockDetail | undefined;
+  }): AsyncResult<ProductionOrderDetail<F>>;
   /**
    * Backflushes the components not recorded, receives `produced` into stock at
    * component plus labor cost and links the output lot to the lots taken.
    */
   complete(
-    orderId: string,
-    produced: number,
-    options?: { readonly scrap?: number; readonly lot?: ProductionOutputLot },
+    input: { orderId: string; produced: number } & {
+      readonly scrap?: number;
+      readonly lot?: ProductionOutputLot;
+    },
   ): AsyncResult<ProductionOrderDetail<F>>;
   /** Releases the allocations and returns what was consumed to stock. */
-  cancel(
-    orderId: string,
-    reason?: string,
-  ): AsyncResult<ProductionOrderDetail<F>>;
+  cancel(input: {
+    orderId: string;
+    reason?: string | undefined;
+  }): AsyncResult<ProductionOrderDetail<F>>;
   getOrder(orderId: string): AsyncResult<ProductionOrderDetail<F>>;
   listOrders(
     options?: ProductionOrderListOptions,
   ): AsyncResult<readonly ProductionOrder<F>[]>;
   /** The lots a lot was made from (`down`, the default) or went into (`up`). */
-  lotGenealogy(
-    lotId: string,
-    direction?: "up" | "down",
-  ): AsyncResult<LotGenealogy>;
+  lotGenealogy(input: {
+    lotId: string;
+    direction?: "up" | "down" | undefined;
+  }): AsyncResult<LotGenealogy>;
   /** Every lot, stock, document and order a recall of the lot reaches. */
   lotRecall(lotId: string): AsyncResult<LotRecall>;
   /**
@@ -851,7 +854,7 @@ export function createManufacturing<
   const order = (fn: string) => (value: unknown) => orderDetailOf(value, fn);
 
   const client: Manufacturing<F> = {
-    saveBom: (variantId, input, bomId) =>
+    saveBom: ({ variantId, input, bomId }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_bom",
@@ -876,7 +879,7 @@ export function createManufacturing<
             recordsOf(value, "list_boms").map((row) => bomOf(row, "list_boms")),
         ),
       ),
-    explodeBom: (variantId, quantity) =>
+    explodeBom: ({ variantId, quantity }) =>
       call(
         "explode_bom",
         { variant_id: variantId, quantity },
@@ -916,7 +919,7 @@ export function createManufacturing<
           quantity: Number(row["quantity"]),
         })),
       ),
-    saveWorkCenter: (input, workCenterId) =>
+    saveWorkCenter: ({ input, workCenterId }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_work_center",
@@ -959,7 +962,7 @@ export function createManufacturing<
             ).andThen(fields.row),
           ),
       ),
-    release: (orderId, release = {}) =>
+    release: ({ orderId, ...release }) =>
       call(
         "release_production_order",
         { order_id: orderId, allow_shortage: release.allowShortage ?? false },
@@ -971,13 +974,13 @@ export function createManufacturing<
         { operation_id: operationId },
         order("start_production_operation"),
       ).andThen(fields.row),
-    finishOperation: (operationId, minutes) =>
+    finishOperation: ({ operationId, minutes }) =>
       call(
         "finish_production_operation",
         { operation_id: operationId, minutes: minutes ?? null },
         order("finish_production_operation"),
       ).andThen(fields.row),
-    recordConsumption: (orderId, variantId, quantity, detail) =>
+    recordConsumption: ({ orderId, variantId, quantity, detail }) =>
       call(
         "record_production_consumption",
         {
@@ -988,7 +991,7 @@ export function createManufacturing<
         },
         order("record_production_consumption"),
       ).andThen(fields.row),
-    complete: (orderId, produced, completion = {}) =>
+    complete: ({ orderId, produced, ...completion }) =>
       call(
         "complete_production_order",
         {
@@ -999,7 +1002,7 @@ export function createManufacturing<
         },
         order("complete_production_order"),
       ).andThen(fields.row),
-    cancel: (orderId, reason) =>
+    cancel: ({ orderId, reason }) =>
       call(
         "cancel_production_order",
         { order_id: orderId, reason: reason ?? null },
@@ -1029,7 +1032,7 @@ export function createManufacturing<
             ),
         ).andThen(fields.rows),
       ),
-    lotGenealogy: (lotId, direction = "down") =>
+    lotGenealogy: ({ lotId, direction = "down" }) =>
       call("lot_genealogy", { lot_id: lotId, direction }, genealogyOf),
     lotRecall: (lotId) => call("lot_recall", { lot_id: lotId }, recallOf),
     requirements: (horizonDays = 30) =>

@@ -10,7 +10,7 @@ Peppol support in the invoices block, with one channel port.
 
 | Before                                                | After                                                              |
 | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| `sendEInvoice({ invoice, format, channel })`          | `invoices.sendEInvoice(invoice, { format, channel })`              |
+| `sendEInvoice({ invoice, format, channel })`          | `invoices.sendEInvoice({ invoice, format, channel })`              |
 | channel `name`                                        | channel `key`                                                      |
 | `send(document, context)` returning `{ externalRef }` | `send(document, { recipient, invoice })` returning `{ messageId }` |
 | `status(externalRef, context)`                        | `status(messageId, context)`                                       |

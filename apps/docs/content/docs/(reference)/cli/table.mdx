@@ -22,9 +22,20 @@ write the migration.
 | `json`          | `json`          |
 | `expose`        | `expose`        |
 | `encrypted`     | `encrypted`     |
+| `lookup`        | `lookup`        |
 | `server`        | `server`        |
 | `events`        | `events`        |
 | `vector-search` | `vector-search` |
+| `history`       | `history`       |
+| `lifecycle`     | `lifecycle`     |
+
+`audit` also appends `select better_supabase.audit('schema.table');` and `expose` appends a
+`grant select, insert, update, delete ... to authenticated;` statement, so the migration carries
+the trigger or the grant. `disable` removes the statement again. `lookup` takes the encrypted
+columns it makes searchable (`@bsb lookup email`). `audit-reads` turns on `auditReads` for the
+table's record type. `history title body` keeps the old and new value of those columns through
+the `field-history` block, and `lifecycle stage=status pipeline=deals` binds the table to the
+`pipelines` block. The last three need a `subject` tag on the table and their block installed.
 
 | Flag        | Effect                                            |
 | ----------- | ------------------------------------------------- |

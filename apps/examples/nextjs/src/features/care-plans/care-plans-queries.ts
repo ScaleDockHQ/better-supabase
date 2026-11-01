@@ -158,7 +158,9 @@ async function loadCarePlan(
     return { clientName: null };
   }
 
-  const plans = await db.carePlans.list("customer", client.id).orThrow();
+  const plans = await db.carePlans
+    .list({ subjectType: "customer", subjectId: client.id })
+    .orThrow();
 
   const current = plans.find((plan) => plan.status === "active") ?? plans.at(0);
 

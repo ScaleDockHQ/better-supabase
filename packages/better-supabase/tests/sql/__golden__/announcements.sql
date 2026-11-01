@@ -325,7 +325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:51049c9d4b6ac6bbf77e644fd60eb55148470684a3c1cfcd50bcc21789101c51
+-- @bsb-hash sha256:b787603adb5af21d030fab482a366b12d5c9d47ffa66b144f51e5e9a60ca4699
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -639,6 +639,13 @@ grant execute on function "better_supabase"."dismiss_announcement"(uuid) to auth
 grant execute on function "better_supabase"."list_announcements"() to authenticated, service_role;
 grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.announcements', target_type => 'announcement', event_prefix => 'announcement', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

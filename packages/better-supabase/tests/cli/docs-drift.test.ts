@@ -47,6 +47,7 @@ const PAGES: Readonly<Record<string, string>> = {
   remove: "cli/init.mdx",
   upgrade: "cli/init.mdx",
   blocks: "cli/presets.mdx",
+  automations: "cli/automations.mdx",
   dev: "cli/dev.mdx",
   db: "cli/db.mdx",
   table: "cli/table.mdx",

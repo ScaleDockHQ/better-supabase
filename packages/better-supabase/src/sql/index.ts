@@ -239,6 +239,7 @@ export type { BsbComment, BsbTag } from "./bsb-tags.ts";
 export {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   TABLE_FEATURES,
   tableFeatures,
@@ -246,3 +247,11 @@ export {
 } from "./table-features.ts";
 
 export type { TableFeature } from "./table-features.ts";
+
+export { declareRead, readArgSource, readArgSqlType } from "./reads.ts";
+
+export type {
+  BlockSqlRead,
+  BlockSqlReadArg,
+  BlockSqlReadArgType,
+} from "./reads.ts";

@@ -172,98 +172,105 @@ export const MAX_COLLECTION_IDS = 1000;
 /** `F` is the extra collection fields `options.fields` describes. */
 export interface Collections<F extends object = Record<never, never>> {
   /** Creates a collection. Shared scopes need `collections.share`. */
-  create(
-    organizationId: string,
-    input: CreateCollectionInput & Partial<F>,
-  ): AsyncResult<Collection & F>;
+  create(input: {
+    organizationId: string;
+    input: CreateCollectionInput & Partial<F>;
+  }): AsyncResult<Collection & F>;
   /** Renames a collection or changes its description. */
-  rename(
-    id: string,
-    input: RenameCollectionInput & Partial<F>,
-  ): AsyncResult<Collection & F>;
+  rename(input: {
+    id: string;
+    input: RenameCollectionInput & Partial<F>;
+  }): AsyncResult<Collection & F>;
   /** Archives a collection, or restores it with `archived: false`. */
-  archive(id: string, archived?: boolean): AsyncResult<boolean>;
+  archive(input: {
+    id: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** The collections the caller sees, by name. */
   list(
-    organizationId: string,
-    options?: CollectionListOptions,
+    input: { organizationId: string } & CollectionListOptions,
   ): AsyncResult<(Collection & F)[]>;
   /**
    * Adds records to the end of a collection, in the given order (at most 1000).
    * Ids already in it are skipped; resolves to the ids added.
    */
-  add(
-    id: string,
-    subjectIds: readonly string[],
-  ): AsyncResult<{ readonly added: readonly string[] }>;
+  add(input: {
+    id: string;
+    subjectIds: readonly string[];
+  }): AsyncResult<{ readonly added: readonly string[] }>;
   /** Removes records from a collection. Resolves to how many were removed. */
-  remove(id: string, subjectIds: readonly string[]): AsyncResult<number>;
+  remove(input: {
+    id: string;
+    subjectIds: readonly string[];
+  }): AsyncResult<number>;
   /** Moves an entry between its neighbours' rank keys. Resolves to its new key. */
-  reorder(
-    id: string,
-    subjectId: string,
-    neighbors: RankNeighbors,
-  ): AsyncResult<string>;
+  reorder(input: {
+    id: string;
+    subjectId: string;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
   /** A page of entries in rank order (default 50, at most 200). */
   entries(
-    id: string,
-    options?: CursorPageOptions<CollectionEntryCursor>,
+    input: { id: string } & CursorPageOptions<CollectionEntryCursor>,
   ): AsyncResult<CollectionEntryPage>;
   /**
    * The ids of the records in a collection, in rank order (default 500, at most
    * 1000).
    */
   subjectIds(
-    id: string,
-    options?: { readonly max?: number },
+    input: { id: string } & { readonly max?: number },
   ): AsyncResult<string[]>;
   /**
    * A repository `where` that keeps a list's rows to a collection's records,
    * for a saved view with `state.collectionId`: `{ [column]: { in: ids } }`.
    */
   where<const C extends string = "id">(
-    id: string,
-    options?: { readonly column?: C; readonly max?: number },
+    input: { id: string } & { readonly column?: C; readonly max?: number },
   ): AsyncResult<{ [K in C]: { in: string[] } }>;
   /** The active collections the caller sees that hold a record. */
   listsOf(subject: CollectionSubject): AsyncResult<Collection[]>;
   /** Stars a record at the end of the caller's favorites. */
-  star(organizationId: string, subject: CollectionSubject): AsyncResult<Star>;
+  star(input: {
+    organizationId: string;
+    subject: CollectionSubject;
+  }): AsyncResult<Star>;
   /** Resolves to `false` when the record wasn't starred. */
   unstar(subject: CollectionSubject): AsyncResult<boolean>;
   /** The caller's stars in sidebar order, of one subject type with `type`. */
   starred(
-    organizationId: string,
-    options?: { readonly type?: string },
+    input: { organizationId: string } & { readonly type?: string },
   ): AsyncResult<Star[]>;
   /** Moves a star between its neighbours' rank keys. Resolves to its new key. */
-  reorderStar(
-    subject: CollectionSubject,
-    neighbors: RankNeighbors,
-  ): AsyncResult<string>;
+  reorderStar(input: {
+    subject: CollectionSubject;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
   /**
    * Saves a record for later. Saving it again replaces the note and reminder
    * and reopens a completed item.
    */
-  saveForLater(
-    organizationId: string,
-    subject: CollectionSubject,
-    input?: SaveForLaterInput,
-  ): AsyncResult<SavedItem>;
+  saveForLater(input: {
+    organizationId: string;
+    subject: CollectionSubject;
+    input?: SaveForLaterInput | undefined;
+  }): AsyncResult<SavedItem>;
   /** Marks a saved item done, or open again with `completed: false`. */
-  completeSaved(id: string, completed?: boolean): AsyncResult<boolean>;
+  completeSaved(input: {
+    id: string;
+    completed?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** Resolves to `false` when the caller has no such saved item. */
   removeSaved(id: string): AsyncResult<boolean>;
   /**
    * A page of the caller's saved items, the newest first (default 50, at most
    * 200): the open ones, or the completed ones with `completed: true`.
    */
-  saved(
-    organizationId: string,
-    options?: CursorPageOptions<SavedItemCursor> & {
-      readonly completed?: boolean;
-    },
-  ): AsyncResult<SavedItemPage>;
+  saved(input: {
+    organizationId: string;
+    options?:
+      | (CursorPageOptions<SavedItemCursor> & { readonly completed?: boolean })
+      | undefined;
+  }): AsyncResult<SavedItemPage>;
   /**
    * Service role. Claims the open saved items whose reminder time has passed
    * (default 100, at most 500), records `saved_item.reminded` for each and
@@ -459,12 +466,15 @@ export function createCollections<
     AsyncResult.from(async () => {
       if (notifier !== undefined && notification !== undefined) {
         for (const item of items) {
-          const outcome: unknown = await notifier.send(notification, {
-            recipients: [item.userId],
-            tenant: item.organizationId,
-            key: `saved_item:${item.id}:${String(item.remindAt)}`,
-            subject: { type: item.subjectType, id: item.subjectId },
-            data: { savedItemId: item.id, note: item.note ?? null },
+          const outcome: unknown = await notifier.send({
+            type: notification,
+            input: {
+              recipients: [item.userId],
+              tenant: item.organizationId,
+              key: `saved_item:${item.id}:${String(item.remindAt)}`,
+              subject: { type: item.subjectType, id: item.subjectId },
+              data: { savedItemId: item.id, note: item.note ?? null },
+            },
           });
 
           if (
@@ -481,7 +491,7 @@ export function createCollections<
     });
 
   const client: Collections<F> = {
-    create: (organizationId, input) =>
+    create: ({ organizationId, input }) =>
       saved(
         "create_collection",
         {
@@ -494,7 +504,7 @@ export function createCollections<
         },
         extraOf(input, CREATE_KEYS),
       ),
-    rename: (id, input) =>
+    rename: ({ id, input }) =>
       saved(
         "rename_collection",
         {
@@ -505,13 +515,13 @@ export function createCollections<
         },
         extraOf(input, RENAME_KEYS),
       ),
-    archive: (id, archived = true) =>
+    archive: ({ id, archived = true }) =>
       call(
         "archive_collection",
         { collection: id, archived },
         (value) => value === true,
       ),
-    list: (organizationId, listOptions = {}) =>
+    list: ({ organizationId, ...listOptions }) =>
       call(
         "list_collections",
         {
@@ -524,7 +534,7 @@ export function createCollections<
             (raw) => [raw, collectionOf(raw)] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
-    add: (id, ids) =>
+    add: ({ id, subjectIds: ids }) =>
       call(
         "add_collection_entries",
         { collection: id, subject_ids: [...ids], subject_type: null },
@@ -532,13 +542,13 @@ export function createCollections<
           added: isRecord(value) ? [...stringsOf(value["added"])] : [],
         }),
       ),
-    remove: (id, ids) =>
+    remove: ({ id, subjectIds: ids }) =>
       call(
         "remove_collection_entries",
         { collection: id, subject_ids: [...ids] },
         Number,
       ),
-    reorder: (id, subjectId, neighbors) => {
+    reorder: ({ id, subjectId, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -551,7 +561,7 @@ export function createCollections<
         () => key.data,
       );
     },
-    entries: (id, pageOptions = {}) => {
+    entries: ({ id, ...pageOptions }) => {
       const { limit, cursor } = pageOf(pageOptions);
 
       return call(
@@ -566,8 +576,8 @@ export function createCollections<
           entryPage(recordsOf(value, "collection_entries").map(entryOf), limit),
       );
     },
-    subjectIds: (id, idOptions = {}) => subjectIds(id, idOptions.max),
-    where: (id, whereOptions = {}) =>
+    subjectIds: ({ id, ...idOptions }) => subjectIds(id, idOptions.max),
+    where: ({ id, ...whereOptions }) =>
       subjectIds(id, whereOptions.max).map(
         (ids) =>
           // SAFETY: the one key is the column the caller named, "id" by default.
@@ -581,7 +591,7 @@ export function createCollections<
         { subject_type: subject.type, subject_id: subject.id },
         (value) => recordsOf(value, "collections_of").map(collectionOf),
       ),
-    star: (organizationId, subject) =>
+    star: ({ organizationId, subject }) =>
       call(
         "star_subject",
         {
@@ -597,13 +607,13 @@ export function createCollections<
         { subject_type: subject.type, subject_id: subject.id },
         (value) => value === true,
       ),
-    starred: (organizationId, starredOptions = {}) =>
+    starred: ({ organizationId, ...starredOptions }) =>
       call(
         "starred_subjects",
         { tenant: organizationId, subject_type: starredOptions.type ?? null },
         (value) => recordsOf(value, "starred_subjects").map(starOf),
       ),
-    reorderStar: (subject, neighbors) => {
+    reorderStar: ({ subject, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -616,7 +626,7 @@ export function createCollections<
         () => key.data,
       );
     },
-    saveForLater: (organizationId, subject, input = {}) =>
+    saveForLater: ({ organizationId, subject, input = {} }) =>
       call(
         "save_for_later",
         {
@@ -628,7 +638,7 @@ export function createCollections<
         },
         savedItemOf,
       ),
-    completeSaved: (id, completed = true) =>
+    completeSaved: ({ id, completed = true }) =>
       call(
         "complete_saved_item",
         { item: id, completed },
@@ -636,7 +646,7 @@ export function createCollections<
       ),
     removeSaved: (id) =>
       call("remove_saved_item", { item: id }, (value) => value === true),
-    saved: (organizationId, savedOptions = {}) => {
+    saved: ({ organizationId, options: savedOptions = {} }) => {
       const { limit, cursor } = pageOf(savedOptions);
 
       return call(

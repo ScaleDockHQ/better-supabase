@@ -5,13 +5,13 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   CARE_PLAN_ACTION_KINDS,
@@ -264,35 +264,38 @@ export interface CarePlanEvaluationInput {
 export interface CarePlans<F extends object = Record<never, never>> {
   /** A draft plan for a client; needs `care_plans.write`. */
   create(input: CarePlanInput<F>): AsyncResult<CarePlan<F>>;
-  update(planId: string, change: CarePlanChange<F>): AsyncResult<CarePlan<F>>;
+  update(input: {
+    planId: string;
+    change: CarePlanChange<F>;
+  }): AsyncResult<CarePlan<F>>;
   /** Adds a problem to a draft plan. */
-  addProblem(
-    planId: string,
-    input: CarePlanProblemInput,
-  ): AsyncResult<CarePlanProblem>;
-  updateProblem(
-    problemId: string,
-    change: CarePlanProblemChange,
-  ): AsyncResult<CarePlanProblem>;
+  addProblem(input: {
+    planId: string;
+    input: CarePlanProblemInput;
+  }): AsyncResult<CarePlanProblem>;
+  updateProblem(input: {
+    problemId: string;
+    change: CarePlanProblemChange;
+  }): AsyncResult<CarePlanProblem>;
   /** Adds a goal under a problem of a draft plan. */
-  addGoal(
-    problemId: string,
-    input: CarePlanGoalInput,
-  ): AsyncResult<CarePlanGoal>;
+  addGoal(input: {
+    problemId: string;
+    input: CarePlanGoalInput;
+  }): AsyncResult<CarePlanGoal>;
   /** A status change on an active plan needs `care_plans.evaluate`. */
-  updateGoal(
-    goalId: string,
-    change: CarePlanGoalChange,
-  ): AsyncResult<CarePlanGoal>;
+  updateGoal(input: {
+    goalId: string;
+    change: CarePlanGoalChange;
+  }): AsyncResult<CarePlanGoal>;
   /** Adds an action toward a goal of a draft plan. */
-  addAction(
-    goalId: string,
-    input: CarePlanActionInput,
-  ): AsyncResult<CarePlanAction>;
-  updateAction(
-    actionId: string,
-    change: CarePlanActionChange,
-  ): AsyncResult<CarePlanAction>;
+  addAction(input: {
+    goalId: string;
+    input: CarePlanActionInput;
+  }): AsyncResult<CarePlanAction>;
+  updateAction(input: {
+    actionId: string;
+    change: CarePlanActionChange;
+  }): AsyncResult<CarePlanAction>;
   /**
    * Makes a draft the client's active plan, archives the plan before it and
    * starts its actions; needs `care_plans.publish`.
@@ -303,23 +306,29 @@ export interface CarePlans<F extends object = Record<never, never>> {
   get(planId: string): AsyncResult<CarePlan<F>>;
   /** A client's plans, the newest version first. */
   list(
-    subjectType: string,
-    subjectId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { subjectType: string; subjectId: string } & {
+      readonly includeArchived?: boolean;
+    },
   ): AsyncResult<readonly CarePlanSummary<F>[]>;
   /** Evaluates a goal of an active plan; needs `care_plans.evaluate`. */
-  evaluate(
-    goalId: string,
-    input: CarePlanEvaluationInput,
-  ): AsyncResult<CarePlanEvaluation>;
+  evaluate(input: {
+    goalId: string;
+    input: CarePlanEvaluationInput;
+  }): AsyncResult<CarePlanEvaluation>;
   /**
    * Starts a planned action. An action that requires an approval starts once
    * approved; without one, this asks for it and returns the action planned.
    */
   startAction(actionId: string): AsyncResult<CarePlanAction>;
-  endAction(actionId: string, reason?: string): AsyncResult<CarePlanAction>;
+  endAction(input: {
+    actionId: string;
+    reason?: string | undefined;
+  }): AsyncResult<CarePlanAction>;
   /** Records a review of an active action; needs `care_plans.evaluate`. */
-  reviewAction(actionId: string, note?: string): AsyncResult<CarePlanAction>;
+  reviewAction(input: {
+    actionId: string;
+    note?: string | undefined;
+  }): AsyncResult<CarePlanAction>;
   /** The organization's restrictive measures, the ones in force by default. */
   measures(options?: {
     readonly activeOnly?: boolean;
@@ -328,13 +337,26 @@ export interface CarePlans<F extends object = Record<never, never>> {
    * Asks members who speak for the client to agree to an active plan, a
    * signature request with meaning `agreed` (signatures block).
    */
-  requestAgreement(
-    planId: string,
-    signers: readonly string[],
-    message?: string,
-  ): AsyncResult<CarePlan<F>>;
+  requestAgreement(input: {
+    planId: string;
+    signers: readonly string[];
+    message?: string | undefined;
+  }): AsyncResult<CarePlan<F>>;
   /** Reports the plans and actions whose review is due; service role only. */
   dueReviews(): AsyncResult<number>;
+  /**
+   * Creates the plan with its problems, goals and actions in order and returns
+   * the plan as `get` reads it. It stops at the first failure and leaves what
+   * it saved.
+   */
+  createTree(input: {
+    plan: CarePlanInput<F>;
+    problems: readonly (CarePlanProblemInput & {
+      readonly goals?: readonly (CarePlanGoalInput & {
+        readonly actions?: readonly CarePlanActionInput[];
+      })[];
+    })[];
+  }): AsyncResult<CarePlan<F>>;
 }
 
 export interface CarePlansOptions<
@@ -593,7 +615,7 @@ export function createCarePlans<
           ).andThen(fields.row),
         ),
       ),
-    update: (planId, change) =>
+    update: ({ planId, change }) =>
       withFields(change).andThen((attrs) =>
         call(
           "update_care_plan",
@@ -601,37 +623,37 @@ export function createCarePlans<
           plan("update_care_plan"),
         ).andThen(fields.row),
       ),
-    addProblem: (planId, input) =>
+    addProblem: ({ planId, input }) =>
       call(
         "add_care_plan_problem",
         { plan_id: planId, input: wire(input) },
         row("add_care_plan_problem", problemOf),
       ),
-    updateProblem: (problemId, change) =>
+    updateProblem: ({ problemId, change }) =>
       call(
         "update_care_plan_problem",
         { problem_id: problemId, changes: wire(change) },
         row("update_care_plan_problem", problemOf),
       ),
-    addGoal: (problemId, input) =>
+    addGoal: ({ problemId, input }) =>
       call(
         "add_care_plan_goal",
         { problem_id: problemId, input: wire(input) },
         row("add_care_plan_goal", goalOf),
       ),
-    updateGoal: (goalId, change) =>
+    updateGoal: ({ goalId, change }) =>
       call(
         "update_care_plan_goal",
         { goal_id: goalId, changes: wire(change) },
         row("update_care_plan_goal", goalOf),
       ),
-    addAction: (goalId, input) =>
+    addAction: ({ goalId, input }) =>
       call(
         "add_care_plan_action",
         { goal_id: goalId, input: wire(input) },
         row("add_care_plan_action", actionOf),
       ),
-    updateAction: (actionId, change) =>
+    updateAction: ({ actionId, change }) =>
       call(
         "update_care_plan_action",
         { action_id: actionId, changes: wire(change) },
@@ -653,7 +675,7 @@ export function createCarePlans<
       call("get_care_plan", { plan_id: planId }, plan("get_care_plan")).andThen(
         fields.row,
       ),
-    list: (subjectType, subjectId, list = {}) =>
+    list: ({ subjectType, subjectId, ...list }) =>
       call(
         "list_care_plans",
         {
@@ -663,7 +685,7 @@ export function createCarePlans<
         },
         (value) => recordsOf(value, "list_care_plans").map(summaryOf),
       ).andThen(fields.rows),
-    evaluate: (goalId, input) =>
+    evaluate: ({ goalId, input }) =>
       call(
         "record_care_plan_evaluation",
         {
@@ -680,13 +702,13 @@ export function createCarePlans<
         { action_id: actionId },
         row("start_care_plan_action", actionOf),
       ),
-    endAction: (actionId, reason) =>
+    endAction: ({ actionId, reason }) =>
       call(
         "end_care_plan_action",
         { action_id: actionId, reason: reason ?? null },
         row("end_care_plan_action", actionOf),
       ),
-    reviewAction: (actionId, note) =>
+    reviewAction: ({ actionId, note }) =>
       call(
         "review_care_plan_action",
         { action_id: actionId, note: note ?? null },
@@ -700,7 +722,7 @@ export function createCarePlans<
           (value) => recordsOf(value, "list_care_plan_measures").map(measureOf),
         ),
       ),
-    requestAgreement: (planId, signers, message) =>
+    requestAgreement: ({ planId, signers, message }) =>
       call(
         "request_care_plan_agreement",
         { plan_id: planId, signers, message: message ?? null },
@@ -708,10 +730,56 @@ export function createCarePlans<
       ).andThen(fields.row),
     dueReviews: () =>
       call("due_care_plan_reviews", {}, (value) => numberOf(value)),
+    createTree: ({ plan, problems }) =>
+      AsyncResult.from(async () => {
+        const created = await hooked.create(plan);
+
+        if (!created.ok) {
+          return created;
+        }
+
+        for (const { goals = [], ...problem } of problems) {
+          const savedProblem = await hooked.addProblem({
+            planId: created.data.id,
+            input: problem,
+          });
+
+          if (!savedProblem.ok) {
+            return savedProblem;
+          }
+
+          for (const { actions = [], ...goal } of goals) {
+            const savedGoal = await hooked.addGoal({
+              problemId: savedProblem.data.id,
+              input: goal,
+            });
+
+            if (!savedGoal.ok) {
+              return savedGoal;
+            }
+
+            for (const action of actions) {
+              const savedAction = await hooked.addAction({
+                goalId: savedGoal.data.id,
+                input: action,
+              });
+
+              if (!savedAction.ok) {
+                return savedAction;
+              }
+            }
+          }
+        }
+
+        return hooked.get(created.data.id);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: CarePlans<F> = withBlockHooks(client, options.hooks, {
     block: "care-plans",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

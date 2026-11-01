@@ -57,11 +57,18 @@ describe("createVercelMarketplace", () => {
 
     const body = '{"type":"x"}';
 
-    expect(await marketplace.verifyWebhook(body, await sign(body))).toBe(true);
     expect(
-      await marketplace.verifyWebhook(body, await sign(body, "other")),
+      await marketplace.verifyWebhook({ body, signature: await sign(body) }),
+    ).toBe(true);
+    expect(
+      await marketplace.verifyWebhook({
+        body,
+        signature: await sign(body, "other"),
+      }),
     ).toBe(false);
-    expect(await marketplace.verifyWebhook(body, null)).toBe(false);
+    expect(await marketplace.verifyWebhook({ body, signature: null })).toBe(
+      false,
+    );
   });
 
   it("refuses a webhook with a bad signature without touching the database", async () => {
@@ -345,19 +352,38 @@ describe("createVercelMarketplace", () => {
         })
       ).data,
     ).toMatchObject({ tenant: "org_1", tenantCreated: true });
-    expect((await marketplace.resource("icfg_1", "res")).data).toMatchObject({
+    expect(
+      (
+        await marketplace.resource({
+          configurationId: "icfg_1",
+          externalId: "res",
+        })
+      ).data,
+    ).toMatchObject({
       tenant: "org_1",
       tenantCreated: true,
       secretRefs: ["key_1"],
     });
     expect((await marketplace.resources("icfg_1")).data).toEqual([]);
     expect(
-      (await marketplace.deleteResource("icfg_1", "res")).data,
+      (
+        await marketplace.deleteResource({
+          configurationId: "icfg_1",
+          externalId: "res",
+        })
+      ).data,
     ).toBeUndefined();
     expect(
       (await marketplace.removeInstallation("icfg_1")).data,
     ).toBeUndefined();
-    expect((await marketplace.sealAccessToken("icfg_1", "vat")).ok).toBe(true);
+    expect(
+      (
+        await marketplace.sealAccessToken({
+          configurationId: "icfg_1",
+          token: "vat",
+        })
+      ).ok,
+    ).toBe(true);
     expect(calls.map(([name]) => name)).toEqual([
       "link_marketplace_tenant",
       "marketplace_resource",

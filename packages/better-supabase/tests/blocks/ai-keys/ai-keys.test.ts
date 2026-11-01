@@ -154,7 +154,10 @@ describe("createAiKeys keys", () => {
 
     const providers = createAiKeys({ transport, credentials });
     await providers.keys
-      .upsert("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert({
+        organizationId: "o1",
+        key: { provider: "anthropic", credentialRef: REF },
+      })
       .orThrow();
     expect(calls[0]?.args).toMatchObject({
       tenant: "o1",
@@ -164,11 +167,17 @@ describe("createAiKeys keys", () => {
     expect(revoked).toEqual([OLD_REF]);
     replaced = REF;
     await providers.keys
-      .upsert("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert({
+        organizationId: "o1",
+        key: { provider: "anthropic", credentialRef: REF },
+      })
       .orThrow();
     replaced = null;
     await providers.keys
-      .upsert("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert({
+        organizationId: "o1",
+        key: { provider: "anthropic", credentialRef: REF },
+      })
       .orThrow();
     expect(revoked).toEqual([OLD_REF]);
   });
@@ -202,7 +211,7 @@ describe("createAiKeys keys", () => {
     });
 
     const providers = createAiKeys({ transport, credentials });
-    const resolved = await providers.keys.resolve("o1");
+    const resolved = await providers.keys.resolve({ organizationId: "o1" });
     expect(!resolved.ok && resolved.error.hint).toBe("CREDENTIAL_REF_FOREIGN");
     expect(await providers.keys.remove("k1").orThrow()).toBe(true);
     expect(revoked).toEqual([]);
@@ -230,7 +239,7 @@ describe("createAiKeys keys", () => {
     });
 
     const keys = await providers.keys
-      .resolve("o1", { providers: ["anthropic"], signal })
+      .resolve({ organizationId: "o1", providers: ["anthropic"], signal })
       .orThrow();
 
     expect(keys).toEqual([
@@ -254,19 +263,22 @@ describe("createAiKeys keys", () => {
       ai_provider_keys_for: () => [keyRow()],
     });
 
-    const none = await createAiKeys({ transport }).keys.resolve("o1");
+    const none = await createAiKeys({ transport }).keys.resolve({
+      organizationId: "o1",
+    });
+
     expect(!none.ok && none.error.hint).toBe("AI_PROVIDER_KEY_UNRESOLVED");
 
     const missing = await createAiKeys({
       transport,
       credentials: fakeCredentials().credentials,
-    }).keys.resolve("o1");
+    }).keys.resolve({ organizationId: "o1" });
 
     expect(!missing.ok && missing.error.kind).toBe("not_found");
     const empty = fakeTransport({ ai_provider_keys_for: () => [] });
     expect(
       await createAiKeys({ transport: empty.transport })
-        .keys.resolve("o1")
+        .keys.resolve({ organizationId: "o1" })
         .orThrow(),
     ).toEqual([]);
   });
@@ -306,16 +318,19 @@ describe("createAiKeys batches", () => {
     const { batches } = createAiKeys({ transport });
 
     const recorded = await batches
-      .record("o1", {
-        provider: "openai",
-        reference: { version: 2, id: "batch_1", provider: "openai" },
-        itemCount: 2,
-        userId: "u1",
-        metadata: { job: "nightly" },
-        status: "pending",
-        rawStatus: "in_progress",
-        counts: { total: 2 },
-        expiresAt: Temporal.Instant.from("2026-01-02T00:00:00Z"),
+      .record({
+        organizationId: "o1",
+        batch: {
+          provider: "openai",
+          reference: { version: 2, id: "batch_1", provider: "openai" },
+          itemCount: 2,
+          userId: "u1",
+          metadata: { job: "nightly" },
+          status: "pending",
+          rawStatus: "in_progress",
+          counts: { total: 2 },
+          expiresAt: Temporal.Instant.from("2026-01-02T00:00:00Z"),
+        },
       })
       .orThrow();
 
@@ -329,19 +344,24 @@ describe("createAiKeys batches", () => {
       counts: { total: 2 },
       expires_at: "2026-01-02T00:00:00Z",
     });
-    await batches.record("o1", { provider: "openai", reference: {} }).orThrow();
+    await batches
+      .record({
+        organizationId: "o1",
+        batch: { provider: "openai", reference: {} },
+      })
+      .orThrow();
     expect(calls[1]?.args["fields"]).toEqual({});
     expect((await batches.get("b1").orThrow())?.status).toBe("failed");
     expect(await batches.get("b2").orThrow()).toBeUndefined();
 
     const listed = await batches
-      .list("o1", { status: "completed", limit: 5 })
+      .list({ organizationId: "o1", status: "completed", limit: 5 })
       .orThrow();
 
     expect(listed[0]).toMatchObject({ resultsSaved: true, counts: {} });
 
     const items = await batches
-      .items("b1", { cursor: "r0", limit: 2 })
+      .items({ batchId: "b1", cursor: "r0", limit: 2 })
       .orThrow();
 
     expect(items.map((item) => [item.status, item.output, item.error])).toEqual(
@@ -368,14 +388,17 @@ describe("createAiKeys batches", () => {
       await batches.due({ batch: 5, leaseSeconds: 30 }).orThrow(),
     ).toHaveLength(1);
     await batches
-      .update("b1", {
-        status: "completed",
-        rawStatus: "done",
-        counts: { total: 2, completed: 2 },
-        error: null,
-        expiresAt: Temporal.Instant.from(AT),
-        resultsSaved: true,
-        nextPollAt: null,
+      .update({
+        batchId: "b1",
+        patch: {
+          status: "completed",
+          rawStatus: "done",
+          counts: { total: 2, completed: 2 },
+          error: null,
+          expiresAt: Temporal.Instant.from(AT),
+          resultsSaved: true,
+          nextPollAt: null,
+        },
       })
       .orThrow();
     expect(service.calls[1]?.args).toEqual({
@@ -390,13 +413,16 @@ describe("createAiKeys batches", () => {
         next_poll_at: null,
       },
     });
-    await batches.update("b1", {}).orThrow();
+    await batches.update({ batchId: "b1", patch: {} }).orThrow();
     expect(service.calls[2]?.args).toEqual({ id: "b1", fields: {} });
     expect(
       await batches
-        .saveItems("b1", [
-          { requestId: "r1", status: "succeeded", output: { text: "a" } },
-        ])
+        .saveItems({
+          batchId: "b1",
+          items: [
+            { requestId: "r1", status: "succeeded", output: { text: "a" } },
+          ],
+        })
         .orThrow(),
     ).toBe(1);
     expect(service.calls[3]?.args["items"]).toEqual({

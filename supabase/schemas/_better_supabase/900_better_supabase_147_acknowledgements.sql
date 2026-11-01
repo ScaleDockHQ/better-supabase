@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:17e87d8c9301b762d55c1d1af6f772eee8e4d55b7b23135a45dc49543ce25d85
+-- @bsb-hash sha256:3fecbd7256e7a7edcb7c6a7ed8a5b659a7f654496ee0208aa363e616f365358b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -834,6 +834,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgem
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.acknowledgements', target_type => 'acknowledgement', event_prefix => 'acknowledgement', deferred => true);
+  perform better_supabase.audit('better_supabase.acknowledgement_assignments', target_type => 'acknowledgement_assignment', event_prefix => 'acknowledgement_assignment', deferred => true);
+end;
+$$;
 
 -- blocks.acknowledgements.api: entry points for the Data API.
 create schema if not exists "api";

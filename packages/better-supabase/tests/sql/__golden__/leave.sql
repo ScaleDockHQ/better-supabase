@@ -1055,7 +1055,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:3a9ba7e703720d690f742837877462a818c59fc3af49cdfff3694118e50f6164
+-- @bsb-hash sha256:c38d41214f510817d2401a113485e9ac2feb67108c64bb07960a783616478dff
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2241,6 +2241,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_reques
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.leave_requests', target_type => 'leave_request', event_prefix => 'leave_request', deferred => true);
+  perform better_supabase.audit('better_supabase.leave_types', target_type => 'leave_type', event_prefix => 'leave_type', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

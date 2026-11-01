@@ -110,8 +110,7 @@ export interface Timeline {
    * read policy allows).
    */
   list(
-    subject?: RecordRef | null,
-    options?: ActivityListOptions,
+    input?: { subject?: RecordRef | null | undefined } & ActivityListOptions,
   ): AsyncResult<readonly ActivityEntry[]>;
 }
 
@@ -138,7 +137,7 @@ export function createTimeline(options: TimelineOptions): Timeline {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Timeline = {
-    list: (subject, history = {}) =>
+    list: ({ subject, ...history } = {}) =>
       tenant().andThen((organizationId) =>
         call(
           "list_activity",

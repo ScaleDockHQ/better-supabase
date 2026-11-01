@@ -33,13 +33,16 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       await s.asRole(member);
 
       const created = await agents
-        .create(tenant, {
-          slug: "writer",
-          name: "Writer",
-          instructions: "Be brief",
-          tools: ["search"],
-          knowledgeScopes: [{ scope: "agent" }],
-          starters: ["Draft a post"],
+        .create({
+          organizationId: tenant,
+          agent: {
+            slug: "writer",
+            name: "Writer",
+            instructions: "Be brief",
+            tools: ["search"],
+            knowledgeScopes: [{ scope: "agent" }],
+            starters: ["Draft a post"],
+          },
         })
         .orThrow();
 
@@ -49,44 +52,69 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
         tools: ["search"],
       });
 
-      const duplicate = await agents.create(tenant, {
-        slug: "writer",
-        name: "Again",
+      const duplicate = await agents.create({
+        organizationId: tenant,
+        agent: { slug: "writer", name: "Again" },
       });
 
       expect(duplicate.ok).toBe(false);
       await agents
-        .setSkills(created.id, [
-          { provider: "vercel", reference: { slug: "pdf" } },
-        ])
+        .setSkills({
+          agentId: created.id,
+          skills: [{ provider: "vercel", reference: { slug: "pdf" } }],
+        })
         .orThrow();
       expect((await agents.get(created.id).orThrow()).skills).toHaveLength(1);
 
       await s.asRole(other);
       const hidden = await agents.get(created.id);
       expect(hidden.ok ? undefined : hidden.error.hint).toBe("AGENT_NOT_FOUND");
-      const stolen = await agents.update(tenant, created.id, { name: "Mine" });
+
+      const stolen = await agents.update({
+        organizationId: tenant,
+        agentId: created.id,
+        fields: { name: "Mine" },
+      });
+
       expect(stolen.ok).toBe(false);
 
       await s.asRole(owner);
-      await agents.publish(created.id, "organization").orThrow();
+      await agents
+        .publish({ agentId: created.id, visibility: "organization" })
+        .orThrow();
 
       await s.asRole(other);
-      const store = await agents.list(tenant, { filter: "store" }).orThrow();
+
+      const store = await agents
+        .list({ organizationId: tenant, filter: "store" })
+        .orThrow();
+
       expect(store.map((agent) => agent.id)).toEqual([created.id]);
-      expect(await agents.install(tenant, created.id).orThrow()).toBe(true);
-      const rated = await agents.rate(created.id, 4, "useful").orThrow();
+      expect(
+        await agents
+          .install({ organizationId: tenant, agentId: created.id })
+          .orThrow(),
+      ).toBe(true);
+
+      const rated = await agents
+        .rate({ agentId: created.id, rating: 4, comment: "useful" })
+        .orThrow();
+
       expect(rated).toMatchObject({ ratingCount: 1, rating: 4 });
 
       const installed = await agents
-        .list(tenant, { filter: "installed" })
+        .list({ organizationId: tenant, filter: "installed" })
         .orThrow();
 
       expect(installed[0]).toMatchObject({ installed: true, installCount: 1 });
-      expect((await agents.bySlug(tenant, "writer").orThrow()).myRating).toBe(
-        4,
-      );
-      const badRating = await agents.rate(created.id, 9);
+      expect(
+        (
+          await agents
+            .bySlug({ organizationId: tenant, slug: "writer" })
+            .orThrow()
+        ).myRating,
+      ).toBe(4);
+      const badRating = await agents.rate({ agentId: created.id, rating: 9 });
       expect(badRating.ok).toBe(false);
       expect(await agents.remove(created.id).orThrow()).toBe(false);
 
@@ -129,27 +157,30 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
 
       await s.asRole(member);
 
-      const denied = await connectors.servers.create(tenant, {
-        name: "GitHub",
-        url: "https://mcp.example.com/mcp",
+      const denied = await connectors.servers.create({
+        organizationId: tenant,
+        server: { name: "GitHub", url: "https://mcp.example.com/mcp" },
       });
 
       expect(denied.ok).toBe(false);
 
       await s.asRole(owner);
 
-      const insecure = await connectors.servers.create(tenant, {
-        name: "Plain",
-        url: "http://mcp.example.com/mcp",
+      const insecure = await connectors.servers.create({
+        organizationId: tenant,
+        server: { name: "Plain", url: "http://mcp.example.com/mcp" },
       });
 
       expect(insecure.ok).toBe(false);
 
-      const foreign = await connectors.servers.create(tenant, {
-        name: "Header",
-        url: "https://mcp.example.com/mcp",
-        authType: "header",
-        credentialRef: { provider: "vault", secret: "k", tenant: member.id },
+      const foreign = await connectors.servers.create({
+        organizationId: tenant,
+        server: {
+          name: "Header",
+          url: "https://mcp.example.com/mcp",
+          authType: "header",
+          credentialRef: { provider: "vault", secret: "k", tenant: member.id },
+        },
       });
 
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
@@ -157,11 +188,14 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       );
 
       const header = await connectors.servers
-        .create(tenant, {
-          name: "Header",
-          url: "https://mcp.example.com/header",
-          authType: "header",
-          credentialRef: { provider: "vault", secret: "k", tenant },
+        .create({
+          organizationId: tenant,
+          server: {
+            name: "Header",
+            url: "https://mcp.example.com/header",
+            authType: "header",
+            credentialRef: { provider: "vault", secret: "k", tenant },
+          },
         })
         .orThrow();
 
@@ -172,11 +206,14 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       });
 
       const server = await connectors.servers
-        .create(tenant, {
-          name: "GitHub",
-          url: "https://mcp.example.com/mcp",
-          authType: "oauth",
-          scopes: ["repo"],
+        .create({
+          organizationId: tenant,
+          server: {
+            name: "GitHub",
+            url: "https://mcp.example.com/mcp",
+            authType: "oauth",
+            scopes: ["repo"],
+          },
         })
         .orThrow();
 
@@ -189,17 +226,30 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       };
 
       await connectors.grants
-        .record(server.id, member.id, ref, { scopes: ["repo"] })
+        .record({
+          serverId: server.id,
+          userId: member.id,
+          credentialRef: ref,
+          scopes: ["repo"],
+        })
         .orThrow();
       // A reconnect with the same ref keeps the credential.
-      await connectors.grants.record(server.id, member.id, ref).orThrow();
+      await connectors.grants
+        .record({ serverId: server.id, userId: member.id, credentialRef: ref })
+        .orThrow();
       expect(revoked).toEqual([]);
       const other = { provider: "vercel-connect", connector: "github" };
-      await connectors.grants.record(server.id, member.id, other).orThrow();
+      await connectors.grants
+        .record({
+          serverId: server.id,
+          userId: member.id,
+          credentialRef: other,
+        })
+        .orThrow();
       expect(revoked).toEqual([ref]);
 
       const viaService = await connectors.servers
-        .get(server.id, { ownerId: member.id })
+        .get({ serverId: server.id, ownerId: member.id })
         .orThrow();
 
       expect(viaService.grant?.credentialRef).toEqual(other);
@@ -210,55 +260,76 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
 
       expect(
         await connectors.fingerprints
-          .check(server.id, "sha256:a", { a: "1" })
+          .check({
+            serverId: server.id,
+            fingerprint: "sha256:a",
+            tools: { a: "1" },
+          })
           .orThrow(),
       ).toBe("approved");
       expect(
-        await connectors.fingerprints.check(server.id, "sha256:b").orThrow(),
+        await connectors.fingerprints
+          .check({ serverId: server.id, fingerprint: "sha256:b" })
+          .orThrow(),
       ).toBe("pending");
 
-      const notAdmin = await connectors.fingerprints.approve(
-        server.id,
-        "sha256:b",
-      );
+      const notAdmin = await connectors.fingerprints.approve({
+        serverId: server.id,
+        fingerprint: "sha256:b",
+      });
 
       expect(notAdmin.ok).toBe(false);
 
       expect(
         await connectors.sessions
-          .upsert(server.id, {
-            chatKey: "c1",
-            sessionId: "sess",
-            initializeResult: { protocolVersion: "2025-11-25" },
+          .upsert({
+            serverId: server.id,
+            session: {
+              chatKey: "c1",
+              sessionId: "sess",
+              initializeResult: { protocolVersion: "2025-11-25" },
+            },
           })
           .orThrow(),
       ).toBe(true);
       expect(
-        await connectors.sessions.get(server.id, "c1").orThrow(),
+        await connectors.sessions
+          .get({ serverId: server.id, chatKey: "c1" })
+          .orThrow(),
       ).toMatchObject({ sessionId: "sess" });
 
       await s.asRole(owner);
       expect(
-        await connectors.fingerprints.approve(server.id, "sha256:b").orThrow(),
+        await connectors.fingerprints
+          .approve({ serverId: server.id, fingerprint: "sha256:b" })
+          .orThrow(),
       ).toBe(true);
       expect(
-        await connectors.sessions.get(server.id, "c1").orThrow(),
+        await connectors.sessions
+          .get({ serverId: server.id, chatKey: "c1" })
+          .orThrow(),
       ).toBeUndefined();
 
       await s.asRole(member);
       expect(
-        await connectors.fingerprints.check(server.id, "sha256:b").orThrow(),
+        await connectors.fingerprints
+          .check({ serverId: server.id, fingerprint: "sha256:b" })
+          .orThrow(),
       ).toBe("approved");
       expect(
         await connectors.grants.revoke(viaService.grant?.id ?? "").orThrow(),
       ).toBe(true);
       expect(revoked).toEqual([ref, other]);
       expect(
-        await connectors.sessions.get(server.id, "c1").orThrow(),
+        await connectors.sessions
+          .get({ serverId: server.id, chatKey: "c1" })
+          .orThrow(),
       ).toBeUndefined();
 
       await s.service();
-      await connectors.grants.record(server.id, member.id, ref).orThrow();
+      await connectors.grants
+        .record({ serverId: server.id, userId: member.id, credentialRef: ref })
+        .orThrow();
       await s.asRole(owner);
       expect(await connectors.servers.remove(server.id).orThrow()).toBe(1);
       expect(revoked).toEqual([ref, other, ref]);
@@ -293,31 +364,40 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       await s.asRole(member);
 
       const task = await tasks
-        .create(tenant, {
-          title: "Digest",
-          prompt: "Summarize my day",
-          cron: "0 9 * * *",
+        .create({
+          organizationId: tenant,
+          task: {
+            title: "Digest",
+            prompt: "Summarize my day",
+            cron: "0 9 * * *",
+          },
         })
         .orThrow();
 
       expect(task.nextRunAt).toBeUndefined();
 
-      const bad = await tasks.create(tenant, {
-        title: "x",
-        prompt: "y",
-        cron: "0 9 * * *",
-        agentId: crypto.randomUUID(),
+      const bad = await tasks.create({
+        organizationId: tenant,
+        task: {
+          title: "x",
+          prompt: "y",
+          cron: "0 9 * * *",
+          agentId: crypto.randomUUID(),
+        },
       });
 
       expect(bad.ok ? undefined : bad.error.hint).toBe(
         "AI_TASK_AGENT_FORBIDDEN",
       );
 
-      const foreignChat = await tasks.create(tenant, {
-        title: "x",
-        prompt: "y",
-        cron: "0 9 * * *",
-        chatId: crypto.randomUUID(),
+      const foreignChat = await tasks.create({
+        organizationId: tenant,
+        task: {
+          title: "x",
+          prompt: "y",
+          cron: "0 9 * * *",
+          chatId: crypto.randomUUID(),
+        },
       });
 
       expect(foreignChat.ok ? undefined : foreignChat.error.hint).toBe(
@@ -381,14 +461,18 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       ).toBe("failed");
 
       await s.asRole(member);
-      const [listed] = await tasks.list(tenant).orThrow();
+      const [listed] = await tasks.list({ organizationId: tenant }).orThrow();
       expect(listed?.lastRun?.status).toBe("completed");
       expect(Temporal.Instant.compare(listed?.nextRunAt ?? past, clock)).toBe(
         1,
       );
-      const runs = await tasks.runs(task.id).orThrow();
+      const runs = await tasks.runs({ taskId: task.id }).orThrow();
       expect(runs.map((run) => run.status)).toEqual(["completed", "failed"]);
-      const paused = await tasks.pause(tenant, task.id).orThrow();
+
+      const paused = await tasks
+        .pause({ organizationId: tenant, taskId: task.id })
+        .orThrow();
+
       expect(paused).toMatchObject({ enabled: false, nextRunAt: undefined });
       expect(await tasks.remove(task.id).orThrow()).toBe(true);
     } finally {

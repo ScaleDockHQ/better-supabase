@@ -37,7 +37,7 @@ export function batchPermissions<K extends string>(
     // SAFETY: the batch holds only keys the callers passed as `K`.
     const keys = [...batch.keys] as K[];
 
-    void source.permissions(keys, { tenant }).then((result) => {
+    void source.permissions({ keys, tenant }).then((result) => {
       for (const waiter of batch.waiters) {
         waiter(result);
       }
@@ -47,11 +47,11 @@ export function batchPermissions<K extends string>(
   };
 
   return {
-    permissions: (keys, options) => {
-      const tenant = currentTenant(options?.tenant);
+    permissions: ({ keys, ...options } = {}) => {
+      const tenant = currentTenant(options.tenant);
 
       if (keys === undefined || tenant === undefined) {
-        return source.permissions(keys, options);
+        return source.permissions({ keys, ...options });
       }
 
       return AsyncResult.from(
@@ -138,7 +138,7 @@ export function createPermissionsController<K extends string>(
         }
 
         const run = state.run();
-        const result = await client.permissions(keys, { tenant });
+        const result = await client.permissions({ keys, tenant });
 
         if (run !== state.run()) {
           return;

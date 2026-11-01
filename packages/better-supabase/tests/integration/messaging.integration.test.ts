@@ -91,8 +91,11 @@ describe.skipIf(!live)("messaging", () => {
       ).toMatchObject({ ok: false });
 
       const first = await messaging
-        .send(channel.id, {
-          body: `Ship it @[Member](${member.id}) @[Two](${member2.id})`,
+        .send({
+          conversationId: channel.id,
+          message: {
+            body: `Ship it @[Member](${member.id}) @[Two](${member2.id})`,
+          },
         })
         .orThrow();
 
@@ -110,14 +113,20 @@ describe.skipIf(!live)("messaging", () => {
       await s.asRole(member);
 
       const reply = await messaging
-        .send(channel.id, { body: "On it", parentId: first.id })
+        .send({
+          conversationId: channel.id,
+          message: { body: "On it", parentId: first.id },
+        })
         .orThrow();
 
       expect(reply).toMatchObject({ parentId: first.id, threadId: first.id });
 
       // One level of threads: a reply to a reply joins the root.
       const nested = await messaging
-        .send(channel.id, { body: "Nested", parentId: reply.id })
+        .send({
+          conversationId: channel.id,
+          message: { body: "Nested", parentId: reply.id },
+        })
         .orThrow();
 
       expect(nested).toMatchObject({ parentId: first.id, threadId: first.id });
@@ -127,11 +136,15 @@ describe.skipIf(!live)("messaging", () => {
       expect(root).toMatchObject({ replyCount: 2 });
       expect(root?.replyUserIds).toEqual([member.id]);
 
-      const top = await messaging.list(channel.id).orThrow();
+      const top = await messaging
+        .list({ conversationId: channel.id })
+        .orThrow();
 
       expect(top.map((message) => message.id)).toEqual([first.id]);
 
-      const replies = await messaging.replies(first.id).orThrow();
+      const replies = await messaging
+        .replies({ messageId: first.id })
+        .orThrow();
 
       // One transaction fixes `now()`, so both replies share a send time.
       expect(replies.map((message) => message.id).toSorted()).toEqual(
@@ -139,11 +152,14 @@ describe.skipIf(!live)("messaging", () => {
       );
 
       expect(
-        await messaging.edit(first.id, { body: "Not mine" }),
+        await messaging.edit({
+          messageId: first.id,
+          edition: { body: "Not mine" },
+        }),
       ).toMatchObject({ ok: false });
 
       const edited = await messaging
-        .edit(reply.id, { body: "On it, today" })
+        .edit({ messageId: reply.id, edition: { body: "On it, today" } })
         .orThrow();
 
       expect(edited.editedAt).toBeDefined();
@@ -153,9 +169,14 @@ describe.skipIf(!live)("messaging", () => {
 
       // member2 isn't in the private channel: no read, no send.
       await s.asRole(member2);
-      expect(await messaging.list(channel.id).orThrow()).toEqual([]);
       expect(
-        await messaging.send(channel.id, { body: "Let me in" }),
+        await messaging.list({ conversationId: channel.id }).orThrow(),
+      ).toEqual([]);
+      expect(
+        await messaging.send({
+          conversationId: channel.id,
+          message: { body: "Let me in" },
+        }),
       ).toMatchObject({ ok: false });
 
       await s.asRole(owner);
@@ -172,7 +193,7 @@ describe.skipIf(!live)("messaging", () => {
 
       expect(unread[channel.id]).toMatchObject({ unread: 1, mentions: 1 });
 
-      await messaging.markRead(channel.id).orThrow();
+      await messaging.markRead({ conversationId: channel.id }).orThrow();
       expect(
         (await messaging.unreadCounts().orThrow())[channel.id],
       ).toBeUndefined();
@@ -206,7 +227,9 @@ describe.skipIf(!live)("messaging", () => {
       expect(direct.kind).toBe("dm");
       expect(again.id).toBe(direct.id);
 
-      await messaging.send(direct.id, { body: "Hi" }).orThrow();
+      await messaging
+        .send({ conversationId: direct.id, message: { body: "Hi" } })
+        .orThrow();
 
       await s.service();
       expect(
@@ -220,15 +243,15 @@ describe.skipIf(!live)("messaging", () => {
 
       await s.asRole(owner);
 
-      const pinned = await messaging.pin(first.id).orThrow();
+      const pinned = await messaging.pin({ messageId: first.id }).orThrow();
 
       expect(pinned.pinnedBy).toBe(owner.id);
       expect(
         (await messaging.pinned(channel.id).orThrow()).map((m) => m.id),
       ).toEqual([first.id]);
-      expect((await messaging.resolve(first.id).orThrow()).resolvedBy).toBe(
-        owner.id,
-      );
+      expect(
+        (await messaging.resolve({ messageId: first.id }).orThrow()).resolvedBy,
+      ).toBe(owner.id);
 
       expect(await messaging.remove(first.id).orThrow()).toBe(true);
 
@@ -289,16 +312,23 @@ describe.skipIf(!live)("messaging", () => {
 
       await s.asRole(member);
       // A tenant channel is readable before joining, and sending joins it.
-      expect(await messaging.list(general.id).orThrow()).toEqual([]);
-      await messaging.send(general.id, { body: "Hello" }).orThrow();
+      expect(
+        await messaging.list({ conversationId: general.id }).orThrow(),
+      ).toEqual([]);
+      await messaging
+        .send({ conversationId: general.id, message: { body: "Hello" } })
+        .orThrow();
       expect(
         (await messaging.conversations().orThrow()).map((entry) => entry.id),
       ).toContain(general.id);
 
       const later = await messaging
-        .send(general.id, {
-          body: "Later",
-          scheduledFor: Temporal.Now.instant().add({ hours: 1 }),
+        .send({
+          conversationId: general.id,
+          message: {
+            body: "Later",
+            scheduledFor: Temporal.Now.instant().add({ hours: 1 }),
+          },
         })
         .orThrow();
 
@@ -306,12 +336,16 @@ describe.skipIf(!live)("messaging", () => {
 
       // Only the author sees a scheduled message.
       expect(
-        (await messaging.list(general.id).orThrow()).map((m) => m.body),
+        (await messaging.list({ conversationId: general.id }).orThrow()).map(
+          (m) => m.body,
+        ),
       ).toEqual(["Hello", "Later"]);
 
       await s.asRole(owner);
       expect(
-        (await messaging.list(general.id).orThrow()).map((m) => m.body),
+        (await messaging.list({ conversationId: general.id }).orThrow()).map(
+          (m) => m.body,
+        ),
       ).toEqual(["Hello"]);
 
       await s.service();
@@ -324,7 +358,9 @@ describe.skipIf(!live)("messaging", () => {
       await s.asRole(owner);
 
       // Inside one transaction `now()` is fixed, so both share a `sentAt`.
-      const published = await messaging.list(general.id).orThrow();
+      const published = await messaging
+        .list({ conversationId: general.id })
+        .orThrow();
 
       expect(published.map((m) => m.body).toSorted()).toEqual([
         "Hello",
@@ -374,13 +410,19 @@ describe.skipIf(!live)("messaging", () => {
         .orThrow();
 
       const message = await messaging
-        .send(channel.id, {
-          body: `See ${recordMention("Plan", { type: "memo", id: memo!.id })}`,
+        .send({
+          conversationId: channel.id,
+          message: {
+            body: `See ${recordMention("Plan", { type: "memo", id: memo!.id })}`,
+          },
         })
         .orThrow();
 
       const memoRef = { type: "memo", id: memo!.id };
-      const backlinks = await messaging.recordMentions(memoRef).orThrow();
+
+      const backlinks = await messaging
+        .recordMentions({ subject: memoRef })
+        .orThrow();
 
       expect(backlinks).toHaveLength(1);
       expect(backlinks[0]?.message.id).toBe(message.id);
@@ -392,11 +434,17 @@ describe.skipIf(!live)("messaging", () => {
 
       // The member reads the channel but not the memo.
       await s.asRole(member);
-      expect(await messaging.recordMentions(memoRef).orThrow()).toEqual([]);
+      expect(
+        await messaging.recordMentions({ subject: memoRef }).orThrow(),
+      ).toEqual([]);
 
       await s.asRole(owner);
-      await messaging.edit(message.id, { body: "Never mind" }).orThrow();
-      expect(await messaging.recordMentions(memoRef).orThrow()).toEqual([]);
+      await messaging
+        .edit({ messageId: message.id, edition: { body: "Never mind" } })
+        .orThrow();
+      expect(
+        await messaging.recordMentions({ subject: memoRef }).orThrow(),
+      ).toEqual([]);
     } finally {
       await s.close();
     }
@@ -454,23 +502,29 @@ describe.skipIf(!live)("messaging", () => {
         .orThrow();
 
       const root = await messaging
-        .send(channel.id, { body: "Ship on Friday?" })
+        .send({
+          conversationId: channel.id,
+          message: { body: "Ship on Friday?" },
+        })
         .orThrow();
 
       await messaging
-        .send(channel.id, { body: "Friday works", parentId: root.id })
+        .send({
+          conversationId: channel.id,
+          message: { body: "Friday works", parentId: root.id },
+        })
         .orThrow();
 
       // The authenticated transport can't write a summary.
       const spoofed = await createMessaging({
         transport,
         tenant: () => organization,
-      }).summarize({ conversationId: channel.id }, summarizer);
+      }).summarize({ target: { conversationId: channel.id }, summarizer });
 
       expect(spoofed.error?.kind).toBe("forbidden");
 
       const summary = await messaging
-        .summarize({ conversationId: channel.id }, summarizer)
+        .summarize({ target: { conversationId: channel.id }, summarizer })
         .orThrow();
 
       expect(summary).toMatchObject({
@@ -484,12 +538,12 @@ describe.skipIf(!live)("messaging", () => {
       // A current summary is returned without calling the model again.
       seen.length = 0;
       await messaging
-        .summarize({ conversationId: channel.id }, summarizer)
+        .summarize({ target: { conversationId: channel.id }, summarizer })
         .orThrow();
       expect(seen).toEqual([]);
 
       const thread = await messaging
-        .summarize({ threadId: root.id }, summarizer)
+        .summarize({ target: { threadId: root.id }, summarizer })
         .orThrow();
 
       expect(thread).toMatchObject({
@@ -516,7 +570,9 @@ describe.skipIf(!live)("messaging", () => {
       );
       caller = owner;
       await s.asRole(owner);
-      await messaging.send(channel.id, { body: "Or Monday" }).orThrow();
+      await messaging
+        .send({ conversationId: channel.id, message: { body: "Or Monday" } })
+        .orThrow();
       expect(
         (await messaging.summary({ conversationId: channel.id }).orThrow())
           ?.stale,

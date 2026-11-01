@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:8bb27562066137e91c56971ba16770c0fc2b5383b12c4d7b7a3644e1c07919c0
+-- @bsb-hash sha256:c6f28c5470541abb1d01347285e61d4aecb38b61e56d3d5bbde3a6b3e3e15e06
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1165,6 +1165,37 @@ end;
 $$;
 revoke execute on function "better_supabase"."apply_bank_rules"(uuid) from public, anon;
 grant execute on function "better_supabase"."apply_bank_rules"(uuid) to authenticated, service_role;
+
+
+-- An account's reconciliation page in one call: where it stands, and its latest
+-- transactions with the best invoice for each unmatched one. It runs as the
+-- caller and reads through the status and listing functions.
+create or replace function "better_supabase"."bank_reconciliation_board"(account_id uuid, line_limit integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with src as (
+    select "better_supabase"."list_bank_transactions"(bank_reconciliation_board.account_id,
+      jsonb_build_object('limit', bank_reconciliation_board.line_limit)) as payload
+  )
+  select jsonb_build_object(
+    'status', "better_supabase"."bank_reconciliation_status"(bank_reconciliation_board.account_id, null),
+    'lines', coalesce((
+      select jsonb_agg(jsonb_build_object(
+          'id', x.line -> 'id', 'bookedOn', x.line -> 'bookedOn', 'amount', x.line -> 'amount',
+          'currency', x.line -> 'currency', 'counterpartyName', x.line -> 'counterpartyName',
+          'counterpartyIban', x.line -> 'counterpartyIban', 'remittance', x.line -> 'remittance',
+          'status', x.line -> 'status') order by x.position)
+      from jsonb_array_elements(src.payload) with ordinality as x(line, position)
+    ), '[]'::jsonb),
+    'suggestions', '[]'::jsonb)
+  from src;
+$$;
+revoke execute on function "better_supabase"."bank_reconciliation_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."bank_reconciliation_board"(uuid, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

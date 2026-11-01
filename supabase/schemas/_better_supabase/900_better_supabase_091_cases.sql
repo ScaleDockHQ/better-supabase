@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:ca0cdbb2e4f94614bdc788f9d098834708a5f64899978f65e8aca570db4ea6c8
+-- @bsb-hash sha256:2f382e73f3160e12bab8248965e8b63d59df93095eee522d1d3b42b87e72ee85
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1742,6 +1742,15 @@ drop trigger if exists "bsb_search_case_index" on "better_supabase"."cases";
 create trigger "bsb_search_case_index"
   after insert or delete or update of "id", "tenant_id", "title", "number", "description", "root_cause", "archived_at" on "better_supabase"."cases"
   for each row execute function "better_supabase"."search_index_row"('case', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.cases', target_type => 'case', event_prefix => 'case', deferred => true);
+  perform better_supabase.audit('better_supabase.case_kinds', target_type => 'case_kind', event_prefix => 'case_kind', deferred => true);
+  perform better_supabase.audit('better_supabase.case_actions', target_type => 'case_action', event_prefix => 'case_action', deferred => true);
+end;
+$$;
 
 -- blocks.cases.api: entry points for the Data API.
 create schema if not exists "api";

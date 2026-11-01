@@ -29,128 +29,175 @@ describe.skipIf(!live)("memory module", () => {
       await s.asRole(member);
       expect(
         await memory
-          .run(tenant, { command: "view", path: "/memories" })
+          .run({
+            organizationId: tenant,
+            command: { command: "view", path: "/memories" },
+          })
           .orThrow(),
       ).toBe("Here are the files in /memories:\n");
       expect(
         await memory
-          .run(tenant, {
-            command: "create",
-            path: "/memories/prefs.md",
-            file_text: "likes tea\nworks remotely",
+          .run({
+            organizationId: tenant,
+            command: {
+              command: "create",
+              path: "/memories/prefs.md",
+              file_text: "likes tea\nworks remotely",
+            },
           })
           .orThrow(),
       ).toBe("File created successfully at: /memories/prefs.md");
       await memory
-        .run(tenant, {
-          command: "str_replace",
-          path: "/memories/prefs.md",
-          old_str: "tea",
-          new_str: "green tea",
+        .run({
+          organizationId: tenant,
+          command: {
+            command: "str_replace",
+            path: "/memories/prefs.md",
+            old_str: "tea",
+            new_str: "green tea",
+          },
         })
         .orThrow();
       await memory
-        .run(tenant, {
-          command: "insert",
-          path: "/memories/prefs.md",
-          insert_line: 0,
-          insert_text: "# Preferences",
+        .run({
+          organizationId: tenant,
+          command: {
+            command: "insert",
+            path: "/memories/prefs.md",
+            insert_line: 0,
+            insert_text: "# Preferences",
+          },
         })
         .orThrow();
       expect(
         await memory
-          .run(tenant, {
-            command: "view",
-            path: "/memories/prefs.md",
-            view_range: [2, 2],
+          .run({
+            organizationId: tenant,
+            command: {
+              command: "view",
+              path: "/memories/prefs.md",
+              view_range: [2, 2],
+            },
           })
           .orThrow(),
       ).toBe(
         "Here's the content of /memories/prefs.md with line numbers:\n     2\tlikes green tea",
       );
 
-      const ambiguous = await memory.core.strReplace(
-        tenant,
-        "/memories/prefs.md",
-        "e",
-        "E",
-      );
+      const ambiguous = await memory.core.strReplace({
+        organizationId: tenant,
+        path: "/memories/prefs.md",
+        oldText: "e",
+        newText: "E",
+      });
 
       expect(ambiguous.ok ? undefined : ambiguous.error.hint).toBe(
         "MEMORY_AMBIGUOUS",
       );
 
-      const missing = await memory.core.strReplace(
-        tenant,
-        "/memories/prefs.md",
-        "coffee",
-        "tea",
-      );
+      const missing = await memory.core.strReplace({
+        organizationId: tenant,
+        path: "/memories/prefs.md",
+        oldText: "coffee",
+        newText: "tea",
+      });
 
       expect(missing.ok ? undefined : missing.error.hint).toBe(
         "MEMORY_NO_MATCH",
       );
 
-      const stale = await memory.core.write(
-        tenant,
-        "/memories/prefs.md",
-        "x",
-        {},
-        { expectedVersion: 1 },
-      );
+      const stale = await memory.core.write({
+        organizationId: tenant,
+        path: "/memories/prefs.md",
+        content: "x",
+        ns: {},
+        expectedVersion: 1,
+      });
 
       expect(stale.ok ? undefined : stale.error.hint).toBe("MEMORY_CONFLICT");
-      const escape = await memory.core.write(tenant, "/memories/../etc", "x");
+
+      const escape = await memory.core.write({
+        organizationId: tenant,
+        path: "/memories/../etc",
+        content: "x",
+      });
+
       expect(escape.ok ? undefined : escape.error.hint).toBe("MEMORY_PATH");
 
       await memory
-        .run(tenant, {
-          command: "rename",
-          old_path: "/memories/prefs.md",
-          new_path: "/memories/me/prefs.md",
+        .run({
+          organizationId: tenant,
+          command: {
+            command: "rename",
+            old_path: "/memories/prefs.md",
+            new_path: "/memories/me/prefs.md",
+          },
         })
         .orThrow();
-      const listing = await memory.core.view(tenant).orThrow();
+
+      const listing = await memory.core
+        .view({ organizationId: tenant })
+        .orThrow();
+
       expect(listing).toMatchObject({
         type: "directory",
         entries: [{ path: "/memories/me/prefs.md" }],
       });
-      const rendered = await memory.render(tenant).orThrow();
+
+      const rendered = await memory
+        .render({ organizationId: tenant })
+        .orThrow();
+
       expect(rendered).toContain('<memory path="/memories/me/prefs.md">');
-      await memory.core.write(tenant, "/memories/long.md", "x".repeat(200));
-      expect(await memory.render(tenant).orThrow()).toContain(
-        "the rest is cut",
-      );
+      await memory.core.write({
+        organizationId: tenant,
+        path: "/memories/long.md",
+        content: "x".repeat(200),
+      });
+      expect(
+        await memory.render({ organizationId: tenant }).orThrow(),
+      ).toContain("the rest is cut");
 
       await s.asRole(owner);
       expect(
-        await memory.core.view(tenant, "/memories/me").orThrow(),
+        await memory.core
+          .view({ organizationId: tenant, path: "/memories/me" })
+          .orThrow(),
       ).toBeUndefined();
       await memory.core
-        .write(tenant, "/memories/policy.md", "Answer in English.", {
-          scope: "organization",
+        .write({
+          organizationId: tenant,
+          path: "/memories/policy.md",
+          content: "Answer in English.",
+          ns: { scope: "organization" },
         })
         .orThrow();
       await s.asRole(member);
       expect(
         await memory.core
-          .view(tenant, "/memories/policy.md", { scope: "organization" })
+          .view({
+            organizationId: tenant,
+            path: "/memories/policy.md",
+            ns: { scope: "organization" },
+          })
           .orThrow(),
       ).toMatchObject({ type: "file", content: "Answer in English." });
 
-      const denied = await memory.core.write(
-        tenant,
-        "/memories/policy.md",
-        "x",
-        { scope: "organization" },
-      );
+      const denied = await memory.core.write({
+        organizationId: tenant,
+        path: "/memories/policy.md",
+        content: "x",
+        ns: { scope: "organization" },
+      });
 
       expect(denied.ok ? undefined : denied.error.hint).toBe(
         "MEMORY_FORBIDDEN",
       );
 
-      const noAgent = await memory.core.view(tenant, "/memories", {
-        scope: "agent",
+      const noAgent = await memory.core.view({
+        organizationId: tenant,
+        path: "/memories",
+        ns: { scope: "agent" },
       });
 
       expect(noAgent.ok ? undefined : noAgent.error.hint).toBe(
@@ -159,12 +206,18 @@ describe.skipIf(!live)("memory module", () => {
 
       expect(
         await memory
-          .run(tenant, { command: "delete", path: "/memories/me" })
+          .run({
+            organizationId: tenant,
+            command: { command: "delete", path: "/memories/me" },
+          })
           .orThrow(),
       ).toBe("Successfully deleted /memories/me");
       expect(
         await memory
-          .run(tenant, { command: "view", path: "/memories/me" })
+          .run({
+            organizationId: tenant,
+            command: { command: "view", path: "/memories/me" },
+          })
           .orThrow(),
       ).toBe("/memories/me does not exist.");
     } finally {
@@ -185,7 +238,10 @@ describe.skipIf(!live)("memory module", () => {
       await s.asRole(owner);
 
       const fact = await memory.archival
-        .upsert(tenant, "The user has a dog named Rex.")
+        .upsert({
+          organizationId: tenant,
+          content: "The user has a dog named Rex.",
+        })
         .orThrow();
 
       expect(fact).toMatchObject({
@@ -194,7 +250,7 @@ describe.skipIf(!live)("memory module", () => {
       });
 
       const hits = await memory.archival
-        .search(tenant, "what is the dog called")
+        .search({ organizationId: tenant, query: "what is the dog called" })
         .orThrow();
 
       expect(hits[0]).toMatchObject({ id: fact.id });
@@ -204,11 +260,15 @@ describe.skipIf(!live)("memory module", () => {
       const ns = { ownerId: owner.id };
 
       const saved = await memory
-        .saveExtracted(
-          tenant,
-          ["The user has a dog named Rex.", "The user lives in Utrecht.", " "],
+        .saveExtracted({
+          organizationId: tenant,
+          facts: [
+            "The user has a dog named Rex.",
+            "The user lives in Utrecht.",
+            " ",
+          ],
           ns,
-        )
+        })
         .orThrow();
 
       expect(saved.map((record) => record.content)).toEqual([
@@ -221,7 +281,9 @@ describe.skipIf(!live)("memory module", () => {
       expect(await memory.embedPending().orThrow()).toBe(1);
 
       await s.client.query("set local hnsw.iterative_scan = 'strict_order'");
-      await memory.archival.search(tenant, "dog", ns).orThrow();
+      await memory.archival
+        .search({ organizationId: tenant, query: "dog", ns })
+        .orThrow();
       expect(
         await s.value<string>("current_setting('hnsw.iterative_scan')"),
       ).toBe("strict_order");
@@ -288,20 +350,31 @@ describe.skipIf(!live)("memory module", () => {
       await s.asRole(owner);
 
       const recalled = await memory.recall
-        .search(tenant, "dog beach")
+        .search({ organizationId: tenant, query: "dog beach" })
         .orThrow();
 
       expect(recalled).toMatchObject([{ chatId: chat.id, messageId: "m1" }]);
       expect(
         await memory.recall
-          .search(tenant, "dog", { excludeChat: chat.id })
+          .search({
+            organizationId: tenant,
+            query: "dog",
+            excludeChat: chat.id,
+          })
           .orThrow(),
       ).toEqual([]);
 
-      const listed = await memory.archival.list(tenant).orThrow();
+      const listed = await memory.archival
+        .list({ organizationId: tenant })
+        .orThrow();
+
       expect(listed).toHaveLength(2);
-      expect(await memory.archival.forget(fact.id).orThrow()).toBe(true);
-      expect(await memory.archival.list(tenant).orThrow()).toHaveLength(1);
+      expect(
+        await memory.archival.forget({ memoryId: fact.id }).orThrow(),
+      ).toBe(true);
+      expect(
+        await memory.archival.list({ organizationId: tenant }).orThrow(),
+      ).toHaveLength(1);
     } finally {
       await s.close();
     }
@@ -317,56 +390,86 @@ describe.skipIf(!live)("memory module", () => {
 
       await s.asRole(owner);
       expect(
-        (await memory.documents.read("scope", "/a.md")).error?.kind,
+        (await memory.documents.read({ scopeKey: "scope", path: "/a.md" }))
+          .error?.kind,
       ).toBeDefined();
 
       await s.service();
       expect(
-        await memory.documents.read("scope", "/a.md").orThrow(),
+        await memory.documents
+          .read({ scopeKey: "scope", path: "/a.md" })
+          .orThrow(),
       ).toBeUndefined();
 
       const first = await memory.documents
-        .write("scope", "/a.md", "one", { expectedVersion: null })
+        .write({
+          scopeKey: "scope",
+          path: "/a.md",
+          content: "one",
+          options: { expectedVersion: null },
+        })
         .orThrow();
 
       expect(first).toEqual({ content: "one", version: "1" });
 
-      const again = await memory.documents.write("scope", "/a.md", "two", {
-        expectedVersion: null,
+      const again = await memory.documents.write({
+        scopeKey: "scope",
+        path: "/a.md",
+        content: "two",
+        options: { expectedVersion: null },
       });
 
       expect(again.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
 
       const second = await memory.documents
-        .write("scope", "/a.md", "two", { expectedVersion: "1" })
+        .write({
+          scopeKey: "scope",
+          path: "/a.md",
+          content: "two",
+          options: { expectedVersion: "1" },
+        })
         .orThrow();
 
       expect(second.version).toBe("2");
 
-      const stale = await memory.documents.write("scope", "/a.md", "three", {
-        expectedVersion: "1",
+      const stale = await memory.documents.write({
+        scopeKey: "scope",
+        path: "/a.md",
+        content: "three",
+        options: { expectedVersion: "1" },
       });
 
       expect(stale.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
       expect(
-        await memory.documents.read("other", "/a.md").orThrow(),
+        await memory.documents
+          .read({ scopeKey: "other", path: "/a.md" })
+          .orThrow(),
       ).toBeUndefined();
 
       await memory.documents
-        .write("scope", "/tmp.md", "gone", {
-          expectedVersion: null,
-          expiresIn: 1,
+        .write({
+          scopeKey: "scope",
+          path: "/tmp.md",
+          content: "gone",
+          options: { expectedVersion: null, expiresIn: 1 },
         })
         .orThrow();
       await s.client.query(
         "update better_supabase.memory_documents set expires_at = now() - interval '1 second' where path = '/tmp.md'",
       );
       expect(
-        await memory.documents.read("scope", "/tmp.md").orThrow(),
+        await memory.documents
+          .read({ scopeKey: "scope", path: "/tmp.md" })
+          .orThrow(),
       ).toBeUndefined();
       expect(
         await memory.documents
-          .write("scope", "/tmp.md", "back", { expectedVersion: null })
+          .write({
+            scopeKey: "scope",
+            path: "/tmp.md",
+            content: "back",
+            options: { expectedVersion: null },
+          })
           .orThrow(),
       ).toEqual({ content: "back", version: "1" });
       await s.client.query(

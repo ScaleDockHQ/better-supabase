@@ -52,8 +52,12 @@ describe("reactions client", () => {
       tenant: "o",
     });
 
-    expect(await reactions.react(C1, "👍").orThrow()).toEqual([COUNT]);
-    await reactions.react(C1, "👍", { present: false, actor: "bot" }).orThrow();
+    expect(
+      await reactions.react({ subject: C1, emoji: "👍" }).orThrow(),
+    ).toEqual([COUNT]);
+    await reactions
+      .react({ subject: C1, emoji: "👍", present: false, actor: "bot" })
+      .orThrow();
     expect(
       await reactions
         .summary([C1, { type: "comment", id: "c2" }, C1])
@@ -146,13 +150,13 @@ describe("reactions client", () => {
       tenant: "o",
     });
 
-    expect(await reactions.vote(C1, -1).orThrow()).toEqual({
+    expect(await reactions.vote({ subject: C1, value: -1 }).orThrow()).toEqual({
       score: 2,
       up: 3,
       down: 1,
       vote: -1,
     });
-    await reactions.vote(C1, 0, { actor: "bot" }).orThrow();
+    await reactions.vote({ subject: C1, value: 0, actor: "bot" }).orThrow();
     expect(
       await reactions.votes([C1, { type: "task", id: "t1" }]).orThrow(),
     ).toEqual({
@@ -223,14 +227,16 @@ describe("reactions client", () => {
       tenant: () => session.tenant,
     });
 
-    expect(await reactions.react(C1, "👍")).toMatchObject({
+    expect(await reactions.react({ subject: C1, emoji: "👍" })).toMatchObject({
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
     expect(await reactions.customEmoji()).toMatchObject({ ok: false });
     expect(fake.calls).toHaveLength(0);
     session.tenant = "o";
-    expect(await reactions.react(C1, "👍").orThrow()).toEqual([COUNT]);
+    expect(
+      await reactions.react({ subject: C1, emoji: "👍" }).orThrow(),
+    ).toEqual([COUNT]);
   });
 
   it("names the topic", () => {

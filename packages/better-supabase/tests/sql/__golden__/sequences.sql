@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:33365968bf1c41a52185a6cf1ce100c344e2a5720f204774a62cfbfc345ff881
+-- @bsb-hash sha256:7a7188c9182c83c9d138fb4bc4cf7b4670a9e28c1fae984f23ec58e05b7743f5
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -397,6 +397,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
@@ -426,6 +434,14 @@ begin
   else
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -584,6 +600,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -604,6 +628,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -921,7 +953,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:a946c1c404ffc8a560a6b0b27c4dd62e4000485849568b6f38c304cb754f6c7f
+-- @bsb-hash sha256:c77bafe1cb2481b135052b00b29572ba52c394ede739d9292b548f3fb0728ee1
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1321,6 +1353,14 @@ begin
   ) then
     raise exception 'accountId must be a connected mailbox of this organization' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
@@ -1370,6 +1410,14 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -1563,6 +1611,14 @@ begin
   if v_account is null and exists (select 1 from jsonb_array_elements(v_sequence."steps") t where t.value ->> 'kind' = 'email') then
     raise exception 'connect a mailbox or set one on the sequence to send its email steps' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -1583,6 +1639,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -1914,6 +1978,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.sequences', target_type => 'sequence', event_prefix => 'sequence', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1944,7 +2015,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:d04c765820aee48792c7dbe82b69b2565d22bd4d826787729b7f7311f5937a88
+-- @bsb-hash sha256:030ea29076f84b0999e932c6551d6ca916b3286acd7a57f4fbf1510c9b2d8f52
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2345,6 +2416,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "app_private"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
@@ -2374,6 +2453,14 @@ begin
   else
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -2532,6 +2619,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -2552,6 +2647,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "app_private"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "app_private"."sequence_member_json"(v_id);
 end;
 $$;
@@ -2869,7 +2972,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:683bf973ce9c94d29e959007a74196f134fed015a212ab6ec5b02d81e428c23e
+-- @bsb-hash sha256:6be6883c51282380ff7b4cdae2cb85a8a27de08c937bd16db57be2ad53b34a0a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3265,6 +3368,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
@@ -3294,6 +3405,14 @@ begin
   else
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -3452,6 +3571,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -3472,6 +3599,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -3901,7 +4036,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:43d63161a10bb4f2cf6d9252e36b985363248b2ec4a4ca5b6ee2f69e88bf6393
+-- @bsb-hash sha256:91b4507de2ca573033a1c20fbb3f4768193de155c5bbbbe577f90354557daf2a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4305,6 +4440,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, better_supabase.as_column_type(v_status, (null::"better_supabase"."sequences")."status"), v_exit, v_account, v_steps, 1, auth.uid())
@@ -4334,6 +4477,14 @@ begin
   else
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -4492,6 +4643,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_sequence."tenant_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -4512,6 +4671,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;
@@ -4829,7 +4996,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:e02913429eb7e150e166495a3896b938eadf74e96f2e0cafa56f70a23944362f
+-- @bsb-hash sha256:f049d665e7688a5d6669e6f86e0a1f49c13a745fb0439bf2161f7f7c649d10ce
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5225,6 +5392,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_sequence.tenant, save_sequence.sequence;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("org_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
     values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
@@ -5254,6 +5429,14 @@ begin
   else
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'active'), 'paused', count(*) filter (where (case when m."status" = 'cancelled' then 'exited' when m."status" = 'completed' then 'completed' when m."paused_at" is not null then 'paused' else 'active' end) = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'cancelled'),
       'replied', count(*) filter (where m."status" = 'cancelled' and m."cancel_reason" = 'replied'))
@@ -5412,6 +5595,14 @@ begin
   if v_account is not null then
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_sequence_enroll"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using enroll_in_sequence.sequence_id, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."org_id" = v_sequence."org_id" and x."program" = ('sequence:' || v_sequence."id"::text)
     and x."subject_type" = enroll_in_sequence.subject_type and x."subject_id" = enroll_in_sequence.subject_id
@@ -5432,6 +5623,14 @@ begin
     "sequence_mail_thread_id" = null, "sequence_variables" = v_variables, "sequence_attempts" = 0, "sequence_last_error" = null, "updated_at" = now()
   where x."id" = v_id;
   perform "better_supabase"."sequence_place"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_sequence_enroll"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."sequence_member_json"(v_id);
 end;
 $$;

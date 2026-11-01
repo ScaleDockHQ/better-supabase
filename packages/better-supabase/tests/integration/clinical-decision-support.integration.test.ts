@@ -65,15 +65,24 @@ describe.skipIf(!live)("clinical-decision-support", () => {
       await s.as(owner);
 
       const paracetamol = await medications
-        .saveMedication(org, { name: "Paracetamol", unit: "mg" })
+        .saveMedication({
+          organizationId: org,
+          input: { name: "Paracetamol", unit: "mg" },
+        })
         .orThrow();
 
       const warfarin = await medications
-        .saveMedication(org, { name: "Warfarin", unit: "mg" })
+        .saveMedication({
+          organizationId: org,
+          input: { name: "Warfarin", unit: "mg" },
+        })
         .orThrow();
 
       const ibuprofen = await medications
-        .saveMedication(org, { name: "Ibuprofen", unit: "mg" })
+        .saveMedication({
+          organizationId: org,
+          input: { name: "Ibuprofen", unit: "mg" },
+        })
         .orThrow();
 
       await cds
@@ -93,51 +102,65 @@ describe.skipIf(!live)("clinical-decision-support", () => {
         .orThrow();
 
       await medications
-        .prescribe(org, subject, paracetamol.id, {
-          dose: 2000,
-          schedule: { times: ["08:00"] },
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: paracetamol.id,
+          input: { dose: 2000, schedule: { times: ["08:00"] } },
         })
         .orThrow();
 
       await medications
-        .prescribe(org, subject, paracetamol.id, {
-          dose: 500,
-          schedule: { times: ["12:00"] },
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: paracetamol.id,
+          input: { dose: 500, schedule: { times: ["12:00"] } },
         })
         .orThrow();
 
       await medications
-        .prescribe(org, subject, warfarin.id, {
-          dose: 2,
-          schedule: { times: ["20:00"] },
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: warfarin.id,
+          input: { dose: 2, schedule: { times: ["20:00"] } },
         })
         .orThrow();
 
       await medications
-        .prescribe(org, subject, ibuprofen.id, {
-          dose: 400,
-          schedule: { times: ["09:00"] },
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: ibuprofen.id,
+          input: { dose: 400, schedule: { times: ["09:00"] } },
         })
         .orThrow();
 
-      const alerts = await cds.evaluate(subject).orThrow();
+      const alerts = await cds.evaluate({ subject }).orThrow();
       const kinds = alerts.map((alert) => alert.kind).toSorted();
 
       expect(kinds).toEqual(["dose_range", "duplicate_therapy", "interaction"]);
       expect(alerts[0]?.severity).toBe("critical");
 
-      const again = await cds.evaluate(subject).orThrow();
+      const again = await cds.evaluate({ subject }).orThrow();
 
       expect(again).toHaveLength(3);
 
       const critical = alerts.find((alert) => alert.severity === "critical");
 
       expect(
-        await cds.decide(critical?.id ?? "", "acknowledged").then(hint),
+        await cds
+          .decide({ alertId: critical?.id ?? "", decision: "acknowledged" })
+          .then(hint),
       ).toBe("CARE_ALERT_INVALID");
 
       const decided = await cds
-        .decide(critical?.id ?? "", "overridden", { reason: "Palliative" })
+        .decide({
+          alertId: critical?.id ?? "",
+          decision: "overridden",
+          reason: "Palliative",
+        })
         .orThrow();
 
       expect(decided).toMatchObject({
@@ -145,7 +168,7 @@ describe.skipIf(!live)("clinical-decision-support", () => {
         decisionReason: "Palliative",
       });
 
-      const kept = await cds.evaluate(subject).orThrow();
+      const kept = await cds.evaluate({ subject }).orThrow();
 
       expect(kept.find((alert) => alert.id === critical?.id)?.status).toBe(
         "overridden",
@@ -153,7 +176,7 @@ describe.skipIf(!live)("clinical-decision-support", () => {
 
       await s.as(aide);
 
-      expect(await cds.evaluate(subject).then(hint)).toBe(
+      expect(await cds.evaluate({ subject }).then(hint)).toBe(
         "CARE_ALERT_FORBIDDEN",
       );
       expect(

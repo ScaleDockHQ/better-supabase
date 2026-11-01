@@ -2,6 +2,7 @@
 
 import {
   type AppTableEventData,
+  blockRead,
   defineEvents,
   event,
   type EventRenamesOf,
@@ -149,6 +150,23 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { TasksEvents } from "better-supabase/blocks/tasks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
+import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
+import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
+import { governanceBlock as governanceBlockInstance } from "better-supabase/blocks/governance";
+import { commerceBlock as commerceBlockInstance } from "better-supabase/blocks/commerce";
+import { procurementBlock as procurementBlockInstance } from "better-supabase/blocks/procurement";
+import { financeBlock as financeBlockInstance } from "better-supabase/blocks/finance";
+import { supportBlock as supportBlockInstance } from "better-supabase/blocks/support";
+import { projectsBlock as projectsBlockInstance } from "better-supabase/blocks/projects";
+import { serviceBlock as serviceBlockInstance } from "better-supabase/blocks/service";
+import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
+import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
+import { learningBlock as learningBlockInstance } from "better-supabase/blocks/learning";
+import { eventsBlock as eventsBlockInstance } from "better-supabase/blocks/events";
+import { cmsBlock as cmsBlockInstance } from "better-supabase/blocks/cms";
+import { careBlock as careBlockInstance } from "better-supabase/blocks/care";
+import { filespaceBlock as filespaceBlockInstance } from "better-supabase/blocks/filespace";
+import { crmBlock as crmBlockInstance } from "better-supabase/blocks/crm";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock as accessRequestsBlockInstance } from "better-supabase/blocks/access-requests";
 import { accountingBlock as accountingBlockInstance } from "better-supabase/blocks/accounting";
@@ -267,6 +285,7 @@ import { automationsBlock as automationsBlockInstance } from "better-supabase/bl
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-supabase/blocks/service-accounts";
+import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
 import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
@@ -294,6 +313,74 @@ import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
+  sales: {
+    schema: "better_supabase",
+    options: {},
+  },
+  collaboration: {
+    schema: "better_supabase",
+    options: {},
+  },
+  governance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  commerce: {
+    schema: "better_supabase",
+    options: {},
+  },
+  procurement: {
+    schema: "better_supabase",
+    options: {},
+  },
+  finance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  support: {
+    schema: "better_supabase",
+    options: {},
+  },
+  projects: {
+    schema: "better_supabase",
+    options: {},
+  },
+  service: {
+    schema: "better_supabase",
+    options: {},
+  },
+  recruiting: {
+    schema: "better_supabase",
+    options: {},
+  },
+  scheduling: {
+    schema: "better_supabase",
+    options: {},
+  },
+  learning: {
+    schema: "better_supabase",
+    options: {},
+  },
+  events: {
+    schema: "better_supabase",
+    options: {},
+  },
+  cms: {
+    schema: "better_supabase",
+    options: {},
+  },
+  care: {
+    schema: "better_supabase",
+    options: {},
+  },
+  filespace: {
+    schema: "better_supabase",
+    options: {},
+  },
+  crm: {
+    schema: "better_supabase",
+    options: {},
+  },
   permissions: {
     schema: "better_supabase",
     api: "api",
@@ -1209,6 +1296,23 @@ export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenam
  * @public
  */
 export const blocks = {
+  sales: salesBlockInstance,
+  collaboration: collaborationBlockInstance,
+  governance: governanceBlockInstance,
+  commerce: commerceBlockInstance,
+  procurement: procurementBlockInstance,
+  finance: financeBlockInstance,
+  support: supportBlockInstance,
+  projects: projectsBlockInstance,
+  service: serviceBlockInstance,
+  recruiting: recruitingBlockInstance,
+  scheduling: schedulingBlockInstance,
+  learning: learningBlockInstance,
+  events: eventsBlockInstance,
+  cms: cmsBlockInstance,
+  care: careBlockInstance,
+  filespace: filespaceBlockInstance,
+  crm: crmBlockInstance,
   permissions: permissionsBlockInstance,
   "access-requests": accessRequestsBlockInstance,
   accounting: accountingBlockInstance,
@@ -1327,6 +1431,7 @@ export const blocks = {
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   "service-accounts": serviceAccountsBlockInstance,
+  sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
   "signing-keys": signingKeysBlockInstance,
@@ -3755,4 +3860,203 @@ export const topics = {
 export const paths = {
   customerLogos: (v: { readonly organizationId: string; readonly customerId: string; readonly version: string }) => `${String(v.organizationId)}/${String(v.customerId)}/logo/${String(v.version)}.webp`,
   avatars: (v: { readonly userId: string; readonly version: string; readonly ext: string }) => `${String(v.userId)}/avatar-${String(v.version)}.${String(v.ext)}`,
+} as const;
+
+/** The arguments of `reads.deals.board`. @public */
+export type DealsBoardArgs = { readonly pipelineId: string };
+
+/** What `reads.deals.board` returns. @public */
+export type DealsBoardResult = {
+  readonly pipelineId: string;
+  readonly stages: readonly {
+    readonly id: string;
+    readonly key: string;
+    readonly name: string;
+    readonly category: string;
+    readonly probability: number | null;
+    readonly rottingAfterDays: number | null;
+    readonly wipLimit: number | null;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly amount: string;
+      readonly weighted: string;
+    }[];
+    readonly deals: readonly {
+      readonly id: string;
+      readonly identifier: string;
+      readonly name: string;
+      readonly amount: string;
+      readonly currency: string;
+      readonly ownerId: string | null;
+      readonly closeOn: string;
+      readonly probability: number | null;
+      readonly daysInStage: number;
+      readonly rotting: boolean;
+      readonly nextStep: string | null;
+      readonly nextAt: string | null;
+      readonly rank: string;
+    }[];
+  }[];
+  readonly weighted: readonly {
+    readonly currency: string;
+    readonly amount: string;
+  }[];
+};
+
+/** The arguments of `reads.banking.reconciliationBoard`. @public */
+export type BankingReconciliationBoardArgs = { readonly accountId: string; readonly limit?: number };
+
+/** What `reads.banking.reconciliationBoard` returns. @public */
+export type BankingReconciliationBoardResult = {
+  readonly status: {
+    readonly accountId: string;
+    readonly asOf: string;
+    readonly currency: string;
+    readonly statementId: string | null;
+    readonly statementBalance: string | null;
+    readonly transactionTotal: string;
+    readonly unmatchedCount: number;
+    readonly unmatchedTotal: string;
+    readonly ledgerBalance: string | null;
+    readonly difference: string | null;
+    readonly reconciled: boolean;
+  };
+  readonly lines: readonly {
+    readonly id: string;
+    readonly bookedOn: string;
+    readonly amount: string;
+    readonly currency: string;
+    readonly counterpartyName: string | null;
+    readonly counterpartyIban: string | null;
+    readonly remittance: string | null;
+    readonly status: string;
+  }[];
+  readonly suggestions: readonly {
+    readonly transactionId: string;
+    readonly targetType: string;
+    readonly targetId: string;
+    readonly label: string;
+    readonly balance: string;
+    readonly currency: string;
+    readonly score: number;
+    readonly reasons: readonly string[];
+  }[];
+};
+
+/** The arguments of `reads.inventory.overview`. @public */
+export type InventoryOverviewArgs = { readonly organizationId: string; readonly limit?: number; readonly expiryDays?: number };
+
+/** What `reads.inventory.overview` returns. @public */
+export type InventoryOverviewResult = {
+  readonly levelCount: number;
+  readonly lowStockCount: number;
+  readonly lowStock: readonly {
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly onHand: string;
+    readonly available: string;
+    readonly reorderPoint: string;
+  }[];
+  readonly expiring: readonly {
+    readonly lotId: string;
+    readonly code: string;
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly expiresOn: string;
+    readonly onHand: string;
+  }[];
+};
+
+/** The arguments of `reads.orders.board`. @public */
+export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
+
+/** What `reads.orders.board` returns. @public */
+export type OrdersBoardResult = {
+  readonly columns: readonly {
+    readonly status: string;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly total: string;
+      readonly paid: string;
+    }[];
+    readonly orders: readonly {
+      readonly id: string;
+      readonly number: string;
+      readonly customerId: string | null;
+      readonly currency: string;
+      readonly total: string;
+      readonly paidTotal: string;
+      readonly placedAt: string;
+    }[];
+  }[];
+};
+
+/** The arguments of `reads.organizations.overview`. @public */
+export type OrganizationsOverviewArgs = { readonly organizationId: string };
+
+/** What `reads.organizations.overview` returns. @public */
+export type OrganizationsOverviewResult = {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string | null;
+  readonly role: string;
+  readonly seats: number | null;
+  readonly members: readonly {
+    readonly userId: string;
+    readonly role: string;
+    readonly roles: readonly string[];
+    readonly disabledAt: string | null;
+  }[];
+  readonly invitations: readonly {
+    readonly id: string;
+    readonly email: string;
+    readonly role: string;
+    readonly expiresAt: string | null;
+  }[];
+};
+
+/** The arguments of `reads.sessions.overview`. @public */
+export type SessionsOverviewArgs = {  };
+
+/** What `reads.sessions.overview` returns. @public */
+export type SessionsOverviewResult = {
+  readonly count: number;
+  readonly currentId: string | null;
+  readonly sessions: readonly {
+    readonly id: string;
+    readonly createdAt: string | null;
+    readonly lastActiveAt: string | null;
+    readonly userAgent: string | null;
+    readonly ip: string | null;
+    readonly aal: string | null;
+    readonly current: boolean;
+  }[];
+};
+
+/**
+ * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
+ * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
+ * @public
+ */
+export const reads = {
+  deals: {
+    board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "api"),
+  },
+  banking: {
+    reconciliationBoard: blockRead<BankingReconciliationBoardArgs, BankingReconciliationBoardResult>("bank_reconciliation_board", { accountId: "account_id", limit: "line_limit" }, ["accounts", "transactions", "matches"], "api"),
+  },
+  inventory: {
+    overview: blockRead<InventoryOverviewArgs, InventoryOverviewResult>("inventory_overview", { organizationId: "tenant", limit: "row_limit", expiryDays: "expiry_days" }, ["levels", "lots", "buckets"], "api"),
+  },
+  orders: {
+    board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "api"),
+  },
+  organizations: {
+    overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
+  },
+  sessions: {
+    overview: blockRead<SessionsOverviewArgs, SessionsOverviewResult>("sessions_overview", {  }, [], "api"),
+  },
 } as const;

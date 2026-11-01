@@ -42,6 +42,7 @@ import type { BlockSql } from "../packages/better-supabase/src/sql/index.ts";
 import type { BlockSqlLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
+import { PORT_NAMES } from "../packages/better-supabase/src/blocks/ports.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
   entityNames,
@@ -66,6 +67,14 @@ import {
   withAdoptableTables,
 } from "./adoptable-tables.ts";
 import { blockHints, formatBlockHints } from "./block-hints.ts";
+import {
+  AUTOMATIONS_PAGE,
+  MATRIX_PAGE,
+  moduleMatrix,
+  defaultAutomations,
+  withDefaultAutomations,
+  withModuleMatrix,
+} from "./composition-docs.ts";
 
 /**
  * The blocks a block works with: what it integrates and the generic blocks it
@@ -531,10 +540,24 @@ function presetManifest(
     provides: Object.keys(block.provides).filter(isPortName),
   };
 
+  const parts = Object.keys(block.composes ?? {});
+
+  const composedBy = BLOCK_MANIFESTS.filter((each) =>
+    Object.hasOwn(each.composes ?? {}, block.name),
+  ).map((each) => each.name);
+
+  const withParts =
+    parts.length === 0
+      ? manifest
+      : { ...manifest, composes: parts, defaults: block.defaults ?? {} };
+
+  const composed =
+    composedBy.length === 0 ? withParts : { ...withParts, composedBy };
+
   const extended =
     block.extension === undefined
-      ? manifest
-      : { ...manifest, extension: block.extension };
+      ? composed
+      : { ...composed, extension: block.extension };
 
   const entitySchemas = entitySchemasOf(block);
 
@@ -576,16 +599,20 @@ function presetManifest(
     }),
   );
 
-  return { ...withEvents, ...wiring };
-}
+  const automations = (block.automations ?? []).map((each) => ({
+    key: each.key,
+    name: each.name,
+    trigger: each.trigger,
+    subjectType: each.subjectType,
+    actions: each.actions.map((action) => action.kind),
+    enabled: each.enabled ?? true,
+    requires: each.requires ?? [],
+  }));
 
-const PORT_NAMES: readonly PortName[] = [
-  "notifier",
-  "files",
-  "attachments",
-  "workflows",
-  "sink",
-];
+  const wired = { ...withEvents, ...wiring };
+
+  return automations.length === 0 ? wired : { ...wired, automations };
+}
 
 const isPortName = (name: string): name is PortName =>
   PORT_NAMES.some((port) => port === name);
@@ -677,6 +704,24 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
 
   if (module.scopes !== undefined) {
     block = { ...block, scopes: module.scopes };
+  }
+
+  const contributes = Object.keys(module.contributes ?? {});
+
+  if (contributes.length > 0) {
+    block = { ...block, contributes };
+  }
+
+  const links = module.names?.links ?? [];
+
+  if (links.length > 0) {
+    block = { ...block, links };
+  }
+
+  const reads = module.names?.reads ?? [];
+
+  if (reads.length > 0) {
+    block = { ...block, reads };
   }
 
   if (clashes.length > 0) {
@@ -806,7 +851,8 @@ export function formatPresetCatalog(catalog: PresetCatalog): string {
 
 if (import.meta.main) {
   try {
-    const preset = formatPresetCatalog(buildPresetCatalog());
+    const presetCatalog = buildPresetCatalog();
+    const preset = formatPresetCatalog(presetCatalog);
     const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
     const hints = formatBlockHints(blockHints(BLOCK_MANIFESTS, BLOCKS_SRC));
 
@@ -838,6 +884,31 @@ if (import.meta.main) {
         );
         exit(1);
       }
+
+      const matrix = readFileSync(MATRIX_PAGE, "utf-8");
+
+      if (
+        withModuleMatrix(matrix) !== matrix ||
+        !matrix.includes(moduleMatrix())
+      ) {
+        console.error(
+          "build-catalog: the module matrix on blocks/index.mdx is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+
+      const automationsPage = readFileSync(AUTOMATIONS_PAGE, "utf-8");
+
+      if (
+        withDefaultAutomations(automationsPage, presetCatalog) !==
+          automationsPage ||
+        !automationsPage.includes(defaultAutomations(presetCatalog))
+      ) {
+        console.error(
+          "build-catalog: the default automations on automations.mdx are stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
       writeFileSync(NAME_REGISTRY_FILE, nameSets);
@@ -854,6 +925,23 @@ if (import.meta.main) {
       }
 
       writeFileSync(OWN_SCHEMAS_PAGE, page);
+
+      for (const [file, updated] of [
+        [MATRIX_PAGE, withModuleMatrix(readFileSync(MATRIX_PAGE, "utf-8"))],
+        [
+          AUTOMATIONS_PAGE,
+          withDefaultAutomations(
+            readFileSync(AUTOMATIONS_PAGE, "utf-8"),
+            presetCatalog,
+          ),
+        ],
+      ] as const) {
+        if (updated === undefined) {
+          throw new Error(`build-catalog: ${file} lost its generated markers.`);
+        }
+
+        writeFileSync(file, updated);
+      }
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

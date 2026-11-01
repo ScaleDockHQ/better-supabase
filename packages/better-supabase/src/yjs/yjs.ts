@@ -237,7 +237,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
         pending.length === 1 ? pending[0]! : yjs.mergeUpdates(pending);
 
       const count = pending.length;
-      const pushed = await documents.push(opened.id, update);
+      const pushed = await documents.push({ documentId: opened.id, update });
 
       if (!pushed.ok) {
         stalled = true;
@@ -298,7 +298,10 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
       return;
     }
 
-    const state = await documents.pull(opened.id, synced);
+    const state = await documents.pull({
+      documentId: opened.id,
+      afterSeq: synced,
+    });
 
     if (!state.ok) {
       fail(state.error);
@@ -446,7 +449,12 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
         const count = drafts.length;
         const update = count === 1 ? drafts[0]! : yjs.mergeUpdates(drafts);
-        const stored = await documents.suggest(opened.id, update, summary);
+
+        const stored = await documents.suggest({
+          documentId: opened.id,
+          update,
+          summary,
+        });
 
         if (stored.ok) {
           drafts.splice(0, count);
@@ -462,11 +470,11 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
           );
         }
 
-        const decided = await documents.decideSuggestion(
+        const decided = await documents.decideSuggestion({
           suggestionId,
-          "accepted",
+          decision: "accepted",
           note,
-        );
+        });
 
         if (!decided.ok) {
           return decided;
@@ -524,7 +532,11 @@ export function compactDocument(
 ): AsyncResult<boolean> {
   return AsyncResult.from(async () => {
     const yjs = await loadYjs(options.yjs);
-    const state = await options.documents.pull(options.documentId, 0);
+
+    const state = await options.documents.pull({
+      documentId: options.documentId,
+      afterSeq: 0,
+    });
 
     if (!state.ok) {
       return err(state.error);
@@ -542,6 +554,10 @@ export function compactDocument(
       ...updates.map((item) => item.update),
     ]);
 
-    return options.documents.compact(options.documentId, merged, last.seq);
+    return options.documents.compact({
+      documentId: options.documentId,
+      state: merged,
+      throughSeq: last.seq,
+    });
   });
 }

@@ -133,9 +133,12 @@ describe.skipIf(!live)("announcements", () => {
       await s.service();
 
       const updated = await announcements
-        .update(admins.id, {
-          title: "Admins and members",
-          audience: { type: "role", roles: ["admin", "member"] },
+        .update({
+          announcementId: admins.id,
+          input: {
+            title: "Admins and members",
+            audience: { type: "role", roles: ["admin", "member"] },
+          },
         })
         .orThrow();
 
@@ -149,7 +152,10 @@ describe.skipIf(!live)("announcements", () => {
       );
       expect(
         await announcements
-          .update(crypto.randomUUID(), { title: "x" })
+          .update({
+            announcementId: crypto.randomUUID(),
+            input: { title: "x" },
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("ANNOUNCEMENT_NOT_FOUND");
       const all = await announcements.list().orThrow();

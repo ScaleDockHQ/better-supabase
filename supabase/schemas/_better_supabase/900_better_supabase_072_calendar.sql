@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:e801dee572c0e028d3d93024f1fddd4afef91e9e0f386c1240cc0ee39c677957
+-- @bsb-hash sha256:a1f25963ff7f4ec255e4e296d6e430684526b75bff61a2f3b71c17c52f88afdf
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1517,6 +1517,14 @@ drop trigger if exists "bsb_search_calendar_event_index" on "better_supabase"."c
 create trigger "bsb_search_calendar_event_index"
   after insert or delete or update of "id", "tenant_id", "title", "description", "location" on "better_supabase"."calendar_events"
   for each row execute function "better_supabase"."search_index_row"('calendar_event', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.calendar_events', target_type => 'calendar_event', event_prefix => 'calendar_event', deferred => true);
+  perform better_supabase.audit('better_supabase.calendars', target_type => 'calendar', event_prefix => 'calendar', deferred => true);
+end;
+$$;
 
 -- blocks.calendar.api: entry points for the Data API.
 create schema if not exists "api";

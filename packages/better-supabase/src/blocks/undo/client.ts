@@ -32,7 +32,10 @@ export interface UndoSnapshot {
 
 export interface UndoActions {
   /** Adds a token; a `null` token (a change with no inverse) is ignored. */
-  readonly push: (token: UndoToken | null | undefined, label?: string) => void;
+  readonly push: (input: {
+    token: UndoToken | null | undefined;
+    label?: string | undefined;
+  }) => void;
   /**
    * Applies the newest entry and removes it. A failed undo removes it too,
    * since its rows changed since, and sets `error`. Resolves whether it
@@ -71,7 +74,7 @@ export function createUndoController(
 
       return {
         actions: {
-          push: (token, label = "") => {
+          push: ({ token, label = "" }) => {
             if (!token) {
               return;
             }

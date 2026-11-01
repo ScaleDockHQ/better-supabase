@@ -675,6 +675,45 @@ end;
 $$;
 ${userGrant(`${fn("drive_list")}(${ctx.idType}, uuid, integer, integer, uuid)`)}
 
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function ${fn("drive_search")}(tenant ${ctx.idType}, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%';
+begin
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "drive_search.tenant", read)}) then
+    ${forbidden("read this organization's drive")}
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(${withRole("c.r")} order by (c.r).${n("kind")} <> 'folder', (c.r).${n("name")}, (c.r).${n("id")}), '[]'::jsonb)
+    from (
+      select x as r from ${T} x
+      where x.${n("tenant")} = drive_search.tenant${live("x")}
+        and (${SERVICE_CALLER} or ${canRead(`x.${n("id")}`)})
+        and (x.${n("name")} ilike v_like escape '\\'${
+          ctx.has("nodes", "attachment") && ctx.hasTable("texts")
+            ? `
+      or exists (select 1 from ${ctx.table("texts")} t where t.${ctx.col("texts", "node")} = x.${n("id")} and t.${ctx.col("texts", "content")} ilike v_like escape '\\')`
+            : ""
+        })
+      order by x.${n("kind")} <> 'folder', x.${n("name")}, x.${n("id")}
+      limit ${pageSize("drive_search.page_size", 25, 100)}
+    ) c
+  );
+end;
+$$;
+${userGrant(`${fn("drive_search")}(${ctx.idType}, text, integer)`)}
+
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function ${fn("drive_shared")}(tenant ${ctx.idType}, page_size integer default 100)
 returns jsonb

@@ -328,7 +328,10 @@ export interface Warehouse {
    * Records what a picker found; needs `warehouse.pick`. The stock moves when
    * the document ships, not here.
    */
-  recordPick(lineId: string, pick: PickRecord): AsyncResult<PickList>;
+  recordPick(input: {
+    lineId: string;
+    pick: PickRecord;
+  }): AsyncResult<PickList>;
   /**
    * Finishes a list: lines with less picked than asked for become short, and
    * the picker's work item moves to done.
@@ -383,18 +386,17 @@ export interface Warehouse {
    * Sets the walking order of an open list: `lineIds` first, the other open
    * lines after them.
    */
-  setPickRoute(
-    pickListId: string,
-    lineIds: readonly string[],
-  ): AsyncResult<PickList>;
+  setPickRoute(input: {
+    pickListId: string;
+    lineIds: readonly string[];
+  }): AsyncResult<PickList>;
   /**
    * Orders an open list's lines by the bins' places with `optimizer` (nearest
    * neighbour by default) and saves it as the route. A failing optimizer falls
    * back to nearest neighbour; the result says which one ran.
    */
   optimizePickRoute(
-    pickListId: string,
-    options: OptimizePickRouteOptions,
+    input: { pickListId: string } & OptimizePickRouteOptions,
   ): AsyncResult<OptimizedPickRoute>;
   /** Creates a cycle count plan; needs `warehouse.manage`. */
   createCountPlan(input: CountPlanInput): AsyncResult<CountPlan>;
@@ -412,8 +414,7 @@ export interface Warehouse {
    * with `approve: true`.
    */
   postCycleCount(
-    countId: string,
-    options?: { readonly approve?: boolean },
+    input: { countId: string } & { readonly approve?: boolean },
   ): AsyncResult<Record<string, unknown>>;
 }
 
@@ -653,7 +654,7 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
       call("release_pick_wave", { wave_id: waveId }, wave("release_pick_wave")),
     cancelPickWave: (waveId) =>
       call("cancel_pick_wave", { wave_id: waveId }, wave("cancel_pick_wave")),
-    recordPick: (lineId, pick) =>
+    recordPick: ({ lineId, pick }) =>
       call(
         "record_pick",
         { line_id: lineId, attrs: definedOf(pick) },
@@ -782,13 +783,13 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
             ),
         ),
       ),
-    setPickRoute: (pickListId, lineIds) =>
+    setPickRoute: ({ pickListId, lineIds }) =>
       call(
         "set_pick_route",
         { pick_list_id: pickListId, line_ids: lineIds },
         list("set_pick_route"),
       ),
-    optimizePickRoute: (pickListId, routeOptions) =>
+    optimizePickRoute: ({ pickListId, ...routeOptions }) =>
       client.getPickList(pickListId).andThen((pickList) => {
         const open = pickList.lines.filter((line) => line.status === "open");
 
@@ -817,7 +818,10 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
           ),
         ).andThen((optimization) =>
           client
-            .setPickRoute(pickListId, [...optimization.order, ...unplaced])
+            .setPickRoute({
+              pickListId,
+              lineIds: [...optimization.order, ...unplaced],
+            })
             .map((routed) => ({ pickList: routed, optimization })),
         );
       }),
@@ -852,7 +856,7 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
       call("get_cycle_count_variance", { count_id: countId }, (value) =>
         varianceOf(value, "get_cycle_count_variance"),
       ),
-    postCycleCount: (countId, post = {}) =>
+    postCycleCount: ({ countId, ...post }) =>
       call(
         "post_cycle_count",
         { count_id: countId, approve: post.approve ?? false },

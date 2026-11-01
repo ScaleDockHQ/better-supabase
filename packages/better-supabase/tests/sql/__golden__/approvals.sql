@@ -991,7 +991,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:a995fc421065bd30bebc894b07fc2852217b875f0004e240624e9bef9b803e9a
+-- @bsb-hash sha256:763a72803ce2319667beb7af214d370b17e06282900384bc92ecb3016231c005
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2248,6 +2248,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.approval_requests', target_type => 'approval', event_prefix => 'approval', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

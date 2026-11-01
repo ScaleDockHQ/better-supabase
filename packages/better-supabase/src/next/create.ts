@@ -47,8 +47,9 @@ import { methodOf } from "../blocks/block-method.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
-import { isReadSet } from "../core/read-set.ts";
+import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
+import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
@@ -79,6 +80,7 @@ import {
   tableTags,
 } from "./cache.ts";
 import {
+  DEFAULT_ROUND_TRIPS,
   REQUEST_ID_HEADER,
   formatStats,
   sharedCollector,
@@ -91,7 +93,7 @@ import {
   syncMiddlewareSetCookie,
   serverTimingValue,
 } from "./proxy.ts";
-import { recordServer } from "./record.ts";
+import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
 import { resourceRoutes } from "./resources.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
@@ -148,13 +150,20 @@ export function createNext<
   const statsRoute = debug?.route ?? "/api/bsb-stats";
   const development = process.env["NODE_ENV"] === "development";
 
-  const collector = debug?.enabled
-    ? sharedCollector({
-        logger: betterSupabase.events.logger,
-        warn: development,
-        ...(debug.budget ? { budget: debug.budget } : {}),
-      })
-    : undefined;
+  const roundTrips = options.devRoundTripBudget ?? DEFAULT_ROUND_TRIPS;
+  const watching = development && roundTrips !== false;
+
+  const budget =
+    debug?.budget ?? (watching ? { waves: roundTrips } : undefined);
+
+  const collector =
+    debug?.enabled || watching
+      ? sharedCollector({
+          logger: betterSupabase.events.logger,
+          warn: development,
+          ...(budget ? { budget } : {}),
+        })
+      : undefined;
 
   const statsFor = (request: Request): ContextOptions => {
     const id = collector && request.headers.get(REQUEST_ID_HEADER);
@@ -1169,12 +1178,18 @@ export function createNext<
 
     tags(target, tagOptions = {}) {
       const specs = isReadSet(target)
-        ? Object.values(target.specs)
+        ? Object.values(target.specs).filter((spec) => isQuerySpec(spec))
         : isList(target)
           ? target
           : [target];
 
       const tags = new Set<string>();
+
+      for (const table of isReadSet(target) ? readSetTables(target) : []) {
+        for (const tag of tableTags(table, tagOptions)) {
+          tags.add(tag);
+        }
+      }
 
       for (const spec of specs) {
         for (const table of betterSupabase.tablesOf(spec)) {
@@ -1208,7 +1223,17 @@ export function createNext<
             input,
           ]) as readonly unknown[];
 
-          return call(...args);
+          const result = await call(...args);
+
+          if (result.ok && blockOptions.invalidates) {
+            invalidateAll(
+              blockOptions.invalidates.flatMap((table) =>
+                tableTags(table, { tenant: "*" }),
+              ),
+            );
+          }
+
+          return result;
         },
       );
 
@@ -1217,6 +1242,8 @@ export function createNext<
     },
 
     record: (type) => recordServer(next, type),
+
+    recordAt: (type, id) => recordAtServer(next, type, id),
   });
 
   return next;

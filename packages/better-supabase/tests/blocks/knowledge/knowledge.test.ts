@@ -127,7 +127,10 @@ describe("createKnowledge", () => {
     const knowledge = createKnowledge({ transport, embedder: embedder() });
 
     const created = await knowledge.documents
-      .create("o1", { title: "Notes", scope: "user", metadata: { a: 1 } })
+      .create({
+        organizationId: "o1",
+        document: { title: "Notes", scope: "user", metadata: { a: 1 } },
+      })
       .orThrow();
 
     expect(created).toMatchObject({
@@ -142,7 +145,10 @@ describe("createKnowledge", () => {
     expect(created.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
 
     const ingested = await knowledge.ingest
-      .text("o1", { title: "Notes", text: "hello world" })
+      .text({
+        organizationId: "o1",
+        document: { title: "Notes", text: "hello world" },
+      })
       .orThrow();
 
     expect(ingested.chunkCount).toBe(2);
@@ -164,7 +170,7 @@ describe("createKnowledge", () => {
     );
 
     const listed = await knowledge.documents
-      .list("o1", { scope: "user", scopeId: "u1", limit: 5 })
+      .list({ organizationId: "o1", scope: "user", scopeId: "u1", limit: 5 })
       .orThrow();
 
     expect(listed.map((d) => [d.scope, d.status])).toEqual([
@@ -177,7 +183,10 @@ describe("createKnowledge", () => {
     expect(await knowledge.documents.remove("d1").orThrow()).toBe(true);
 
     await knowledge.ingest
-      .text(null, { title: "Handbook", text: "shared", collectionId: "c1" })
+      .text({
+        organizationId: null,
+        document: { title: "Handbook", text: "shared", collectionId: "c1" },
+      })
       .orThrow();
     expect(
       calls.findLast((c) => c.fn === "create_knowledge_document")?.args,
@@ -203,11 +212,14 @@ describe("createKnowledge", () => {
     const subject = { type: "drive_node", id: "n1" };
 
     const created = await knowledge.ingest
-      .text("o1", {
-        title: "Contract",
-        text: "Signed.",
-        scope: "subject",
-        subject,
+      .text({
+        organizationId: "o1",
+        document: {
+          title: "Contract",
+          text: "Signed.",
+          scope: "subject",
+          subject,
+        },
       })
       .orThrow();
 
@@ -225,7 +237,7 @@ describe("createKnowledge", () => {
     });
 
     const listed = await knowledge.documents
-      .list("o1", { scope: "subject", subject })
+      .list({ organizationId: "o1", scope: "subject", subject })
       .orThrow();
 
     expect(listed.map((d) => d.subject)).toEqual([subject, undefined]);
@@ -234,7 +246,9 @@ describe("createKnowledge", () => {
     ).toMatchObject({ subject_type: "drive_node", subject_id: "n1" });
 
     await knowledge
-      .search("o1", "signed", {
+      .search({
+        organizationId: "o1",
+        query: "signed",
         scopes: [{ scope: "subject", type: "drive_node", id: "n1" }],
       })
       .orThrow();
@@ -264,25 +278,39 @@ describe("createKnowledge", () => {
     const files = { files: { read } } as unknown as AiFiles;
     const knowledge = createKnowledge({ transport, files });
 
-    const doc = await knowledge.ingest.file("o1", "f1").orThrow();
+    const doc = await knowledge.ingest
+      .file({ organizationId: "o1", fileId: "f1" })
+      .orThrow();
+
     expect(doc.fileId).toBe("f1");
     expect(calls[0]?.args).toMatchObject({
       file_id: "f1",
       title: "notes.md",
       source: "notes.md",
     });
-    const pdf = await knowledge.ingest.file("o1", "pdf");
+
+    const pdf = await knowledge.ingest.file({
+      organizationId: "o1",
+      fileId: "pdf",
+    });
+
     expect(pdf.ok ? undefined : pdf.error.hint).toBe("KNOWLEDGE_UNSUPPORTED");
 
     const extract = vi.fn(() => Promise.resolve("from a pdf"));
     const custom = createKnowledge({ transport, files, extract });
-    await custom.ingest.file("o1", "pdf", { title: "Report" }).orThrow();
+    await custom.ingest
+      .file({
+        organizationId: "o1",
+        fileId: "pdf",
+        document: { title: "Report" },
+      })
+      .orThrow();
     expect(extract).toHaveBeenCalledOnce();
 
-    const noFiles = await createKnowledge({ transport }).ingest.file(
-      "o1",
-      "f1",
-    );
+    const noFiles = await createKnowledge({ transport }).ingest.file({
+      organizationId: "o1",
+      fileId: "f1",
+    });
 
     expect(noFiles.ok ? undefined : noFiles.error.hint).toBe(
       "KNOWLEDGE_NO_FILES",
@@ -318,7 +346,11 @@ describe("createKnowledge", () => {
     const knowledge = createKnowledge({ transport, files });
 
     const queued = await knowledge.ingest
-      .queue("o1", "f1", { title: "Notes" })
+      .queue({
+        organizationId: "o1",
+        fileId: "f1",
+        document: { title: "Notes" },
+      })
       .orThrow();
 
     expect(queued.fileId).toBe("f1");
@@ -376,7 +408,7 @@ describe("createKnowledge", () => {
       batchSize: 2,
     });
 
-    expect(await knowledge.process("d1").orThrow()).toBe(0);
+    expect(await knowledge.process({ documentId: "d1" }).orThrow()).toBe(0);
     expect(model.batches).toEqual([["a", "b"], ["c"]]);
     expect(
       calls.find((c) => c.fn === "set_knowledge_embeddings")?.args,
@@ -390,7 +422,7 @@ describe("createKnowledge", () => {
       },
       model: "m1",
     });
-    expect(await knowledge.process("d1").orThrow()).toBe(0);
+    expect(await knowledge.process({ documentId: "d1" }).orThrow()).toBe(0);
   });
 
   it("rejects vectors that don't match the chunks", async () => {
@@ -414,7 +446,7 @@ describe("createKnowledge", () => {
       const result = await createKnowledge({
         transport,
         embedder: { model: "m1", embed: () => Promise.resolve(vectors) },
-      }).process("d1");
+      }).process({ documentId: "d1" });
 
       expect(result.ok ? undefined : result.error).toMatchObject({
         kind: "invalid_input",
@@ -432,7 +464,7 @@ describe("createKnowledge", () => {
     });
 
     const knowledge = createKnowledge({ transport, embedder: embedder() });
-    expect(await knowledge.process("d1").orThrow()).toBe(1);
+    expect(await knowledge.process({ documentId: "d1" }).orThrow()).toBe(1);
     expect(
       calls.filter((c) => c.fn === "set_knowledge_embeddings"),
     ).toHaveLength(2);
@@ -459,14 +491,20 @@ describe("createKnowledge", () => {
     });
 
     expect(
-      await knowledge.process("d1", { signal: controller.signal }).orThrow(),
+      await knowledge
+        .process({ documentId: "d1", options: { signal: controller.signal } })
+        .orThrow(),
     ).toBe(3);
-    const bare = await createKnowledge({ transport }).process("d1");
+
+    const bare = await createKnowledge({ transport }).process({
+      documentId: "d1",
+    });
+
     expect(bare.ok ? undefined : bare.error.hint).toBe("KNOWLEDGE_NO_EMBEDDER");
 
     const broken = await createKnowledge({
       transport: fakeTransport({}).transport,
-    }).process("d1");
+    }).process({ documentId: "d1" });
 
     expect(broken.ok).toBe(false);
   });
@@ -585,7 +623,9 @@ describe("createKnowledge", () => {
     const knowledge = createKnowledge({ transport, embedder: model });
 
     const hits = await knowledge
-      .search("o1", "hello", {
+      .search({
+        organizationId: "o1",
+        query: "hello",
         scopes: [{ scope: "organization" }],
         k: 3,
         filter: { topic: "a" },
@@ -610,17 +650,21 @@ describe("createKnowledge", () => {
       k: 3,
       filter: { topic: "a" },
     });
-    await knowledge.search("o1", { embedding: [1, 2] }).orThrow();
+    await knowledge
+      .search({ organizationId: "o1", query: { embedding: [1, 2] } })
+      .orThrow();
     expect(calls[1]?.args).toMatchObject({
       query_embedding: "[1,2]",
       query_text: undefined,
     });
-    await knowledge.search("o1", "").orThrow();
+    await knowledge.search({ organizationId: "o1", query: "" }).orThrow();
     expect(calls[2]?.args).toMatchObject({
       query_embedding: undefined,
       query_text: undefined,
     });
-    await createKnowledge({ transport }).search("o1", "hi").orThrow();
+    await createKnowledge({ transport })
+      .search({ organizationId: "o1", query: "hi" })
+      .orThrow();
     expect(calls[3]?.args).toMatchObject({
       query_embedding: undefined,
       query_text: "hi",
@@ -663,7 +707,10 @@ describe("knowledge collections", () => {
     const { collections } = createKnowledge({ transport });
 
     const created = await collections
-      .create("o1", { name: "Handbook", visibility: "restricted", priority: 2 })
+      .create({
+        organizationId: "o1",
+        collection: { name: "Handbook", visibility: "restricted", priority: 2 },
+      })
       .orThrow();
 
     expect(created).toMatchObject({
@@ -681,7 +728,7 @@ describe("knowledge collections", () => {
     });
 
     const updated = await collections
-      .update("c1", { visibility: "disabled" })
+      .update({ collectionId: "c1", patch: { visibility: "disabled" } })
       .orThrow();
 
     expect(updated).toMatchObject({ visibility: "disabled", priority: 0 });
@@ -706,8 +753,12 @@ describe("knowledge collections", () => {
 
     const { collections } = createKnowledge({ transport });
 
-    await collections.grant("c1", { userId: "u2" }).orThrow();
-    await collections.revoke("c1", { teamId: "t1" }).orThrow();
+    await collections
+      .grant({ collectionId: "c1", to: { userId: "u2" } })
+      .orThrow();
+    await collections
+      .revoke({ collectionId: "c1", from: { teamId: "t1" } })
+      .orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       { collection_id: "c1", user_id: "u2", granted: true },
       { collection_id: "c1", team_id: "t1", granted: false },
@@ -735,10 +786,13 @@ describe("knowledge collections", () => {
     const knowledge = createKnowledge({ transport });
 
     const doc = await knowledge.documents
-      .create("o1", {
-        title: "Policy",
-        scope: "organization",
-        collectionId: "c1",
+      .create({
+        organizationId: "o1",
+        document: {
+          title: "Policy",
+          scope: "organization",
+          collectionId: "c1",
+        },
       })
       .orThrow();
 
@@ -749,11 +803,17 @@ describe("knowledge collections", () => {
     });
     expect(calls[0]?.args).toMatchObject({ collection_id: "c1" });
 
-    await knowledge.documents.list("o1", { collectionId: "c1" }).orThrow();
+    await knowledge.documents
+      .list({ organizationId: "o1", collectionId: "c1" })
+      .orThrow();
     expect(calls[1]?.args).toMatchObject({ collection_id: "c1" });
 
     await knowledge
-      .search("o1", { text: "leave" }, { collections: ["c1"] })
+      .search({
+        organizationId: "o1",
+        query: { text: "leave" },
+        collections: ["c1"],
+      })
       .orThrow();
     expect(calls[2]?.args).toMatchObject({ collections: ["c1"] });
   });

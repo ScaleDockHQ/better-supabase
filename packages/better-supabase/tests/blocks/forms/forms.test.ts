@@ -87,14 +87,21 @@ describe("forms client", () => {
     expect(created.description).toBeUndefined();
     expect(created.createdAt.toString()).toBe(AT);
     expect(
-      (await forms.update("f1", { status: "open" }).orThrow()).status,
+      (await forms.update({ id: "f1", update: { status: "open" } }).orThrow())
+        .status,
     ).toBe("open");
-    const version = await forms.publish("f1", SIGNUP).orThrow();
+
+    const version = await forms
+      .publish({ formId: "f1", definition: SIGNUP })
+      .orThrow();
+
     expect(version).toMatchObject({ number: 1, definition: SIGNUP });
     expect(version.schema).toEqual(formSchema(SIGNUP));
     expect((await forms.get("f1").orThrow()).version?.id).toBe("v1");
     expect((await forms.getVersion("v1").orThrow()).formId).toBe("f1");
-    expect(await forms.list("o", { status: "open" }).orThrow()).toHaveLength(1);
+    expect(
+      await forms.list({ organizationId: "o", status: "open" }).orThrow(),
+    ).toHaveLength(1);
     expect(fake.calls).toEqual([
       [
         "create_form",
@@ -120,8 +127,8 @@ describe("forms client", () => {
 
     const forms = createForms({ transport: fake, schema: "app" });
     expect((await forms.get("f1").orThrow()).version).toBeUndefined();
-    await forms.list("o").orThrow();
-    await forms.listSubmissions("f1").orThrow();
+    await forms.list({ organizationId: "o" }).orThrow();
+    await forms.listSubmissions({ formId: "f1" }).orThrow();
     expect(fake.calls.slice(1)).toEqual([
       ["list_forms", { tenant: "o", status: null }],
       [
@@ -169,12 +176,17 @@ describe("forms client", () => {
       maxScore: 4,
       passed: true,
     });
-    const [unmarked, draft] = await forms.listSubmissions("f1").orThrow();
+
+    const [unmarked, draft] = await forms
+      .listSubmissions({ formId: "f1" })
+      .orThrow();
+
     expect(unmarked?.score).toEqual({ score: 1, maxScore: 4 });
     expect(draft?.score).toBeUndefined();
 
     const nps = await forms
-      .nps("f1", {
+      .nps({
+        formId: "f1",
         field: "nps",
         since: Temporal.Instant.from(AT),
         bucket: "month",
@@ -203,7 +215,7 @@ describe("forms client", () => {
     });
 
     const forms = createForms({ transport: fake, schema: "app" });
-    const nps = await forms.nps("f1").orThrow();
+    const nps = await forms.nps({ formId: "f1" }).orThrow();
     expect(nps.score).toBeUndefined();
     expect(fake.calls[0]).toEqual([
       "form_nps",
@@ -228,16 +240,14 @@ describe("forms client", () => {
     const forms = createForms({ transport: fake, schema: "app" });
 
     const submitted = await forms
-      .submit(
-        "f1",
-        { name: "Ada" },
-        {
-          subjectType: "lead",
-          subjectId: "l1",
-          submissionId: "s0",
-          draft: true,
-        },
-      )
+      .submit({
+        formId: "f1",
+        answers: { name: "Ada" },
+        subjectType: "lead",
+        subjectId: "l1",
+        submissionId: "s0",
+        draft: true,
+      })
       .orThrow();
 
     expect(submitted).toMatchObject({
@@ -248,11 +258,12 @@ describe("forms client", () => {
     });
     expect(submitted.reviewedAt).toBeUndefined();
     expect(submitted.submittedAt?.toString()).toBe(AT);
-    await forms.submit("f1", {}).orThrow();
+    await forms.submit({ formId: "f1", answers: {} }).orThrow();
     expect((await forms.getSubmission("s1").orThrow()).id).toBe("s1");
 
     const page = await forms
-      .listSubmissions("f1", {
+      .listSubmissions({
+        formId: "f1",
         status: "submitted",
         pageSize: 10,
         before: Temporal.Instant.from(AT),
@@ -260,7 +271,11 @@ describe("forms client", () => {
       .orThrow();
 
     expect(page).toHaveLength(1);
-    const reviewed = await forms.review("s1", "accepted").orThrow();
+
+    const reviewed = await forms
+      .review({ id: "s1", status: "accepted" })
+      .orThrow();
+
     expect(reviewed.reviewedBy).toBe("u1");
     expect(reviewed.reviewedAt?.toString()).toBe("2026-10-02T00:00:00Z");
     expect(await forms.deleteSubmission("s1").orThrow()).toBe(true);
@@ -320,11 +335,11 @@ describe("forms client", () => {
     expect("createdBy" in form.version).toBe(false);
 
     const sent = await forms
-      .submitPublic("tok", { name: "Ada" }, { botToken: "t" })
+      .submitPublic({ token: "tok", answers: { name: "Ada" }, botToken: "t" })
       .orThrow();
 
     expect(sent.submittedAt?.toString()).toBe(AT);
-    await forms.submitPublic("tok", {}).orThrow();
+    await forms.submitPublic({ token: "tok", answers: {} }).orThrow();
     expect(fake.calls.slice(1)).toEqual([
       [
         "submit_public_form",

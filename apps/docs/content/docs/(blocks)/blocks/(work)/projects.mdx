@@ -1,0 +1,50 @@
+---
+title: Projects
+description: Tasks, time tracking, billable time, approvals, invoices and meetings for project work.
+---
+
+Covers work that is tracked and billed: tasks, time entries priced from a rate card, approvals of the time, invoices from the approved hours and meetings.
+
+```bash
+better-supabase add projects
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { projects: {} } });
+```
+
+`add` lists `projects` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/projects` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { projectsBlock } from "better-supabase/blocks/projects";
+```
+
+## Parts
+
+Installing `projects` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`tasks`](/docs/blocks/tasks)
+- [`time-tracking`](/docs/blocks/time-tracking)
+- [`billable-time`](/docs/blocks/billable-time)
+- [`approvals`](/docs/blocks/approvals)
+- [`invoices`](/docs/blocks/invoices)
+- [`meetings`](/docs/blocks/meetings)
+
+## Helpers
+
+`approveAndInvoice`: Approve a timesheet, then invoice its billable time. A refused approval invoices nothing.
+
+```ts
+await blocks.projects.approveAndInvoice({ timesheetId });
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove projects
+better-supabase remove projects --with-parts
+```
+
+The first command replaces `projects` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

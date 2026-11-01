@@ -157,7 +157,9 @@ describe("createCarePlans", () => {
       })
       .orThrow();
 
-    const updated = await plans.update("p2", { title: "Draft" }).orThrow();
+    const updated = await plans
+      .update({ planId: "p2", change: { title: "Draft" } })
+      .orThrow();
 
     const refused = await plans.create({
       subjectType: "contact",
@@ -231,31 +233,39 @@ describe("createCarePlans", () => {
 
     const plans = createCarePlans({ transport: t });
 
-    await plans.addProblem("p1", { title: "Risk of falls" }).orThrow();
+    await plans
+      .addProblem({ planId: "p1", input: { title: "Risk of falls" } })
+      .orThrow();
 
     const resolved = await plans
-      .updateProblem("pr1", { status: "resolved" })
+      .updateProblem({ problemId: "pr1", change: { status: "resolved" } })
       .orThrow();
 
     await plans
-      .addGoal("pr1", {
-        title: "Sleeps safely",
-        targetOn: Temporal.PlainDate.from("2027-01-01"),
+      .addGoal({
+        problemId: "pr1",
+        input: {
+          title: "Sleeps safely",
+          targetOn: Temporal.PlainDate.from("2027-01-01"),
+        },
       })
       .orThrow();
 
     const goal = await plans
-      .updateGoal("g1", { status: "in_progress" })
+      .updateGoal({ goalId: "g1", change: { status: "in_progress" } })
       .orThrow();
 
     await plans
-      .addAction("g1", {
-        kind: "measure",
-        title: "Bed rail at night",
-        reviewEvery: Temporal.Duration.from({ months: 1 }),
+      .addAction({
+        goalId: "g1",
+        input: {
+          kind: "measure",
+          title: "Bed rail at night",
+          reviewEvery: Temporal.Duration.from({ months: 1 }),
+        },
       })
       .orThrow();
-    await plans.updateAction("a2", {}).orThrow();
+    await plans.updateAction({ actionId: "a2", change: {} }).orThrow();
 
     expect(resolved.status).toBe("resolved");
     expect(goal.actions).toEqual([]);
@@ -311,10 +321,10 @@ describe("createCarePlans", () => {
     await plans.publish("p1").orThrow();
     const archived = await plans.archive("p1").orThrow();
     const read = await plans.get("p1").orThrow();
-    await plans.list("contact", "c1").orThrow();
+    await plans.list({ subjectType: "contact", subjectId: "c1" }).orThrow();
 
     const all = await plans
-      .list("contact", "c1", { includeArchived: true })
+      .list({ subjectType: "contact", subjectId: "c1", includeArchived: true })
       .orThrow();
 
     expect(archived.archivedAt?.toString()).toBe("2026-10-30T09:00:00Z");
@@ -354,21 +364,28 @@ describe("createCarePlans", () => {
     const plans = createCarePlans({ transport: t });
 
     const evaluation = await plans
-      .evaluate("g1", { status: "achieved" })
+      .evaluate({ goalId: "g1", input: { status: "achieved" } })
       .orThrow();
 
     await plans
-      .evaluate("g1", {
-        status: "achieved",
-        outcome: "No falls",
-        submissionId: "s1",
+      .evaluate({
+        goalId: "g1",
+        input: { status: "achieved", outcome: "No falls", submissionId: "s1" },
       })
       .orThrow();
     await plans.startAction("a1").orThrow();
-    const ended = await plans.endAction("a2", "done").orThrow();
-    await plans.endAction("a2").orThrow();
-    const reviewed = await plans.reviewAction("a2", "Fine").orThrow();
-    await plans.reviewAction("a2").orThrow();
+
+    const ended = await plans
+      .endAction({ actionId: "a2", reason: "done" })
+      .orThrow();
+
+    await plans.endAction({ actionId: "a2" }).orThrow();
+
+    const reviewed = await plans
+      .reviewAction({ actionId: "a2", note: "Fine" })
+      .orThrow();
+
+    await plans.reviewAction({ actionId: "a2" }).orThrow();
 
     expect(evaluation.outcome).toBeUndefined();
     expect(ended).toMatchObject({ status: "ended", endReason: "done" });
@@ -419,8 +436,18 @@ describe("createCarePlans", () => {
 
     const measures = await plans.measures().orThrow();
     await plans.measures({ activeOnly: false }).orThrow();
-    const agreed = await plans.requestAgreement("p1", ["u2"]).orThrow();
-    await plans.requestAgreement("p1", ["u2"], "Please agree").orThrow();
+
+    const agreed = await plans
+      .requestAgreement({ planId: "p1", signers: ["u2"] })
+      .orThrow();
+
+    await plans
+      .requestAgreement({
+        planId: "p1",
+        signers: ["u2"],
+        message: "Please agree",
+      })
+      .orThrow();
     const due = await plans.dueReviews().orThrow();
 
     expect(measures[0]).toMatchObject({

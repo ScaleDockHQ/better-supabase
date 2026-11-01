@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:aa4039ba8d29316f2ee9597d1522a77098c4b4b7515c30af1e1146b956549e13
+-- @bsb-hash sha256:94d675d9aefa799a3e320c9d04311ec460a5f41037f4916eb352f304e262c296
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,6 +229,9 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+    return null;
+  end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
   -- A child row without a tenant column: follow the foreign-key path
   -- registered through tenant_path, then the tenant function.
@@ -338,6 +341,7 @@ drop function if exists better_supabase.audit(regclass, text[]);
 drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -353,6 +357,8 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
 -- replace_trigger => true drops another audit trigger on the table.
+-- deferred => true audits at commit, once a block function has recorded its
+-- own entry (bsb.recorded), so the row isn't audited twice.
 create or replace function better_supabase.audit(
   target regclass,
   ignore text[] default '{}',
@@ -364,7 +370,8 @@ create or replace function better_supabase.audit(
   tenant_column text default null,
   label_column text default null,
   tenant_path text default null,
-  tenant_function regprocedure default null
+  tenant_function regprocedure default null,
+  deferred boolean default false
 )
 returns void
 language plpgsql
@@ -383,6 +390,8 @@ declare
   seg_table text;
   seg_read text;
   base_settings jsonb;
+  trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
+  trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
@@ -442,17 +451,17 @@ begin
   execute format('drop trigger if exists bsb_audit_update on %s', target);
   if cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create trigger bsb_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
-      target, base_settings::text
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create trigger bsb_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
-      target, audit.ignore, audit.ignore, base_settings::text
+      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create trigger bsb_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
-      target, base_settings::text
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
 end;
@@ -591,7 +600,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -723,6 +732,9 @@ begin
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
   )
   returning "id" into entry_id;
+  if audit_event.target_type is not null and audit_event.record_id is not null then
+    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+  end if;
   return entry_id::text;
 end;
 $$;
@@ -897,6 +909,9 @@ begin
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
   )
   returning "id" into entry_id;
+  if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
+    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+  end if;
   return entry_id::text;
 end;
 $$;

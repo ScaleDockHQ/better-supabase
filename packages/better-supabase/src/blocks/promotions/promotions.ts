@@ -17,7 +17,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { PROMOTION_KINDS } from "../orders/codecs.ts";
 import {
   applyTemporal,
@@ -139,14 +139,29 @@ export interface Promotions<F extends object = Record<never, never>> {
    * Refused with `PROMOTIONS_INVALID` when the discount, limits or targets
    * don't fit.
    */
-  savePromotion(
-    organizationId: string,
-    input: PromotionInput<F>,
-  ): AsyncResult<SavedPromotion<F>>;
-  setPromotionActive(
-    promotionId: string,
-    active: boolean,
-  ): AsyncResult<boolean>;
+  savePromotion(input: {
+    organizationId: string;
+    input: PromotionInput<F>;
+  }): AsyncResult<SavedPromotion<F>>;
+  /**
+   * A promotion with one code: `savePromotion` then `createCodes` with `code`.
+   * When the code is refused (`PROMOTIONS_CODE_TAKEN`) and the promotion was
+   * new (no `input.id`), it deletes the promotion again, so a retry starts
+   * clean.
+   */
+  createWithCode(input: {
+    organizationId: string;
+    input: PromotionInput<F>;
+    code: string;
+    usageLimit?: number | undefined;
+  }): AsyncResult<{
+    readonly promotion: SavedPromotion<F>;
+    readonly code: PromotionCode;
+  }>;
+  setPromotionActive(input: {
+    promotionId: string;
+    active: boolean;
+  }): AsyncResult<boolean>;
   /**
    * Refused with `PROMOTIONS_IN_USE` once an order redeemed it; deactivate it
    * instead.
@@ -156,15 +171,15 @@ export interface Promotions<F extends object = Record<never, never>> {
    * Codes are stored upper case. Refused with `PROMOTIONS_CODE_TAKEN` for a
    * code the organization has.
    */
-  createCodes(
-    promotionId: string,
-    input: CodesInput,
-  ): AsyncResult<readonly PromotionCode[]>;
+  createCodes(input: {
+    promotionId: string;
+    input: CodesInput;
+  }): AsyncResult<readonly PromotionCode[]>;
   deleteCode(codeId: string): AsyncResult<boolean>;
   /** Adds a code to the shopper's cart; `priceCart` then shows the discount. */
-  applyCode(cartId: string, code: string): AsyncResult<AppliedCode>;
+  applyCode(input: { cartId: string; code: string }): AsyncResult<AppliedCode>;
   /** Resolves to `false` when the cart didn't hold the code. */
-  removeCode(cartId: string, code: string): AsyncResult<boolean>;
+  removeCode(input: { cartId: string; code: string }): AsyncResult<boolean>;
 }
 
 const isTrue = (value: unknown): boolean => value === true;
@@ -237,7 +252,33 @@ export function createPromotions<
   );
 
   const promotions: Promotions<F> = {
-    savePromotion: (organizationId, input) => {
+    createWithCode: ({ organizationId, input, code, usageLimit }) =>
+      hooked.savePromotion({ organizationId, input }).andThen((promotion) =>
+        AsyncResult.from(async () => {
+          const created = await hooked.createCodes({
+            promotionId: promotion.id,
+            input: {
+              codes: [code],
+              ...(usageLimit === undefined ? {} : { usageLimit }),
+            },
+          });
+
+          if (!created.ok) {
+            if (input.id === undefined) {
+              await hooked.deletePromotion(promotion.id);
+            }
+
+            return created;
+          }
+
+          const [saved] = created.data;
+
+          return saved
+            ? ok({ promotion, code: saved })
+            : err(dbError("unexpected", "the code wasn't created"));
+        }),
+      ),
+    savePromotion: ({ organizationId, input }) => {
       const data = promotionData(input);
 
       if (typeof data === "string") {
@@ -263,11 +304,11 @@ export function createPromotions<
         ),
       ).andThen((saved) => readFields(fields, saved));
     },
-    setPromotionActive: (promotionId, active) =>
+    setPromotionActive: ({ promotionId, active }) =>
       call("set_promotion_active", { promotion: promotionId, active }, isTrue),
     deletePromotion: (promotionId) =>
       call("delete_promotion", { promotion: promotionId }, isTrue),
-    createCodes: (promotionId, input) =>
+    createCodes: ({ promotionId, input }) =>
       call(
         "create_promotion_codes",
         {
@@ -281,7 +322,7 @@ export function createPromotions<
       ),
     deleteCode: (codeId) =>
       call("delete_promotion_code", { code: codeId }, isTrue),
-    applyCode: (cartId, code) =>
+    applyCode: ({ cartId, code }) =>
       call("apply_promotion_code", { cart: cartId, code }, (value) => {
         const row = recordOf(value, "apply_promotion_code");
 
@@ -291,12 +332,15 @@ export function createPromotions<
           promotionId: textOf(row["promotionId"]),
         };
       }),
-    removeCode: (cartId, code) =>
+    removeCode: ({ cartId, code }) =>
       call("remove_promotion_code", { cart: cartId, code }, isTrue),
   };
 
-  return withBlockHooks(promotions, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Promotions<F> = withBlockHooks(promotions, options.hooks, {
     block: "promotions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

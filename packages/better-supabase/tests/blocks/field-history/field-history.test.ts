@@ -31,7 +31,7 @@ describe("createFieldHistory", () => {
     });
 
     const changes = await createFieldHistory({ transport })
-      .of({ type: "deal", id: "d1" })
+      .of({ subject: { type: "deal", id: "d1" } })
       .orThrow();
 
     expect(call).toHaveBeenCalledWith("better_supabase", "field_history", {
@@ -61,10 +61,12 @@ describe("createFieldHistory", () => {
     const logger = { debug() {}, info() {}, warn() {}, error() {} };
 
     await createFieldHistory({ transport, logger })
-      .of(
-        { type: "deal", id: "d1" },
-        { field: "stage_id", before: "12", limit: 10 },
-      )
+      .of({
+        subject: { type: "deal", id: "d1" },
+        field: "stage_id",
+        before: "12",
+        limit: 10,
+      })
       .orThrow();
 
     expect(call.mock.lastCall?.[2]).toEqual({

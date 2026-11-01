@@ -57,27 +57,32 @@ describe.skipIf(!live)("field history", () => {
       await s.as(rep);
 
       const deal = await deals
-        .create(org, {
-          name: "Growth plan",
-          closeOn: Temporal.Now.plainDateISO().add({ days: 30 }),
-          amount: eur(100_000n),
-          forecast: "pipeline",
+        .create({
+          organizationId: org,
+          input: {
+            name: "Growth plan",
+            closeOn: Temporal.Now.plainDateISO().add({ days: 30 }),
+            amount: eur(100_000n),
+            forecast: "pipeline",
+          },
         })
         .orThrow();
 
       const subject = { type: "deal", id: deal.id };
 
-      expect(await history.of(subject).orThrow()).toEqual([]);
+      expect(await history.of({ subject }).orThrow()).toEqual([]);
 
       await deals
-        .update([
-          { dealId: deal.id, field: "amount", value: eur(150_000n) },
-          { dealId: deal.id, field: "forecast", value: "commit" },
-          { dealId: deal.id, field: "name", value: "Growth plan, 60 seats" },
-        ])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "amount", value: eur(150_000n) },
+            { dealId: deal.id, field: "forecast", value: "commit" },
+            { dealId: deal.id, field: "name", value: "Growth plan, 60 seats" },
+          ],
+        })
         .orThrow();
 
-      const changes = await history.of(subject).orThrow();
+      const changes = await history.of({ subject }).orThrow();
 
       expect(changes.map((change) => change.field).toSorted()).toEqual([
         "amount",
@@ -88,13 +93,13 @@ describe.skipIf(!live)("field history", () => {
       );
 
       const amountOnly = await history
-        .of(subject, { field: "amount" })
+        .of({ subject, field: "amount" })
         .orThrow();
 
       expect(amountOnly).toHaveLength(1);
 
       const page = await history
-        .of(subject, { before: amountOnly[0]?.id ?? "", limit: 5 })
+        .of({ subject, before: amountOnly[0]?.id ?? "", limit: 5 })
         .orThrow();
 
       expect(page.every((change) => change.id !== amountOnly[0]?.id)).toBe(
@@ -102,7 +107,7 @@ describe.skipIf(!live)("field history", () => {
       );
 
       await s.as(stranger);
-      expect(await history.of(subject).orThrow()).toEqual([]);
+      expect(await history.of({ subject }).orThrow()).toEqual([]);
     } finally {
       await s.close();
     }

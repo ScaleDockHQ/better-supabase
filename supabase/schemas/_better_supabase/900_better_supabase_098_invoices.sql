@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:1b52c7ec3ebaca234a576c17132c810d2e68461e5c6998787ee4e2ea5af6bb1b
+-- @bsb-hash sha256:a95abf825513c85f05454115a3816d433476a24b86dc6823c7b5426f8ce5cbaf
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5059,6 +5059,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_de
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.invoices', target_type => 'invoice', event_prefix => 'invoice', deferred => true);
+end;
+$$;
 
 -- blocks.invoices.api: entry points for the Data API.
 create schema if not exists "api";

@@ -449,10 +449,10 @@ export interface Notifications<
   F extends object = Record<never, never>,
 > {
   /** The notification id, or `null` when nobody was left to notify. */
-  send<N extends TypeName<K>>(
-    type: N,
-    input: SendInput<StandardSchemaV1.InferInput<K[N]>, F>,
-  ): AsyncResult<SentNotification | null>;
+  send<N extends TypeName<K>>(input: {
+    type: N;
+    input: SendInput<StandardSchemaV1.InferInput<K[N]>, F>;
+  }): AsyncResult<SentNotification | null>;
   /**
    * Sends up to 1000 notifications in one `send_notifications` call, with
    * `send`'s checks per notification: one `Result` per item, in order, so a bad
@@ -462,10 +462,10 @@ export interface Notifications<
   sendMany(
     items: readonly SinkNotification<K, F>[],
   ): AsyncResult<readonly Result<SentNotification | null>[]>;
-  get(
-    id: string,
-    options?: Pick<ListOptions, "locale" | "include">,
-  ): AsyncResult<NotificationOf<K, F> | null>;
+  get(input: {
+    id: string;
+    options?: Pick<ListOptions, "locale" | "include"> | undefined;
+  }): AsyncResult<NotificationOf<K, F> | null>;
   list(
     options?: ListOptions<TypeName<K>>,
   ): AsyncResult<readonly NotificationOf<K, F>[]>;
@@ -534,7 +534,10 @@ export interface Notifications<
    * Deletes up to `batch` (10,000) notifications older than `olderThan` (`90
    * days`) with their recipients and deliveries. Service only.
    */
-  purge(olderThan?: string, batch?: number): AsyncResult<number>;
+  purge(input?: {
+    olderThan?: string | undefined;
+    batch?: number | undefined;
+  }): AsyncResult<number>;
   /**
    * Stops `channel` from sending to an address; `deliver()` skips its
    * deliveries. `true` when the address was not suppressed yet. Service only;
@@ -542,7 +545,10 @@ export interface Notifications<
    */
   suppress(input: SuppressInput): AsyncResult<boolean>;
   /** Lifts a suppression. `true` when there was one. Service only. */
-  unsuppress(address: string, channel?: string): AsyncResult<boolean>;
+  unsuppress(input: {
+    address: string;
+    channel?: string | undefined;
+  }): AsyncResult<boolean>;
   /** The caller's own suppressions, newest first (every row for the service). */
   suppressions(options?: {
     readonly limit?: number;

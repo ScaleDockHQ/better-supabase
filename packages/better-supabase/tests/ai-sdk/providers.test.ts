@@ -57,7 +57,10 @@ describe("tenantGatewayOptions", () => {
       { providers: ["anthropic"] },
     ).orThrow();
 
-    expect(resolve).toHaveBeenCalledWith("o1", { providers: ["anthropic"] });
+    expect(resolve).toHaveBeenCalledWith({
+      organizationId: "o1",
+      providers: ["anthropic"],
+    });
     expect(options).toEqual({
       gateway: {
         order: ["anthropic"],

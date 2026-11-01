@@ -39,7 +39,7 @@ export const slaBinding: RecordBinding<
     start: {
       input: slaStartInput,
       run: (client: Sla, subject, input: SlaStartInput) =>
-        client.start(subject, input.priority),
+        client.start({ subject, priority: input.priority }),
     },
   },
 });

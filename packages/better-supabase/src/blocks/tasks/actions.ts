@@ -1,4 +1,4 @@
-import type { Action } from "../../core/automation.ts";
+import type { Action, ActionFactory } from "../../core/automation.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   ConversionClients,
@@ -9,7 +9,10 @@ import type { WorkItem, WorkItemInput } from "./tasks.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
-import { defineConversionAction } from "../automations/conversion.ts";
+import {
+  defineConversionAction,
+  narrowClients,
+} from "../automations/conversion.ts";
 import { workItemInputSchema } from "./schemas.ts";
 
 /** `blocks.inbox`, `blocks.tasks` and `blocks.relations` for one organization. */
@@ -20,11 +23,11 @@ export interface TaskFromConversationClients extends ConversionClients {
     };
   };
   readonly tasks: {
-    create(
-      organizationId: string,
-      input: WorkItemInput,
-      assigneeIds?: readonly string[],
-    ): PromiseLike<Result<WorkItem>>;
+    create(input: {
+      organizationId: string;
+      input: WorkItemInput;
+      assigneeIds?: readonly string[] | undefined;
+    }): PromiseLike<Result<WorkItem>>;
   };
 }
 
@@ -89,15 +92,31 @@ export function taskFromConversationAction(
     create: async (input, { call, clients, tenant }) => {
       const assignee = call.context.payload?.["assigneeId"];
 
-      const created = await clients.tasks.create(
-        tenant,
+      const created = await clients.tasks.create({
+        organizationId: tenant,
         input,
-        options.assign !== false && typeof assignee === "string"
-          ? [assignee]
-          : undefined,
-      );
+        assigneeIds:
+          options.assign !== false && typeof assignee === "string"
+            ? [assignee]
+            : undefined,
+      });
 
       return created.ok ? ok({ id: created.data.id }) : created;
     },
   });
 }
+
+/** The `tasks.from_conversation` factory for the action registry. */
+export const taskFromConversationFactory: ActionFactory = ({ clients }) =>
+  taskFromConversationAction({
+    clients: narrowClients<TaskFromConversationClients>(
+      "tasks.from_conversation",
+      [
+        "relations.link",
+        "relations.convertedInto",
+        "inbox.conversations.get",
+        "tasks.create",
+      ],
+      clients,
+    ),
+  });

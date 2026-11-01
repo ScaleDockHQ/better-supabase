@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
@@ -67,6 +68,7 @@ const EVENTS: BlockSqlEvents<CasesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [link("task", "relation", "case", "tasks", "task", "created_from")],
   entities: {
     case: {
       table: "cases",

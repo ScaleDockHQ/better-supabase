@@ -65,7 +65,10 @@ describe.skipIf(!live)("work items", () => {
       await s.as(pm);
 
       const epic = await items
-        .create(org, { title: "Checkout v2", teamId: team, priority: 2 })
+        .create({
+          organizationId: org,
+          input: { title: "Checkout v2", teamId: team, priority: 2 },
+        })
         .orThrow();
 
       expect(epic).toMatchObject({
@@ -74,7 +77,11 @@ describe.skipIf(!live)("work items", () => {
         priority: 2,
         teamId: team,
       });
-      const [pipeline] = await pipelines.list(org, "task").orThrow();
+
+      const [pipeline] = await pipelines
+        .list({ organizationId: org, subjectType: "task" })
+        .orThrow();
+
       expect(pipeline?.scopeId).toBe(team);
       expect(pipeline?.stages.map((stage) => stage.key)).toEqual([
         "triage",
@@ -92,34 +99,38 @@ describe.skipIf(!live)("work items", () => {
       const start = Temporal.Instant.from("2026-10-20T09:00:00Z");
 
       const api = await items
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "Payment API",
             parentId: epic.id,
             teamId: team,
             startAt: start,
             endAt: start.add({ hours: 72 }),
           },
-          [dev.id, pm.id],
-        )
+          assigneeIds: [dev.id, pm.id],
+        })
         .orThrow();
 
       const ui = await items
-        .create(org, { title: "Payment UI", parentId: epic.id, teamId: team }, [
-          dev.id,
-        ])
+        .create({
+          organizationId: org,
+          input: { title: "Payment UI", parentId: epic.id, teamId: team },
+          assigneeIds: [dev.id],
+        })
         .orThrow();
 
       expect(api.assigneeIds.toSorted()).toEqual([dev.id, pm.id].toSorted());
 
       const result = await items
-        .update([
-          { workItemId: api.id, field: "stageId", value: stage("done") },
-          { workItemId: ui.id, field: "stageId", value: stage("canceled") },
-          { workItemId: epic.id, field: "parentId", value: api.id },
-          { workItemId: api.id, field: "priority", value: 9 },
-        ])
+        .update({
+          changes: [
+            { workItemId: api.id, field: "stageId", value: stage("done") },
+            { workItemId: ui.id, field: "stageId", value: stage("canceled") },
+            { workItemId: epic.id, field: "parentId", value: api.id },
+            { workItemId: api.id, field: "priority", value: 9 },
+          ],
+        })
         .orThrow();
 
       expect(result.accepted.map((item) => item.field)).toEqual([
@@ -143,7 +154,9 @@ describe.skipIf(!live)("work items", () => {
       ]);
 
       const done = (
-        await items.list(org, { states: ["completed"] }).orThrow()
+        await items
+          .list({ organizationId: org, states: ["completed"] })
+          .orThrow()
       )[0];
 
       expect(done).toMatchObject({
@@ -154,36 +167,48 @@ describe.skipIf(!live)("work items", () => {
       expect(done?.closedAt).toBeDefined();
 
       const canceled = (
-        await items.list(org, { states: ["canceled"] }).orThrow()
+        await items
+          .list({ organizationId: org, states: ["canceled"] })
+          .orThrow()
       )[0];
 
       expect(canceled?.closeReason).toBe("not_planned");
       await items
-        .update([
-          { workItemId: api.id, field: "stageId", value: stage("in_progress") },
-        ])
+        .update({
+          changes: [
+            {
+              workItemId: api.id,
+              field: "stageId",
+              value: stage("in_progress"),
+            },
+          ],
+        })
         .orThrow();
 
       const reopened = (
-        await items.list(org, { search: "Payment API" }).orThrow()
+        await items
+          .list({ organizationId: org, search: "Payment API" })
+          .orThrow()
       )[0];
 
       expect(reopened).toMatchObject({ state: "started" });
       expect(reopened?.closedAt).toBeUndefined();
       expect(
         (
-          await items.list(org, { assigneeId: pm.id, open: true }).orThrow()
+          await items
+            .list({ organizationId: org, assigneeId: pm.id, open: true })
+            .orThrow()
         ).map((item) => item.id),
       ).toEqual([api.id]);
 
       await s.as(owner);
 
       const link = await createRelations({ transport, tenant: org })
-        .link(
-          { type: "task", id: api.id },
-          { type: "task", id: ui.id },
-          { kind: "blocks" },
-        )
+        .link({
+          source: { type: "task", id: api.id },
+          target: { type: "task", id: ui.id },
+          input: { kind: "blocks" },
+        })
         .orThrow();
 
       expect(link.created).toBe(true);
@@ -203,14 +228,20 @@ describe.skipIf(!live)("work items", () => {
       ).toBe(2);
 
       const second = await items
-        .create(org, { title: "Docs", teamId: team })
+        .create({ organizationId: org, input: { title: "Docs", teamId: team } })
         .orThrow();
 
       await createRank({ transport })
-        .move("task", second.id, { group: stage("todo") })
+        .move({
+          subjectType: "task",
+          subjectId: second.id,
+          target: { group: stage("todo") },
+        })
         .orThrow();
       expect(
-        (await items.list(org, { search: "Docs" }).orThrow())[0],
+        (
+          await items.list({ organizationId: org, search: "Docs" }).orThrow()
+        )[0],
       ).toMatchObject({ state: "unstarted", stageId: stage("todo") });
     } finally {
       await s.close();
@@ -228,8 +259,12 @@ describe.skipIf(!live)("work items", () => {
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
       await s.as(owner);
-      const item = await items.create(org, { title: "Ship it" }).orThrow();
-      await items.assign(item.id, [dev.id]).orThrow();
+
+      const item = await items
+        .create({ organizationId: org, input: { title: "Ship it" } })
+        .orThrow();
+
+      await items.assign({ workItemId: item.id, userIds: [dev.id] }).orThrow();
 
       expect(
         await s.rows(
@@ -240,8 +275,12 @@ describe.skipIf(!live)("work items", () => {
       ]);
 
       await s.install(["tasks"], layout(0, { notify: false }));
-      const quiet = await items.create(org, { title: "Quiet" }).orThrow();
-      await items.assign(quiet.id, [dev.id]).orThrow();
+
+      const quiet = await items
+        .create({ organizationId: org, input: { title: "Quiet" } })
+        .orThrow();
+
+      await items.assign({ workItemId: quiet.id, userIds: [dev.id] }).orThrow();
 
       expect(
         await s.value<number>(
@@ -267,70 +306,95 @@ describe.skipIf(!live)("work items", () => {
       await s.as(owner);
 
       const project = await items
-        .saveProject(org, {
-          key: "pay",
-          name: "Payments",
-          status: "active",
-          startOn: Temporal.PlainDate.from("2026-10-01"),
+        .saveProject({
+          organizationId: org,
+          project: {
+            key: "pay",
+            name: "Payments",
+            status: "active",
+            startOn: Temporal.PlainDate.from("2026-10-01"),
+          },
         })
         .orThrow();
 
       expect(project).toMatchObject({ key: "PAY", status: "active" });
 
       const sprint = await items
-        .saveIteration(org, {
-          name: "Sprint 1",
-          startsOn: Temporal.PlainDate.from("2026-10-19"),
-          endsOn: Temporal.PlainDate.from("2026-11-01"),
+        .saveIteration({
+          organizationId: org,
+          iteration: {
+            name: "Sprint 1",
+            startsOn: Temporal.PlainDate.from("2026-10-19"),
+            endsOn: Temporal.PlainDate.from("2026-11-01"),
+          },
         })
         .orThrow();
 
       expect(
         hint(
-          await items.saveIteration(org, {
-            name: "Bad",
-            startsOn: Temporal.PlainDate.from("2026-11-01"),
-            endsOn: Temporal.PlainDate.from("2026-10-01"),
+          await items.saveIteration({
+            organizationId: org,
+            iteration: {
+              name: "Bad",
+              startsOn: Temporal.PlainDate.from("2026-11-01"),
+              endsOn: Temporal.PlainDate.from("2026-10-01"),
+            },
           }),
         ),
       ).toBe("TASK_ITERATION_INVALID");
 
       await s.as(dev);
-      expect(hint(await items.saveProject(org, { key: "X", name: "X" }))).toBe(
-        "TASK_FORBIDDEN",
-      );
+      expect(
+        hint(
+          await items.saveProject({
+            organizationId: org,
+            project: { key: "X", name: "X" },
+          }),
+        ),
+      ).toBe("TASK_FORBIDDEN");
 
       const item = await items
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "Ledger",
             projectId: project.id,
             iterationId: sprint.id,
             dueAt: Temporal.Instant.from("2026-10-30T00:00:00Z"),
           },
-          [dev.id],
-        )
+          assigneeIds: [dev.id],
+        })
         .orThrow();
 
-      expect(hint(await items.assign(item.id, [dev.id, other.id]))).toBe(
-        "TASK_ASSIGNEES_LIMIT",
-      );
-      await items
-        .update([
-          {
+      expect(
+        hint(
+          await items.assign({
             workItemId: item.id,
-            field: "stageId",
-            value: await s.value<string>(
-              "(select id::text from better_supabase.pipeline_stages where key = 'done' and pipeline_id = $1)",
-              [item.pipelineId],
-            ),
-          },
-        ])
+            userIds: [dev.id, other.id],
+          }),
+        ),
+      ).toBe("TASK_ASSIGNEES_LIMIT");
+      await items
+        .update({
+          changes: [
+            {
+              workItemId: item.id,
+              field: "stageId",
+              value: await s.value<string>(
+                "(select id::text from better_supabase.pipeline_stages where key = 'done' and pipeline_id = $1)",
+                [item.pipelineId],
+              ),
+            },
+          ],
+        })
         .orThrow();
       await s.as(owner);
       expect(
-        (await items.saveProject(org, { id: project.id }).orThrow()).progress,
+        (
+          await items
+            .saveProject({ organizationId: org, project: { id: project.id } })
+            .orThrow()
+        ).progress,
       ).toBe(100);
 
       await s.service();
@@ -341,18 +405,20 @@ describe.skipIf(!live)("work items", () => {
       await s.as(dev);
 
       const locked = await items
-        .update([
-          { workItemId: item.id, field: "dueAt", value: null },
-          { workItemId: item.id, field: "title", value: "Ledger v2" },
-        ])
+        .update({
+          changes: [
+            { workItemId: item.id, field: "dueAt", value: null },
+            { workItemId: item.id, field: "title", value: "Ledger v2" },
+          ],
+        })
         .orThrow();
 
       expect(locked.rejected.map((change) => change.hint)).toEqual([
         "TASK_LOCKED",
       ]);
-      expect(hint(await items.create(org, { title: "" }))).toBe(
-        "TASK_TITLE_REQUIRED",
-      );
+      expect(
+        hint(await items.create({ organizationId: org, input: { title: "" } })),
+      ).toBe("TASK_TITLE_REQUIRED");
       await s.as(other);
       expect(await items.remove(item.id).orThrow()).toBe(false);
       await s.as(dev);
@@ -374,10 +440,13 @@ describe.skipIf(!live)("work items", () => {
       await s.as(owner);
 
       const item = await items
-        .create(org, {
-          title: "Launch",
-          startAt: Temporal.Instant.from("2026-11-02T09:00:00Z"),
-          endAt: Temporal.Instant.from("2026-11-03T17:00:00Z"),
+        .create({
+          organizationId: org,
+          input: {
+            title: "Launch",
+            startAt: Temporal.Instant.from("2026-11-02T09:00:00Z"),
+            endAt: Temporal.Instant.from("2026-11-03T17:00:00Z"),
+          },
         })
         .orThrow();
 
@@ -387,16 +456,20 @@ describe.skipIf(!live)("work items", () => {
       };
 
       const split = await items
-        .update([
-          { workItemId: item.id, field: "startAt", value: later.startAt },
-          { workItemId: item.id, field: "endAt", value: later.endAt },
-        ])
+        .update({
+          changes: [
+            { workItemId: item.id, field: "startAt", value: later.startAt },
+            { workItemId: item.id, field: "endAt", value: later.endAt },
+          ],
+        })
         .orThrow();
 
       expect(split.rejected.map((change) => change.field)).toEqual(["startAt"]);
 
       const moved = await items
-        .update([{ workItemId: item.id, field: "window", value: later }])
+        .update({
+          changes: [{ workItemId: item.id, field: "window", value: later }],
+        })
         .orThrow();
 
       expect(moved).toEqual({
@@ -404,13 +477,13 @@ describe.skipIf(!live)("work items", () => {
         rejected: [],
       });
 
-      const failed = await items.update(
-        [
+      const failed = await items.update({
+        changes: [
           { workItemId: item.id, field: "title", value: "Launch v2" },
           { workItemId: item.id, field: "priority", value: "high" },
         ],
-        { atomic: true },
-      );
+        atomic: true,
+      });
 
       expect(failed.ok).toBe(false);
 
@@ -456,21 +529,24 @@ describe.skipIf(!live)("work items", () => {
 
       expect(
         hint(
-          await items.create(org, { title: "Report", attachmentIds: [theirs] }),
+          await items.create({
+            organizationId: org,
+            input: { title: "Report", attachmentIds: [theirs] },
+          }),
         ),
       ).toBe("TASK_ATTACHMENTS_INVALID");
 
       const item = await items
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "Weekly report",
             dueAt: due,
             startAt: due.subtract({ hours: 2 }),
             attachmentIds: [mine],
           },
-          [dev.id],
-        )
+          assigneeIds: [dev.id],
+        })
         .orThrow();
 
       expect(item.checklist).toEqual({ total: 0, done: 0 });
@@ -484,10 +560,12 @@ describe.skipIf(!live)("work items", () => {
       expect(await subjectOf(mine)).toBe(`task:${item.id}`);
 
       const linked = await items
-        .update([
-          { workItemId: item.id, field: "attachments", value: [later] },
-          { workItemId: item.id, field: "attachments", value: [theirs] },
-        ])
+        .update({
+          changes: [
+            { workItemId: item.id, field: "attachments", value: [later] },
+            { workItemId: item.id, field: "attachments", value: [theirs] },
+          ],
+        })
         .orThrow();
 
       expect(linked.accepted).toHaveLength(1);
@@ -497,24 +575,40 @@ describe.skipIf(!live)("work items", () => {
       expect(await subjectOf(later)).toBe(`task:${item.id}`);
 
       const draft = await items
-        .saveChecklistItem(item.id, { title: "Draft" })
+        .saveChecklistItem({ workItemId: item.id, input: { title: "Draft" } })
         .orThrow();
 
       const send = await items
-        .saveChecklistItem(item.id, { title: "Send", done: true })
+        .saveChecklistItem({
+          workItemId: item.id,
+          input: { title: "Send", done: true },
+        })
         .orThrow();
 
       expect(send.rank > draft.rank).toBe(true);
       expect(send).toMatchObject({ done: true, doneBy: dev.id });
       await items
-        .saveChecklistItem(item.id, { done: true }, draft.id)
+        .saveChecklistItem({
+          workItemId: item.id,
+          input: { done: true },
+          checklistItemId: draft.id,
+        })
         .orThrow();
       await items
-        .saveChecklistItem(item.id, { done: false }, send.id)
+        .saveChecklistItem({
+          workItemId: item.id,
+          input: { done: false },
+          checklistItemId: send.id,
+        })
         .orThrow();
-      expect(hint(await items.saveChecklistItem(item.id, { title: "" }))).toBe(
-        "TASK_CHECKLIST_ITEM_INVALID",
-      );
+      expect(
+        hint(
+          await items.saveChecklistItem({
+            workItemId: item.id,
+            input: { title: "" },
+          }),
+        ),
+      ).toBe("TASK_CHECKLIST_ITEM_INVALID");
 
       await s.asRole(dev);
 
@@ -531,13 +625,21 @@ describe.skipIf(!live)("work items", () => {
 
       await s.as(dev);
       expect(
-        hint(await items.setRecurrence(item.id, { rrule: "every monday" })),
+        hint(
+          await items.setRecurrence({
+            workItemId: item.id,
+            rule: { rrule: "every monday" },
+          }),
+        ),
       ).toBe("TASK_RECURRENCE_INVALID");
 
       const rule = await items
-        .setRecurrence(item.id, {
-          rrule: "RRULE:FREQ=WEEKLY;BYDAY=MO",
-          tzid: "Europe/Amsterdam",
+        .setRecurrence({
+          workItemId: item.id,
+          rule: {
+            rrule: "RRULE:FREQ=WEEKLY;BYDAY=MO",
+            tzid: "Europe/Amsterdam",
+          },
         })
         .orThrow();
 
@@ -548,24 +650,33 @@ describe.skipIf(!live)("work items", () => {
       expect(rule?.dtstart.equals(due)).toBe(true);
 
       await s.as(other);
-      expect(await items.watch(item.id, "all").orThrow()).toBe(true);
+      expect(
+        await items.watch({ workItemId: item.id, level: "all" }).orThrow(),
+      ).toBe(true);
       expect(await items.watchers(item.id).orThrow()).toEqual(
         expect.arrayContaining([
           { userId: dev.id, level: "participating" },
           { userId: other.id, level: "all" },
         ]),
       );
-      expect(await items.watch(item.id, "ignore").orThrow()).toBe(true);
+      expect(
+        await items.watch({ workItemId: item.id, level: "ignore" }).orThrow(),
+      ).toBe(true);
       expect(
         (await items.watchers(item.id).orThrow()).map((w) => w.userId),
       ).toEqual([dev.id]);
       await s.asRole(other);
-      expect((await items.repeat(item.id, due)).ok).toBe(false);
+      expect((await items.repeat({ workItemId: item.id, dueAt: due })).ok).toBe(
+        false,
+      );
 
       await s.service();
 
       const next = due.add({ hours: 24 * 7 });
-      const copy = await items.repeat(item.id, next).orThrow();
+
+      const copy = await items
+        .repeat({ workItemId: item.id, dueAt: next })
+        .orThrow();
 
       expect(copy).toMatchObject({
         title: "Weekly report",
@@ -577,13 +688,17 @@ describe.skipIf(!live)("work items", () => {
       expect(copy.startAt?.equals(next.subtract({ hours: 2 }))).toBe(true);
       expect(copy.recurrence?.rrule).toBe("FREQ=WEEKLY;BYDAY=MO");
       expect((await items.get(item.id).orThrow())?.recurrence).toBeUndefined();
-      expect((await items.repeat(item.id, next).orThrow()).id).toBe(copy.id);
+      expect(
+        (await items.repeat({ workItemId: item.id, dueAt: next }).orThrow()).id,
+      ).toBe(copy.id);
 
       await s.as(dev);
       expect(await items.removeChecklistItem(draft.id).orThrow()).toBe(true);
       expect(await items.removeChecklistItem(draft.id).orThrow()).toBe(false);
       expect(
-        (await items.setRecurrence(copy.id, null).orThrow()) ?? null,
+        (await items
+          .setRecurrence({ workItemId: copy.id, rule: null })
+          .orThrow()) ?? null,
       ).toBeNull();
     } finally {
       await s.close();

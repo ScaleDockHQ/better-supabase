@@ -3,7 +3,7 @@
 -- (…00a2) reads it but can't manage it, and Globex (…0002) sees nothing. A
 -- second program assigns a step to the member and renders its due dates.
 begin;
-select plan(27);
+select plan(31);
 
 select set_config(
   'request.jwt.claims',
@@ -115,6 +115,22 @@ select throws_ok(
   'an enrollment can''t end before it starts'
 );
 
+select isnt(
+  better_supabase.pause_enrollment(current_setting('test.enrollment')::uuid) ->> 'pausedAt',
+  null,
+  'an admin pauses an active enrollment'
+);
+select is(
+  better_supabase.pause_enrollment(current_setting('test.enrollment')::uuid) ->> 'status',
+  'active',
+  'pausing a paused enrollment returns it as it is'
+);
+select is(
+  better_supabase.resume_enrollment(current_setting('test.enrollment')::uuid) ->> 'pausedAt',
+  null,
+  'resuming clears pausedAt'
+);
+
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
@@ -131,6 +147,12 @@ select throws_ok(
   '42501',
   null,
   'a member can''t cancel an enrollment'
+);
+select throws_ok(
+  $$select better_supabase.pause_enrollment(current_setting('test.enrollment')::uuid)$$,
+  '42501',
+  null,
+  'a member can''t pause an enrollment'
 );
 select throws_ok(
   $$select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other","steps":[]}')$$,

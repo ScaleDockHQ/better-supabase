@@ -250,19 +250,22 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
       ).andThen((status) => {
         const counts = countsOf(status);
 
-        return store.update(batch.id, {
-          status: status.status,
-          ...(status.rawStatus === undefined
-            ? {}
-            : { rawStatus: status.rawStatus }),
-          ...(counts === undefined ? {} : { counts }),
-          ...(status.error === undefined
-            ? {}
-            : { error: status.error.message }),
-          ...(status.expiresAt === undefined
-            ? {}
-            : { expiresAt: temporal().Instant.from(status.expiresAt) }),
-          nextPollAt: nextPoll(),
+        return store.update({
+          batchId: batch.id,
+          patch: {
+            status: status.status,
+            ...(status.rawStatus === undefined
+              ? {}
+              : { rawStatus: status.rawStatus }),
+            ...(counts === undefined ? {} : { counts }),
+            ...(status.error === undefined
+              ? {}
+              : { error: status.error.message }),
+            ...(status.expiresAt === undefined
+              ? {}
+              : { expiresAt: temporal().Instant.from(status.expiresAt) }),
+            nextPollAt: nextPoll(),
+          },
         });
       }),
     );
@@ -278,7 +281,11 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             return ok(0);
           }
 
-          const written = await store.saveItems(batch.id, page);
+          const written = await store.saveItems({
+            batchId: batch.id,
+            items: page,
+          });
+
           page = [];
 
           return written;
@@ -319,9 +326,9 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
 
         saved += written.data;
 
-        const done = await store.update(batch.id, {
-          resultsSaved: true,
-          nextPollAt: null,
+        const done = await store.update({
+          batchId: batch.id,
+          patch: { resultsSaved: true, nextPollAt: null },
         });
 
         if (!done.ok) {
@@ -353,8 +360,9 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
           const polled = await pollOne(batch);
 
           if (!polled.ok) {
-            const noted = await store.update(batch.id, {
-              error: polled.error.message,
+            const noted = await store.update({
+              batchId: batch.id,
+              patch: { error: polled.error.message },
             });
 
             if (!noted.ok) {
@@ -372,38 +380,44 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
       const { metadata, ...batchOptions } = startOptions;
 
       return call(() => api.start(batchOptions)).andThen((started) =>
-        store.record(context.organizationId, {
-          provider: started.provider,
-          reference: {
-            version: started.version,
-            id: started.id,
+        store.record({
+          organizationId: context.organizationId,
+          batch: {
             provider: started.provider,
+            reference: {
+              version: started.version,
+              id: started.id,
+              provider: started.provider,
+            },
+            itemCount: batchOptions.requests.length,
+            status: started.status,
+            ...(context.userId === undefined ? {} : { userId: context.userId }),
+            ...(metadata === undefined ? {} : { metadata }),
+            ...(started.rawStatus === undefined
+              ? {}
+              : { rawStatus: started.rawStatus }),
+            ...(started.requestCounts === undefined
+              ? {}
+              : { counts: { ...started.requestCounts } }),
+            ...(started.expiresAt === undefined
+              ? {}
+              : { expiresAt: temporal().Instant.from(started.expiresAt) }),
           },
-          itemCount: batchOptions.requests.length,
-          status: started.status,
-          ...(context.userId === undefined ? {} : { userId: context.userId }),
-          ...(metadata === undefined ? {} : { metadata }),
-          ...(started.rawStatus === undefined
-            ? {}
-            : { rawStatus: started.rawStatus }),
-          ...(started.requestCounts === undefined
-            ? {}
-            : { counts: { ...started.requestCounts } }),
-          ...(started.expiresAt === undefined
-            ? {}
-            : { expiresAt: temporal().Instant.from(started.expiresAt) }),
         }),
       );
     },
     status: (batchId) => store.get(batchId),
-    results: (batchId, resultOptions) => store.items(batchId, resultOptions),
+    results: (batchId, resultOptions) =>
+      store.items({ batchId, ...resultOptions }),
     refresh,
     collect,
     cancel: (batch) =>
       withReference(batch).andThen((reference) =>
         call(() =>
           api.cancel({ ...providerFor(reference), batch: reference }),
-        ).andThen(() => store.update(batch.id, { status: "cancelled" })),
+        ).andThen(() =>
+          store.update({ batchId: batch.id, patch: { status: "cancelled" } }),
+        ),
       ),
     list: (listOptions = {}) => {
       const provider =

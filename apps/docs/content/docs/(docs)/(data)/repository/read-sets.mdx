@@ -160,6 +160,36 @@ query plugins and the set reads a table with a tenant or soft-delete flag.
   extension (`allowImportingTsExtensions` in `tsconfig.json`), and the module
   can't import `server-only`.
 
+## Functions, block reads and records
+
+A read set can also call stable SQL functions, so a page loads a board and
+its counts in one request. `s.$fn.<name>(args)` calls any `stable` or
+`immutable` function the schema metadata lists. Each installed block that
+ships composed reads exposes them as `s.blocks.<instance>.<read>(args)`, from
+the `reads` constant in `blocks.generated.ts`, and `s.record(type, id, {
+sections })` calls `record_summary` for one record:
+
+```ts title="src/lib/read-sets.ts"
+import { reads } from "./supabase/blocks.generated.ts";
+
+export const pipelineOverview = defineReadSet(
+  betterSupabase,
+  "pipeline_overview",
+  { params: { pipelineId: "uuid" }, blocks: reads },
+  (s, p) => ({
+    customers: s.customers.count(),
+    board: s.blocks.deals.board({ pipelineId: p.pipelineId }),
+  }),
+);
+```
+
+The function runs inside the set's function as the caller, so RLS applies as
+it does for the block's own client. A function can't sit in a nested
+object argument, and a `volatile` one is refused. `gen` also writes the
+result type of each block read (`DealsBoardResult`) and the block's client
+has a method for it, so `deals.board({ pipelineId })` works without a read
+set.
+
 ## Caching
 
 In Next.js, tag a `"use cache"` scope with every table a set (or an array
@@ -175,8 +205,20 @@ export async function getWorkspaceSummary() {
 }
 ```
 
-Any mutation of those tables revalidates the entry. See
-[Cache Components](/docs/frameworks/next-cache-components).
+Any mutation of those tables revalidates the entry. A block read lists its
+tables in `reads.<instance>.<read>.tables`, and `bsb.tags` tags the scope
+with them. Block writes go through functions rather than repositories, so
+name the tables a block action changes with `invalidates`:
+
+```ts
+export const archiveDeal = bsb.blockAction(
+  ({ blocks }) => blocks.deals,
+  "archive",
+  { input: archiveSchema, invalidates: reads.deals.board.tables },
+);
+```
+
+See [Cache Components](/docs/frameworks/next-cache-components).
 
 ## Doctor
 

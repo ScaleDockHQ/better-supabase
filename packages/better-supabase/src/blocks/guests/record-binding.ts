@@ -40,7 +40,7 @@ export const guestsBinding: RecordBinding<
         client: Guests,
         subject,
         { guestId, ...input }: GuestSectionGrantInput,
-      ) => client.grant(guestId, subject, input),
+      ) => client.grant({ guestId, subject, input }),
     },
     revoke: {
       input: recordRowInput,

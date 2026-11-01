@@ -60,7 +60,10 @@ describe("hiring block", () => {
     const hiring = createHiring({ transport: t });
 
     const job = await hiring
-      .saveJob("o", { title: "Engineer", status: "open" })
+      .saveJob({
+        organizationId: "o",
+        job: { title: "Engineer", status: "open" },
+      })
       .orThrow();
 
     expect(job).toMatchObject({
@@ -71,7 +74,7 @@ describe("hiring block", () => {
     expect(job.openedAt).toBeDefined();
 
     const application = await hiring
-      .apply("j1", { id: "p1" }, { source: "referral" })
+      .apply({ jobId: "j1", candidate: { id: "p1" }, source: "referral" })
       .orThrow();
 
     expect(application).toMatchObject({
@@ -124,12 +127,15 @@ describe("hiring block", () => {
 
     const hiring = createHiring({ transport: t });
     expect((await hiring.hire("a1").orThrow()).hiredAt).toBeDefined();
-    await hiring.reject("a1", "Late").orThrow();
+    await hiring.reject({ applicationId: "a1", reason: "Late" }).orThrow();
     await hiring.withdraw("a1").orThrow();
     expect(
       (
         await hiring
-          .score("a1", { rating: 4, recommendation: "strong_yes" })
+          .score({
+            applicationId: "a1",
+            card: { rating: 4, recommendation: "strong_yes" },
+          })
           .orThrow()
       ).rating,
     ).toBe(4);
@@ -137,9 +143,9 @@ describe("hiring block", () => {
     expect(
       (
         await hiring
-          .scheduleInterview("a1", {
-            startsAt: start,
-            endsAt: start.add({ hours: 1 }),
+          .scheduleInterview({
+            applicationId: "a1",
+            interview: { startsAt: start, endsAt: start.add({ hours: 1 }) },
           })
           .orThrow()
       ).interviewerIds,

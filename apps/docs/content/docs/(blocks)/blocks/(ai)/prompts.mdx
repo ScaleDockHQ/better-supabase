@@ -37,7 +37,12 @@ const version = await prompts
   .orThrow();
 
 await prompts
-  .setLabel("support.reply", "production", version.version, { organizationId })
+  .setLabel({
+    name: "support.reply",
+    label: "production",
+    version: version.version,
+    organizationId,
+  })
   .orThrow();
 ```
 

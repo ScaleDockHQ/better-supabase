@@ -108,3 +108,48 @@ describe("BS505", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("BS507", () => {
+  it("reports shipped actions until a source builds a registry", async () => {
+    const missing = await rule("BS507").check(
+      context({ tasks: "tasks" }, { sources: [] }),
+    );
+
+    expect(missing.map((finding) => finding.target)).toEqual(["actions"]);
+
+    const registered = await rule("BS507").check(
+      context(
+        { tasks: "tasks" },
+        {
+          sources: [
+            {
+              path: "route.ts",
+              text: "createActionRegistry([...blockActions(blocks, { clients })]);",
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(registered).toEqual([]);
+  });
+});
+
+describe("BS508", () => {
+  it("reports timers until a source drains the tick queue", async () => {
+    const missing = await rule("BS508").check(
+      context({ cases: "cases" }, { sources: [] }),
+    );
+
+    expect(missing.length).toBeGreaterThan(0);
+
+    const handled = await rule("BS508").check(
+      context(
+        { cases: "cases" },
+        { sources: [{ path: "route.ts", text: "blockTickHandler(blocks);" }] },
+      ),
+    );
+
+    expect(handled).toEqual([]);
+  });
+});

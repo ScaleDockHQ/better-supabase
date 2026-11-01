@@ -218,7 +218,10 @@ describe("createDispatch", () => {
     });
 
     const order = await dispatch
-      .update("w1", { title: "Fix it", fields: { region: "north" } })
+      .update({
+        id: "w1",
+        patch: { title: "Fix it", fields: { region: "north" } },
+      })
       .orThrow();
 
     expect(order.fields.region).toBe("north");
@@ -247,11 +250,18 @@ describe("createDispatch", () => {
     const dispatch = createDispatch({ transport: fake.transport });
 
     await dispatch
-      .schedule("w1", { technicianId: "t1", startsAt: instant(AT) })
+      .schedule({
+        id: "w1",
+        slot: { technicianId: "t1", startsAt: instant(AT) },
+      })
       .orThrow();
     await dispatch.unschedule("w1").orThrow();
-    const done = await dispatch.setStatus("w1", "done", "fixed").orThrow();
-    await dispatch.setStatus("w1", "en_route").orThrow();
+
+    const done = await dispatch
+      .setStatus({ id: "w1", status: "done", note: "fixed" })
+      .orThrow();
+
+    await dispatch.setStatus({ id: "w1", status: "en_route" }).orThrow();
 
     expect(done.status).toBe("done");
     expect(fake.calls).toEqual([
@@ -384,7 +394,9 @@ describe("createDispatch", () => {
 
     const day = Temporal.PlainDate.from("2026-10-22");
 
-    const plan = await dispatch.technicianDay(day, "t1").orThrow();
+    const plan = await dispatch
+      .technicianDay({ day, technicianId: "t1" })
+      .orThrow();
 
     expect(plan.routeId).toBe("r1");
     expect(plan.stops[0]?.position).toBe(1);
@@ -407,7 +419,7 @@ describe("createDispatch", () => {
       tenant: "org-1",
     });
 
-    const own = await empty.technicianDay(day).orThrow();
+    const own = await empty.technicianDay({ day }).orThrow();
 
     expect(own).not.toHaveProperty("routeId");
     expect(own.stops).toEqual([]);
@@ -430,7 +442,11 @@ describe("createDispatch", () => {
     });
 
     const route = await dispatch
-      .planRoute("t1", Temporal.PlainDate.from("2026-10-22"), ["w2", "w1"])
+      .planRoute({
+        technicianId: "t1",
+        day: Temporal.PlainDate.from("2026-10-22"),
+        workOrderIds: ["w2", "w1"],
+      })
       .orThrow();
 
     expect(route.workOrderIds).toEqual(["w2", "w1"]);
@@ -477,11 +493,15 @@ describe("createDispatch", () => {
     };
 
     const result = await dispatch
-      .optimizeRoute("t1", Temporal.PlainDate.from("2026-10-22"), {
-        locate: (order) => points[order.id],
-        start: { latitude: 52, longitude: 5 },
-        end: { latitude: 52, longitude: 5 },
-        durationMinutes: () => 30,
+      .optimizeRoute({
+        technicianId: "t1",
+        day: Temporal.PlainDate.from("2026-10-22"),
+        options: {
+          locate: (order) => points[order.id],
+          start: { latitude: 52, longitude: 5 },
+          end: { latitude: 52, longitude: 5 },
+          durationMinutes: () => 30,
+        },
       })
       .orThrow();
 
@@ -492,15 +512,19 @@ describe("createDispatch", () => {
     });
 
     await dispatch
-      .optimizeRoute("t1", Temporal.PlainDate.from("2026-10-22"), {
-        locate: (order) => points[order.id],
-        optimizer: {
-          apiVersion: 1,
-          name: "custom",
-          optimize: (request) =>
-            Promise.resolve({
-              order: request.stops.map((stop) => stop.id).toReversed(),
-            }),
+      .optimizeRoute({
+        technicianId: "t1",
+        day: Temporal.PlainDate.from("2026-10-22"),
+        options: {
+          locate: (order) => points[order.id],
+          optimizer: {
+            apiVersion: 1,
+            name: "custom",
+            optimize: (request) =>
+              Promise.resolve({
+                order: request.stops.map((stop) => stop.id).toReversed(),
+              }),
+          },
         },
       })
       .orThrow();
@@ -520,18 +544,24 @@ describe("createDispatch", () => {
     const dispatch = createDispatch({ transport: fake.transport });
 
     const part = await dispatch
-      .recordPart("w1", {
-        name: "Valve",
-        quantity: 2,
-        unit: "pcs",
-        assetId: "a1",
-        variantId: "v1",
-        locationId: "l1",
+      .recordPart({
+        workOrderId: "w1",
+        input: {
+          name: "Valve",
+          quantity: 2,
+          unit: "pcs",
+          assetId: "a1",
+          variantId: "v1",
+          locationId: "l1",
+        },
       })
       .orThrow();
 
     await dispatch
-      .recordPart("w1", { name: "Tape", quantity: "1.5" })
+      .recordPart({
+        workOrderId: "w1",
+        input: { name: "Tape", quantity: "1.5" },
+      })
       .orThrow();
     const parts = await dispatch.parts("w1").orThrow();
     const removed = await dispatch.removePart("p1").orThrow();

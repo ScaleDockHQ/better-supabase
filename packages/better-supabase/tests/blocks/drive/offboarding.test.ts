@@ -47,8 +47,8 @@ describe("driveOffboardingSink", () => {
     ]);
 
     expect(drive.transferOwnership.mock.calls).toEqual([
-      ["o", "u1", "manager"],
-      ["o", "u2", "owner"],
+      [{ organizationId: "o", fromUserId: "u1", toUserId: "manager" }],
+      [{ organizationId: "o", fromUserId: "u2", toUserId: "owner" }],
     ]);
   });
 

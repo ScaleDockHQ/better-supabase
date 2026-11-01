@@ -28,13 +28,13 @@ export const saveField = bsb.action(
     permission: "custom_fields.manage",
   },
   async ({ entity, key, label, type, sensitive }, { db, auth }) => {
-    const saved = await db.customFields.saveDefinition(
+    const saved = await db.customFields.saveDefinition({
       entity,
       key,
       label,
       type,
       sensitive,
-    );
+    });
 
     if (!saved.ok) {
       return saved;
@@ -101,9 +101,12 @@ export const moveField = bsb.action(
     order[from] = other;
 
     if (order.every((definition) => definition.rank !== undefined)) {
-      const moved = await customFields.reorderDefinition(id, {
-        previous: order[to - 1]?.rank ?? null,
-        next: order[to + 1]?.rank ?? null,
+      const moved = await customFields.reorderDefinition({
+        id,
+        neighbors: {
+          previous: order[to - 1]?.rank ?? null,
+          next: order[to + 1]?.rank ?? null,
+        },
       });
 
       if (!moved.ok) {
@@ -113,9 +116,9 @@ export const moveField = bsb.action(
       let previous: string | null = null;
 
       for (const definition of order) {
-        const ranked = await customFields.reorderDefinition(definition.id, {
-          previous,
-          next: null,
+        const ranked = await customFields.reorderDefinition({
+          id: definition.id,
+          neighbors: { previous, next: null },
         });
 
         if (!ranked.ok) {

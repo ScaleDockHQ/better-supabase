@@ -134,21 +134,20 @@ export interface Connectors<F extends object = Record<never, never>> {
     list(organizationId: string): AsyncResult<readonly ConnectorServer<F>[]>;
     /** With `ownerId` (service role), the grant is that user's. */
     get(
-      serverId: string,
-      options?: { readonly ownerId?: string },
+      input: { serverId: string } & { readonly ownerId?: string },
     ): AsyncResult<ConnectorServer<F>>;
-    create(
-      organizationId: string,
+    create(input: {
+      organizationId: string;
       server: ConnectorServerFields<F> & {
         readonly name: string;
         readonly url: string;
-      },
-    ): AsyncResult<ConnectorServer<F>>;
-    update(
-      organizationId: string,
-      serverId: string,
-      fields: ConnectorServerFields<F>,
-    ): AsyncResult<ConnectorServer<F>>;
+      };
+    }): AsyncResult<ConnectorServer<F>>;
+    update(input: {
+      organizationId: string;
+      serverId: string;
+      fields: ConnectorServerFields<F>;
+    }): AsyncResult<ConnectorServer<F>>;
     /** Deletes a server and revokes its grants' credentials. Returns how many. */
     remove(serverId: string): AsyncResult<number>;
   };
@@ -158,10 +157,11 @@ export interface Connectors<F extends object = Record<never, never>> {
      * role), revoking the grant it replaces.
      */
     record(
-      serverId: string,
-      userId: string,
-      credentialRef: CredentialRef,
-      options?: {
+      input: {
+        serverId: string;
+        userId: string;
+        credentialRef: CredentialRef;
+      } & {
         readonly scopes?: readonly string[];
         readonly expiresAt?: Temporal.Instant;
       },
@@ -170,37 +170,48 @@ export interface Connectors<F extends object = Record<never, never>> {
     revoke(grantId: string): AsyncResult<boolean>;
     /** Active grants expiring before `before` (service role). */
     expiring(
-      before: Temporal.Instant,
-      options?: { readonly limit?: number },
+      input: { before: Temporal.Instant } & { readonly limit?: number },
     ): AsyncResult<readonly ConnectorGrant[]>;
-    renew(grantId: string, expiresAt: Temporal.Instant): AsyncResult<boolean>;
+    renew(input: {
+      grantId: string;
+      expiresAt: Temporal.Instant;
+    }): AsyncResult<boolean>;
   };
   readonly sessions: {
-    get(
-      serverId: string,
-      chatKey?: string,
-    ): AsyncResult<ConnectorSession | undefined>;
-    upsert(
-      serverId: string,
+    get(input: {
+      serverId: string;
+      chatKey?: string | undefined;
+    }): AsyncResult<ConnectorSession | undefined>;
+    upsert(input: {
+      serverId: string;
       session: {
         readonly chatKey?: string;
         readonly sessionId?: string;
         readonly initializeResult?: Readonly<Record<string, unknown>>;
-      },
-    ): AsyncResult<boolean>;
-    forget(serverId: string, chatKey?: string): AsyncResult<boolean>;
+      };
+    }): AsyncResult<boolean>;
+    forget(input: {
+      serverId: string;
+      chatKey?: string | undefined;
+    }): AsyncResult<boolean>;
     /** Deletes expired sessions (service role). */
     purge(): AsyncResult<number>;
   };
   readonly fingerprints: {
     /** Records a tool list's fingerprint and returns whether it may be called. */
-    check(
-      serverId: string,
-      fingerprint: string,
-      tools?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<FingerprintStatus>;
-    approve(serverId: string, fingerprint: string): AsyncResult<boolean>;
-    reject(serverId: string, fingerprint: string): AsyncResult<boolean>;
+    check(input: {
+      serverId: string;
+      fingerprint: string;
+      tools?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<FingerprintStatus>;
+    approve(input: {
+      serverId: string;
+      fingerprint: string;
+    }): AsyncResult<boolean>;
+    reject(input: {
+      serverId: string;
+      fingerprint: string;
+    }): AsyncResult<boolean>;
   };
 }
 
@@ -386,7 +397,7 @@ export function createConnectors<
         call("list_connector_servers", { tenant: organizationId }, (value) =>
           recordsOf(value, "list_connector_servers").map(serverOf),
         ).andThen(extraFields.rows),
-      get: (serverId, getOptions = {}) =>
+      get: ({ serverId, ...getOptions }) =>
         (getOptions.ownerId === undefined ? call : service)(
           "get_connector",
           { id: serverId, owner: getOptions.ownerId },
@@ -396,9 +407,9 @@ export function createConnectors<
             ? extraFields.row(serverOf(value))
             : AsyncResult.err(notFound()),
         ),
-      create: (organizationId, server) =>
+      create: ({ organizationId, server }) =>
         save(organizationId, undefined, server),
-      update: (organizationId, serverId, fields) =>
+      update: ({ organizationId, serverId, fields }) =>
         save(organizationId, serverId, fields),
       remove: (serverId) =>
         call("delete_connector_server", { id: serverId }, (value) =>
@@ -406,7 +417,7 @@ export function createConnectors<
         ).andThen(revokeAll),
     },
     grants: {
-      record: (serverId, userId, credentialRef, recordOptions = {}) =>
+      record: ({ serverId, userId, credentialRef, ...recordOptions }) =>
         service(
           "record_connector_grant",
           {
@@ -444,13 +455,13 @@ export function createConnectors<
             ? revokeCredential(grantOf(value))
             : AsyncResult.ok(false),
         ),
-      expiring: (before, expiringOptions = {}) =>
+      expiring: ({ before, ...expiringOptions }) =>
         service(
           "expiring_connector_grants",
           { before: before.toString(), max_rows: expiringOptions.limit },
           (value) => recordsOf(value, "expiring_connector_grants").map(grantOf),
         ),
-      renew: (grantId, expiresAt) =>
+      renew: ({ grantId, expiresAt }) =>
         service(
           "renew_connector_grant",
           { id: grantId, expires_at: expiresAt.toString() },
@@ -458,7 +469,7 @@ export function createConnectors<
         ),
     },
     sessions: {
-      get: (serverId, chatKey) =>
+      get: ({ serverId, chatKey }) =>
         call(
           "get_connector_session",
           { server_id: serverId, chat_key: chatKey ?? "" },
@@ -473,7 +484,7 @@ export function createConnectors<
                 }
               : undefined,
         ),
-      upsert: (serverId, session) =>
+      upsert: ({ serverId, session }) =>
         call(
           "save_connector_session",
           {
@@ -484,7 +495,7 @@ export function createConnectors<
           },
           (value) => value === true,
         ),
-      forget: (serverId, chatKey) =>
+      forget: ({ serverId, chatKey }) =>
         call(
           "save_connector_session",
           { server_id: serverId, chat_key: chatKey ?? "" },
@@ -493,7 +504,7 @@ export function createConnectors<
       purge: () => service("purge_connector_sessions", {}, Number),
     },
     fingerprints: {
-      check: (serverId, fingerprint, tools) =>
+      check: ({ serverId, fingerprint, tools }) =>
         call(
           "check_connector_fingerprint",
           { server_id: serverId, fingerprint, tools },
@@ -506,8 +517,10 @@ export function createConnectors<
               : "pending";
           },
         ),
-      approve: (serverId, fingerprint) => decide(serverId, fingerprint, true),
-      reject: (serverId, fingerprint) => decide(serverId, fingerprint, false),
+      approve: ({ serverId, fingerprint }) =>
+        decide(serverId, fingerprint, true),
+      reject: ({ serverId, fingerprint }) =>
+        decide(serverId, fingerprint, false),
     },
   };
 

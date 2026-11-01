@@ -46,14 +46,15 @@ describe("trash client", () => {
     });
 
     const trash = createTrash({ transport: fake, schema: "app" });
-    expect(await trash.trash("o", "project", "p1").orThrow()).toEqual({
-      id: "t1",
-      batchId: "b1",
-      count: 3,
-    });
+    expect(
+      await trash
+        .trash({ organizationId: "o", subjectType: "project", subjectId: "p1" })
+        .orThrow(),
+    ).toEqual({ id: "t1", batchId: "b1", count: 3 });
 
     const listed = await trash
-      .list("o", {
+      .list({
+        organizationId: "o",
         subjectType: "project",
         pageSize: 10,
         before: Temporal.Instant.from("2026-10-02T00:00:00Z"),
@@ -66,7 +67,7 @@ describe("trash client", () => {
     expect(listed[1]).not.toHaveProperty("purgeAfter");
     expect(await trash.restore("t1").orThrow()).toMatchObject({ count: 3 });
     expect(await trash.purge("t1").orThrow()).toBe(3);
-    await trash.list("o").orThrow();
+    await trash.list({ organizationId: "o" }).orThrow();
     expect(fake.calls).toEqual([
       ["trash", { tenant: "o", subject_type: "project", subject_id: "p1" }],
       [

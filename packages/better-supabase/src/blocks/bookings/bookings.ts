@@ -20,11 +20,14 @@ import {
 } from "../../core/block-fields.ts";
 import { applyTemporal } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { compact } from "../sales-shared.ts";
 import {
   blockCall,
   intervalOf,
+  optionalText,
   recordOf,
   recordsOf,
   requiredInstant,
@@ -184,52 +187,115 @@ export interface PublicBookingService {
   }[];
 }
 
+/** A resource as `Bookings.resources` lists it. */
+export interface BookingResource {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly capacity: number;
+  readonly tz: string;
+  readonly active: boolean;
+  readonly calendarId?: string;
+  readonly hostUserId?: string;
+}
+
+/** A service as `Bookings.services` lists it. */
+export interface BookingService {
+  readonly id: string;
+  readonly name: string;
+  readonly duration: Temporal.Duration;
+  readonly bufferBefore: Temporal.Duration;
+  readonly bufferAfter: Temporal.Duration;
+  readonly resourceKinds: readonly string[];
+  readonly active: boolean;
+}
+
 /** The payload a hold enqueues on `bookings.expire-holds`. */
 export interface BookingExpirePayload {
   readonly bookingId?: string;
 }
 
+/** A booking page in one read: `bookings.page`. */
+export interface BookingPage {
+  readonly services: readonly BookingService[];
+  readonly resources: readonly BookingResource[];
+  readonly slots: readonly BookingSlot[];
+}
+
 /** `F` is the extra booking fields `options.fields` describes. */
 export interface Bookings<F extends object = Record<never, never>> {
-  saveResource(
-    organizationId: string,
-    input: BookingResourceInput,
-  ): AsyncResult<{ readonly id: string }>;
+  saveResource(input: {
+    organizationId: string;
+    input: BookingResourceInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** Replaces a resource's weekly hours. Resolves to the number of rows. */
-  setAvailability(
-    resourceId: string,
-    hours: readonly WeeklyHours[],
-  ): AsyncResult<number>;
-  addException(
-    resourceId: string,
-    exception: BookingExceptionInput,
-  ): AsyncResult<{ readonly id: string }>;
+  setAvailability(input: {
+    resourceId: string;
+    hours: readonly WeeklyHours[];
+  }): AsyncResult<number>;
+  addException(input: {
+    resourceId: string;
+    exception: BookingExceptionInput;
+  }): AsyncResult<{ readonly id: string }>;
   deleteException(id: string): AsyncResult<boolean>;
-  saveService(
-    organizationId: string,
-    input: BookingServiceInput,
-  ): AsyncResult<{ readonly id: string }>;
+  /**
+   * The organization's resources by name; inactive ones only with
+   * `includeInactive`.
+   */
+  resources(input: {
+    organizationId: string;
+    includeInactive?: boolean | undefined;
+  }): AsyncResult<BookingResource[]>;
+  /**
+   * The organization's services by name; inactive ones only with
+   * `includeInactive`.
+   */
+  services(input: {
+    organizationId: string;
+    includeInactive?: boolean | undefined;
+  }): AsyncResult<BookingService[]>;
+  saveService(input: {
+    organizationId: string;
+    input: BookingServiceInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** The open slots of a service, at most 62 days at a time. */
   availableSlots(
-    serviceId: string,
-    range: BookingRange,
-    options?: { readonly tz?: string; readonly resourceId?: string },
+    input: { serviceId: string; range: BookingRange } & {
+      readonly tz?: string;
+      readonly resourceId?: string;
+    },
   ): AsyncResult<BookingSlot[]>;
+  /**
+   * What a booking page shows, read together: the active services and resources
+   * and, with `serviceId` and `range`, that service's open slots. Without them
+   * `slots` is empty.
+   */
+  page(input: {
+    organizationId: string;
+    serviceId?: string | undefined;
+    range?: BookingRange | undefined;
+    tz?: string | undefined;
+    resourceId?: string | undefined;
+  }): AsyncResult<BookingPage>;
   /** Holds a slot for the service's `holdFor`, or books it with `confirm`. */
   hold(
-    serviceId: string,
-    resourceId: string,
-    startsAt: Temporal.Instant,
-    customer?: BookingCustomer & Partial<F>,
-    options?: { readonly confirm?: boolean },
+    input: {
+      serviceId: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      customer?: (BookingCustomer & Partial<F>) | undefined;
+    } & { readonly confirm?: boolean },
   ): AsyncResult<PlacedBooking & F>;
   confirm(bookingId: string): AsyncResult<Booking & F>;
-  cancel(bookingId: string, reason?: string): AsyncResult<Booking & F>;
+  cancel(input: {
+    bookingId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Booking & F>;
   /** The bookings that overlap the range, as the caller's policies allow. */
   list(
-    organizationId: string,
-    range: BookingRange,
-    options?: { readonly resourceId?: string },
+    input: { organizationId: string; range: BookingRange } & {
+      readonly resourceId?: string;
+    },
   ): AsyncResult<(Booking & F)[]>;
   /** Cancels every hold whose time is up. Service only. */
   expireHolds(): AsyncResult<number>;
@@ -239,12 +305,13 @@ export interface Bookings<F extends object = Record<never, never>> {
    * `BOOKING_SERIES_CONFLICT`, unless `skipConflicts` leaves it out.
    */
   bookSeries(
-    serviceId: string,
-    resourceId: string,
-    startsAt: Temporal.Instant,
-    rule: BookingRecurrence,
-    customer?: BookingCustomer & Partial<F>,
-    options?: { readonly skipConflicts?: boolean },
+    input: {
+      serviceId: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      rule: BookingRecurrence;
+      customer?: (BookingCustomer & Partial<F>) | undefined;
+    } & { readonly skipConflicts?: boolean },
   ): AsyncResult<BookedSeries<Booking & F>>;
   /**
    * Moves a booking to `startsAt`, or with `scope: "following"` this one and
@@ -252,17 +319,19 @@ export interface Bookings<F extends object = Record<never, never>> {
    * Resolves to the moved bookings.
    */
   reschedule(
-    bookingId: string,
-    startsAt: Temporal.Instant,
-    options?: { readonly scope?: BookingSeriesScope },
+    input: { bookingId: string; startsAt: Temporal.Instant } & {
+      readonly scope?: BookingSeriesScope;
+    },
   ): AsyncResult<(Booking & F)[]>;
   /**
    * Cancels this occurrence and, by default, every later one of its series.
    * Resolves to the number of bookings cancelled.
    */
   cancelSeries(
-    bookingId: string,
-    options?: { readonly scope?: BookingSeriesScope; readonly reason?: string },
+    input: { bookingId: string } & {
+      readonly scope?: BookingSeriesScope;
+      readonly reason?: string;
+    },
   ): AsyncResult<number>;
   /** A series with its occurrences, as the caller's policies allow. */
   series(
@@ -277,21 +346,44 @@ export interface Bookings<F extends object = Record<never, never>> {
   readonly public: {
     service(token: string): AsyncResult<PublicBookingService>;
     slots(
-      token: string,
-      range: BookingRange,
-      options?: { readonly tz?: string },
+      input: { token: string; range: BookingRange } & { readonly tz?: string },
     ): AsyncResult<BookingSlot[]>;
     /** Holds a slot for a guest, who must give a name and an email. */
-    hold(
-      token: string,
-      resourceId: string,
-      startsAt: Temporal.Instant,
+    hold(input: {
+      token: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
       customer: BookingCustomer &
-        Partial<F> & { readonly name: string; readonly email: string },
-    ): AsyncResult<PlacedBooking & F>;
-    confirm(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
-    cancel(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
+        Partial<F> & { readonly name: string; readonly email: string };
+    }): AsyncResult<PlacedBooking & F>;
+    confirm(input: {
+      bookingId: string;
+      accessToken: string;
+    }): AsyncResult<Booking & F>;
+    cancel(input: {
+      bookingId: string;
+      accessToken: string;
+    }): AsyncResult<Booking & F>;
+    /** `hold` then `confirm` with the access token the hold returns. */
+    book(input: {
+      token: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      customer: BookingCustomer &
+        Partial<F> & { readonly name: string; readonly email: string };
+    }): AsyncResult<Booking & F>;
   };
+  /**
+   * Holds and confirms a booking in one call. Without `resourceId` it books the
+   * resource that has a free slot at `startsAt`, and fails with `not_found`
+   * when none has.
+   */
+  book(input: {
+    serviceId: string;
+    startsAt: Temporal.Instant;
+    resourceId?: string | undefined;
+    customer?: (BookingCustomer & Partial<F>) | undefined;
+  }): AsyncResult<PlacedBooking & F>;
 }
 
 function placedOf(value: unknown): PlacedBooking {
@@ -406,19 +498,19 @@ export function createBookings<
     });
 
   const client: Bookings<F> = {
-    saveResource: (organizationId, input) =>
+    saveResource: ({ organizationId, input }) =>
       call(
         "save_booking_resource",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),
-    setAvailability: (resourceId, hours) =>
+    setAvailability: ({ resourceId, hours }) =>
       call(
         "set_booking_availability",
         { resource: resourceId, source: { hours } },
         Number,
       ),
-    addException: (resourceId, exception) =>
+    addException: ({ resourceId, exception }) =>
       call(
         "add_booking_exception",
         {
@@ -436,46 +528,79 @@ export function createBookings<
         { exception_id: id },
         (value) => value === true,
       ),
-    saveService: (organizationId, input) =>
+    saveService: ({ organizationId, input }) =>
       call(
         "save_booking_service",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),
-    availableSlots: (serviceId, range, slotOptions) =>
+    availableSlots: ({ serviceId, range, ...slotOptions }) =>
       call(
         "available_slots",
         {
           service: serviceId,
           range_start: String(range.from),
           range_end: String(range.until),
-          tz: slotOptions?.tz ?? null,
-          resource: slotOptions?.resourceId ?? null,
+          tz: slotOptions.tz ?? null,
+          resource: slotOptions.resourceId ?? null,
         },
         slotsOf,
       ),
-    hold: (serviceId, resourceId, startsAt, customer, holdOptions) =>
+    page: ({ organizationId, serviceId, range, tz, resourceId }) =>
+      AsyncResult.from<BookingPage>(async () => {
+        const [services, resources, slots] = await Promise.all([
+          hooked.services({ organizationId }),
+          hooked.resources({ organizationId }),
+          serviceId && range
+            ? hooked.availableSlots({
+                serviceId,
+                range,
+                ...(tz ? { tz } : {}),
+                ...(resourceId ? { resourceId } : {}),
+              })
+            : Promise.resolve(ok<BookingSlot[]>([])),
+        ]);
+
+        if (!services.ok) {
+          return err(services.error);
+        }
+
+        if (!resources.ok) {
+          return err(resources.error);
+        }
+
+        if (!slots.ok) {
+          return err(slots.error);
+        }
+
+        return ok({
+          services: services.data,
+          resources: resources.data,
+          slots: slots.data,
+        });
+      }),
+    hold: ({ serviceId, resourceId, startsAt, customer, ...holdOptions }) =>
       placed(
         "hold_booking",
         {
           service: serviceId,
           resource: resourceId,
           starts_at: String(startsAt),
-          confirm: holdOptions?.confirm ?? false,
+          confirm: holdOptions.confirm ?? false,
         },
         customer,
       ),
     confirm: (bookingId) => one("confirm_booking", { booking: bookingId }),
-    cancel: (bookingId, reason) =>
+    cancel: ({ bookingId, reason }) =>
       one("cancel_booking", { booking: bookingId, reason: reason ?? null }),
-    list: (organizationId, range, listOptions) =>
+    list: ({ organizationId, range, ...listOptions }) =>
       call(
         "list_bookings",
         {
           tenant: organizationId,
           range_start: String(range.from),
           range_end: String(range.until),
-          resource: listOptions?.resourceId ?? null,
+          resource: listOptions.resourceId ?? null,
         },
         (value) =>
           recordsOf(value, "bookings").map(
@@ -483,14 +608,49 @@ export function createBookings<
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
     expireHolds,
-    bookSeries: (
+    resources: ({ organizationId, includeInactive }) =>
+      call(
+        "list_booking_resources",
+        { tenant: organizationId, include_inactive: includeInactive ?? false },
+        (value) =>
+          recordsOf(value, "resources").map((row) =>
+            compact<BookingResource>({
+              id: textOf(row["id"]),
+              name: textOf(row["name"]),
+              kind: textOf(row["kind"]),
+              capacity: Number(row["capacity"]),
+              tz: textOf(row["tz"]),
+              active: row["active"] === true,
+              calendarId: optionalText(row["calendarId"]),
+              hostUserId: optionalText(row["hostUserId"]),
+            }),
+          ),
+      ),
+    services: ({ organizationId, includeInactive }) =>
+      call(
+        "list_booking_services",
+        { tenant: organizationId, include_inactive: includeInactive ?? false },
+        (value) =>
+          recordsOf(value, "services").map((row) => ({
+            id: textOf(row["id"]),
+            name: textOf(row["name"]),
+            duration: intervalOf(row["duration"]),
+            bufferBefore: intervalOf(row["bufferBefore"]),
+            bufferAfter: intervalOf(row["bufferAfter"]),
+            resourceKinds: Array.isArray(row["resourceKinds"])
+              ? row["resourceKinds"].map(String)
+              : [],
+            active: row["active"] === true,
+          })),
+      ),
+    bookSeries: ({
       serviceId,
       resourceId,
       startsAt,
       rule,
       customer,
-      seriesOptions,
-    ) =>
+      ...seriesOptions
+    }) =>
       customerOf(customer).andThen((item) =>
         call(
           "book_series",
@@ -500,7 +660,7 @@ export function createBookings<
             starts_at: String(startsAt),
             rule: recurrenceItem(rule),
             customer: item,
-            skip_conflicts: seriesOptions?.skipConflicts ?? false,
+            skip_conflicts: seriesOptions.skipConflicts ?? false,
           },
           (value) => recordOf(value, "booked series"),
         ).andThen((row) =>
@@ -513,23 +673,23 @@ export function createBookings<
           })),
         ),
       ),
-    reschedule: (bookingId, startsAt, moveOptions) =>
+    reschedule: ({ bookingId, startsAt, ...moveOptions }) =>
       call(
         "reschedule_booking",
         {
           booking: bookingId,
           starts_at: String(startsAt),
-          scope: moveOptions?.scope ?? "one",
+          scope: moveOptions.scope ?? "one",
         },
         (value) => value,
       ).andThen((value) => many(value, "bookings")),
-    cancelSeries: (bookingId, cancelOptions) =>
+    cancelSeries: ({ bookingId, ...cancelOptions }) =>
       call(
         "cancel_booking_series",
         {
           booking: bookingId,
-          scope: cancelOptions?.scope ?? "following",
-          reason: cancelOptions?.reason ?? null,
+          scope: cancelOptions.scope ?? "following",
+          reason: cancelOptions.reason ?? null,
         },
         Number,
       ),
@@ -564,32 +724,77 @@ export function createBookings<
             ),
           };
         }),
-      slots: (token, range, slotOptions) =>
+      slots: ({ token, range, ...slotOptions }) =>
         call(
           "public_available_slots",
           {
             token,
             range_start: String(range.from),
             range_end: String(range.until),
-            tz: slotOptions?.tz ?? null,
+            tz: slotOptions.tz ?? null,
           },
           slotsOf,
         ),
-      hold: (token, resourceId, startsAt, customer) =>
+      hold: ({ token, resourceId, startsAt, customer }) =>
         placed(
           "public_hold_booking",
           { token, resource: resourceId, starts_at: String(startsAt) },
           customer,
         ),
-      confirm: (bookingId, accessToken) =>
+      confirm: ({ bookingId, accessToken }) =>
         change(bookingId, accessToken, "confirmed"),
-      cancel: (bookingId, accessToken) =>
+      cancel: ({ bookingId, accessToken }) =>
         change(bookingId, accessToken, "cancelled"),
+      book: (input) =>
+        client.public
+          .hold(input)
+          .andThen((held) =>
+            client.public.confirm({
+              bookingId: held.id,
+              accessToken: held.accessToken,
+            }),
+          ),
     },
+    book: ({ serviceId, startsAt, resourceId, customer }) =>
+      AsyncResult.from(async () => {
+        let chosen = resourceId;
+
+        if (chosen === undefined) {
+          const slots = await hooked.availableSlots({
+            serviceId,
+            range: { from: startsAt, until: startsAt.add({ seconds: 1 }) },
+          });
+
+          if (!slots.ok) {
+            return slots;
+          }
+
+          chosen = slots.data.find((slot) =>
+            slot.startsAt.equals(startsAt),
+          )?.resourceId;
+
+          if (chosen === undefined) {
+            return err(
+              dbError("not_found", "No resource is free at that time"),
+            );
+          }
+        }
+
+        return hooked.hold({
+          serviceId,
+          resourceId: chosen,
+          startsAt,
+          confirm: true,
+          customer,
+        });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Bookings<F> = withBlockHooks(client, options.hooks, {
     block: "bookings",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

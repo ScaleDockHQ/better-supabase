@@ -879,7 +879,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:065c661d430b15e85c536da46c06a018c3bb458cacdee26d8991c856f5eb518d
+-- @bsb-hash sha256:e499a294b02888f628ca626ec90589567d212d67227ddd0268e011488d596cef
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1837,6 +1837,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.time_rates', target_type => 'time_rate', event_prefix => 'time_rate', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

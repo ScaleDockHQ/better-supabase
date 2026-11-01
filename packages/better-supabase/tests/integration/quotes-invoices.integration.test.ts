@@ -68,15 +68,18 @@ describe.skipIf(!live)("quotes and invoices", () => {
       await s.as(rep);
 
       const acme = await createContacts({ transport })
-        .saveCompany(org, { name: "Acme" })
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
         .orThrow();
 
       const deal = await createDeals({ transport })
-        .create(org, {
-          name: "Rollout",
-          closeOn: Temporal.PlainDate.from("2026-12-01"),
-          amount: eur(1_000_000n),
-          company: { type: "company", id: acme.id },
+        .create({
+          organizationId: org,
+          input: {
+            name: "Rollout",
+            closeOn: Temporal.PlainDate.from("2026-12-01"),
+            amount: eur(1_000_000n),
+            company: { type: "company", id: acme.id },
+          },
         })
         .orThrow();
 
@@ -96,28 +99,36 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect((await quotes.fromDeal(deal.id).orThrow()).id).toBe(quote.id);
 
       await quotes
-        .setLines(quote.id, [
-          {
-            description: "Licences",
-            quantity: 10,
-            unitAmount: eur(100_000n),
-            taxRateBps: 2100,
-          },
-          {
-            description: "Setup",
-            unitAmount: eur(50_000n),
-            discountBps: 2000,
-            taxRateBps: 2100,
-          },
-        ])
+        .setLines({
+          quoteId: quote.id,
+          lines: [
+            {
+              description: "Licences",
+              quantity: 10,
+              unitAmount: eur(100_000n),
+              taxRateBps: 2100,
+            },
+            {
+              description: "Setup",
+              unitAmount: eur(50_000n),
+              discountBps: 2000,
+              taxRateBps: 2100,
+            },
+          ],
+        })
         .orThrow();
-      const { quote: sent, token } = await quotes.send(quote.id).orThrow();
+
+      const { quote: sent, token } = await quotes
+        .send({ quoteId: quote.id })
+        .orThrow();
+
       expect(sent.status).toBe("sent");
       expect(
         hint(
-          await quotes.setLines(quote.id, [
-            { description: "x", unitAmount: eur(1n) },
-          ]),
+          await quotes.setLines({
+            quoteId: quote.id,
+            lines: [{ description: "x", unitAmount: eur(1n) }],
+          }),
         ),
       ).toBe("LINES_RECORD_INVALID");
 
@@ -136,16 +147,17 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(
         (
           await quotes
-            .respond(token, "changes_requested", {
-              name: "Els",
-              note: "Fewer licences",
+            .respond({
+              token,
+              decision: "changes_requested",
+              answer: { name: "Els", note: "Fewer licences" },
             })
             .orThrow()
         ).status,
       ).toBe("changes_requested");
 
       await s.as(rep);
-      const revised = await quotes.revise(quote.id).orThrow();
+      const revised = await quotes.revise({ quoteId: quote.id }).orThrow();
       expect(revised).toMatchObject({
         identifier: "Q-1",
         id: quote.id,
@@ -153,27 +165,41 @@ describe.skipIf(!live)("quotes and invoices", () => {
         status: "draft",
       });
       expect(revised.lines).toHaveLength(2);
-      const { token: token2 } = await quotes.send(revised.id).orThrow();
+
+      const { token: token2 } = await quotes
+        .send({ quoteId: revised.id })
+        .orThrow();
+
       await s.as("anon");
       expect(
-        hint(await quotes.respond(token, "accepted", { name: "Els" })),
+        hint(
+          await quotes.respond({
+            token,
+            decision: "accepted",
+            answer: { name: "Els" },
+          }),
+        ),
       ).toBe("QUOTE_LINK_INVALID");
       expect(
         (
           await quotes
-            .respond(token2, "accepted", { name: "Els Jansen" })
+            .respond({
+              token: token2,
+              decision: "accepted",
+              answer: { name: "Els Jansen" },
+            })
             .orThrow()
         ).status,
       ).toBe("accepted");
 
       await s.as(rep);
-      expect(hint(await invoices.fromQuote(revised.id))).toBe(
+      expect(hint(await invoices.fromQuote({ quoteId: revised.id }))).toBe(
         "INVOICE_ORIGIN_NOT_FOUND",
       );
       await s.as(owner);
 
       const deposit = await invoices
-        .fromQuote(revised.id, { depositBps: 3000 })
+        .fromQuote({ quoteId: revised.id, depositBps: 3000 })
         .orThrow();
 
       expect(deposit).toMatchObject({
@@ -187,7 +213,10 @@ describe.skipIf(!live)("quotes and invoices", () => {
       });
 
       const issuedDeposit = await invoices
-        .issue(deposit.id, Temporal.PlainDate.from("2026-10-15"))
+        .issue({
+          invoiceId: deposit.id,
+          issuedOn: Temporal.PlainDate.from("2026-10-15"),
+        })
         .orThrow();
 
       expect(issuedDeposit).toMatchObject({
@@ -196,22 +225,26 @@ describe.skipIf(!live)("quotes and invoices", () => {
         dueOn: Temporal.PlainDate.from("2026-11-14"),
       });
 
-      const final = await invoices.fromQuote(revised.id).orThrow();
+      const final = await invoices.fromQuote({ quoteId: revised.id }).orThrow();
       expect(final.totals).toMatchObject({
         subtotal: eur(728_000n),
         taxTotal: eur(152_880n),
         total: eur(880_880n),
       });
-      expect((await invoices.fromQuote(revised.id).orThrow()).id).toBe(
-        final.id,
-      );
-      const issuedFinal = await invoices.issue(final.id).orThrow();
+      expect(
+        (await invoices.fromQuote({ quoteId: revised.id }).orThrow()).id,
+      ).toBe(final.id);
+
+      const issuedFinal = await invoices
+        .issue({ invoiceId: final.id })
+        .orThrow();
+
       expect(issuedFinal.identifier).toBe("INV-2");
 
       const partly = await invoices
-        .recordPayment(issuedFinal.id, {
-          amount: eur(500_000n),
-          reference: "bank-1",
+        .recordPayment({
+          invoiceId: issuedFinal.id,
+          payment: { amount: eur(500_000n), reference: "bank-1" },
         })
         .orThrow();
 
@@ -222,43 +255,51 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(
         (
           await invoices
-            .recordPayment(issuedFinal.id, {
-              amount: eur(500_000n),
-              reference: "bank-1",
+            .recordPayment({
+              invoiceId: issuedFinal.id,
+              payment: { amount: eur(500_000n), reference: "bank-1" },
             })
             .orThrow()
         ).paidTotal,
       ).toEqual(eur(500_000n));
       expect(
         hint(
-          await invoices.recordPayment(issuedFinal.id, {
-            amount: eur(-500_001n),
+          await invoices.recordPayment({
+            invoiceId: issuedFinal.id,
+            payment: { amount: eur(-500_001n) },
           }),
         ),
       ).toBe("INVOICE_REFUND_TOO_LARGE");
 
       const refund = { amount: eur(-500_000n), reference: "refund-1" };
       expect(
-        (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
-          .paidTotal,
-      ).toEqual(eur(0n));
-      expect(
-        (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
-          .paidTotal,
+        (
+          await invoices
+            .recordPayment({ invoiceId: issuedFinal.id, payment: refund })
+            .orThrow()
+        ).paidTotal,
       ).toEqual(eur(0n));
       expect(
         (
           await invoices
-            .recordPayment(issuedFinal.id, {
-              amount: eur(500_000n),
-              reference: "bank-2",
+            .recordPayment({ invoiceId: issuedFinal.id, payment: refund })
+            .orThrow()
+        ).paidTotal,
+      ).toEqual(eur(0n));
+      expect(
+        (
+          await invoices
+            .recordPayment({
+              invoiceId: issuedFinal.id,
+              payment: { amount: eur(500_000n), reference: "bank-2" },
             })
             .orThrow()
         ).paidTotal,
       ).toEqual(eur(500_000n));
 
       const credit = await invoices
-        .credit(issuedFinal.id, {
+        .credit({
+          invoiceId: issuedFinal.id,
           lines: [{ description: "Goodwill", unitAmount: eur(80_880n) }],
         })
         .orThrow();
@@ -268,12 +309,15 @@ describe.skipIf(!live)("quotes and invoices", () => {
         originalId: issuedFinal.id,
         status: "draft",
       });
-      expect((await invoices.issue(credit.id).orThrow()).identifier).toBe(
-        "CN-1",
-      );
+      expect(
+        (await invoices.issue({ invoiceId: credit.id }).orThrow()).identifier,
+      ).toBe("CN-1");
 
       const paid = await invoices
-        .recordPayment(issuedFinal.id, { amount: eur(300_000n) })
+        .recordPayment({
+          invoiceId: issuedFinal.id,
+          payment: { amount: eur(300_000n) },
+        })
         .orThrow();
 
       expect(paid).toMatchObject({
@@ -284,15 +328,22 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(
         hint(
           await invoices
-            .credit(issuedFinal.id, {
+            .credit({
+              invoiceId: issuedFinal.id,
               lines: [{ description: "x", unitAmount: eur(100_000_000n) }],
             })
-            .then(async (r) => (r.ok ? invoices.issue(r.data.id) : r)),
+            .then(async (r) =>
+              r.ok ? invoices.issue({ invoiceId: r.data.id }) : r,
+            ),
         ),
       ).toBe("INVOICE_CREDIT_TOO_LARGE");
 
       const aging = await invoices
-        .aging(org, "EUR", Temporal.PlainDate.from("2026-12-20"))
+        .aging({
+          organizationId: org,
+          currency: "EUR",
+          asOf: Temporal.PlainDate.from("2026-12-20"),
+        })
         .orThrow();
 
       expect(aging).toMatchObject({
@@ -302,11 +353,15 @@ describe.skipIf(!live)("quotes and invoices", () => {
       });
 
       await s.as(rep);
-      expect(hint(await invoices.void(issuedDeposit.id))).toBe(
+      expect(hint(await invoices.void({ invoiceId: issuedDeposit.id }))).toBe(
         "INVOICE_NOT_FOUND",
       );
       await s.as(owner);
-      const written = await invoices.writeOff(issuedDeposit.id).orThrow();
+
+      const written = await invoices
+        .writeOff({ invoiceId: issuedDeposit.id })
+        .orThrow();
+
       expect(written.status).toBe("uncollectible");
 
       await s.as(owner);
@@ -338,11 +393,15 @@ describe.skipIf(!live)("quotes and invoices", () => {
       const large = 9_007_199_254_740_993n;
 
       const invoice = await invoices
-        .create(org, { title: "Precision" }, [
-          { description: "Half", unitAmount: eur(1n), taxRateBps: 5000 },
-          { description: "Hours", quantity: 1.2345, unitAmount: eur(1999n) },
-          { description: "Large", unitAmount: eur(large) },
-        ])
+        .create({
+          organizationId: org,
+          input: { title: "Precision" },
+          lines: [
+            { description: "Half", unitAmount: eur(1n), taxRateBps: 5000 },
+            { description: "Hours", quantity: 1.2345, unitAmount: eur(1999n) },
+            { description: "Large", unitAmount: eur(large) },
+          ],
+        })
         .orThrow();
 
       expect(invoice.totals).toMatchObject({
@@ -352,23 +411,25 @@ describe.skipIf(!live)("quotes and invoices", () => {
       });
 
       const quote = await quotes
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "Large",
             validUntil: Temporal.Now.plainDateISO().add({ days: 30 }),
           },
-          [{ description: "Large", unitAmount: eur(large) }],
-        )
+          lines: [{ description: "Large", unitAmount: eur(large) }],
+        })
         .orThrow();
 
-      const { token } = await quotes.send(quote.id).orThrow();
+      const { token } = await quotes.send({ quoteId: quote.id }).orThrow();
       await s.as("anon");
-      await quotes.respond(token, "accepted", { name: "Els" }).orThrow();
+      await quotes
+        .respond({ token, decision: "accepted", answer: { name: "Els" } })
+        .orThrow();
       await s.as(owner);
 
       const deposit = await invoices
-        .fromQuote(quote.id, { depositBps: 3000 })
+        .fromQuote({ quoteId: quote.id, depositBps: 3000 })
         .orThrow();
 
       expect(deposit.totals.subtotal).toEqual(eur(2_702_159_776_422_298n));
@@ -397,14 +458,18 @@ describe.skipIf(!live)("quotes and invoices", () => {
       await s.as(owner);
 
       const quote = await quotes
-        .create(org, { title: "Fields" }, [
-          {
-            description: "Setup",
-            unitAmount: eur(100n),
-            fields: { sku: "S-1" },
-          },
-          { description: "Hours", unitAmount: eur(50n) },
-        ])
+        .create({
+          organizationId: org,
+          input: { title: "Fields" },
+          lines: [
+            {
+              description: "Setup",
+              unitAmount: eur(100n),
+              fields: { sku: "S-1" },
+            },
+            { description: "Hours", unitAmount: eur(50n) },
+          ],
+        })
         .orThrow();
 
       expect(quote.lines.map((line) => line.fields)).toEqual([
@@ -429,67 +494,84 @@ describe.skipIf(!live)("quotes and invoices", () => {
       await s.as(owner);
 
       const quote = await quotes
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "Old offer",
             validUntil: Temporal.PlainDate.from("2020-01-01"),
           },
-          [{ description: "x", unitAmount: eur(100n) }],
-        )
+          lines: [{ description: "x", unitAmount: eur(100n) }],
+        })
         .orThrow();
 
-      expect(hint(await invoices.fromQuote(quote.id))).toBe(
+      expect(hint(await invoices.fromQuote({ quoteId: quote.id }))).toBe(
         "INVOICE_QUOTE_NOT_ACCEPTED",
       );
-      const { token } = await quotes.send(quote.id).orThrow();
+      const { token } = await quotes.send({ quoteId: quote.id }).orThrow();
       await s.as("anon");
       expect(
-        (await quotes.respond(token, "accepted", { name: "Late" }).orThrow())
-          .status,
+        (
+          await quotes
+            .respond({ token, decision: "accepted", answer: { name: "Late" } })
+            .orThrow()
+        ).status,
       ).toBe("expired");
       await s.as(owner);
       expect(
         hint(
-          await quotes.send(
-            (await quotes.create(org, { title: "Empty" }).orThrow()).id,
-          ),
+          await quotes.send({
+            quoteId: (
+              await quotes
+                .create({ organizationId: org, input: { title: "Empty" } })
+                .orThrow()
+            ).id,
+          }),
         ),
       ).toBe("QUOTE_EMPTY");
 
       const other = await quotes
-        .create(
-          org,
-          { title: "Other", validUntil: Temporal.PlainDate.from("2020-01-01") },
-          [{ description: "x", unitAmount: eur(1n) }],
-        )
+        .create({
+          organizationId: org,
+          input: {
+            title: "Other",
+            validUntil: Temporal.PlainDate.from("2020-01-01"),
+          },
+          lines: [{ description: "x", unitAmount: eur(1n) }],
+        })
         .orThrow();
 
-      await quotes.send(other.id).orThrow();
+      await quotes.send({ quoteId: other.id }).orThrow();
       await s.service();
       expect(await quotes.expire().orThrow()).toBe(1);
       await s.as(owner);
 
       const draft = await invoices
-        .create(org, { title: "Mistake" }, [
-          { description: "x", unitAmount: eur(5n) },
-        ])
+        .create({
+          organizationId: org,
+          input: { title: "Mistake" },
+          lines: [{ description: "x", unitAmount: eur(5n) }],
+        })
         .orThrow();
 
-      const voided = await invoices.void(draft.id, "Duplicate").orThrow();
+      const voided = await invoices
+        .void({ invoiceId: draft.id, reason: "Duplicate" })
+        .orThrow();
+
       expect(voided).toMatchObject({ status: "void", voidReason: "Duplicate" });
       expect(voided.identifier).toBeUndefined();
 
       const next = await invoices
-        .issue(
-          (
+        .issue({
+          invoiceId: (
             await invoices
-              .create(org, { title: "Real" }, [
-                { description: "x", unitAmount: eur(5n) },
-              ])
+              .create({
+                organizationId: org,
+                input: { title: "Real" },
+                lines: [{ description: "x", unitAmount: eur(5n) }],
+              })
               .orThrow()
           ).id,
-        )
+        })
         .orThrow();
 
       expect(next.identifier).toBe("INV-1");
@@ -511,9 +593,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       };
 
       const open = await invoices
-        .create(org, { title: "Open" }, [
-          { description: "x", unitAmount: eur(5n) },
-        ])
+        .create({
+          organizationId: org,
+          input: { title: "Open" },
+          lines: [{ description: "x", unitAmount: eur(5n) }],
+        })
         .orThrow();
 
       expect(
@@ -534,7 +618,12 @@ describe.skipIf(!live)("quotes and invoices", () => {
         ),
       ).toBe("INVOICE_CURRENCY_MISMATCH");
       expect(
-        hint(await invoices.recordPayment(draft.id, { amount: eur(1n) })),
+        hint(
+          await invoices.recordPayment({
+            invoiceId: draft.id,
+            payment: { amount: eur(1n) },
+          }),
+        ),
       ).toBe("INVOICE_NOT_PAYABLE");
     } finally {
       await s.close();

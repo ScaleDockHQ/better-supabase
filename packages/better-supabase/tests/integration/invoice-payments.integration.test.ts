@@ -36,12 +36,14 @@ describe.skipIf(!live)("invoice payments", () => {
     await s.as(owner);
 
     const draft = await invoices
-      .create(org, { title: "Late" }, [
-        { description: "Work", unitAmount: eur(1000n) },
-      ])
+      .create({
+        organizationId: org,
+        input: { title: "Late" },
+        lines: [{ description: "Work", unitAmount: eur(1000n) }],
+      })
       .orThrow();
 
-    const invoice = await invoices.issue(draft.id).orThrow();
+    const invoice = await invoices.issue({ invoiceId: draft.id }).orThrow();
 
     return { owner, outsider, invoices, invoice, transport };
   };
@@ -51,10 +53,17 @@ describe.skipIf(!live)("invoice payments", () => {
 
     try {
       const { invoices, invoice } = await issued(s);
-      await invoices.writeOff(invoice.id, "gone").orThrow();
+      await invoices
+        .writeOff({ invoiceId: invoice.id, reason: "gone" })
+        .orThrow();
 
       expect(
-        hint(await invoices.recordPayment(invoice.id, { amount: eur(1000n) })),
+        hint(
+          await invoices.recordPayment({
+            invoiceId: invoice.id,
+            payment: { amount: eur(1000n) },
+          }),
+        ),
       ).toBe("INVOICE_NOT_PAYABLE");
     } finally {
       await s.close();
@@ -66,10 +75,15 @@ describe.skipIf(!live)("invoice payments", () => {
 
     try {
       const { invoices, invoice } = await issued(s, true);
-      await invoices.writeOff(invoice.id, "gone").orThrow();
+      await invoices
+        .writeOff({ invoiceId: invoice.id, reason: "gone" })
+        .orThrow();
 
       const part = await invoices
-        .recordPayment(invoice.id, { amount: eur(400n), reference: "pi_1" })
+        .recordPayment({
+          invoiceId: invoice.id,
+          payment: { amount: eur(400n), reference: "pi_1" },
+        })
         .orThrow();
 
       expect(part).toMatchObject({
@@ -79,7 +93,10 @@ describe.skipIf(!live)("invoice payments", () => {
       });
 
       const paid = await invoices
-        .recordPayment(invoice.id, { amount: eur(600n), reference: "pi_2" })
+        .recordPayment({
+          invoiceId: invoice.id,
+          payment: { amount: eur(600n), reference: "pi_2" },
+        })
         .orThrow();
 
       expect(paid).toMatchObject({
@@ -90,7 +107,10 @@ describe.skipIf(!live)("invoice payments", () => {
       expect(paid.paidAt).toBeDefined();
 
       const replay = await invoices
-        .recordPayment(invoice.id, { amount: eur(600n), reference: "pi_2" })
+        .recordPayment({
+          invoiceId: invoice.id,
+          payment: { amount: eur(600n), reference: "pi_2" },
+        })
         .orThrow();
 
       expect(replay.paidTotal).toEqual(eur(1000n));
@@ -104,10 +124,17 @@ describe.skipIf(!live)("invoice payments", () => {
 
     try {
       const { invoices, invoice } = await issued(s, true);
-      await invoices.void(invoice.id, "mistake").orThrow();
+      await invoices
+        .void({ invoiceId: invoice.id, reason: "mistake" })
+        .orThrow();
 
       expect(
-        hint(await invoices.recordPayment(invoice.id, { amount: eur(1000n) })),
+        hint(
+          await invoices.recordPayment({
+            invoiceId: invoice.id,
+            payment: { amount: eur(1000n) },
+          }),
+        ),
       ).toBe("INVOICE_NOT_PAYABLE");
     } finally {
       await s.close();
@@ -121,10 +148,9 @@ describe.skipIf(!live)("invoice payments", () => {
       const { owner, outsider, invoices, invoice, transport } = await issued(s);
 
       const paid = await invoices
-        .recordPayment(invoice.id, {
-          amount: eur(1000n),
-          method: "bank",
-          reference: "b1",
+        .recordPayment({
+          invoiceId: invoice.id,
+          payment: { amount: eur(1000n), method: "bank", reference: "b1" },
         })
         .orThrow();
 
@@ -144,7 +170,7 @@ describe.skipIf(!live)("invoice payments", () => {
       );
 
       const [entry] = await createLedger({ transport })
-        .entries(account!.id)
+        .entries({ accountId: account!.id })
         .orThrow();
 
       expect(entry?.actorId).toBe(owner.id);

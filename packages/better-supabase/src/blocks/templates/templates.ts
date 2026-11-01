@@ -11,7 +11,11 @@ import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { WorkflowEditor } from "../workflow-editor/types.ts";
-import type { MergeFieldCatalog } from "./merge-fields.ts";
+import type {
+  MergeEscape,
+  MergeFieldCatalog,
+  MergeFieldSpec,
+} from "./merge-fields.ts";
 import type { TemplateJobs, TemplateRecurring } from "./recurring.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -33,6 +37,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { renderMergeFields } from "./merge-fields.ts";
 import { createTemplateRecurring } from "./recurring.ts";
 
 /**
@@ -233,10 +238,10 @@ export interface Templates<F extends object = Record<never, never>> {
    * The organization's templates and the system ones (only those with `null`),
    * defaults first.
    */
-  list(
-    organizationId: string | null,
-    filter?: { readonly type?: string; readonly language?: string },
-  ): AsyncResult<readonly Template<F>[]>;
+  list(input: {
+    organizationId: string | null;
+    filter?: { readonly type?: string; readonly language?: string } | undefined;
+  }): AsyncResult<readonly Template<F>[]>;
   /**
    * With its newest published version and its draft; `undefined` when the
    * caller can't read it.
@@ -247,13 +252,19 @@ export interface Templates<F extends object = Record<never, never>> {
    * Makes it the default for its organization, type and language (or stops it
    * being one).
    */
-  setDefault(id: string, isDefault?: boolean): AsyncResult<boolean>;
+  setDefault(input: {
+    id: string;
+    isDefault?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Copies the newest published version of a system template (or one of the
    * organization's) into a new template there, published as version 1, with its
    * workflow attachments.
    */
-  fork(source: string, organizationId: string): AsyncResult<Template<F>>;
+  fork(input: {
+    source: string;
+    organizationId: string;
+  }): AsyncResult<Template<F>>;
   /**
    * Upserts the system templates by key and publishes a new version of each
    * whose body changed. Service role. Returns how many it published.
@@ -261,7 +272,10 @@ export interface Templates<F extends object = Record<never, never>> {
   sync(starters: readonly TemplateStarter[]): AsyncResult<number>;
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
-    upsert(template: string, body: unknown): AsyncResult<TemplateVersion>;
+    upsert(input: {
+      template: string;
+      body: unknown;
+    }): AsyncResult<TemplateVersion>;
     publish(template: string): AsyncResult<TemplateVersion>;
     /** Newest first, without bodies. */
     list(template: string): AsyncResult<readonly TemplateVersion[]>;
@@ -269,30 +283,67 @@ export interface Templates<F extends object = Record<never, never>> {
   /** Needs the workflow-editor module. */
   readonly workflows: {
     attach(input: TemplateWorkflowInput): AsyncResult<TemplateWorkflow>;
-    detach(template: string, definition: string): AsyncResult<boolean>;
+    detach(input: {
+      template: string;
+      definition: string;
+    }): AsyncResult<boolean>;
     list(template: string): AsyncResult<readonly TemplateWorkflow[]>;
   };
+  /**
+   * The merge fields `type` offers, in the order its catalog lists them, for an
+   * editor's field picker. `not_found` for a type not in `options.types` and an
+   * empty list for one without a catalog.
+   */
+  variables(input: { type: string }): AsyncResult<readonly TemplateVariable[]>;
+  /**
+   * Renders the template's newest published body (its draft with `draft: true`)
+   * with `values`, falling back to each field's `example`, and lists the fields
+   * the type doesn't define. Strings anywhere in the body are rendered; other
+   * values stay as they are. Nothing is written.
+   */
+  preview(input: {
+    template: string;
+    values?: Readonly<Record<string, unknown>> | undefined;
+    draft?: boolean | undefined;
+    escape?: MergeEscape | undefined;
+  }): AsyncResult<TemplatePreview>;
   /**
    * Creates a record from the template's newest published version through its
    * type's `apply`, records the application and starts the attached workflows
    * on the new record. `templates.apply` in `into`.
    */
-  apply(
-    template: string,
-    options: ApplyOptions,
-  ): AsyncResult<TemplateApplyResult>;
+  apply(input: {
+    template: string;
+    options: ApplyOptions;
+  }): AsyncResult<TemplateApplyResult>;
   /** Templates applied on a recurrence rule. Needs the reminders module. */
   readonly recurring: TemplateRecurring;
   readonly applications: {
     /** Newest first, at most 200. */
-    list(
-      organizationId: string,
-      filter?: {
-        readonly template?: string;
-        readonly subject?: TemplateSubject;
-      },
-    ): AsyncResult<readonly TemplateApplication[]>;
+    list(input: {
+      organizationId: string;
+      filter?:
+        | { readonly template?: string; readonly subject?: TemplateSubject }
+        | undefined;
+    }): AsyncResult<readonly TemplateApplication[]>;
   };
+}
+
+/** One merge field a template type offers, as an editor lists it. */
+export interface TemplateVariable extends MergeFieldSpec {
+  readonly name: string;
+}
+
+/** A template body with its merge fields filled in, from `preview`. */
+export interface TemplatePreview {
+  readonly template: string;
+  readonly type: string;
+  /** `undefined` for a template with no version yet. */
+  readonly version: number | undefined;
+  /** The body with every string rendered. */
+  readonly body: unknown;
+  /** The fields the body uses that the type's catalog doesn't define. */
+  readonly unknownFields: readonly string[];
 }
 
 export interface TemplatesOptions<
@@ -497,6 +548,81 @@ export function createTemplates<
   };
 
   const client: Templates<F> = {
+    variables: ({ type }) => {
+      const found = typeOf(type);
+
+      if (found === undefined) {
+        return AsyncResult.err(
+          dbError("not_found", `No template type named ${type}`, {
+            hint: "TEMPLATE_TYPE_UNKNOWN",
+          }),
+        );
+      }
+
+      const catalog = found.mergeFields;
+
+      return AsyncResult.ok(
+        catalog === undefined
+          ? []
+          : catalog.names.map((name) => ({ name, ...catalog.fields[name] })),
+      );
+    },
+    preview: ({ template, values, draft, escape }) =>
+      get(template).andThen((detail) => {
+        if (detail === undefined) {
+          return Promise.resolve(
+            err(
+              dbError("not_found", "No template you can read has this id", {
+                hint: "TEMPLATE_NOT_FOUND",
+              }),
+            ),
+          );
+        }
+
+        const version =
+          draft === true
+            ? (detail.draft ?? detail.published)
+            : (detail.published ?? detail.draft);
+
+        const catalog = typeOf(detail.type)?.mergeFields;
+        const unknownFields = new Set<string>();
+
+        const render = (node: unknown): unknown => {
+          if (typeof node === "string") {
+            for (const name of catalog?.unknown(node) ?? []) {
+              unknownFields.add(name);
+            }
+
+            return renderMergeFields(
+              node,
+              { ...catalog?.examples(), ...values },
+              { escape: escape ?? "text" },
+            );
+          }
+
+          if (Array.isArray(node)) {
+            return node.map(render);
+          }
+
+          if (isRecord(node)) {
+            return Object.fromEntries(
+              Object.entries(node).map(([key, entry]) => [key, render(entry)]),
+            );
+          }
+
+          return node;
+        };
+
+        return Promise.resolve(
+          ok({
+            template: detail.id,
+            type: detail.type,
+            version: version?.version,
+            body: render(version?.body),
+            unknownFields: [...unknownFields],
+          }),
+        );
+      }),
     upsert: (input) =>
       AsyncResult.from(async () => {
         const extra = await fields.args(input.fields);
@@ -536,7 +662,7 @@ export function createTemplates<
           (value) => templateOf(recordOf(value, "save_template")),
         ).andThen(fields.row);
       }),
-    list: (organizationId, filter = {}) =>
+    list: ({ organizationId, filter = {} }) =>
       call(
         "templates_list",
         {
@@ -549,13 +675,13 @@ export function createTemplates<
     get,
     remove: (id) =>
       call("remove_template", { template_id: id }, (value) => value === true),
-    setDefault: (id, isDefault = true) =>
+    setDefault: ({ id, isDefault = true }) =>
       call(
         "set_default_template",
         { template_id: id, on_default: isDefault },
         (value) => value === true,
       ),
-    fork: (source, organizationId) =>
+    fork: ({ source, organizationId }) =>
       call("fork_template", { source, tenant: organizationId }, (value) =>
         templateOf(recordOf(value, "fork_template")),
       ).andThen(fields.row),
@@ -602,7 +728,7 @@ export function createTemplates<
         return call("sync_templates", { starters: rows }, Number);
       }),
     versions: {
-      upsert: (template, body) =>
+      upsert: ({ template, body }) =>
         AsyncResult.from(async () => {
           const hasBodySchemas = Object.values(types).some(
             (type) => type.body !== undefined,
@@ -655,7 +781,7 @@ export function createTemplates<
           },
           (value) => workflowOf(recordOf(value, "attach_template_workflow")),
         ),
-      detach: (template, definition) =>
+      detach: ({ template, definition }) =>
         call(
           "detach_template_workflow",
           { template_id: template, definition },
@@ -666,7 +792,7 @@ export function createTemplates<
           recordsOf(value, "template_workflows_list").map(workflowOf),
         ),
     },
-    apply: (template, applyOptions) =>
+    apply: ({ template, options: applyOptions }) =>
       call(
         "template_apply_target",
         { template_id: template, tenant: applyOptions.into },
@@ -760,11 +886,12 @@ export function createTemplates<
       }),
     recurring: createTemplateRecurring({
       call,
-      apply: (template, applyOptions) => hooked.apply(template, applyOptions),
+      apply: (template, applyOptions) =>
+        hooked.apply({ template, options: applyOptions }),
       ...(options.jobs === undefined ? {} : { jobs: options.jobs }),
     }),
     applications: {
-      list: (organizationId, filter = {}) =>
+      list: ({ organizationId, filter = {} }) =>
         call(
           "template_applications_list",
           {

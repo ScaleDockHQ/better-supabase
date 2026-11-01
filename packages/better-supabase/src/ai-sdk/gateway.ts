@@ -189,7 +189,7 @@ export function usageQuota(
   meter: string,
 ): (organizationId: string) => Promise<DbError | undefined> {
   return async (organizationId) => {
-    const status = await usage.current(organizationId, meter);
+    const status = await usage.current({ organizationId, meter });
 
     if (!status.ok) {
       return status.error;
@@ -269,13 +269,17 @@ export function costBackfill(
 
     const cost = microUsd(info.totalCost) ?? 0;
     await options.chats.runs
-      .setCost(payload.generationId, cost, {
-        ...(info.promptTokens === undefined
-          ? {}
-          : { inputTokens: info.promptTokens }),
-        ...(info.completionTokens === undefined
-          ? {}
-          : { outputTokens: info.completionTokens }),
+      .setCost({
+        generationId: payload.generationId,
+        costMicroUsd: cost,
+        usage: {
+          ...(info.promptTokens === undefined
+            ? {}
+            : { inputTokens: info.promptTokens }),
+          ...(info.completionTokens === undefined
+            ? {}
+            : { outputTokens: info.completionTokens }),
+        },
       })
       .orThrow();
 
@@ -286,7 +290,9 @@ export function costBackfill(
       cost > 0
     ) {
       await options.usage
-        .record(payload.organizationId, options.meter, {
+        .record({
+          organizationId: payload.organizationId,
+          meter: options.meter,
           quantity: cost,
           idempotencyKey: `ai-cost:${payload.generationId}`,
           source: "ai:gateway",
@@ -358,7 +364,7 @@ export function modelCatalogRefresh(
       .map((model) => modelInputOf(model, options.plans?.(model)));
 
     return options.chats.models
-      .upsert(rows, { prune: options.prune ?? false })
+      .upsert({ models: rows, prune: options.prune ?? false })
       .orThrow();
   };
 }

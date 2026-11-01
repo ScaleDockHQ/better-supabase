@@ -43,27 +43,38 @@ export const createProduct = bsb.action(
   },
   async ({ title, sku, price }, { tenant, db, auth }) => {
     const { catalog } = db;
-    const product = await catalog.createProduct(tenant, { title });
+
+    const product = await catalog.createProduct({
+      organizationId: tenant,
+      input: { title },
+    });
 
     if (!product.ok) {
       return product;
     }
 
-    const variant = await catalog.createVariant(product.data.id, { sku });
+    const variant = await catalog.createVariant({
+      productId: product.data.id,
+      input: { sku },
+    });
 
     if (!variant.ok) {
       return variant;
     }
 
-    const priced = await catalog.setPrice(variant.data.id, {
-      amount: parseMoney(price, SHOP_CURRENCY),
+    const priced = await catalog.setPrice({
+      variantId: variant.data.id,
+      input: { amount: parseMoney(price, SHOP_CURRENCY) },
     });
 
     if (!priced.ok) {
       return priced;
     }
 
-    const activated = await catalog.setProductStatus(product.data.id, "active");
+    const activated = await catalog.setProductStatus({
+      productId: product.data.id,
+      status: "active",
+    });
 
     if (!activated.ok) {
       return activated;
@@ -79,9 +90,9 @@ export const createProduct = bsb.action(
 export const createMainLocation = bsb.action(
   { input: v.object({}), requireTenant: true, permission: "inventory.manage" },
   async (_input, { tenant, db, auth }) => {
-    const saved = await db.inventory.saveLocation(tenant, {
-      code: "MAIN",
-      name: "Main warehouse",
+    const saved = await db.inventory.saveLocation({
+      organizationId: tenant,
+      input: { code: "MAIN", name: "Main warehouse" },
     });
 
     if (!saved.ok) {
@@ -111,13 +122,13 @@ export const adjustStock = bsb.action(
     permission: "inventory.manage",
   },
   async ({ variantId, locationId, quantity, reason, note }, { db, auth }) => {
-    const adjusted = await db.inventory.adjustStock(
+    const adjusted = await db.inventory.adjustStock({
       variantId,
       locationId,
       quantity,
       reason,
-      note === "" ? undefined : note,
-    );
+      note: note === "" ? undefined : note,
+    });
 
     if (!adjusted.ok) {
       return adjusted;
@@ -145,10 +156,13 @@ export const requestPurchase = bsb.action(
     permission: "inventory.read",
   },
   async ({ variantId, locationId, quantity }, { tenant, db, auth }) => {
-    const requested = await db.inventory.requestPurchase(tenant, {
-      locationId,
-      lines: [{ variantId, quantity }],
-      reason: "Restock below the reorder point",
+    const requested = await db.inventory.requestPurchase({
+      organizationId: tenant,
+      input: {
+        locationId,
+        lines: [{ variantId, quantity }],
+        reason: "Restock below the reorder point",
+      },
     });
 
     if (!requested.ok) {
@@ -176,13 +190,21 @@ export const createDraftOrder = bsb.action(
   },
   async ({ variantId, quantity }, { tenant, supabase, auth }) => {
     const orders = shopOrders(supabase);
-    const cart = await orders.createCart(tenant, { currency: SHOP_CURRENCY });
+
+    const cart = await orders.createCart({
+      organizationId: tenant,
+      input: { currency: SHOP_CURRENCY },
+    });
 
     if (!cart.ok) {
       return cart;
     }
 
-    const added = await orders.addToCart(cart.data.id, variantId, quantity);
+    const added = await orders.addToCart({
+      cartId: cart.data.id,
+      variantId,
+      quantity,
+    });
 
     if (!added.ok) {
       return added;
@@ -202,7 +224,7 @@ export const placeOrder = bsb.action(
     permission: "orders.manage",
   },
   async ({ cartId }, { supabase, auth }) => {
-    const checkout = await shopOrders(supabase).checkout(cartId);
+    const checkout = await shopOrders(supabase).checkout({ cartId });
 
     if (!checkout.ok) {
       return checkout;
@@ -244,15 +266,18 @@ export const markOrderPaid = bsb.action(
       order.data.currency,
     );
 
-    const recorded = await orders.recordPayment(orderId, {
-      id: `manual:${crypto.randomUUID()}`,
-      provider: "manual",
-      status: "succeeded",
-      amount: due,
-      captured: due,
-      refunded: money(0n, order.data.currency),
-      reference: orderId,
-      metadata: {},
+    const recorded = await orders.recordPayment({
+      orderId,
+      payment: {
+        id: `manual:${crypto.randomUUID()}`,
+        provider: "manual",
+        status: "succeeded",
+        amount: due,
+        captured: due,
+        refunded: money(0n, order.data.currency),
+        reference: orderId,
+        metadata: {},
+      },
     });
 
     if (!recorded.ok) {
@@ -273,10 +298,10 @@ export const cancelOrder = bsb.action(
     permission: "orders.manage",
   },
   async ({ orderId }, { supabase, auth }) => {
-    const cancelled = await shopOrders(supabase).cancelOrder(
+    const cancelled = await shopOrders(supabase).cancelOrder({
       orderId,
-      "Cancelled from the shop",
-    );
+      reason: "Cancelled from the shop",
+    });
 
     if (!cancelled.ok) {
       return cancelled;
@@ -296,7 +321,7 @@ export const fulfillOrder = bsb.action(
     permission: "orders.manage",
   },
   async ({ orderId }, { supabase, auth }) => {
-    const created = await shopOrders(supabase).createFulfillment(orderId);
+    const created = await shopOrders(supabase).createFulfillment({ orderId });
 
     if (!created.ok) {
       return created;
@@ -315,7 +340,9 @@ export const shipFulfillment = bsb.action(
     permission: "orders.manage",
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
-    const shipped = await shopOrders(supabase).shipFulfillment(fulfillmentId);
+    const shipped = await shopOrders(supabase).shipFulfillment({
+      fulfillmentId,
+    });
 
     if (!shipped.ok) {
       return shipped;
@@ -362,7 +389,7 @@ export const applyPromotionCode = bsb.action(
     permission: "orders.manage",
   },
   async ({ cartId, code }, { db, auth }) => {
-    const applied = await db.promotions.applyCode(cartId, code);
+    const applied = await db.promotions.applyCode({ cartId, code });
 
     if (!applied.ok) {
       return applied;
@@ -381,7 +408,7 @@ export const removePromotionCode = bsb.action(
     permission: "orders.manage",
   },
   async ({ cartId, code }, { db, auth }) => {
-    const removed = await db.promotions.removeCode(cartId, code);
+    const removed = await db.promotions.removeCode({ cartId, code });
 
     if (!removed.ok) {
       return removed;
@@ -414,17 +441,21 @@ export const createPromotionCode = bsb.action(
   async ({ code, percent }, { tenant, db }) => {
     const { promotions } = db;
 
-    const promotion = await promotions.savePromotion(tenant, {
-      name: `${code} (${percent}% off)`,
-      discount: { kind: "percentage", percent },
+    const promotion = await promotions.savePromotion({
+      organizationId: tenant,
+      input: {
+        name: `${code} (${percent}% off)`,
+        discount: { kind: "percentage", percent },
+      },
     });
 
     if (!promotion.ok) {
       return promotion;
     }
 
-    const codes = await promotions.createCodes(promotion.data.id, {
-      codes: [code],
+    const codes = await promotions.createCodes({
+      promotionId: promotion.data.id,
+      input: { codes: [code] },
     });
 
     if (!codes.ok) {

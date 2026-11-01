@@ -201,11 +201,14 @@ describe.skipIf(!live)("orders block in Postgres", () => {
 
     flat = (
       await admin
-        .saveShippingRate(tenant, {
-          name: "Standard",
-          countries: ["NL"],
-          amount: money(495, "EUR"),
-          freeOver: money(10_000, "EUR"),
+        .saveShippingRate({
+          organizationId: tenant,
+          input: {
+            name: "Standard",
+            countries: ["NL"],
+            amount: money(495, "EUR"),
+            freeOver: money(10_000, "EUR"),
+          },
         })
         .orThrow()
     ).id;
@@ -220,18 +223,25 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     });
 
     const cart = await orders
-      .createCart(tenant, { currency: "EUR", email: shopper.email })
+      .createCart({
+        organizationId: tenant,
+        input: { currency: "EUR", email: shopper.email },
+      })
       .orThrow();
 
-    await orders.addToCart(cart.id, tee, 2).orThrow();
+    await orders
+      .addToCart({ cartId: cart.id, variantId: tee, quantity: 2 })
+      .orThrow();
     expect(
-      await orders.checkout(cart.id).then((r) => !r.ok && r.error.hint),
+      await orders
+        .checkout({ cartId: cart.id })
+        .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_CART_INVALID");
     expect(
       await orders
-        .setCartDetails(cart.id, {
-          shippingAddress: ADDRESS,
-          billingAddress: ADDRESS,
+        .setCartDetails({
+          cartId: cart.id,
+          details: { shippingAddress: ADDRESS, billingAddress: ADDRESS },
         })
         .orThrow(),
     ).toBe(true);
@@ -239,12 +249,15 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     expect(options).toEqual([
       { id: flat, name: "Standard", kind: "flat", amount: money(495, "EUR") },
     ]);
-    await orders.setShippingRate(cart.id, flat).orThrow();
+    await orders.setShippingRate({ cartId: cart.id, rateId: flat }).orThrow();
     const priced = await orders.priceCart(cart.id).orThrow();
     expect(priced.total).toEqual(money(4495, "EUR"));
     expect(priced.problems).toEqual([]);
 
-    const { order, payment } = await orders.checkout(cart.id).orThrow();
+    const { order, payment } = await orders
+      .checkout({ cartId: cart.id })
+      .orThrow();
+
     expect(payment?.clientSecret).toBe("secret");
     expect(order.status).toBe("paid");
     expect(order.number).toBe("SO-0001");
@@ -255,24 +268,34 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     expect(order.taxTransaction?.reference).toBe("SO-0001");
     expect(order.lines[0]?.reservationId).not.toBeNull();
 
-    const again = await orders.checkout(cart.id).orThrow();
+    const again = await orders.checkout({ cartId: cart.id }).orThrow();
     expect(again.order.id).toBe(order.id);
     expect(payments.created.size).toBe(1);
 
     expect((await orders.invoice(order.id).orThrow()).number).toBe("INV-00001");
-    const fulfillment = await admin.createFulfillment(order.id).orThrow();
+
+    const fulfillment = await admin
+      .createFulfillment({ orderId: order.id })
+      .orThrow();
+
     await admin
-      .shipFulfillment(fulfillment.id, { carrier: "PostNL" })
+      .shipFulfillment({
+        fulfillmentId: fulfillment.id,
+        tracking: { carrier: "PostNL" },
+      })
       .orThrow();
     await admin.deliverFulfillment(fulfillment.id).orThrow();
     expect((await admin.getOrder(order.id).orThrow()).status).toBe("completed");
 
     const returned = await orders
-      .requestReturn(order.id, [{ lineId: order.lines[0]!.id, quantity: 1 }])
+      .requestReturn({
+        orderId: order.id,
+        lines: [{ lineId: order.lines[0]!.id, quantity: 1 }],
+      })
       .orThrow();
 
     expect(returned.quantity).toBe(1);
-    await admin.receiveReturn(returned.id).orThrow();
+    await admin.receiveReturn({ returnId: returned.id }).orThrow();
 
     const refunder = createOrders({
       transport: transport(asOwner),
@@ -282,7 +305,10 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     });
 
     const refund = await refunder
-      .refund(order.id, { amount: money(2420, "EUR"), returnId: returned.id })
+      .refund({
+        orderId: order.id,
+        input: { amount: money(2420, "EUR"), returnId: returned.id },
+      })
       .orThrow();
 
     expect(refund.status).toBe("succeeded");
@@ -290,7 +316,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     expect(refund.refundedTotal).toEqual(money(2420, "EUR"));
     expect(refund.taxReversal?.totalTax.amount).toBeLessThan(0n);
 
-    const rest = await refunder.refund(order.id).orThrow();
+    const rest = await refunder.refund({ orderId: order.id }).orThrow();
     expect(rest.amount).toEqual(money(3019, "EUR"));
     expect(rest.orderStatus).toBe("refunded");
   });
@@ -305,13 +331,21 @@ describe.skipIf(!live)("orders block in Postgres", () => {
       capture: "manual",
     });
 
-    const cart = await orders.createCart(tenant, { currency: "EUR" }).orThrow();
-    await orders.setCartLine(cart.id, tee, 1).orThrow();
-    await orders
-      .setCartDetails(cart.id, { shippingAddress: ADDRESS })
+    const cart = await orders
+      .createCart({ organizationId: tenant, input: { currency: "EUR" } })
       .orThrow();
-    await orders.setShippingRate(cart.id, flat).orThrow();
-    const { order } = await orders.checkout(cart.id).orThrow();
+
+    await orders
+      .setCartLine({ cartId: cart.id, variantId: tee, quantity: 1 })
+      .orThrow();
+    await orders
+      .setCartDetails({
+        cartId: cart.id,
+        details: { shippingAddress: ADDRESS },
+      })
+      .orThrow();
+    await orders.setShippingRate({ cartId: cart.id, rateId: flat }).orThrow();
+    const { order } = await orders.checkout({ cartId: cart.id }).orThrow();
     expect(order.status).toBe("pending_payment");
     expect(order.payments[0]?.status).toBe("authorized");
 
@@ -337,18 +371,34 @@ describe.skipIf(!live)("orders block in Postgres", () => {
       service: transport(() => session.service()),
     });
 
-    const cart = await orders.createCart(tenant, { currency: "EUR" }).orThrow();
-    await orders.setCartLine(cart.id, tee, 1).orThrow();
-    await orders
-      .setCartDetails(cart.id, { shippingAddress: ADDRESS })
+    const cart = await orders
+      .createCart({ organizationId: tenant, input: { currency: "EUR" } })
       .orThrow();
-    await orders.setShippingRate(cart.id, flat).orThrow();
-    const { order, payment } = await orders.checkout(cart.id).orThrow();
+
+    await orders
+      .setCartLine({ cartId: cart.id, variantId: tee, quantity: 1 })
+      .orThrow();
+    await orders
+      .setCartDetails({
+        cartId: cart.id,
+        details: { shippingAddress: ADDRESS },
+      })
+      .orThrow();
+    await orders.setShippingRate({ cartId: cart.id, rateId: flat }).orThrow();
+
+    const { order, payment } = await orders
+      .checkout({ cartId: cart.id })
+      .orThrow();
+
     expect(payment).toBeNull();
-    expect(await orders.cancelOrder(order.id, "changed mind").orThrow()).toBe(
-      true,
+    expect(
+      await orders
+        .cancelOrder({ orderId: order.id, reason: "changed mind" })
+        .orThrow(),
+    ).toBe(true);
+    expect(await orders.cancelOrder({ orderId: order.id }).orThrow()).toBe(
+      false,
     );
-    expect(await orders.cancelOrder(order.id).orThrow()).toBe(false);
     expect(
       await orders.invoice(order.id).then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_NOT_INVOICED");

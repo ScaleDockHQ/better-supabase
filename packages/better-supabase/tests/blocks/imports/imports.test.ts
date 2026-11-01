@@ -56,7 +56,9 @@ describe("imports client", () => {
     const imports = createImports({ transport: t });
 
     const result = await imports.runs
-      .start(ORG, "erp", {
+      .start({
+        organizationId: ORG,
+        source: "erp",
         full: true,
         dryRun: false,
         correlationId: "job-7",
@@ -109,7 +111,7 @@ describe("imports client", () => {
     const imports = createImports({ transport: t });
 
     const runs = await imports.runs
-      .list(ORG, { source: "erp", status: "running", limit: 5 })
+      .list({ organizationId: ORG, source: "erp", status: "running", limit: 5 })
       .orThrow();
 
     expect(runs).toHaveLength(1);
@@ -151,15 +153,19 @@ describe("imports client", () => {
     const imports = createImports({ transport: t });
 
     const result = await imports
-      .upsertBatch("run-1", "customer", [
-        { key: "c1", data: { name: "Alpha" } },
-        {
-          key: "c2",
-          scope: "A",
-          data: { name: "Beta" },
-          refs: { owner: "u1" },
-        },
-      ])
+      .upsertBatch({
+        runId: "run-1",
+        entity: "customer",
+        items: [
+          { key: "c1", data: { name: "Alpha" } },
+          {
+            key: "c2",
+            scope: "A",
+            data: { name: "Beta" },
+            refs: { owner: "u1" },
+          },
+        ],
+      })
       .orThrow();
 
     expect(result).toEqual({
@@ -199,7 +205,11 @@ describe("imports client", () => {
     const imports = createImports({ transport: t });
 
     const found = await imports
-      .resolve("run-1", "customer", ["c1", { key: "c2", scope: "A" }])
+      .resolve({
+        runId: "run-1",
+        entity: "customer",
+        keys: ["c1", { key: "c2", scope: "A" }],
+      })
       .orThrow();
 
     expect(found).toEqual([
@@ -241,9 +251,9 @@ describe("imports client", () => {
     const t = transport({ start_import: { id: "run-9" } });
     const imports = createImports({ transport: t });
 
-    expect(await imports.start(ORG, "people").orThrow()).toEqual({
-      id: "run-9",
-    });
+    expect(
+      await imports.start({ organizationId: ORG, source: "people" }).orThrow(),
+    ).toEqual({ id: "run-9" });
     expect(t.calls[0]?.args).toEqual({
       tenant: ORG,
       source: "people",

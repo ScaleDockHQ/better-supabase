@@ -62,10 +62,13 @@ describe("employees block", () => {
     });
 
     const mia = await employees
-      .create("o", {
-        name: "Mia",
-        startDate: date("2024-01-01"),
-        fields: { shoe_size: "42" as unknown as number },
+      .create({
+        organizationId: "o",
+        input: {
+          name: "Mia",
+          startDate: date("2024-01-01"),
+          fields: { shoe_size: "42" as unknown as number },
+        },
       })
       .orThrow();
 
@@ -84,7 +87,7 @@ describe("employees block", () => {
     expect(mia.createdAt?.toString()).toBe("2026-10-15T09:00:00Z");
 
     const hired = await employees
-      .fromApplication("a1", { jobTitle: "Lead" })
+      .fromApplication({ applicationId: "a1", overrides: { jobTitle: "Lead" } })
       .orThrow();
 
     expect(hired.status).toBe("preboarding");
@@ -102,9 +105,9 @@ describe("employees block", () => {
       ],
     ]);
 
-    const bad = await employees.create("o", {
-      name: "Bo",
-      fields: { shoe_size: 42 },
+    const bad = await employees.create({
+      organizationId: "o",
+      input: { name: "Bo", fields: { shoe_size: 42 } },
     });
 
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -119,10 +122,9 @@ describe("employees block", () => {
       fields: v.object({ shoe_size: v.string() }),
     });
 
-    expect(await employees.create("o", { name: "Mia" })).toMatchObject({
-      ok: false,
-      error: { kind: "validation" },
-    });
+    expect(
+      await employees.create({ organizationId: "o", input: { name: "Mia" } }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
   });
 
   it("sends batched changes and checks extra fields first", async () => {
@@ -147,11 +149,13 @@ describe("employees block", () => {
     });
 
     const result = await employees
-      .update([
-        { employeeId: "e1", field: "endDate", value: date("2026-12-31") },
-        { employeeId: "e2", field: "managerId", value: "e3" },
-        { employeeId: "e3", field: "shoe_size", value: 43 },
-      ])
+      .update({
+        changes: [
+          { employeeId: "e1", field: "endDate", value: date("2026-12-31") },
+          { employeeId: "e2", field: "managerId", value: "e3" },
+          { employeeId: "e3", field: "shoe_size", value: 43 },
+        ],
+      })
       .orThrow();
 
     expect(result).toEqual({
@@ -174,9 +178,9 @@ describe("employees block", () => {
       ],
     });
 
-    const bad = await employees.update([
-      { employeeId: "e3", field: "shoe_size", value: "big" },
-    ]);
+    const bad = await employees.update({
+      changes: [{ employeeId: "e3", field: "shoe_size", value: "big" }],
+    });
 
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(t.calls).toHaveLength(1);
@@ -202,15 +206,19 @@ describe("employees block", () => {
     const employees = createEmployees({ transport: t });
 
     const gone = await employees
-      .offboard("e1", { endDate: date("2026-12-31"), reason: "Moved" })
+      .offboard({
+        employeeId: "e1",
+        endDate: date("2026-12-31"),
+        reason: "Moved",
+      })
       .orThrow();
 
     expect(gone).toMatchObject({
       status: "offboarded",
       offboardReason: "Moved",
     });
-    await employees.offboard("e1").orThrow();
-    const chart = await employees.orgChart("o").orThrow();
+    await employees.offboard({ employeeId: "e1" }).orThrow();
+    const chart = await employees.orgChart({ organizationId: "o" }).orThrow();
     expect(
       chart.map((entry) => [entry.id, entry.depth, entry.directReports]),
     ).toEqual([
@@ -218,14 +226,14 @@ describe("employees block", () => {
       ["e2", 1, 0],
     ]);
     expect(chart[0]?.fields).toEqual({ shoe_size: "42" });
-    await employees.orgChart("o", "e1").orThrow();
+    await employees.orgChart({ organizationId: "o", rootId: "e1" }).orThrow();
 
     const reports = await employees
-      .reportsOf("e1", { indirect: true })
+      .reportsOf({ managerId: "e1", indirect: true })
       .orThrow();
 
     expect(reports[0]).toMatchObject({ id: "e2", depth: 1, directReports: 0 });
-    await employees.reportsOf("e1").orThrow();
+    await employees.reportsOf({ managerId: "e1" }).orThrow();
     expect(t.calls.map(([, args]) => args)).toEqual([
       { employee: "e1", end_date: "2026-12-31", reason: "Moved" },
       { employee: "e1", end_date: null, reason: null },
@@ -242,7 +250,7 @@ describe("employees block", () => {
       fields: v.object({ shoe_size: v.number() }),
     });
 
-    expect(await employees.orgChart("o")).toMatchObject({
+    expect(await employees.orgChart({ organizationId: "o" })).toMatchObject({
       ok: false,
       error: { kind: "validation" },
     });
@@ -310,15 +318,20 @@ describe("employees block", () => {
     expect(await employees.privateDetails("none").orThrow()).toBeUndefined();
 
     const saved = await employees
-      .savePrivateDetails("e1", {
-        birthDate: date("1990-04-01"),
-        emergencyContacts: [{ name: "Tom" }],
-        address: null,
+      .savePrivateDetails({
+        employeeId: "e1",
+        input: {
+          birthDate: date("1990-04-01"),
+          emergencyContacts: [{ name: "Tom" }],
+          address: null,
+        },
       })
       .orThrow();
 
     expect(saved).toEqual({ employeeId: "e1", emergencyContacts: [] });
-    await employees.savePrivateDetails("e1", { phone: null }).orThrow();
+    await employees
+      .savePrivateDetails({ employeeId: "e1", input: { phone: null } })
+      .orThrow();
 
     const contracts = await employees.contracts("e1").orThrow();
     expect(contracts[0]).toMatchObject({
@@ -330,9 +343,9 @@ describe("employees block", () => {
     expect(contracts[1]?.salary).toBeUndefined();
     expect(contracts[1]?.endsOn?.toString()).toBe("2025-06-30");
     await employees
-      .addContract("e1", {
-        startsOn: date("2026-01-01"),
-        salary: money(100n, "EUR"),
+      .addContract({
+        employeeId: "e1",
+        input: { startsOn: date("2026-01-01"), salary: money(100n, "EUR") },
       })
       .orThrow();
     expect(t.calls.slice(2).map(([, args]) => args)).toEqual([
@@ -370,19 +383,28 @@ describe("employees block", () => {
     const employees = createEmployees({ transport: t });
 
     await employees
-      .updateContract("c1", { salary: null, endsOn: date("2026-12-31") })
+      .updateContract({
+        contractId: "c1",
+        patch: { salary: null, endsOn: date("2026-12-31") },
+      })
       .orThrow();
     await employees
-      .updateContract("c1", { salary: money(500n, "EUR") })
+      .updateContract({
+        contractId: "c1",
+        patch: { salary: money(500n, "EUR") },
+      })
       .orThrow();
     await employees.deleteContract("c1").orThrow();
 
     expect(
       await employees
-        .create("o1", {
-          name: "Grace Hopper",
-          firstName: "Grace",
-          lastName: "Hopper",
+        .create({
+          organizationId: "o1",
+          input: {
+            name: "Grace Hopper",
+            firstName: "Grace",
+            lastName: "Hopper",
+          },
         })
         .orThrow(),
     ).toMatchObject({

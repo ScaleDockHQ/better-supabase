@@ -29,11 +29,11 @@ function call(overrides: Partial<ActionCall> = {}): ActionCall {
 
 function relations(existing: Result<string | undefined> = ok(undefined)) {
   const link = vi.fn<
-    (
-      source: ConversionRef,
-      target: ConversionRef,
-      input: { readonly kind: "created_from" },
-    ) => Promise<Result<unknown>>
+    (input: {
+      source: ConversionRef;
+      target: ConversionRef;
+      input: { readonly kind: "created_from" };
+    }) => Promise<Result<unknown>>
   >(async () => ok(null));
 
   const convertedInto = vi.fn(async () => existing);
@@ -65,11 +65,11 @@ describe("defineConversionAction", () => {
     expect(await action.run(call())).toEqual(
       ok({ status: "created", target: { type: "widget", id: "w1" } }),
     );
-    expect(rel.link).toHaveBeenCalledWith(
-      { type: "widget", id: "w1" },
-      { type: "thing", id: "t1" },
-      { kind: "created_from" },
-    );
+    expect(rel.link).toHaveBeenCalledWith({
+      source: { type: "widget", id: "w1" },
+      target: { type: "thing", id: "t1" },
+      input: { kind: "created_from" },
+    });
   });
 
   it("uses the renamed target type from the automation's config", async () => {
@@ -89,10 +89,10 @@ describe("defineConversionAction", () => {
         call({ action: { kind: "convert", config: { targetType: "gadget" } } }),
       ),
     ).toEqual(ok({ status: "exists", target: { type: "gadget", id: "x1" } }));
-    expect(rel.convertedInto).toHaveBeenCalledWith(
-      { type: "thing", id: "t1" },
-      "gadget",
-    );
+    expect(rel.convertedInto).toHaveBeenCalledWith({
+      origin: { type: "thing", id: "t1" },
+      intoType: "gadget",
+    });
   });
 
   it("skips a call without a source", async () => {
@@ -281,11 +281,11 @@ describe("taskFromConversationAction", () => {
         }),
       ),
     ).toMatchObject({ ok: true, data: { status: "created" } });
-    expect(create).toHaveBeenCalledWith(
-      "org",
-      expect.objectContaining({ title: "Refund", body: "Hello" }),
-      ["u1"],
-    );
+    expect(create).toHaveBeenCalledWith({
+      organizationId: "org",
+      input: expect.objectContaining({ title: "Refund", body: "Hello" }),
+      assigneeIds: ["u1"],
+    });
   });
 
   it("names an empty conversation by its id and doesn't assign when turned off", async () => {
@@ -302,11 +302,11 @@ describe("taskFromConversationAction", () => {
       }),
     );
 
-    expect(create).toHaveBeenCalledWith(
-      "org",
-      expect.objectContaining({ title: "Conversation c1" }),
-      undefined,
-    );
+    expect(create).toHaveBeenCalledWith({
+      organizationId: "org",
+      input: expect.objectContaining({ title: "Conversation c1" }),
+      assigneeIds: undefined,
+    });
   });
 
   it("fails for a missing conversation", async () => {
@@ -353,8 +353,9 @@ describe("employeeFromApplicationAction", () => {
     expect(await action.run(call())).toEqual(
       ok({ status: "created", target: { type: "employee", id: "e1" } }),
     );
-    expect(fromApplication).toHaveBeenCalledWith("t1", {
-      jobTitle: "Engineer",
+    expect(fromApplication).toHaveBeenCalledWith({
+      applicationId: "t1",
+      overrides: { jobTitle: "Engineer" },
     });
     expect(rel.link).not.toHaveBeenCalled();
   });
@@ -402,7 +403,7 @@ describe("orderFromQuoteAction", () => {
     expect(await action.run(call())).toEqual(
       ok({ status: "created", target: { type: "order", id: "o2" } }),
     );
-    expect(fromQuote).toHaveBeenCalledWith("t1");
+    expect(fromQuote).toHaveBeenCalledWith({ quoteId: "t1" });
   });
 
   it("fails without an orders client or a create", async () => {

@@ -73,11 +73,14 @@ async function notifyMember(call: GraphStepCall): Promise<boolean> {
     }
 
     await serviceNotifications()
-      .send("workflow.message", {
-        tenant,
-        recipients: [actor],
-        includeActor: true,
-        data: { title: text(call.config, "title").slice(0, 200) },
+      .send({
+        type: "workflow.message",
+        input: {
+          tenant,
+          recipients: [actor],
+          includeActor: true,
+          data: { title: text(call.config, "title").slice(0, 200) },
+        },
       })
       .orThrow();
 
@@ -160,10 +163,10 @@ export async function requestGraphApproval(
     tenant,
     temporal: Temporal,
   })
-    .request(
-      { type: GRAPH_APPROVAL.subject, id: call.runKey },
-      { action: GRAPH_APPROVAL.action, payload: { node: call.node } },
-    )
+    .request({
+      subject: { type: GRAPH_APPROVAL.subject, id: call.runKey },
+      input: { action: GRAPH_APPROVAL.action, payload: { node: call.node } },
+    })
     .orThrow();
 
   return request.id;

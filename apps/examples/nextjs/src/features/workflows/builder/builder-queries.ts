@@ -62,7 +62,7 @@ export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   }
 
   const definitions = await builderFor(supabase)
-    .definitions.list(tenant)
+    .definitions.list({ tenant })
     .orThrow();
 
   return definitions.map((definition) => ({

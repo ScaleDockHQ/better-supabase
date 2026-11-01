@@ -45,9 +45,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   audit:
     "audit_event audit_event_many audit_events_tenants count_audit_events list_audit_events purge_audit_log",
   automations:
-    "matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
+    "install_default_rules matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
   banking:
-    "apply_bank_rules bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
+    "apply_bank_rules bank_reconciliation_board bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "payroll-export":
     "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported refresh_payroll_run",
   "document-templates":
@@ -56,9 +56,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time wip_valuation",
   billing:
-    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
+    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_overview billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
   bookings:
-    "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_bookings save_booking_resource save_booking_service set_booking_availability",
+    "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings save_booking_resource save_booking_service set_booking_availability",
   bulk: "bulk_apply bulk_run bulk_step start_bulk",
   calendar:
     "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
@@ -96,7 +96,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "data-lifecycle":
     "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions expired_data_exports extend_data_subject_request fail_data_export forget_data_exports fulfil_data_subject_request get_data_export list_data_exports list_data_subject_requests list_legal_holds list_retention_policies open_data_subject_request organization_credential_refs organization_deletion place_legal_hold purge_organization refuse_data_subject_request release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy verify_data_subject_request",
   deals:
-    "archive_deal close_deal create_deal deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
+    "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
     "create_work_order dispatch_board get_work_order list_work_order_parts list_work_orders plan_dispatch_route record_work_order_part remove_work_order_part schedule_work_order set_work_order_status technician_day unschedule_work_order update_work_order",
   documents:
@@ -106,13 +106,13 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   donations:
     "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
-    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
+    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_node_access drive_path drive_release_hold drive_rename drive_search drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
   employees:
     "add_employee_contract create_employee delete_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:
-    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps reset_enrollment_step save_enrollment_program set_enrollment_dates",
+    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
   entitlements: "entitlement_value has_entitlement",
   expenses:
     "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",
@@ -129,7 +129,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   guests:
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
   hiring:
-    "application_detail apply_to_job close_application save_job schedule_interview submit_scorecard",
+    "application_detail apply_to_job close_application list_applications list_jobs save_job schedule_interview submit_scorecard",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
   identities:
@@ -164,7 +164,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   meetings:
     "add_meeting_action_item cancel_meeting create_meeting decide_meeting_decision delete_meeting delete_meeting_agenda_item get_meeting hold_meeting list_meetings record_meeting_decision remove_meeting_attendee save_meeting_agenda_item set_meeting_attendee start_meeting update_meeting",
   inventory:
-    "adjust_stock allocate_stock cancel_purchase_order cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_purchase_requisition list_allocations open_stock_count place_purchase_order post_stock_count purchase_order_from_requisitions receive_purchase_order receive_transfer record_count_line release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
+    "adjust_stock allocate_stock cancel_purchase_order cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_purchase_requisition inventory_overview list_allocations open_stock_count place_purchase_order post_stock_count purchase_order_from_requisitions receive_purchase_order receive_transfer record_count_line release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
@@ -175,7 +175,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
   leave:
-    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
+    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
   ledger:
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "legal-entities":
@@ -203,9 +203,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
-    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote place_order price_cart purchase_order_from_order receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
+    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote order_status_board place_order price_cart purchase_order_from_order receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
-    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
+    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   passes:
@@ -251,6 +251,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
     "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
+  sessions: "end_my_session list_my_sessions sessions_overview",
   settings:
     "get_organization_settings get_platform_settings get_user_settings reset_organization_setting reset_platform_setting reset_user_setting set_organization_setting set_platform_setting set_user_setting",
   "share-links":
@@ -270,7 +271,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   streams:
     "purge_streams stream_append stream_cancel stream_close stream_open stream_read stream_status",
   subjects:
-    "add_subject_member can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
+    "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
   tasks:
     "archive_task create_task delete_task delete_task_checklist_item get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",

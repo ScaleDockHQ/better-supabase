@@ -97,7 +97,7 @@ describe("messaging summaries", () => {
     const messaging = createMessaging({ transport: t.transport });
 
     const summary = await messaging
-      .summarize({ conversationId: "c1" }, summarizer)
+      .summarize({ target: { conversationId: "c1" }, summarizer })
       .orThrow();
 
     expect(summary.summary).toBe("Ada ships Friday.");
@@ -133,7 +133,7 @@ describe("messaging summaries", () => {
     });
 
     const summary = await messaging
-      .summarize({ conversationId: "c1" }, summarizer)
+      .summarize({ target: { conversationId: "c1" }, summarizer })
       .orThrow();
 
     expect(summary).toMatchObject({ summary: "New summary.", stale: false });
@@ -185,7 +185,7 @@ describe("messaging summaries", () => {
     const messaging = createMessaging({ transport: t.transport });
 
     await messaging
-      .summarize({ threadId: "m1" }, summarizer, { maxMessages: 3 })
+      .summarize({ target: { threadId: "m1" }, summarizer, maxMessages: 3 })
       .orThrow();
 
     expect(t.call.mock.calls[2]?.[2]).toMatchObject({
@@ -220,7 +220,9 @@ describe("messaging summaries", () => {
     const messaging = createMessaging({ transport: t.transport });
 
     await messaging
-      .summarize({ conversationId: "c1" }, summarizer, {
+      .summarize({
+        target: { conversationId: "c1" },
+        summarizer,
         force: true,
         maxMessages: 0,
       })
@@ -234,7 +236,9 @@ describe("messaging summaries", () => {
     expect(t.call.mock.calls[2]?.[2]).not.toHaveProperty("attrs.model");
 
     await messaging
-      .summarize({ conversationId: "c1" }, summarizer, {
+      .summarize({
+        target: { conversationId: "c1" },
+        summarizer,
         force: true,
         maxMessages: 1000,
         signal: new AbortController().signal,
@@ -253,10 +257,10 @@ describe("messaging summaries", () => {
     const { summarizer } = recorder();
     const messaging = createMessaging({ transport: t.transport });
 
-    const empty = await messaging.summarize(
-      { conversationId: "c1" },
+    const empty = await messaging.summarize({
+      target: { conversationId: "c1" },
       summarizer,
-    );
+    });
 
     expect(empty.ok).toBe(false);
     expect(empty.error).toMatchObject({
@@ -271,13 +275,13 @@ describe("messaging summaries", () => {
       }).transport,
     });
 
-    const failed = await broken.summarize(
-      { conversationId: "c1" },
-      {
+    const failed = await broken.summarize({
+      target: { conversationId: "c1" },
+      summarizer: {
         apiVersion: 1,
         summarize: () => Promise.reject(new Error("model down")),
       },
-    );
+    });
 
     expect(failed.error).toMatchObject({
       kind: "unexpected",

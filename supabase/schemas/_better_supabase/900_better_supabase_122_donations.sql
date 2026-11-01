@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:7afce229882b338e5fba046f3b591b26d937a13007038a9dd49b031c57a6688a
+-- @bsb-hash sha256:4fa2890a559d151edcbe498867c4af0fd138b8df60fa9e1e6603a6a9521bbe93
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1396,6 +1396,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donations";
 create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.donations', target_type => 'donation', event_prefix => 'donation', deferred => true);
+  perform better_supabase.audit('better_supabase.pledges', target_type => 'pledge', event_prefix => 'pledge', deferred => true);
+  perform better_supabase.audit('better_supabase.donation_funds', target_type => 'donation_fund', event_prefix => 'donation_fund', deferred => true);
+  perform better_supabase.audit('better_supabase.donation_receipts', target_type => 'donation_receipt', event_prefix => 'donation_receipt', deferred => true);
+end;
+$$;
 
 -- blocks.donations.api: entry points for the Data API.
 create schema if not exists "api";

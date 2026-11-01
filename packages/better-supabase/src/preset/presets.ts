@@ -3,14 +3,13 @@ import type { Preset, PresetConventions } from "./fields.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
 import {
-  CARE,
-  CARE_SETTINGS,
   CONTROLLED_DOCUMENTS,
   ERP,
   PUBLIC_MEDIA,
   QUALITY,
   QUOTE_TO_ORDER,
   SAAS,
+  SAAS_LINKED,
   TICKETS,
 } from "./preset-blocks.ts";
 
@@ -143,27 +142,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
-      ...SAAS,
-      "contacts",
-      "pipelines",
-      "deals",
-      "quotes",
-      "goals",
-      "activities",
+      ...SAAS_LINKED,
+      "crm",
       "tags",
       "comments",
       "timeline",
       "custom-fields",
       "saved-views",
       "search",
-      "mail-sync",
-      "sequences",
-      "segments",
-      "assignment",
-      "enrichment",
-      "forecasts",
-      "lead-scoring",
-      "queue",
     ],
   },
   projects: {
@@ -191,21 +177,17 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus a shared inbox whose new conversations open work items with SLAs, default automations, a job queue, comments, an activity feed, attachments, tags, saved views, a knowledge base and search.",
     group: "products",
     blocks: [
-      ...SAAS,
-      "inbox",
-      "tasks",
-      "sla",
+      ...SAAS_LINKED,
+      "support",
       "comments",
       "timeline",
       "attachments",
       "tags",
       "saved-views",
-      "knowledge",
       "search",
       "automations",
       "queue",
     ],
-    instances: TICKETS,
   },
   chat: {
     name: "chat",
@@ -221,7 +203,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus a product catalog, inventory, orders and promotions.",
     group: "products",
-    blocks: [...SAAS, "catalog", "inventory", "orders", "promotions"],
+    blocks: [...SAAS, "commerce"],
   },
   cms: {
     name: "cms",
@@ -229,21 +211,8 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus pages and posts with locales and scheduled publishing, versions, publish approvals, public media, tags, comments, search and a job queue for the publish timer.",
     group: "products",
-    blocks: [
-      ...SAAS,
-      "content",
-      "versions",
-      "approvals",
-      "attachments",
-      "tags",
-      "comments",
-      "search",
-      "queue",
-    ],
-    instances: {
-      ...PUBLIC_MEDIA,
-      content: { options: { requireApproval: true } },
-    },
+    blocks: [...SAAS, "cms", "tags", "comments", "search", "queue"],
+    instances: { content: { options: { requireApproval: true } } },
   },
   erp: {
     name: "erp",
@@ -251,7 +220,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus parties, a product catalog, stock by location, quotes priced from the catalog that become orders when accepted, orders that invoice when paid, purchase bills matched to purchase orders and receipts, the books every document posts to, bank statements reconciled against them, approvals for purchase requisitions, employees with time and leave, expenses and saved views.",
     group: "products",
-    blocks: [...SAAS, ...ERP],
+    blocks: [...SAAS_LINKED, ...ERP],
     instances: QUOTE_TO_ORDER,
   },
   manufacturing: {
@@ -261,7 +230,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "ERP plus bills of materials and production orders, material requirements that raise purchase requisitions, incoming and in-process inspections, cases for nonconformities and qualifications for the people and equipment on the floor.",
     group: "products",
     blocks: [
-      ...SAAS,
+      ...SAAS_LINKED,
       ...ERP,
       "manufacturing",
       "inspections",
@@ -300,7 +269,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus parties, a product catalog, orders, invoices, reactions and share links.",
     group: "products",
     blocks: [
-      ...SAAS,
+      ...SAAS_LINKED,
       "contacts",
       "catalog",
       "orders",
@@ -315,7 +284,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus calendars, bookings and reminders, for a clinic, a studio or a salon.",
     group: "products",
-    blocks: [...SAAS, "calendar", "bookings", "reminders"],
+    blocks: [...SAAS, "scheduling"],
   },
   people: {
     name: "people",
@@ -324,12 +293,10 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus employees, hiring that preboards each hired candidate, time tracking, approvals, calendars and documents.",
     group: "products",
     blocks: [
-      ...SAAS,
-      "employees",
-      "hiring",
+      ...SAAS_LINKED,
+      "recruiting",
       "time-tracking",
       "approvals",
-      "calendar",
       "documents",
       "automations",
     ],
@@ -341,7 +308,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus clients, tasks, time tracking priced from rate cards, a staffing roster, expenses, approvals, quotes, contracts and invoices that bill the approved time, with numbering, comments, an activity feed, attachments, tags, saved views, search and automations.",
     group: "products",
     blocks: [
-      ...SAAS,
+      ...SAAS_LINKED,
       "contacts",
       "tasks",
       "time-tracking",
@@ -369,11 +336,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus hiring (candidates, stages and offers), application forms, interview scheduling on calendars and bookings, offer templates and signatures, approvals, reminders, comments, an activity feed, attachments, tags, saved views and search.",
     group: "products",
     blocks: [
-      ...SAAS,
-      "hiring",
-      "employees",
+      ...SAAS_LINKED,
+      "recruiting",
       "forms",
-      "calendar",
       "bookings",
       "templates",
       "signatures",
@@ -417,15 +382,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus a drive with attachments, share links, versions, trash and search.",
     group: "products",
-    blocks: [
-      ...SAAS,
-      "drive",
-      "attachments",
-      "share-links",
-      "versions",
-      "trash",
-      "search",
-    ],
+    blocks: [...SAAS, "filespace"],
   },
   docs: {
     name: "docs",
@@ -451,7 +408,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus parties, quotes, invoices and number sequences for their numbers.",
     group: "products",
-    blocks: [...SAAS, "contacts", "quotes", "invoices", "numbering"],
+    blocks: [...SAAS_LINKED, "contacts", "quotes", "invoices", "numbering"],
   },
   forms: {
     name: "forms",
@@ -493,11 +450,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus a dispatch board of work orders at customer assets, parts from inventory, quotes to invoices, checklists as forms and a signature on completion.",
     group: "verticals",
     blocks: [
-      ...SAAS,
+      ...SAAS_LINKED,
       "contacts",
-      "dispatch",
-      "assets",
-      "inventory",
+      "service",
       "quotes",
       "invoices",
       "forms",
@@ -530,8 +485,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus clients and their representatives as contacts with record teams and a read log, consents, progress notes, care plans, vital signs, medication rounds with double checks, funding awards and claims, shifts, qualifications and training, incidents and complaints as cases, and controlled protocols in the drive.",
     group: "verticals",
-    blocks: [...SAAS, ...CARE],
-    instances: CARE_SETTINGS,
+    blocks: [...SAAS, "care"],
   },
   lms: {
     name: "lms",
@@ -539,14 +493,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus courses with lessons, quizzes graded by forms and certificates, enrollments with progress, comments and attachments.",
     group: "verticals",
-    blocks: [
-      ...SAAS,
-      "courses",
-      "enrollments",
-      "forms",
-      "comments",
-      "attachments",
-    ],
+    blocks: [...SAAS, "learning", "forms", "comments", "attachments"],
   },
   events: {
     name: "events",
@@ -558,8 +505,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       ...SAAS,
       "catalog",
       "orders",
-      "bookings",
-      "passes",
+      "events",
       "signing-keys",
       "waitlist",
       "reminders",

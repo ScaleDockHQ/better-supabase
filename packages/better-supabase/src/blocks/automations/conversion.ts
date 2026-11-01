@@ -9,6 +9,7 @@ import type { Result } from "../../core/result.ts";
 
 import { defineAction } from "../../core/automation.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { err, ok } from "../../core/result.ts";
 
 /** A record a conversion reads from or creates: its subject type and id. */
@@ -19,15 +20,15 @@ export interface ConversionRef {
 
 /** The part of the relations block a conversion uses; `blocks.relations` fits. */
 export interface ConversionRelations {
-  link(
-    source: ConversionRef,
-    target: ConversionRef,
-    input: { readonly kind: "created_from" },
-  ): PromiseLike<Result<unknown>>;
-  convertedInto(
-    origin: ConversionRef,
-    intoType: string,
-  ): PromiseLike<Result<string | undefined>>;
+  link(input: {
+    source: ConversionRef;
+    target: ConversionRef;
+    input: { readonly kind: "created_from" };
+  }): PromiseLike<Result<unknown>>;
+  convertedInto(input: {
+    origin: ConversionRef;
+    intoType: string;
+  }): PromiseLike<Result<string | undefined>>;
 }
 
 /**
@@ -166,10 +167,10 @@ export function defineConversionAction<
       const targetType = targetTypeOf(call, spec.targetType);
       const clients = await spec.clients(tenant);
 
-      const existing = await clients.relations.convertedInto(
-        source,
-        targetType,
-      );
+      const existing = await clients.relations.convertedInto({
+        origin: source,
+        intoType: targetType,
+      });
 
       if (!existing.ok) {
         return existing;
@@ -209,8 +210,10 @@ export function defineConversionAction<
       const target = { type: targetType, id: created.data.id };
 
       if (spec.linksItself !== true) {
-        const linked = await clients.relations.link(target, source, {
-          kind: "created_from",
+        const linked = await clients.relations.link({
+          source: target,
+          target: source,
+          input: { kind: "created_from" },
         });
 
         if (!linked.ok) {
@@ -221,4 +224,44 @@ export function defineConversionAction<
       return ok({ status: "created", target });
     },
   });
+}
+
+function hasMethod(value: unknown, path: string): boolean {
+  let at: unknown = value;
+
+  for (const key of path.split(".")) {
+    if (!isRecord(at) || !(key in at)) {
+      return false;
+    }
+
+    at = at[key];
+  }
+
+  return typeof at === "function";
+}
+
+/**
+ * Narrows the `clients` an action factory receives to the clients the action
+ * calls: every dotted `methods` path must be a function on them. A missing one
+ * throws `ACTION_CLIENTS_MISSING` for `kind`, which the dispatcher reports on
+ * the action's run.
+ */
+export function narrowClients<C extends ConversionClients>(
+  kind: string,
+  methods: readonly string[],
+  clients: (tenant: string) => unknown,
+): (tenant: string) => Promise<C> {
+  return async (tenant) => {
+    const value = await clients(tenant);
+    const missing = methods.filter((path) => !hasMethod(value, path));
+
+    if (missing.length > 0) {
+      throw new TypeError(
+        `ACTION_CLIENTS_MISSING: ${kind} needs ${missing.join(", ")} on the clients`,
+      );
+    }
+
+    // SAFETY: every method the action calls was checked on the value above.
+    return value as C;
+  };
 }

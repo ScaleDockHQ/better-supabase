@@ -575,6 +575,32 @@ function blockBuilder(
   const building = new Set<string>();
 
   /**
+   * The key each part of the composite `key` is installed under: the block of
+   * that name, unless an instance of it has another key and is the only one.
+   */
+  const partsOf = (key: string): Record<string, unknown> => {
+    const parts: Record<string, unknown> = {};
+
+    for (const part of Object.keys(blockOf(key).composes ?? {})) {
+      const keys = Object.keys(blocks).filter(
+        (each) => blocks[each]?.name === part,
+      );
+
+      const partKey = keys.includes(part) ? part : keys[0];
+
+      if (partKey === undefined || (keys.length > 1 && !keys.includes(part))) {
+        throw new TypeError(
+          `createBlocks: "${key}" is built from "${part}", which ${keys.length === 0 ? "is not in the block set" : "is installed under several keys and none is named after it"}`,
+        );
+      }
+
+      parts[part] = build(partKey);
+    }
+
+    return parts;
+  };
+
+  /**
    * The options `key`'s creator gets: shared, then its generated config, then
    * ports, then `with` settings.
    */
@@ -608,6 +634,9 @@ function blockBuilder(
       ...(entry?.names === undefined ? {} : renamedTransports(entry.names)),
       ...ports,
       ...block.settings,
+      ...(Object.keys(block.composes ?? {}).length === 0
+        ? {}
+        : { parts: partsOf(key) }),
     };
   };
 

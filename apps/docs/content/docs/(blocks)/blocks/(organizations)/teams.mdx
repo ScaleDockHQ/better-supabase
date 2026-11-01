@@ -93,3 +93,9 @@ const client = createTeams({
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
 ```
+
+## Replacing members and archiving
+
+`setMembers({ organizationId, teamId, userIds })` makes `userIds` the team's members. It reads `list`, adds the missing users with `addMember`, removes the others with `removeMember`, and returns `{ added, removed }`. A failure stops the loop with that error, and running it again finishes the change. A team outside the organization fails with `not_found`.
+
+`setArchived({ teamId, archived })` calls `archive` when `archived` is true and `restore` otherwise.

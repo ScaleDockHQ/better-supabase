@@ -32,7 +32,7 @@ export function seedNewTenants(): void {
   seedTenantOnCreate(betterSupabase, seed, { sql: connection.admin });
 
   void createRetention({ transport: sqlTransport(connection.admin) })
-    .setPolicy("client_records", CLIENT_RECORDS_TERM)
+    .setPolicy({ kind: "client_records", keep: CLIENT_RECORDS_TERM })
     .then((result) => {
       if (!result.ok) {
         console.error(

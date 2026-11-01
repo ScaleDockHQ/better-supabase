@@ -499,7 +499,9 @@ describe("block extension", () => {
       | { ok: true; data: readonly { plan: "free" | "pro"; seats: number }[] }
       | { ok: false }
     >();
-    expectTypeOf<Parameters<(typeof organizations)["update"]>[1]>()
+    expectTypeOf<
+      Parameters<(typeof organizations)["update"]>[0]["attributes"]
+    >()
       .toHaveProperty("plan")
       .toEqualTypeOf<"free" | "pro" | undefined>();
 

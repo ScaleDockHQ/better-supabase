@@ -23,6 +23,11 @@ export interface ChecklistStep<Id extends string = string> {
   /** Where the step is done in the app, for a "Start" link. */
   readonly href?: string;
   readonly events?: readonly string[];
+  /**
+   * One outbox event type that completes the step, such as `invoice.sent`. It
+   * is `events: [type]` and may be combined with `events`.
+   */
+  readonly completeOn?: string;
 }
 
 export interface ChecklistSpec<
@@ -61,7 +66,9 @@ export interface ChecklistProgress<Id extends string> {
 
 /** The organization for an organization checklist; nothing for a user one. */
 export type ChecklistSubject<Scope extends ChecklistScope> =
-  Scope extends "organization" ? [organizationId: string] : [];
+  Scope extends "organization"
+    ? { readonly organizationId: string }
+    : { readonly organizationId?: undefined };
 
 /**
  * The onboarding block: progress through any checklist `defineChecklist`
@@ -73,20 +80,23 @@ export interface Onboarding {
    * organization's otherwise.
    */
   progress<Id extends string, Scope extends ChecklistScope>(
-    checklist: Checklist<Id, Scope>,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<ChecklistProgress<Id>>;
   /** Marks a step done; `false` when it already was. */
   complete<Id extends string, Scope extends ChecklistScope>(
-    checklist: Checklist<Id, Scope>,
-    step: Id,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+      readonly step: Id;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<boolean>;
   /** Marks a step not done; `false` when it wasn't. */
   reset<Id extends string, Scope extends ChecklistScope>(
-    checklist: Checklist<Id, Scope>,
-    step: Id,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+      readonly step: Id;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<boolean>;
 }
 
@@ -137,24 +147,24 @@ export function createOnboarding(options: OnboardingOptions): Onboarding {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const tenantOf = (subject: readonly string[]) => ({
-    tenant: subject[0] ?? null,
-  });
+  const tenantOf = (subject: {
+    readonly organizationId?: string | undefined;
+  }) => ({ tenant: subject.organizationId ?? null });
 
   const client: Onboarding = {
-    progress: (checklist, ...subject) =>
+    progress: ({ checklist, ...subject }) =>
       call(
         "onboarding_progress",
         { checklist: checklist.id, ...tenantOf(subject) },
         (value) => progressOf(checklist.steps, value),
       ),
-    complete: (checklist, step, ...subject) =>
+    complete: ({ checklist, step, ...subject }) =>
       call(
         "complete_onboarding_step",
         { checklist: checklist.id, step, ...tenantOf(subject) },
         (value) => value === true,
       ),
-    reset: (checklist, step, ...subject) =>
+    reset: ({ checklist, step, ...subject }) =>
       call(
         "reset_onboarding_step",
         { checklist: checklist.id, step, ...tenantOf(subject) },

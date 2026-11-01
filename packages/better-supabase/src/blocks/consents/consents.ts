@@ -6,6 +6,8 @@ import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
+import { err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -215,19 +217,34 @@ export interface Consents {
    */
   record(input: RecordConsentInput): AsyncResult<Consent>;
   /** Withdraws a granted consent. */
-  withdraw(consentId: string, reason?: string): AsyncResult<Consent>;
+  withdraw(input: {
+    consentId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Consent>;
   /**
    * Whether the record has a consent in force for the purpose's current
    * version.
    */
-  isActive(subject: RecordRef, purposeKey: string): AsyncResult<boolean>;
+  isActive(input: {
+    subject: RecordRef;
+    purposeKey: string;
+  }): AsyncResult<boolean>;
   /** The latest decision per purpose, or every decision with `includeHistory`. */
   list(
-    subject: RecordRef,
-    options?: { readonly includeHistory?: boolean },
+    input: { subject: RecordRef } & { readonly includeHistory?: boolean },
   ): AsyncResult<readonly Consent[]>;
   /** Expires the grants past `validUntil`; service role only. Returns how many. */
   expire(): AsyncResult<number>;
+  /**
+   * Succeeds when the record has an active consent for the purpose, and
+   * otherwise fails with a `forbidden` error whose `permission` is
+   * `consent:<purposeKey>`.
+   */
+  // A property, not a method signature: the WinterTC check flags `require(` as a CommonJS call.
+  require: (input: {
+    subject: RecordRef;
+    purposeKey: string;
+  }) => AsyncResult<true>;
   /**
    * Records a signal as consent evidence. A Sec-GPC signal (`value: "1"`)
    * records a refused consent for each of `purposeKeys`, an opt-out. A TCF v2
@@ -450,13 +467,13 @@ export function createConsents(options: ConsentsOptions): Consents {
         },
         consent("record_consent"),
       ),
-    withdraw: (consentId, reason) =>
+    withdraw: ({ consentId, reason }) =>
       call(
         "withdraw_consent",
         { consent_id: consentId, reason: reason ?? null },
         consent("withdraw_consent"),
       ),
-    isActive: (subject, purposeKey) =>
+    isActive: ({ subject, purposeKey }) =>
       call(
         "consent_active",
         {
@@ -466,7 +483,7 @@ export function createConsents(options: ConsentsOptions): Consents {
         },
         (value) => value === true,
       ),
-    list: (subject, filter = {}) =>
+    list: ({ subject, ...filter }) =>
       call(
         "list_consents",
         {
@@ -478,6 +495,20 @@ export function createConsents(options: ConsentsOptions): Consents {
           recordsOf(value, "list_consents").map(consent("list_consents")),
       ),
     expire: () => call("expire_consents", {}, (value) => Number(value ?? 0)),
+    require: ({ subject, purposeKey }) =>
+      hooked
+        .isActive({ subject, purposeKey })
+        .andThen((active) =>
+          Promise.resolve(
+            active
+              ? ok(true as const)
+              : err(
+                  dbError("forbidden", `No active consent for ${purposeKey}`, {
+                    permission: `consent:${purposeKey}`,
+                  }),
+                ),
+          ),
+        ),
     recordSignal: (input) =>
       call(
         "record_consent_signal",
@@ -515,8 +546,11 @@ export function createConsents(options: ConsentsOptions): Consents {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Consents = withBlockHooks(client, options.hooks, {
     block: "consents",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

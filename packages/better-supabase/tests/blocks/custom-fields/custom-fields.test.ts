@@ -38,8 +38,10 @@ describe("createCustomFields", () => {
       tenant: "org-1",
     });
 
-    await fields.readValues(EMPLOYEE).orThrow();
-    await fields.setValue(EMPLOYEE, "d1", "gold").orThrow();
+    await fields.readValues({ subject: EMPLOYEE }).orThrow();
+    await fields
+      .setValue({ subject: EMPLOYEE, definitionId: "d1", value: "gold" })
+      .orThrow();
     expect(fake.calls).toEqual([
       [
         "read_field_values",
@@ -75,7 +77,9 @@ describe("createCustomFields", () => {
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
-    expect(await fields.readValues(EMPLOYEE)).toMatchObject({ ok: false });
+    expect(await fields.readValues({ subject: EMPLOYEE })).toMatchObject({
+      ok: false,
+    });
     expect(fake.calls).toHaveLength(0);
     expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
     session.tenant = "org-2";
@@ -153,11 +157,9 @@ describe("createCustomFields", () => {
     });
 
     const saved = await fields
-      .setField(EMPLOYEE, {
-        key: "badge",
-        label: "Badge",
-        type: "number",
-        value: 7,
+      .setField({
+        subject: EMPLOYEE,
+        input: { key: "badge", label: "Badge", type: "number", value: 7 },
       })
       .orThrow();
 
@@ -200,9 +202,16 @@ describe("createCustomFields", () => {
       tenant: "org-1",
     });
 
-    await fields.readValues(EMPLOYEE, { legalEntity: "le-1" }).orThrow();
     await fields
-      .setValue(EMPLOYEE, "d1", "x", { legalEntity: "le-1" })
+      .readValues({ subject: EMPLOYEE, scope: { legalEntity: "le-1" } })
+      .orThrow();
+    await fields
+      .setValue({
+        subject: EMPLOYEE,
+        definitionId: "d1",
+        value: "x",
+        scope: { legalEntity: "le-1" },
+      })
       .orThrow();
 
     expect(fake.calls.map(([, args]) => args["legal_entity"])).toEqual([
@@ -331,7 +340,14 @@ describe("createCustomFields", () => {
     });
 
     expect(await fields.installPacks().orThrow()).toEqual([]);
-    await fields.saveDefinition("person", "tier", "Tier", "text").orThrow();
+    await fields
+      .saveDefinition({
+        entity: "person",
+        key: "tier",
+        label: "Tier",
+        type: "text",
+      })
+      .orThrow();
     expect(fake.calls[0]?.[1]["sensitive"]).toBe(false);
   });
 });

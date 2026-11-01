@@ -6,7 +6,6 @@ import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
-import * as v from "valibot";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -65,7 +64,9 @@ export async function loadDirectory(): Promise<
     return null;
   }
 
-  const chart = await db.employees.orgChart(tenant).orThrow();
+  const chart = await db.employees
+    .orgChart({ organizationId: tenant })
+    .orThrow();
 
   return chart.map((employee) => ({
     id: employee.id,
@@ -124,7 +125,7 @@ export async function loadTimesheet(
   const { timeTracking } = db;
 
   const [sheet, running] = await Promise.all([
-    timeTracking.timesheet(Temporal.PlainDate.from(week)).orThrow(),
+    timeTracking.timesheet({ week: Temporal.PlainDate.from(week) }).orThrow(),
     timeTracking.running().orThrow(),
   ]);
 
@@ -156,34 +157,6 @@ export async function loadTimesheet(
       : null,
   };
 }
-
-const Id = v.pipe(v.string(), v.uuid());
-
-const JobRow = v.object({
-  id: Id,
-  title: v.string(),
-  status: v.picklist(["draft", "open", "closed"]),
-  location: v.nullish(v.string()),
-});
-
-const ApplicationRow = v.object({
-  id: Id,
-  job_id: Id,
-  stage_id: v.nullish(Id),
-  state: v.string(),
-  candidate_type: v.string(),
-  candidate_id: v.string(),
-  candidate_name: v.nullish(v.string()),
-});
-
-const StageRow = v.object({
-  id: Id,
-  name: v.string(),
-  category: v.string(),
-  archived_at: v.nullish(v.string()),
-});
-
-const PipelineRow = v.object({ id: Id, stages: v.array(StageRow) });
 
 export interface HiringJob {
   readonly id: string;
@@ -219,10 +192,7 @@ export interface HiringBoardData {
 
 /**
  * The openings, the stages of the application pipeline and the candidates in
- * them. The hiring block has no list function yet, so this reads
- * `api.list_jobs` and `api.list_applications`; until they exist the read fails
- * and the board shows Retry. Candidates are customers, the one subject type the
- * app registers.
+ * them. Candidates are customers, the one subject type the app registers.
  */
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
@@ -233,28 +203,25 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     return null;
   }
 
-  const [jobs, applications, pipelines, customers] = await Promise.all([
-    db.$api("list_jobs", { tenant }, { returns: v.array(JobRow) }).orThrow(),
-    db
-      .$api(
-        "list_applications",
-        { tenant },
-        { returns: v.array(ApplicationRow) },
-      )
-      .orThrow(),
-    db
-      .$api(
-        "list_pipelines",
-        { tenant, subject_type: "application" },
-        { returns: v.array(PipelineRow) },
-      )
+  const [jobs, pipeline, customers] = await Promise.all([
+    db.hiring.jobs({ organizationId: tenant }).orThrow(),
+    db.pipelines
+      .default({ organizationId: tenant, subjectType: "application" })
       .orThrow(),
     db.customers
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),
   ]);
 
-  const pipeline = pipelines[0];
+  const applications = (
+    await Promise.all(
+      jobs.map((job) => db.hiring.applications({ jobId: job.id }).orThrow()),
+    )
+  ).flat();
+
+  const names = new Map(
+    customers.map((customer) => [customer.id, customer.name]),
+  );
 
   return {
     jobs: jobs.map((job) => ({
@@ -263,21 +230,20 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
       status: job.status,
       location: job.location ?? null,
     })),
-    stages: (pipeline?.stages ?? [])
-      .filter((stage) => !stage.archived_at)
-      .map((stage) => ({
-        id: stage.id,
-        name: stage.name,
-        category: stage.category,
-      })),
+    stages: (pipeline?.stages ?? []).map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      category: stage.category,
+    })),
     cards: applications.flatMap((application) =>
-      application.stage_id
+      application.stageId
         ? [
             {
               id: application.id,
-              jobId: application.job_id,
-              stageId: application.stage_id,
-              name: application.candidate_name ?? application.candidate_id,
+              jobId: application.jobId,
+              stageId: application.stageId,
+              name:
+                names.get(application.candidate.id) ?? application.candidate.id,
             },
           ]
         : [],

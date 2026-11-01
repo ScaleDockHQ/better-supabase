@@ -185,10 +185,10 @@ function lockedOf(value: unknown): boolean {
  */
 export interface ShareLinks<F extends object = Record<never, never>> {
   /** A link to `subject`. A role string is the same as `{ role }`. */
-  create(
-    subject: RecordRef,
-    options?: string | CreateShareLinkOptions<F>,
-  ): AsyncResult<CreatedShareLink<F>>;
+  create(input: {
+    subject: RecordRef;
+    options?: string | CreateShareLinkOptions<F> | undefined;
+  }): AsyncResult<CreatedShareLink<F>>;
   /** The link's creator, or a member with `share_links.create`. */
   revoke(id: string): AsyncResult<boolean>;
   /**
@@ -198,32 +198,31 @@ export interface ShareLinks<F extends object = Record<never, never>> {
    * too many wrong ones.
    */
   resolve(
-    token: string,
-    options?: ResolveShareLinkOptions,
+    input: { token: string } & ResolveShareLinkOptions,
   ): AsyncResult<ResolvedShareLink | null>;
   /** A member of the tenant records a view of `subject`. */
-  recordView(
-    subject: RecordRef,
-    viewerKind: string,
-    viewer?: string,
-  ): AsyncResult<boolean>;
+  recordView(input: {
+    subject: RecordRef;
+    viewerKind: string;
+    viewer?: string | undefined;
+  }): AsyncResult<boolean>;
   /**
    * The links to `subject` the caller created or may read (`share_links.read`),
    * revoked ones included unless `includeRevoked` is `false` (which needs
    * `options.fullRows`).
    */
   list(
-    subject: RecordRef,
-    options?: { readonly includeRevoked?: boolean },
+    input: { subject: RecordRef } & { readonly includeRevoked?: boolean },
   ): AsyncResult<readonly ShareLink<F>[]>;
   /**
    * With `options.tokenHash`: a link for a token the caller made, given as its
    * sha256 hex. The link has no token to return.
    */
   createHashed(
-    subject: RecordRef,
-    tokenHash: string,
-    options?: CreateShareLinkOptions<F>,
+    input: {
+      subject: RecordRef;
+      tokenHash: string;
+    } & CreateShareLinkOptions<F>,
   ): AsyncResult<Omit<CreatedShareLink<F>, "token">>;
   /**
    * With `options.tokenHash`, for the service role: the live link a token hash
@@ -231,7 +230,19 @@ export interface ShareLinks<F extends object = Record<never, never>> {
    */
   find(tokenHash: string): AsyncResult<FoundShareLink | null>;
   /** Stars or unstars `subject` for the caller. */
-  setState(subject: RecordRef, starred: boolean): AsyncResult<boolean>;
+  setState(input: {
+    subject: RecordRef;
+    starred: boolean;
+  }): AsyncResult<boolean>;
+  /**
+   * Creates a replacement link, then revokes the old one, so the subject is
+   * never without a working link. The old link stays when the new one fails.
+   */
+  rotate(input: {
+    subject: RecordRef;
+    linkId: string;
+    options?: string | CreateShareLinkOptions<F> | undefined;
+  }): AsyncResult<CreatedShareLink<F>>;
 }
 
 const fieldsOf = (row: Readonly<Record<string, unknown>>) =>
@@ -254,7 +265,7 @@ export function createShareLinks<
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: ShareLinks<F> = {
-    create: (subject, link = {}) => {
+    create: ({ subject, options: link = {} }) => {
       const {
         role,
         versionId,
@@ -298,7 +309,7 @@ export function createShareLinks<
     },
     revoke: (id) =>
       call("revoke_share_link", { id }, (value) => value === true),
-    resolve: (token, { password } = {}) =>
+    resolve: ({ token, password }) =>
       call(
         "resolve_share_link",
         { token, ...(password === undefined ? {} : { password }) },
@@ -337,7 +348,7 @@ export function createShareLinks<
           ...(createdBy === undefined ? {} : { createdBy }),
         };
       }),
-    createHashed: (subject, tokenHash, link = {}) =>
+    createHashed: ({ subject, tokenHash, ...link }) =>
       tenant().andThen((organizationId) =>
         fields.args(link.fields).andThen((checked) =>
           call(
@@ -363,7 +374,7 @@ export function createShareLinks<
           ).andThen(fields.row),
         ),
       ),
-    recordView: (subject, viewerKind, viewer) =>
+    recordView: ({ subject, viewerKind, viewer }) =>
       tenant().andThen((organizationId) =>
         call(
           "record_view",
@@ -377,7 +388,7 @@ export function createShareLinks<
           (value) => value === true,
         ),
       ),
-    list: (subject, filter = {}) =>
+    list: ({ subject, ...filter }) =>
       call(
         "list_share_links",
         {
@@ -411,16 +422,23 @@ export function createShareLinks<
             };
           }),
       ).andThen(fields.rows),
-    setState: (subject, starred) =>
+    setState: ({ subject, starred }) =>
       call(
         "set_user_state",
         { subject_type: subject.type, subject_id: subject.id, starred },
         (value) => value === true,
       ),
+    rotate: ({ subject, linkId, options }) =>
+      hooked
+        .create({ subject, options })
+        .andThen((created) => hooked.revoke(linkId).map(() => created)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: ShareLinks<F> = withBlockHooks(client, options.hooks, {
     block: "share-links",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

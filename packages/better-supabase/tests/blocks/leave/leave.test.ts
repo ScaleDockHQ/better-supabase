@@ -109,18 +109,27 @@ describe("leave client", () => {
     expect(
       (
         await leave
-          .saveType("o", { key: "sick", name: "Sick", autoApprove: true })
+          .saveType({
+            organizationId: "o",
+            input: { key: "sick", name: "Sick", autoApprove: true },
+          })
           .orThrow()
       ).autoApprove,
     ).toBe(true);
     await leave
-      .update("q1", { endsOn: Temporal.PlainDate.from("2026-10-21"), note: "" })
+      .update({
+        requestId: "q1",
+        update: { endsOn: Temporal.PlainDate.from("2026-10-21"), note: "" },
+      })
       .orThrow();
 
     const split = await leave
-      .split("q1", {
-        gapStarts: Temporal.PlainDate.from("2026-10-20"),
-        gapEnds: Temporal.PlainDate.from("2026-10-21"),
+      .split({
+        requestId: "q1",
+        gap: {
+          gapStarts: Temporal.PlainDate.from("2026-10-20"),
+          gapEnds: Temporal.PlainDate.from("2026-10-21"),
+        },
       })
       .orThrow();
 
@@ -161,12 +170,17 @@ describe("leave client", () => {
     const leave = createLeave({ transport: fake });
 
     const type = await leave
-      .saveType("o", { key: "vacation", name: "Vacation", allowance: 25 })
+      .saveType({
+        organizationId: "o",
+        input: { key: "vacation", name: "Vacation", allowance: 25 },
+      })
       .orThrow();
 
     expect(type).toMatchObject({ unit: "days", allowance: 25, tracked: true });
     expect(type.carryoverMax).toBeUndefined();
-    expect(await leave.types("o").orThrow()).toHaveLength(1);
+    expect(await leave.types({ organizationId: "o" }).orThrow()).toHaveLength(
+      1,
+    );
     expect(
       (await leave.archiveType("t1").orThrow()).archivedAt?.toString(),
     ).toBe(AT);
@@ -204,7 +218,7 @@ describe("leave client", () => {
     const day = Temporal.PlainDate.from("2026-10-19");
 
     const request = await leave
-      .request("o", { typeId: "t1", startsOn: day })
+      .request({ organizationId: "o", input: { typeId: "t1", startsOn: day } })
       .orThrow();
 
     expect(request.amount).toBe(5);
@@ -212,7 +226,12 @@ describe("leave client", () => {
     expect(request.approvalId).toBe("a1");
     expect(request.note).toBeUndefined();
     await leave
-      .list("o", { everyone: true, status: "approved", from: day })
+      .list({
+        organizationId: "o",
+        everyone: true,
+        status: "approved",
+        from: day,
+      })
       .orThrow();
     expect((await leave.cancel("q1").orThrow()).status).toBe("cancelled");
     expect(fake.calls).toEqual([
@@ -269,14 +288,17 @@ describe("leave client", () => {
     const day = Temporal.PlainDate.from("2026-10-19");
 
     const request = await leave
-      .request("o", {
-        typeId: "t1",
-        startsOn: day,
-        endsOn: day.add({ days: 2 }),
-        startPart: "afternoon",
-        endPart: "morning",
-        hours: 20,
-        employeeId: "e1",
+      .request({
+        organizationId: "o",
+        input: {
+          typeId: "t1",
+          startsOn: day,
+          endsOn: day.add({ days: 2 }),
+          startPart: "afternoon",
+          endPart: "morning",
+          hours: 20,
+          employeeId: "e1",
+        },
       })
       .orThrow();
 
@@ -289,17 +311,25 @@ describe("leave client", () => {
     expect(request.userId).toBeUndefined();
 
     const entry = await leave
-      .adjust("o", {
-        employeeId: "e1",
-        typeId: "t1",
-        amount: 8,
-        expiresOn: Temporal.PlainDate.from("2026-12-31"),
+      .adjust({
+        organizationId: "o",
+        adjustment: {
+          employeeId: "e1",
+          typeId: "t1",
+          amount: 8,
+          expiresOn: Temporal.PlainDate.from("2026-12-31"),
+        },
       })
       .orThrow();
 
     expect(entry.employeeId).toBe("e1");
     expect(entry.expiresOn?.toString()).toBe("2026-12-31");
-    await leave.accrue("o", { typeId: "t1", employeeIds: ["e1"] }).orThrow();
+    await leave
+      .accrue({
+        organizationId: "o",
+        accrual: { typeId: "t1", employeeIds: ["e1"] },
+      })
+      .orThrow();
     expect(fake.calls).toEqual([
       [
         "request_leave",
@@ -367,7 +397,7 @@ describe("leave client", () => {
 
     const leave = createLeave({ transport: fake });
 
-    expect(await leave.balances("o").orThrow()).toEqual([
+    expect(await leave.balances({ organizationId: "o" }).orThrow()).toEqual([
       {
         typeId: "t1",
         key: "vacation",
@@ -381,7 +411,11 @@ describe("leave client", () => {
         available: 16.5,
       },
     ]);
-    const [entry] = await leave.ledger("o", { period: 2026 }).orThrow();
+
+    const [entry] = await leave
+      .ledger({ organizationId: "o", period: 2026 })
+      .orThrow();
+
     expect(entry).toMatchObject({
       kind: "grant",
       amount: -1.5,
@@ -400,19 +434,27 @@ describe("leave client", () => {
     const leave = createLeave({ transport: fake });
 
     await leave
-      .adjust("o", {
-        userId: "u1",
-        typeId: "t1",
-        amount: -1.5,
-        note: "Correction",
+      .adjust({
+        organizationId: "o",
+        adjustment: {
+          userId: "u1",
+          typeId: "t1",
+          amount: -1.5,
+          note: "Correction",
+        },
       })
       .orThrow();
     expect(
       await leave
-        .accrue("o", { typeId: "t1", idempotencyKey: "2026-10" })
+        .accrue({
+          organizationId: "o",
+          accrual: { typeId: "t1", idempotencyKey: "2026-10" },
+        })
         .orThrow(),
     ).toBe(4);
-    expect(await leave.closePeriod("o", 2026).orThrow()).toBe(0);
+    expect(
+      await leave.closePeriod({ organizationId: "o", period: 2026 }).orThrow(),
+    ).toBe(0);
     expect(fake.calls).toEqual([
       [
         "adjust_leave_balance",
@@ -471,17 +513,23 @@ describe("leave client", () => {
     const leave = createLeave({ transport: fake });
 
     await leave
-      .adjust("o", {
-        userId: "u1",
-        typeId: "t1",
-        amount: 2,
-        effectiveOn: Temporal.PlainDate.from("2026-01-15"),
+      .adjust({
+        organizationId: "o",
+        adjustment: {
+          userId: "u1",
+          typeId: "t1",
+          amount: 2,
+          effectiveOn: Temporal.PlainDate.from("2026-01-15"),
+        },
       })
       .orThrow();
     await leave
-      .accrue("o", {
-        typeId: "t1",
-        effectiveOn: Temporal.PlainDate.from("2026-11-01"),
+      .accrue({
+        organizationId: "o",
+        accrual: {
+          typeId: "t1",
+          effectiveOn: Temporal.PlainDate.from("2026-11-01"),
+        },
       })
       .orThrow();
 
@@ -529,7 +577,11 @@ describe("leave client", () => {
     });
 
     const leave = createLeave({ transport: fake });
-    const decided = await leave.decide("q1", { approved: true }).orThrow();
+
+    const decided = await leave
+      .decide({ requestId: "q1", decision: { approved: true } })
+      .orThrow();
+
     const feed = await leave.feed("known").orThrow();
 
     expect(fake.calls[0]).toEqual([

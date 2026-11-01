@@ -494,7 +494,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:204fd2f65b6857c6d401b6faf6a09b936f10e73906a384b74e5b5db59f6172b9
+-- @bsb-hash sha256:e5eca262580ecd73c5e4ae6859f4eecb963b1201be6b46e3999ca778f08b3265
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1001,6 +1001,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_clocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.sla_policies', target_type => 'sla_policy', event_prefix => 'sla_policy', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -58,29 +58,38 @@ describe.skipIf(!live)("forecasts", () => {
       await s.as(rep);
 
       const big = await deals
-        .create(org, {
-          name: "Big deal",
-          closeOn: today.add({ days: 10 }),
-          amount: eur(1_000_000n),
-          forecast: "commit",
+        .create({
+          organizationId: org,
+          input: {
+            name: "Big deal",
+            closeOn: today.add({ days: 10 }),
+            amount: eur(1_000_000n),
+            forecast: "commit",
+          },
         })
         .orThrow();
 
       const small = await deals
-        .create(org, {
-          name: "Small deal",
-          closeOn: today.add({ days: 20 }),
-          amount: eur(500_000n),
-          forecast: "pipeline",
+        .create({
+          organizationId: org,
+          input: {
+            name: "Small deal",
+            closeOn: today.add({ days: 20 }),
+            amount: eur(500_000n),
+            forecast: "pipeline",
+          },
         })
         .orThrow();
 
-      const refused = await forecasts.snapshot(org, period);
+      const refused = await forecasts.snapshot({ organizationId: org, period });
 
       expect(refused.ok ? "ok" : refused.error.hint).toBe("FORECAST_FORBIDDEN");
 
       await s.as(owner);
-      const first = await forecasts.snapshot(org, period).orThrow();
+
+      const first = await forecasts
+        .snapshot({ organizationId: org, period })
+        .orThrow();
 
       expect(first).toMatchObject({ dealCount: 2, target: eur(2_000_000n) });
       expect(first.totals).toMatchObject({
@@ -90,17 +99,27 @@ describe.skipIf(!live)("forecasts", () => {
       });
 
       await s.as(rep);
-      await deals.win(big.id, "Signed").orThrow();
+      await deals.win({ dealId: big.id, note: "Signed" }).orThrow();
       await deals
-        .update([{ dealId: small.id, field: "amount", value: eur(750_000n) }])
+        .update({
+          changes: [
+            { dealId: small.id, field: "amount", value: eur(750_000n) },
+          ],
+        })
         .orThrow();
 
       await s.as(owner);
-      const second = await forecasts.snapshot(org, period).orThrow();
+
+      const second = await forecasts
+        .snapshot({ organizationId: org, period })
+        .orThrow();
 
       expect(second.totals.won).toEqual(eur(1_000_000n));
 
-      const changes = await forecasts.changes(first.id, second.id).orThrow();
+      const changes = await forecasts
+        .changes({ fromSnapshotId: first.id, toSnapshotId: second.id })
+        .orThrow();
+
       const byDeal = new Map(changes.deals.map((deal) => [deal.dealId, deal]));
 
       expect(byDeal.get(big.id)?.change).toBe("won");
@@ -111,7 +130,7 @@ describe.skipIf(!live)("forecasts", () => {
       });
 
       await s.as(rep);
-      const listed = await forecasts.list(org).orThrow();
+      const listed = await forecasts.list({ organizationId: org }).orThrow();
 
       expect(listed.map((snapshot) => snapshot.id)).toEqual([
         second.id,

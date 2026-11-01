@@ -208,14 +208,13 @@ export interface Knowledge {
      * Creates a document. `organizationId` null creates a system document,
      * which every tenant reads (service role).
      */
-    create(
-      organizationId: string | null,
-      document: NewKnowledgeDocument,
-    ): AsyncResult<KnowledgeDocument>;
+    create(input: {
+      organizationId: string | null;
+      document: NewKnowledgeDocument;
+    }): AsyncResult<KnowledgeDocument>;
     get(documentId: string): AsyncResult<KnowledgeDocument>;
     list(
-      organizationId: string,
-      options?: {
+      input: { organizationId: string } & {
         readonly scope?: KnowledgeScope;
         readonly scopeId?: string;
         readonly limit?: number;
@@ -226,10 +225,10 @@ export interface Knowledge {
       },
     ): AsyncResult<readonly KnowledgeDocument[]>;
     /** Replaces the chunks; unchanged chunks keep their embedding. */
-    write(
-      documentId: string,
-      chunks: readonly KnowledgeChunk[],
-    ): AsyncResult<KnowledgeDocument>;
+    write(input: {
+      documentId: string;
+      chunks: readonly KnowledgeChunk[];
+    }): AsyncResult<KnowledgeDocument>;
     remove(documentId: string): AsyncResult<boolean>;
   };
   readonly ingest: {
@@ -237,35 +236,35 @@ export interface Knowledge {
      * Creates a document from text and writes its chunks; null creates a system
      * document (service role).
      */
-    text(
-      organizationId: string | null,
-      document: NewKnowledgeDocument & { readonly text: string },
-    ): AsyncResult<KnowledgeDocument>;
+    text(input: {
+      organizationId: string | null;
+      document: NewKnowledgeDocument & { readonly text: string };
+    }): AsyncResult<KnowledgeDocument>;
     /** Creates a document from a ready ai-files file and writes its chunks. */
-    file(
-      organizationId: string,
-      fileId: string,
-      document?: Partial<NewKnowledgeDocument>,
-    ): AsyncResult<KnowledgeDocument>;
+    file(input: {
+      organizationId: string;
+      fileId: string;
+      document?: Partial<NewKnowledgeDocument> | undefined;
+    }): AsyncResult<KnowledgeDocument>;
     /**
      * Creates a pending document for a ready ai-files file and enqueues its
      * ingestion on `options.ingestQueue` (`queue_knowledge_file`, with the
      * ai-files and jobs blocks). `ingestJob()` does the work.
      */
-    queue(
-      organizationId: string,
-      fileId: string,
-      document?: Partial<NewKnowledgeDocument>,
-    ): AsyncResult<KnowledgeDocument>;
+    queue(input: {
+      organizationId: string;
+      fileId: string;
+      document?: Partial<NewKnowledgeDocument> | undefined;
+    }): AsyncResult<KnowledgeDocument>;
   };
   /**
    * Embeds a document's pending chunks (service role). Returns how many still
    * wait, 0 once the document is ready.
    */
-  process(
-    documentId: string,
-    options?: { readonly signal?: AbortSignal | undefined },
-  ): AsyncResult<number>;
+  process(input: {
+    documentId: string;
+    options?: { readonly signal?: AbortSignal | undefined };
+  }): AsyncResult<number>;
   /**
    * The handler for the `knowledge_embed` queue. The last attempt marks the
    * document failed with the error.
@@ -289,9 +288,10 @@ export interface Knowledge {
     readonly signal?: AbortSignal;
   }): AsyncResult<number>;
   search(
-    organizationId: string,
-    query: string | KnowledgeQuery,
-    options?: KnowledgeSearchOptions,
+    input: {
+      organizationId: string;
+      query: string | KnowledgeQuery;
+    } & KnowledgeSearchOptions,
   ): AsyncResult<readonly KnowledgeHit[]>;
   /**
    * Marks documents embedded by another model (or every document when `model`
@@ -514,10 +514,13 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       ? AsyncResult.ok(documentOf(value))
       : AsyncResult.err(notFound());
 
-  const create = (
-    organizationId: string | null,
-    document: NewKnowledgeDocument,
-  ): AsyncResult<KnowledgeDocument> =>
+  const create = ({
+    organizationId,
+    document,
+  }: {
+    organizationId: string | null;
+    document: NewKnowledgeDocument;
+  }): AsyncResult<KnowledgeDocument> =>
     call(
       "create_knowledge_document",
       {
@@ -536,10 +539,13 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       documentOf,
     );
 
-  const write = (
-    documentId: string,
-    chunks: readonly KnowledgeChunk[],
-  ): AsyncResult<KnowledgeDocument> =>
+  const write = ({
+    documentId,
+    chunks,
+  }: {
+    documentId: string;
+    chunks: readonly KnowledgeChunk[];
+  }): AsyncResult<KnowledgeDocument> =>
     call(
       "write_knowledge_chunks",
       {
@@ -557,8 +563,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   ): AsyncResult<KnowledgeDocument> =>
     run(() => Promise.resolve(chunk(text, options.chunking))).andThen(
       (chunks) =>
-        create(organizationId, document).andThen((created) =>
-          write(created.id, chunks),
+        create({ organizationId, document }).andThen((created) =>
+          write({ documentId: created.id, chunks }),
         ),
     );
 
@@ -630,10 +636,13 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           }),
         );
 
-  const process = (
-    documentId: string,
-    processOptions: { readonly signal?: AbortSignal | undefined } = {},
-  ): AsyncResult<number> =>
+  const process = ({
+    documentId,
+    options: processOptions = {},
+  }: {
+    documentId: string;
+    options?: { readonly signal?: AbortSignal | undefined };
+  }): AsyncResult<number> =>
     AsyncResult.from(async (): Promise<Result<number>> => {
       let before = Number.POSITIVE_INFINITY;
 
@@ -711,7 +720,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           { document_id: documentId },
           (value) => value,
         ).andThen(found),
-      list: (organizationId, listOptions = {}) =>
+      list: ({ organizationId, ...listOptions }) =>
         call(
           "list_knowledge_documents",
           {
@@ -735,9 +744,9 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         ),
     },
     ingest: {
-      text: (organizationId, { text, ...document }) =>
+      text: ({ organizationId, document: { text, ...document } }) =>
         fromText(organizationId, document, text),
-      queue: (organizationId, fileId, document = {}) =>
+      queue: ({ organizationId, fileId, document = {} }) =>
         call(
           "queue_knowledge_file",
           {
@@ -752,7 +761,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           },
           documentOf,
         ),
-      file: (organizationId, fileId, document = {}) =>
+      file: ({ organizationId, fileId, document = {} }) =>
         readFile(fileId).andThen(({ file, text }) =>
           fromText(
             organizationId,
@@ -785,7 +794,10 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       throw new DbException(result.error);
     },
     embedJob: () => async (payload, job, signal) => {
-      const result = await process(payload.document_id, { signal });
+      const result = await process({
+        documentId: payload.document_id,
+        options: { signal },
+      });
 
       if (result.ok) {
         return;
@@ -816,14 +828,17 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
               break;
             }
 
-            let result = await process(id, drainOptions);
+            let result = await process({
+              documentId: id,
+              options: drainOptions,
+            });
 
             for (
               let attempt = 1;
               !result.ok && attempt < attempts && !drainOptions.signal?.aborted;
               attempt += 1
             ) {
-              result = await process(id, drainOptions);
+              result = await process({ documentId: id, options: drainOptions });
             }
 
             if (result.ok) {
@@ -840,7 +855,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           return ok(done);
         }),
       ),
-    search: (organizationId, query, searchOptions = {}) => {
+    search: ({ organizationId, query, ...searchOptions }) => {
       const { text, embedding } =
         typeof query === "string"
           ? { text: query, embedding: undefined }

@@ -22,7 +22,13 @@ describe("catalog discounts", () => {
     });
 
     const resolved = await catalog
-      .resolveLineDiscount("org", "c1", "v1", 12, { on: "2026-10-31" })
+      .resolveLineDiscount({
+        organizationId: "org",
+        partyId: "c1",
+        variantId: "v1",
+        quantity: 12,
+        on: "2026-10-31",
+      })
       .orThrow();
 
     expect(resolved).toEqual({
@@ -61,46 +67,57 @@ describe("catalog discount groups and rules", () => {
   it("saves and deletes groups and assigns members", async () => {
     expect(
       await catalog
-        .saveDiscountGroup("org", {
-          kind: "customer",
-          code: "VIP",
-          name: "VIP",
+        .saveDiscountGroup({
+          organizationId: "org",
+          input: { kind: "customer", code: "VIP", name: "VIP" },
         })
         .orThrow(),
     ).toEqual({ id: "x1" });
     expect(
       await catalog
-        .saveDiscountGroup("org", {
-          id: "g1",
-          kind: "product",
-          code: "P",
-          name: "P",
+        .saveDiscountGroup({
+          organizationId: "org",
+          input: { id: "g1", kind: "product", code: "P", name: "P" },
         })
         .orThrow(),
     ).toEqual({ id: "x1" });
     expect(await catalog.deleteDiscountGroup("g1").orThrow()).toBe(true);
     expect(
-      await catalog.setPartyDiscountGroup("org", "c1", null).orThrow(),
+      await catalog
+        .setPartyDiscountGroup({
+          organizationId: "org",
+          partyId: "c1",
+          groupId: null,
+        })
+        .orThrow(),
     ).toBe(true);
-    expect(await catalog.setVariantDiscountGroup("v1", "g1").orThrow()).toBe(
-      true,
-    );
+    expect(
+      await catalog
+        .setVariantDiscountGroup({ variantId: "v1", groupId: "g1" })
+        .orThrow(),
+    ).toBe(true);
     expect(record[0]?.args["group"]).toBeNull();
     expect(record[1]?.args["group"]).toBe("g1");
   });
 
   it("saves a rule with text quantities and deletes it", async () => {
     await catalog
-      .saveDiscountRule("org", {
-        customerGroupId: "g1",
-        discountBps: 500,
-        minQuantity: 10,
-        fixedPrice: 995n,
-        currency: "EUR",
+      .saveDiscountRule({
+        organizationId: "org",
+        input: {
+          customerGroupId: "g1",
+          discountBps: 500,
+          minQuantity: 10,
+          fixedPrice: 995n,
+          currency: "EUR",
+        },
       })
       .orThrow();
     await catalog
-      .saveDiscountRule("org", { id: "r1", discountBps: 100 })
+      .saveDiscountRule({
+        organizationId: "org",
+        input: { id: "r1", discountBps: 100 },
+      })
       .orThrow();
 
     const [first, second] = record.slice(-2);
@@ -132,7 +149,13 @@ describe("catalog resolveLineDiscount defaults", () => {
     });
 
     const none = await catalog
-      .resolveLineDiscount("org", null, "v1", "3", { currency: "EUR" })
+      .resolveLineDiscount({
+        organizationId: "org",
+        partyId: null,
+        variantId: "v1",
+        quantity: "3",
+        currency: "EUR",
+      })
       .orThrow();
 
     expect(none).toEqual({

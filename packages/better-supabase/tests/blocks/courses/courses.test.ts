@@ -218,14 +218,17 @@ describe("createCourses", () => {
     const courses = createCourses({ transport: fake.transport });
 
     const module = await courses
-      .saveModule("c1", { title: "Introduction" })
+      .saveModule({ courseId: "c1", module: { title: "Introduction" } })
       .orThrow();
 
     expect(module.rank).toBe("a0");
     expect(await courses.deleteModule("m1").orThrow()).toBe(false);
 
     const lesson = await courses
-      .saveLesson("c1", { moduleId: "m1", title: "Why it matters" })
+      .saveLesson({
+        courseId: "c1",
+        lesson: { moduleId: "m1", title: "Why it matters" },
+      })
       .orThrow();
 
     expect(lesson).toMatchObject({
@@ -422,12 +425,13 @@ describe("createCourses", () => {
 
     const courses = createCourses({ transport: fake.transport });
 
-    const enrolled = await courses.enroll("c1").orThrow();
+    const enrolled = await courses.enroll({ courseId: "c1" }).orThrow();
 
     expect(enrolled.lessons).toEqual([]);
     expect(enrolled).not.toHaveProperty("certificate");
     expect(
-      (await courses.unenroll("c1", "u2").orThrow()).cancelledAt,
+      (await courses.unenroll({ courseId: "c1", userId: "u2" }).orThrow())
+        .cancelledAt,
     ).toBeInstanceOf(Temporal.Instant);
 
     const started = await courses.start("l1").orThrow();
@@ -438,23 +442,26 @@ describe("createCourses", () => {
     await courses.reset("l1").orThrow();
 
     const graded = await courses
-      .submitQuiz("l2", { capital: "Paris" })
+      .submitQuiz({ lessonId: "l2", answers: { capital: "Paris" } })
       .orThrow();
 
     expect(graded.passed).toBe(true);
     expect(graded.submission).toEqual({ id: "s1" });
-    expect(await courses.progress("c1").orThrow()).toBeNull();
+    expect(await courses.progress({ courseId: "c1" }).orThrow()).toBeNull();
 
     const learners = await courses
-      .learners("c1", {
-        status: "completed",
-        pageSize: 10,
-        before: Temporal.Instant.from(AT),
+      .learners({
+        courseId: "c1",
+        filter: {
+          status: "completed",
+          pageSize: 10,
+          before: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
     expect(learners).toHaveLength(1);
-    await courses.learners("c1").orThrow();
+    await courses.learners({ courseId: "c1" }).orThrow();
 
     expect(fake.calls).toEqual([
       ["enroll_in_course", { course_id: "c1", user_id: null }],
@@ -487,7 +494,9 @@ describe("createCourses", () => {
     const fake = fakeTransport({ course_progress: LEARNER });
     const courses = createCourses({ transport: fake.transport });
 
-    const progress = await courses.progress("c1", "u2").orThrow();
+    const progress = await courses
+      .progress({ courseId: "c1", userId: "u2" })
+      .orThrow();
 
     expect(progress?.userId).toBe("u2");
     expect(fake.calls[0]).toEqual([
@@ -541,8 +550,10 @@ describe("createCourses", () => {
       }).transport,
     });
 
-    expect((await courses.enroll("c1")).ok).toBe(false);
-    expect((await courses.saveLesson("c1", {})).ok).toBe(false);
+    expect((await courses.enroll({ courseId: "c1" })).ok).toBe(false);
+    expect((await courses.saveLesson({ courseId: "c1", lesson: {} })).ok).toBe(
+      false,
+    );
   });
 
   it("fails tenant-scoped calls without a tenant", async () => {

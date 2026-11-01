@@ -57,37 +57,52 @@ describe.skipIf(!live)("incidents", () => {
       await s.as(owner);
 
       const api = await incidents
-        .saveComponent(org, { name: "API", group: "Platform" })
+        .saveComponent({
+          organizationId: org,
+          input: { name: "API", group: "Platform" },
+        })
         .orThrow();
 
       const db = await incidents
-        .saveComponent(org, { name: "Primary database", public: false })
+        .saveComponent({
+          organizationId: org,
+          input: { name: "Primary database", public: false },
+        })
         .orThrow();
 
       expect(api).toMatchObject({ public: true, status: "operational" });
       await incidents
-        .saveStatusPage(org, { slug, title: "Acme status", published: true })
+        .saveStatusPage({
+          organizationId: org,
+          input: { slug, title: "Acme status", published: true },
+        })
         .orThrow();
 
       await s.as(outsider);
       expect(
         await incidents
-          .saveStatusPage(other, { slug, title: "Copycat" })
+          .saveStatusPage({
+            organizationId: other,
+            input: { slug, title: "Copycat" },
+          })
           .then(hint),
       ).toBe("STATUS_PAGE_SLUG_TAKEN");
 
       await s.as(responder);
 
       const incident = await incidents
-        .open(org, {
-          title: "Elevated API errors",
-          severity: "sev2",
-          public: true,
-          message: "We are looking into elevated error rates.",
-          impacts: [
-            { componentId: api.id, impact: "partial_outage" },
-            { componentId: db.id, impact: "degraded" },
-          ],
+        .open({
+          organizationId: org,
+          input: {
+            title: "Elevated API errors",
+            severity: "sev2",
+            public: true,
+            message: "We are looking into elevated error rates.",
+            impacts: [
+              { componentId: api.id, impact: "partial_outage" },
+              { componentId: db.id, impact: "degraded" },
+            ],
+          },
         })
         .orThrow();
 
@@ -101,29 +116,41 @@ describe.skipIf(!live)("incidents", () => {
       ).toEqual(["partial_outage", "degraded"]);
 
       const secret = await incidents
-        .open(org, { title: "Leaked credentials", severity: "sev1" })
+        .open({
+          organizationId: org,
+          input: { title: "Leaked credentials", severity: "sev1" },
+        })
         .orThrow();
 
       expect(secret.public).toBe(false);
 
       await incidents
-        .postUpdate(incident.id, {
-          status: "identified",
-          body: "A replica fell behind; failing over.",
-          public: false,
+        .postUpdate({
+          incidentId: incident.id,
+          input: {
+            status: "identified",
+            body: "A replica fell behind; failing over.",
+            public: false,
+          },
         })
         .orThrow();
       await incidents
-        .postUpdate(incident.id, {
-          status: "monitoring",
-          body: "A fix is in place and we are monitoring.",
+        .postUpdate({
+          incidentId: incident.id,
+          input: {
+            status: "monitoring",
+            body: "A fix is in place and we are monitoring.",
+          },
         })
         .orThrow();
       expect(await incidents.publishPostmortem(incident.id).then(hint)).toBe(
         "INCIDENTS_FORBIDDEN",
       );
       await incidents
-        .savePostmortem(incident.id, { summary: "Early notes" })
+        .savePostmortem({
+          incidentId: incident.id,
+          input: { summary: "Early notes" },
+        })
         .orThrow();
       await s.as(owner);
       expect(await incidents.publishPostmortem(incident.id).then(hint)).toBe(
@@ -132,7 +159,10 @@ describe.skipIf(!live)("incidents", () => {
       await s.as(responder);
 
       await incidents
-        .postUpdate(incident.id, { status: "resolved", body: "Resolved." })
+        .postUpdate({
+          incidentId: incident.id,
+          input: { status: "resolved", body: "Resolved." },
+        })
         .orThrow();
       const resolved = await incidents.get(incident.id).orThrow();
       expect(resolved?.resolvedAt).toBeDefined();
@@ -147,9 +177,12 @@ describe.skipIf(!live)("incidents", () => {
       ).toEqual(["operational", "operational"]);
 
       await incidents
-        .savePostmortem(incident.id, {
-          summary: "Replica lag caused failed writes.",
-          rootCause: "A replica on an undersized disk",
+        .savePostmortem({
+          incidentId: incident.id,
+          input: {
+            summary: "Replica lag caused failed writes.",
+            rootCause: "A replica on an undersized disk",
+          },
         })
         .orThrow();
       await s.as(owner);
@@ -157,18 +190,27 @@ describe.skipIf(!live)("incidents", () => {
         (await incidents.publishPostmortem(incident.id).orThrow()).status,
       ).toBe("published");
       await incidents
-        .postUpdate(secret.id, { status: "resolved", body: "Keys rotated." })
+        .postUpdate({
+          incidentId: secret.id,
+          input: { status: "resolved", body: "Keys rotated." },
+        })
         .orThrow();
       expect(await incidents.publishPostmortem(secret.id).then(hint)).toBe(
         "INCIDENT_POSTMORTEM_NOT_FOUND",
       );
 
       await s.asRole(outsider);
-      expect(await incidents.list(org).orThrow()).toEqual([]);
+      expect(await incidents.list({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
       expect(await incidents.get(secret.id).orThrow()).toBeUndefined();
 
       await s.asRole("anon");
-      const page = await incidents.publicStatusPage(slug, 7).orThrow();
+
+      const page = await incidents
+        .publicStatusPage({ slug, days: 7 })
+        .orThrow();
+
       expect(page).toMatchObject({
         slug,
         title: "Acme status",
@@ -208,7 +250,7 @@ describe.skipIf(!live)("incidents", () => {
         await s.hint("select count(*) from better_supabase.incidents"),
       ).toMatch(/GRANT SELECT ON better_supabase.incidents TO anon/);
       expect(
-        await incidents.publicStatusPage("no-such-page").orThrow(),
+        await incidents.publicStatusPage({ slug: "no-such-page" }).orThrow(),
       ).toBeUndefined();
 
       await s.service();
@@ -243,20 +285,29 @@ describe.skipIf(!live)("incidents", () => {
       await s.as(owner);
 
       const incident = await incidents
-        .open(org, { title: "Queue backlog", severity: "sev3" })
+        .open({
+          organizationId: org,
+          input: { title: "Queue backlog", severity: "sev3" },
+        })
         .orThrow();
 
       const postmortem = await incidents
-        .savePostmortem(incident.id, { summary: "Workers stalled" })
+        .savePostmortem({
+          incidentId: incident.id,
+          input: { summary: "Workers stalled" },
+        })
         .orThrow();
 
       const due = Temporal.Instant.from("2026-11-01T09:00:00Z");
 
       const action = await incidents
-        .addPostmortemAction(postmortem.id, {
-          title: "Alert on queue depth",
-          assigneeId: responder.id,
-          dueAt: due,
+        .addPostmortemAction({
+          postmortemId: postmortem.id,
+          input: {
+            title: "Alert on queue depth",
+            assigneeId: responder.id,
+            dueAt: due,
+          },
         })
         .orThrow();
 
@@ -266,7 +317,10 @@ describe.skipIf(!live)("incidents", () => {
       });
       expect(action.dueAt?.equals(due)).toBe(true);
       await incidents
-        .addPostmortemAction(postmortem.id, { title: "Runbook" })
+        .addPostmortemAction({
+          postmortemId: postmortem.id,
+          input: { title: "Runbook" },
+        })
         .orThrow();
 
       await s.service();
@@ -290,7 +344,10 @@ describe.skipIf(!live)("incidents", () => {
       );
       expect(
         await incidents
-          .addPostmortemAction(postmortem.id, { title: "Sneaky" })
+          .addPostmortemAction({
+            postmortemId: postmortem.id,
+            input: { title: "Sneaky" },
+          })
           .then(hint),
       ).toBe("INCIDENTS_FORBIDDEN");
 
@@ -326,11 +383,17 @@ describe.skipIf(!live)("incidents", () => {
       await s.as(owner);
 
       const incident = await incidents
-        .open(org, { title: "Disk full", severity: "sev2" })
+        .open({
+          organizationId: org,
+          input: { title: "Disk full", severity: "sev2" },
+        })
         .orThrow();
 
       const postmortem = await incidents
-        .savePostmortem(incident.id, { summary: "Logs filled the disk" })
+        .savePostmortem({
+          incidentId: incident.id,
+          input: { summary: "Logs filled the disk" },
+        })
         .orThrow();
 
       const items = [

@@ -9,11 +9,13 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { CustomFields } from "../custom-fields/custom-fields.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
@@ -28,6 +30,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { strictChanges } from "../strict-changes.ts";
 
 /** The state a stage's category sets; `completed` and `canceled` are closed. */
 export type WorkItemState =
@@ -151,6 +154,12 @@ export interface WorkItemUpdateOptions {
    * and comes back as the error, instead of a `rejected` entry.
    */
   readonly atomic?: boolean;
+  /**
+   * Turns the first refused change into the error, with its hint as the code,
+   * instead of a `rejected` entry. Accepted changes stay applied unless
+   * `atomic` is set too.
+   */
+  readonly strict?: boolean;
 }
 
 /** A work item's repeat rule: an RFC 5545 RRULE from `dtstart` in `tzid`. */
@@ -264,53 +273,73 @@ export interface Iteration {
 }
 
 export interface Tasks<F extends object = Record<never, never>> {
-  create(
-    organizationId: string,
-    input: WorkItemInput<F>,
-    assigneeIds?: readonly string[],
-  ): AsyncResult<WorkItem<F>>;
+  /**
+   * `custom` sets custom field values on the new item, by definition id, after
+   * it is created (the `customFields` port; hint `TASKS_CUSTOM_FIELDS_MISSING`
+   * without it). When a value is refused the item is removed again and the
+   * error returned.
+   */
+  create(input: {
+    organizationId: string;
+    input: WorkItemInput<F>;
+    assigneeIds?: readonly string[] | undefined;
+    custom?: Readonly<Record<string, string>> | undefined;
+  }): AsyncResult<WorkItem<F>>;
   /** Extra column changes are validated with the `fields` schema first. */
   update(
-    changes: readonly WorkItemChange<F>[],
-    options?: WorkItemUpdateOptions,
+    input: { changes: readonly WorkItemChange<F>[] } & WorkItemUpdateOptions,
   ): AsyncResult<WorkItemChangeResult>;
+  /**
+   * Moves the item to `stageId` and returns the refusal as the error. It is
+   * `update` with one `stageId` change and `strict`, so the `update` hooks see
+   * the move.
+   */
+  move(input: { workItemId: string; stageId: string }): AsyncResult<true>;
   /** Replaces the assignees; new ones are notified and every one watches. */
-  assign(workItemId: string, userIds: readonly string[]): AsyncResult<number>;
-  archive(workItemId: string, archived?: boolean): AsyncResult<boolean>;
+  assign(input: {
+    workItemId: string;
+    userIds: readonly string[];
+  }): AsyncResult<number>;
+  archive(input: {
+    workItemId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   remove(workItemId: string): AsyncResult<boolean>;
   tree(rootId: string): AsyncResult<WorkItemNode[]>;
   /** One item you can read, or `undefined`. */
   get(workItemId: string): AsyncResult<WorkItem<F> | undefined>;
   checklist(workItemId: string): AsyncResult<ChecklistItem[]>;
   /** Adds a checklist item, or changes the one `checklistItemId` names. */
-  saveChecklistItem(
-    workItemId: string,
-    input: ChecklistItemInput,
-    checklistItemId?: string,
-  ): AsyncResult<ChecklistItem>;
+  saveChecklistItem(input: {
+    workItemId: string;
+    input: ChecklistItemInput;
+    checklistItemId?: string | undefined;
+  }): AsyncResult<ChecklistItem>;
   removeChecklistItem(checklistItemId: string): AsyncResult<boolean>;
   /**
    * Makes the item repeat (`null` stops it). Needs the reminders block;
    * `workItemRecurrenceSink` creates the next item when one is completed.
    */
-  setRecurrence(
-    workItemId: string,
-    rule: { readonly rrule: string; readonly tzid?: string } | null,
-  ): AsyncResult<WorkItemRecurrence | undefined>;
+  setRecurrence(input: {
+    workItemId: string;
+    rule: { readonly rrule: string; readonly tzid?: string } | null;
+  }): AsyncResult<WorkItemRecurrence | undefined>;
   /** Creates the next item of a repeating one. Service only, idempotent. */
-  repeat(workItemId: string, dueAt: Temporal.Instant): AsyncResult<WorkItem<F>>;
+  repeat(input: {
+    workItemId: string;
+    dueAt: Temporal.Instant;
+  }): AsyncResult<WorkItem<F>>;
   /** Watches, follows or mutes an item (`null` clears). Needs notifications. */
-  watch(
-    workItemId: string,
-    level: WorkItemWatchLevel | null,
-  ): AsyncResult<boolean>;
+  watch(input: {
+    workItemId: string;
+    level: WorkItemWatchLevel | null;
+  }): AsyncResult<boolean>;
   watchers(workItemId: string): AsyncResult<WorkItemWatcher[]>;
   list(
-    organizationId: string,
-    options?: WorkItemListOptions,
+    input: { organizationId: string } & WorkItemListOptions,
   ): AsyncResult<WorkItem<F>[]>;
-  saveProject(
-    organizationId: string,
+  saveProject(input: {
+    organizationId: string;
     project: Partial<
       Omit<
         Project,
@@ -323,12 +352,35 @@ export interface Tasks<F extends object = Record<never, never>> {
       readonly budget?: Money | null;
       readonly budgetHours?: number | null;
       readonly archived?: boolean;
-    },
-  ): AsyncResult<Project>;
-  saveIteration(
-    organizationId: string,
-    iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string },
-  ): AsyncResult<Iteration>;
+    };
+  }): AsyncResult<Project>;
+  saveIteration(input: {
+    organizationId: string;
+    iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string };
+  }): AsyncResult<Iteration>;
+  /**
+   * Moves the item to `stageId`, a stage of the `completed` category, and
+   * checks that the item is completed afterwards. A stage of another category
+   * comes back as an `invalid_input` error (the item has moved by then).
+   */
+  complete(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  /** `complete` for a stage of the `canceled` category. */
+  cancel(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  /**
+   * Adds `userId` to the item's assignees and keeps the others; `assign`
+   * replaces them. The client has no signed-in user, so the caller passes its
+   * id (`ctx.user.id` in an action). Returns the assignee count, and does
+   * nothing when the user is already assigned.
+   */
+  assignToMe(input: {
+    workItemId: string;
+    userId: string;
+  }): AsyncResult<number>;
+  /**
+   * Moves a closed item back to `stageId`, a stage of an open category, and
+   * checks that it is open afterwards.
+   */
+  reopen(input: { workItemId: string; stageId: string }): AsyncResult<true>;
 }
 
 export interface TasksOptions<
@@ -345,6 +397,11 @@ export interface TasksOptions<
   readonly hooks?: NoInfer<BlockHooks<Tasks<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The `custom-fields` port, which `create({ custom })` sets values through.
+   * `createBlocks` passes it.
+   */
+  readonly customFields?: Pick<CustomFields, "setValue">;
 }
 
 /** The fields `update` writes without the `fields` schema. */
@@ -365,6 +422,14 @@ const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
   "closeReason",
   "window",
 ]);
+
+/** The states of an item that is not closed. */
+const OPEN_STATES: readonly WorkItemState[] = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+];
 
 const KNOWN = new Set([
   "id",
@@ -612,9 +677,42 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     "work item fields",
   );
 
+  /** Moves the item, then checks the state the stage's category gave it. */
+  const settle = (
+    { workItemId, stageId }: { workItemId: string; stageId: string },
+    expected: readonly WorkItemState[],
+    label: string,
+  ): AsyncResult<true> =>
+    hooked
+      .move({ workItemId, stageId })
+      .andThen(() => hooked.get(workItemId))
+      .andThen((item) =>
+        Promise.resolve(
+          item !== undefined && expected.includes(item.state)
+            ? ok(true as const)
+            : err(
+                dbError(
+                  "invalid_input",
+                  `Stage ${stageId} does not make work item ${workItemId} ${label}`,
+                ),
+              ),
+        ),
+      );
+
   const client: Tasks<F> = {
-    create: (organizationId, input, assigneeIds) => {
+    create: ({ organizationId, input, assigneeIds, custom }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
+      const entries = Object.entries(custom ?? {});
+
+      if (entries.length > 0 && options.customFields === undefined) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_input",
+            "createTasks needs the customFields port to set custom values",
+            { hint: "TASKS_CUSTOM_FIELDS_MISSING" },
+          ),
+        );
+      }
 
       return fields
         .args(extra)
@@ -634,9 +732,27 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             },
             itemOf,
           ).andThen(fields.row),
-        );
+        )
+        .andThen(async (created) => {
+          for (const [definitionId, value] of entries) {
+            // SAFETY: the check above returned when entries exist without the port.
+            const set = await options.customFields!.setValue({
+              subject: { type: "task", id: created.id },
+              definitionId,
+              value,
+            });
+
+            if (!set.ok) {
+              await hooked.remove(created.id);
+
+              return set;
+            }
+          }
+
+          return ok(created);
+        });
     },
-    update: (changes, updateOptions = {}) =>
+    update: ({ changes, ...updateOptions }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (BUILT_IN.has(change.field)) {
@@ -683,15 +799,22 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
               ),
             };
           },
-        ),
+        ).andThen((result) => strictChanges(result, updateOptions.strict)),
       ),
-    assign: (workItemId, userIds) =>
+    move: ({ workItemId, stageId }) =>
+      hooked
+        .update({
+          changes: [{ workItemId, field: "stageId", value: stageId }],
+          strict: true,
+        })
+        .map(() => true as const),
+    assign: ({ workItemId, userIds }) =>
       call(
         "set_task_assignees",
         { work_item: workItemId, users: [...userIds] },
         (value) => num(value) ?? 0,
       ),
-    archive: (workItemId, archived = true) =>
+    archive: ({ workItemId, archived = true }) =>
       call(
         "archive_task",
         { work_item: workItemId, archived },
@@ -713,7 +836,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_task_checklist", { work_item: workItemId }, (value) =>
         recordsOf(value, "list_task_checklist").map(checklistItemOf),
       ),
-    saveChecklistItem: (workItemId, input, checklistItemId) =>
+    saveChecklistItem: ({ workItemId, input, checklistItemId }) =>
       call(
         "save_task_checklist_item",
         {
@@ -729,7 +852,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         { checklist_item: checklistItemId },
         (value) => value === true,
       ),
-    setRecurrence: (workItemId, rule) =>
+    setRecurrence: ({ workItemId, rule }) =>
       call(
         "set_task_recurrence",
         {
@@ -739,13 +862,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         },
         recurrenceOf,
       ),
-    repeat: (workItemId, dueAt) =>
+    repeat: ({ workItemId, dueAt }) =>
       call(
         "repeat_task",
         { work_item: workItemId, due_at: dueAt.toString() },
         itemOf,
       ).andThen(fields.row),
-    watch: (workItemId, level) =>
+    watch: ({ workItemId, level }) =>
       call(
         "watch_task",
         { work_item: workItemId, level },
@@ -755,7 +878,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_task_watchers", { work_item: workItemId }, (value) =>
         recordsOf(value, "list_task_watchers").map(watcherOf),
       ),
-    list: (organizationId, list = {}) => {
+    list: ({ organizationId, ...list }) => {
       const { search, after, limit, ...filter } = list;
 
       return call(
@@ -770,7 +893,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => recordsOf(value, "list_tasks").map(itemOf),
       ).andThen(fields.rows);
     },
-    saveProject: (organizationId, project) => {
+    saveProject: ({ organizationId, project }) => {
       const { id, budget, ...attrs } = project;
 
       const amounts =
@@ -791,7 +914,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         projectOf,
       );
     },
-    saveIteration: (organizationId, iteration) => {
+    saveIteration: ({ organizationId, iteration }) => {
       const { id, ...attrs } = iteration;
 
       return call(
@@ -800,10 +923,33 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         iterationOf,
       );
     },
+    complete: (input) => settle(input, ["completed"], "completed"),
+    cancel: (input) => settle(input, ["canceled"], "canceled"),
+    reopen: (input) => settle(input, OPEN_STATES, "open"),
+    assignToMe: ({ workItemId, userId }) =>
+      hooked.get(workItemId).andThen((item) => {
+        if (item === undefined) {
+          return Promise.resolve(
+            err(dbError("not_found", `Work item ${workItemId} not found`)),
+          );
+        }
+
+        if (item.assigneeIds.includes(userId)) {
+          return Promise.resolve(ok(item.assigneeIds.length));
+        }
+
+        return hooked.assign({
+          workItemId,
+          userIds: [...item.assigneeIds, userId],
+        });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Tasks<F> = withBlockHooks(client, options.hooks, {
     block: "tasks",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

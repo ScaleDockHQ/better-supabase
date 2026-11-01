@@ -95,11 +95,11 @@ describe("createAiCache", () => {
     const cache = createAiCache({ transport });
 
     const entry = await cache
-      .upsert(
-        "k1",
-        { text: "hi" },
-        { ttl: 0.2, organizationId: "o1", kind: "stream", model: "m" },
-      )
+      .upsert({
+        key: "k1",
+        value: { text: "hi" },
+        options: { ttl: 0.2, organizationId: "o1", kind: "stream", model: "m" },
+      })
       .orThrow();
 
     expect(calls[0]?.args).toEqual({

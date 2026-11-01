@@ -280,3 +280,7 @@ const opened = await cases
   .open({ kind: "complaint", title: "Late delivery" })
   .orThrow();
 ```
+
+## Close when nothing blocks
+
+`tryClose({ caseId, note })` reads the blockers first. It closes the case and returns `{ closed: true, case }`, or changes nothing and returns `{ closed: false, blockers }`, so a form lists what is missing instead of parsing an error.

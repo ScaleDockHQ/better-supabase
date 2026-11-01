@@ -68,11 +68,11 @@ export interface AiCache {
    */
   get<T = unknown>(key: string): AsyncResult<AiCacheEntry<T> | undefined>;
   /** Stores or replaces the entry under `key`. `value` must be JSON. */
-  upsert(
-    key: string,
-    value: unknown,
-    options: AiCacheSetOptions,
-  ): AsyncResult<Omit<AiCacheEntry<undefined>, "value">>;
+  upsert(input: {
+    key: string;
+    value: unknown;
+    options: AiCacheSetOptions;
+  }): AsyncResult<Omit<AiCacheEntry<undefined>, "value">>;
   delete(key: string): AsyncResult<boolean>;
   /** Deletes every entry of a tenant, or of a model. Returns how many. */
   clear(filter: {
@@ -178,7 +178,7 @@ export function createAiCache(options: AiCacheOptions): AiCache {
       call("ai_cache_get", { key }, (value) =>
         value === null || value === undefined ? undefined : entryOf<T>(value),
       ),
-    upsert: (key, value, setOptions) =>
+    upsert: ({ key, value, options: setOptions }) =>
       call(
         "ai_cache_set",
         {

@@ -236,52 +236,68 @@ export interface PartyListOptions extends CursorPageOptions<PartyCursor> {
 }
 
 export interface Contacts<F extends object = Record<never, never>> {
-  saveCompany(
-    organizationId: string,
-    input: CompanyInput<F>,
-  ): AsyncResult<Company<F>>;
-  savePerson(organizationId: string, input: PersonInput): AsyncResult<Person>;
+  saveCompany(input: {
+    organizationId: string;
+    input: CompanyInput<F>;
+  }): AsyncResult<Company<F>>;
+  savePerson(input: {
+    organizationId: string;
+    input: PersonInput;
+  }): AsyncResult<Person>;
   /** Archives a company, or restores it with `archived: false`. */
-  archiveCompany(id: string, archived?: boolean): AsyncResult<boolean>;
-  archivePerson(id: string, archived?: boolean): AsyncResult<boolean>;
+  archiveCompany(input: {
+    id: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
+  archivePerson(input: {
+    id: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Links a person to a company. `primary` replaces the company's primary
    * contact.
    */
-  linkPerson(
-    companyId: string,
-    personId: string,
-    link?: { readonly role?: string; readonly primary?: boolean },
-  ): AsyncResult<boolean>;
-  unlinkPerson(companyId: string, personId: string): AsyncResult<boolean>;
+  linkPerson(input: {
+    companyId: string;
+    personId: string;
+    link?: { readonly role?: string; readonly primary?: boolean } | undefined;
+  }): AsyncResult<boolean>;
+  unlinkPerson(input: {
+    companyId: string;
+    personId: string;
+  }): AsyncResult<boolean>;
   /** Merges `drop` into `keep`. Needs `contacts.manage`. */
-  mergeCompanies(keep: string, drop: string): AsyncResult<Company<F>>;
-  mergePeople(keep: string, drop: string): AsyncResult<Person>;
+  mergeCompanies(input: {
+    keep: string;
+    drop: string;
+  }): AsyncResult<Company<F>>;
+  mergePeople(input: { keep: string; drop: string }): AsyncResult<Person>;
   /** A page of active companies by name (50 by default, at most 200). */
   listCompanies(
-    organizationId: string,
-    options?: PartyListOptions,
+    input: { organizationId: string } & PartyListOptions,
   ): AsyncResult<PartyPage<Company<F>>>;
   listPeople(
-    organizationId: string,
-    options?: PartyListOptions,
+    input: { organizationId: string } & PartyListOptions,
   ): AsyncResult<PartyPage<Person>>;
   /**
    * Sets a company's or person's roles from `options.roles`, sorted and without
    * duplicates. Needs `contacts.write`.
    */
-  setRoles(partyId: string, roles: readonly string[]): AsyncResult<Party<F>>;
+  setRoles(input: {
+    partyId: string;
+    roles: readonly string[];
+  }): AsyncResult<Party<F>>;
   /**
    * Sets where a company or person stands as a supplier, or clears it with
    * `null`. Needs `contacts.approve_supplier`; records
    * `company.supplier_status_changed` or `person.supplier_status_changed` with
    * the reason.
    */
-  setSupplierStatus(
-    partyId: string,
-    status: SupplierStatus | null,
-    reason?: string,
-  ): AsyncResult<Party<F>>;
+  setSupplierStatus(input: {
+    partyId: string;
+    status: SupplierStatus | null;
+    reason?: string | undefined;
+  }): AsyncResult<Party<F>>;
   /**
    * The status a company's qualifications give it: `approved` when the gap
    * report lists nothing missing or expired, `conditional` otherwise. Needs the
@@ -298,20 +314,20 @@ export interface Contacts<F extends object = Record<never, never>> {
    * Adds an address on a channel to a person. An address another person of the
    * organization holds fails with `PARTY_IDENTITY_TAKEN`.
    */
-  addIdentity(
-    personId: string,
-    identity: PersonIdentityInput,
-  ): AsyncResult<PersonIdentity>;
+  addIdentity(input: {
+    personId: string;
+    identity: PersonIdentityInput;
+  }): AsyncResult<PersonIdentity>;
   /** Removes an identity; `false` when there was none. */
   removeIdentity(identityId: string): AsyncResult<boolean>;
   /**
    * Creates payment terms, or changes the ones with the same code. Needs
    * `contacts.manage`.
    */
-  savePaymentTerm(
-    organizationId: string,
-    input: PaymentTermInput,
-  ): AsyncResult<PaymentTerm>;
+  savePaymentTerm(input: {
+    organizationId: string;
+    input: PaymentTermInput;
+  }): AsyncResult<PaymentTerm>;
   /** An organization's payment terms, by code. */
   paymentTerms(organizationId: string): AsyncResult<PaymentTerm[]>;
   /** Deletes payment terms; `false` when there were none. */
@@ -320,26 +336,26 @@ export interface Contacts<F extends object = Record<never, never>> {
    * Replaces how a company or person gets its documents. An email entry without
    * an address uses the party's own.
    */
-  setDeliveryPreferences(
-    partyId: string,
-    preferences: readonly DeliveryPreferenceInput[],
-  ): AsyncResult<DeliveryPreference[]>;
+  setDeliveryPreferences(input: {
+    partyId: string;
+    preferences: readonly DeliveryPreferenceInput[];
+  }): AsyncResult<DeliveryPreference[]>;
   /** How a company or person gets its documents. */
   deliveryPreferences(partyId: string): AsyncResult<DeliveryPreference[]>;
   /** The person an address on a channel belongs to. */
-  findByIdentity(
-    organizationId: string,
-    channel: string,
-    address: string,
-  ): AsyncResult<Person | undefined>;
+  findByIdentity(input: {
+    organizationId: string;
+    channel: string;
+    address: string;
+  }): AsyncResult<Person | undefined>;
   /**
    * The people who represent a record through `represents` links, holding links
    * first. Needs the relations block.
    */
-  representativesOf(
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<Representative[]>;
+  representativesOf(input: {
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<Representative[]>;
   /**
    * The records the caller represents in an organization as a guest whose party
    * is the representative, while the link holds.
@@ -672,7 +688,7 @@ export function createContacts<
   };
 
   const client: Contacts<F> = {
-    saveCompany: (organizationId, input) =>
+    saveCompany: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         company(
           call(
@@ -689,7 +705,7 @@ export function createContacts<
           ),
         ),
       ),
-    savePerson: (organizationId, input) =>
+    savePerson: ({ organizationId, input }) =>
       call(
         "save_person",
         {
@@ -699,11 +715,11 @@ export function createContacts<
         },
         personOf,
       ),
-    archiveCompany: (id, archived = true) =>
+    archiveCompany: ({ id, archived = true }) =>
       call("archive_company", { id, archived }, (value) => value === true),
-    archivePerson: (id, archived = true) =>
+    archivePerson: ({ id, archived = true }) =>
       call("archive_person", { id, archived }, (value) => value === true),
-    linkPerson: (companyId, personId, link = {}) =>
+    linkPerson: ({ companyId, personId, link = {} }) =>
       call(
         "set_company_person",
         {
@@ -714,16 +730,17 @@ export function createContacts<
         },
         (value) => value === true,
       ),
-    unlinkPerson: (companyId, personId) =>
+    unlinkPerson: ({ companyId, personId }) =>
       call(
         "remove_company_person",
         { company: companyId, person: personId },
         (value) => value === true,
       ),
-    mergeCompanies: (keep, drop) =>
+    mergeCompanies: ({ keep, drop }) =>
       company(call("merge_companies", { keep, drop }, companyOf)),
-    mergePeople: (keep, drop) => call("merge_people", { keep, drop }, personOf),
-    listCompanies: (organizationId, listOptions = {}) =>
+    mergePeople: ({ keep, drop }) =>
+      call("merge_people", { keep, drop }, personOf),
+    listCompanies: ({ organizationId, ...listOptions }) =>
       list("list_companies", organizationId, listOptions, companyOf).andThen(
         (page) =>
           readAllFields(fields, page.items).map((items) => ({
@@ -731,13 +748,13 @@ export function createContacts<
             items,
           })),
       ),
-    listPeople: (organizationId, listOptions = {}) =>
+    listPeople: ({ organizationId, ...listOptions }) =>
       list("list_people", organizationId, listOptions, personOf),
     identities: (personId) =>
       call("list_person_identities", { person: personId }, (value) =>
         recordsOf(value, "list_person_identities").map(identityOf),
       ),
-    addIdentity: (personId, identity) =>
+    addIdentity: ({ personId, identity }) =>
       call(
         "add_person_identity",
         {
@@ -754,7 +771,7 @@ export function createContacts<
         { identity: identityId },
         (value) => value === true,
       ),
-    savePaymentTerm: (organizationId, input) =>
+    savePaymentTerm: ({ organizationId, input }) =>
       call(
         "save_payment_term",
         { tenant: organizationId, attrs: input },
@@ -766,7 +783,7 @@ export function createContacts<
       ),
     deletePaymentTerm: (termsId) =>
       call("delete_payment_term", { id: termsId }, (value) => value === true),
-    setDeliveryPreferences: (partyId, preferences) =>
+    setDeliveryPreferences: ({ partyId, preferences }) =>
       call(
         "set_document_delivery_preferences",
         { party: partyId, prefs: preferences },
@@ -781,15 +798,15 @@ export function createContacts<
           deliveryPreferenceOf,
         ),
       ),
-    findByIdentity: (organizationId, channel, address) =>
+    findByIdentity: ({ organizationId, channel, address }) =>
       call(
         "find_person_by_identity",
         { tenant: organizationId, channel, address },
         (value) => (value === null ? undefined : personOf(value)),
       ),
-    setRoles: (partyId, roles) =>
+    setRoles: ({ partyId, roles }) =>
       party(call("set_party_roles", { party: partyId, roles }, partyOf)),
-    setSupplierStatus: (partyId, status, reason) =>
+    setSupplierStatus: ({ partyId, status, reason }) =>
       party(
         call(
           "set_supplier_status",
@@ -807,7 +824,7 @@ export function createContacts<
       call("company_people_of", { company: companyId }, (value) =>
         recordsOf(value, "company_people_of").map(companyPersonOf),
       ),
-    representativesOf: (subjectType, subjectId) =>
+    representativesOf: ({ subjectType, subjectId }) =>
       call(
         "list_representatives",
         { subject_type: subjectType, subject_id: subjectId },

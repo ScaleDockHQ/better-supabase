@@ -87,10 +87,13 @@ describe.skipIf(!live)("lead-scoring module in Postgres", () => {
     await session.as(owner);
     dee = (
       await createContacts({ transport: sqlTransport(session.sql) })
-        .savePerson(tenant, {
-          name: "Dee Lead",
-          email: "dee@lead.test",
-          lifecycle: "lead",
+        .savePerson({
+          organizationId: tenant,
+          input: {
+            name: "Dee Lead",
+            email: "dee@lead.test",
+            lifecycle: "lead",
+          },
         })
         .orThrow()
     ).id;

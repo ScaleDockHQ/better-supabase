@@ -308,22 +308,30 @@ export interface LeaveAccrual {
 }
 
 export interface Leave<F extends object = Record<never, never>> {
+  /**
+   * The working days from `from` to `to`, inclusive, by the module's
+   * `options.workingDays`: the number `request` charges a full-day request.
+   * Half days are not counted.
+   */
+  workingDays(input: {
+    from: Temporal.PlainDate;
+    to: Temporal.PlainDate;
+  }): AsyncResult<number>;
   /** Needs `leave.manage`; updates the type with the same key. */
-  saveType(
-    organizationId: string,
-    input: LeaveTypeInput,
-  ): AsyncResult<LeaveType>;
+  saveType(input: {
+    organizationId: string;
+    input: LeaveTypeInput;
+  }): AsyncResult<LeaveType>;
   /** Needs `leave.manage`. */
   archiveType(typeId: string): AsyncResult<LeaveType>;
   types(
-    organizationId: string,
-    options?: { readonly archived?: boolean },
+    input: { organizationId: string } & { readonly archived?: boolean },
   ): AsyncResult<readonly LeaveType[]>;
   /** Asks for leave and opens its approval. */
-  request(
-    organizationId: string,
-    input: LeaveRequestInput<F>,
-  ): AsyncResult<LeaveRequest<F>>;
+  request(input: {
+    organizationId: string;
+    input: LeaveRequestInput<F>;
+  }): AsyncResult<LeaveRequest<F>>;
   /**
    * The requester while it's pending or before approved leave starts, or
    * `leave.manage` any time.
@@ -334,22 +342,22 @@ export interface Leave<F extends object = Record<never, never>> {
    * requester changes a pending request, which goes back to approval;
    * `leave.manage` also changes approved leave, which is booked again.
    */
-  update(
-    requestId: string,
-    update: LeaveRequestUpdate<F>,
-  ): AsyncResult<LeaveRequest<F>>;
+  update(input: {
+    requestId: string;
+    update: LeaveRequestUpdate<F>;
+  }): AsyncResult<LeaveRequest<F>>;
   /**
    * Takes a gap out of approved leave: the request ends before `gapStarts`, and
    * a new approved request (`split`) takes the days after `gapEnds`. Needs
    * `leave.manage`.
    */
-  split(
-    requestId: string,
+  split(input: {
+    requestId: string;
     gap: {
       readonly gapStarts: Temporal.PlainDate;
       readonly gapEnds: Temporal.PlainDate;
-    },
-  ): AsyncResult<{
+    };
+  }): AsyncResult<{
     readonly request: LeaveRequest<F>;
     readonly split: LeaveRequest<F>;
   }>;
@@ -358,15 +366,15 @@ export interface Leave<F extends object = Record<never, never>> {
    * block (`options.approvals: false`). Needs `leave.approve`, and the
    * requester can't decide their own.
    */
-  decide(
-    requestId: string,
+  decide(input: {
+    requestId: string;
     decision: {
       readonly approved: boolean;
       readonly note?: string;
       /** The user the service role decides for, kept as `decidedBy`. */
       readonly decidedBy?: string;
-    },
-  ): AsyncResult<LeaveRequest<F>>;
+    };
+  }): AsyncResult<LeaveRequest<F>>;
   /**
    * The approved leave behind a `leave_feed` share link (subject id: the
    * organization's id), a year back and everything ahead, for an iCal feed.
@@ -376,16 +384,14 @@ export interface Leave<F extends object = Record<never, never>> {
   feed(token: string): AsyncResult<LeaveFeed | null>;
   /** Earliest first. */
   list(
-    organizationId: string,
-    options?: LeaveRequestListOptions,
+    input: { organizationId: string } & LeaveRequestListOptions,
   ): AsyncResult<readonly LeaveRequest<F>[]>;
   /**
    * A member's balance of each tracked type (the caller's, this year by
    * default).
    */
   balances(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly userId?: string;
       readonly employeeId?: string;
       readonly period?: number;
@@ -393,8 +399,7 @@ export interface Leave<F extends object = Record<never, never>> {
   ): AsyncResult<readonly LeaveBalance[]>;
   /** A member's ledger entries, newest first. */
   ledger(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly userId?: string;
       readonly employeeId?: string;
       readonly period?: number;
@@ -402,20 +407,42 @@ export interface Leave<F extends object = Record<never, never>> {
     },
   ): AsyncResult<readonly LeaveLedgerEntry[]>;
   /** Needs `leave.manage`. */
-  adjust(
-    organizationId: string,
-    adjustment: LeaveAdjustment,
-  ): AsyncResult<LeaveLedgerEntry>;
+  adjust(input: {
+    organizationId: string;
+    adjustment: LeaveAdjustment;
+  }): AsyncResult<LeaveLedgerEntry>;
   /**
    * Grants an accrual to every member, or `userIds`; returns the entries
    * written. Needs `leave.manage`.
    */
-  accrue(organizationId: string, accrual: LeaveAccrual): AsyncResult<number>;
+  accrue(input: {
+    organizationId: string;
+    accrual: LeaveAccrual;
+  }): AsyncResult<number>;
   /**
    * Carries balances into the next period and expires the rest; returns the
    * entries written. Needs `leave.manage`.
    */
-  closePeriod(organizationId: string, period: number): AsyncResult<number>;
+  closePeriod(input: {
+    organizationId: string;
+    period: number;
+  }): AsyncResult<number>;
+  /** `decide` with `approved: true`. */
+  approve(input: {
+    requestId: string;
+    note?: string | undefined;
+    decidedBy?: string | undefined;
+  }): AsyncResult<LeaveRequest<F>>;
+  /** `decide` with `approved: false`. */
+  reject(input: {
+    requestId: string;
+    note?: string | undefined;
+    decidedBy?: string | undefined;
+  }): AsyncResult<LeaveRequest<F>>;
+  /** The requests waiting for a decision, from every member when `everyone`. */
+  pending(
+    input: { organizationId: string } & Omit<LeaveRequestListOptions, "status">,
+  ): AsyncResult<readonly LeaveRequest<F>[]>;
 }
 
 const UNITS: readonly LeaveUnit[] = ["days", "hours"];
@@ -580,7 +607,19 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
   );
 
   const client: Leave<F> = {
-    saveType: (organizationId, input) =>
+    workingDays: ({ from, to }) =>
+      call(
+        "leave_working_days",
+        { starts_on: from.toString(), ends_on: to.toString() },
+        (value) => {
+          if (typeof value !== "number") {
+            throw new TypeError("leave_working_days returned no number");
+          }
+
+          return value;
+        },
+      ),
+    saveType: ({ organizationId, input }) =>
       call(
         "save_leave_type",
         {
@@ -601,7 +640,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       call("archive_leave_type", { type_id: typeId }, (value) =>
         typeOf(value, "archive_leave_type"),
       ),
-    types: (organizationId, list = {}) =>
+    types: ({ organizationId, ...list }) =>
       call(
         "list_leave_types",
         { tenant: organizationId, archived: list.archived ?? false },
@@ -610,7 +649,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             typeOf(row, "list_leave_types"),
           ),
       ),
-    request: (organizationId, input) =>
+    request: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -636,7 +675,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       call("cancel_leave_request", { request_id: requestId }, (value) =>
         requestOf(value, "cancel_leave_request"),
       ).andThen(fields.row),
-    update: (requestId, update) =>
+    update: ({ requestId, update }) =>
       fields
         .args(update.fields)
         .andThen((checked) =>
@@ -656,7 +695,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             (value) => requestOf(value, "update_leave_request"),
           ).andThen(fields.row),
         ),
-    split: (requestId, gap) =>
+    split: ({ requestId, gap }) =>
       call(
         "split_leave_request",
         {
@@ -681,7 +720,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
               .map((second) => ({ request: first, split: second })),
           ),
       ),
-    decide: (requestId, decision) =>
+    decide: ({ requestId, decision }) =>
       call(
         "decide_leave_request",
         {
@@ -749,7 +788,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           })),
         };
       }),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "list_leave_requests",
         {
@@ -767,7 +806,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             requestOf(row, "list_leave_requests"),
           ),
       ).andThen(fields.rows),
-    balances: (organizationId, list = {}) =>
+    balances: ({ organizationId, ...list }) =>
       call(
         "leave_balances",
         {
@@ -781,7 +820,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             balanceOf(row, "leave_balances"),
           ),
       ),
-    ledger: (organizationId, list = {}) =>
+    ledger: ({ organizationId, ...list }) =>
       call(
         "leave_ledger_entries",
         {
@@ -796,7 +835,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             entryOf(row, "leave_ledger_entries"),
           ),
       ),
-    adjust: (organizationId, adjustment) =>
+    adjust: ({ organizationId, adjustment }) =>
       call(
         "adjust_leave_balance",
         {
@@ -813,7 +852,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => entryOf(value, "adjust_leave_balance"),
       ),
-    accrue: (organizationId, accrual) =>
+    accrue: ({ organizationId, accrual }) =>
       call(
         "accrue_leave",
         {
@@ -829,12 +868,34 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
         },
         numberOf,
       ),
-    closePeriod: (organizationId, period) =>
+    closePeriod: ({ organizationId, period }) =>
       call("close_leave_year", { tenant: organizationId, period }, numberOf),
+    approve: ({ requestId, note, decidedBy }) =>
+      hooked.decide({
+        requestId,
+        decision: {
+          approved: true,
+          ...(note === undefined ? {} : { note }),
+          ...(decidedBy === undefined ? {} : { decidedBy }),
+        },
+      }),
+    reject: ({ requestId, note, decidedBy }) =>
+      hooked.decide({
+        requestId,
+        decision: {
+          approved: false,
+          ...(note === undefined ? {} : { note }),
+          ...(decidedBy === undefined ? {} : { decidedBy }),
+        },
+      }),
+    pending: (input) => hooked.list({ ...input, status: "pending" }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Leave<F> = withBlockHooks(client, options.hooks, {
     block: "leave",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

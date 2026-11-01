@@ -63,11 +63,13 @@ describe("createTax", () => {
 
     const saved = await tax
       .saveCode({
-        code: "VAT21",
-        name: "VAT 21%",
-        type: "sales",
-        rateBps: 2100,
-        returnBoxes: ["1a"],
+        input: {
+          code: "VAT21",
+          name: "VAT 21%",
+          type: "sales",
+          rateBps: 2100,
+          returnBoxes: ["1a"],
+        },
       })
       .orThrow();
 
@@ -91,8 +93,12 @@ describe("createTax", () => {
 
     const tax = createTax({ transport: t, tenant: "org-1" });
 
-    expect(await tax.rateOn("c1", "2027-01-01").orThrow()).toBe(2300);
-    expect(await tax.rateOn("c1", "1960-01-01").orThrow()).toBeUndefined();
+    expect(
+      await tax.rateOn({ codeId: "c1", onDate: "2027-01-01" }).orThrow(),
+    ).toBe(2300);
+    expect(
+      await tax.rateOn({ codeId: "c1", onDate: "1960-01-01" }).orThrow(),
+    ).toBeUndefined();
   });
 
   it("decodes the totals of a margin scheme document", async () => {
@@ -326,10 +332,14 @@ describe("createTax", () => {
     const tax = createTax({ transport: t, tenant: "org-1" });
 
     const code = await tax
-      .saveCode(
-        { code: "VAT21", validFrom: "2026-01-01", legalEntityId: "le-1" },
-        "c1",
-      )
+      .saveCode({
+        input: {
+          code: "VAT21",
+          validFrom: "2026-01-01",
+          legalEntityId: "le-1",
+        },
+        codeId: "c1",
+      })
       .orThrow();
 
     expect(code).toMatchObject({
@@ -344,10 +354,9 @@ describe("createTax", () => {
     });
 
     const rate = await tax
-      .saveRate("c1", {
-        rateBps: 2100,
-        validFrom: "2026-01-01",
-        validTo: "2026-12-31",
+      .saveRate({
+        codeId: "c1",
+        rate: { rateBps: 2100, validFrom: "2026-01-01", validTo: "2026-12-31" },
       })
       .orThrow();
 
@@ -422,7 +431,7 @@ describe("createTax", () => {
       legal_entity: "le-1",
     });
 
-    await tax.saveRate("c1", { rateBps: 2100 }).orThrow();
+    await tax.saveRate({ codeId: "c1", rate: { rateBps: 2100 } }).orThrow();
 
     expect(t.calls[1]?.[1]).toMatchObject({ valid_from: null, valid_to: null });
 

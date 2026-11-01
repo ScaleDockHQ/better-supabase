@@ -1526,6 +1526,15 @@ tell which ones it fills.
 
 ## Auth config
 
+### BS353
+
+**Warning: declared link needs the relations block.** A block declares a
+conversion or relation link to another block, such as an order created from a
+quote, and both blocks are installed, but [`relations`](/docs/blocks/relations)
+is not. The conversion still runs through the source row's `origin_type` and
+`origin_id` columns, but no `created_from` or `converted_to` link is written,
+so lineage reads find nothing. Run `better-supabase add relations`.
+
 ### BS401
 
 **Warning: refresh token reuse interval is 0.** With refresh token rotation,
@@ -1974,6 +1983,32 @@ mail-sync needs its `MailProvider`s. No app source passes the instance one with
 `...providers` into `defineBlocks(blockConfig, { ...blocks, ...providers })`.
 Comments don't count, so the finding stays until the stub is real code.
 
+### BS507
+
+**Warning: block actions are not registered.** An installed block ships
+automation actions, such as the conversions `tasks.from_conversation` or
+`quotes.from_deal`, but no app source calls `blockActions(...)` or
+`createActionRegistry(...)`. A default automation that you turn on then names an
+action the rules consumer can't run. Build the registry with
+`createActionRegistry([...blockActions(blocks, { clients })])` from
+`better-supabase/blocks/automations` in the outbox route.
+
+### BS508
+
+**Warning: block timers have no handler.** An installed block declares timers,
+such as an SLA check, but no app source calls `blockTickHandler(...)`, so the
+timers never fire. Call
+`jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
+once and drain the `block_ticks` queue with `blockTickHandler`.
+
+### BS509
+
+**Warning: a block client call passes positional arguments.** Since 0.47 every
+block client method takes one object, such as
+`drive.list({ organizationId, options })`. A call that still passes several
+positional arguments no longer type-checks. Run `bsb codemod 0.47`, which
+rewrites the calls it can place and lists the others for review.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets
@@ -2043,6 +2078,16 @@ Next.js then keeps remote entries in each instance's memory, so instances
 never share them and every deploy starts cold. Set `remoteCacheHandler` in
 `createNextConfig()` (or `cacheHandlers.remote`) to a shared handler such as
 Redis. See [remote cache scope](/docs/frameworks/next-cache-components#remote-scope).
+
+### BS609
+
+**Info: three or more database reads in one `Promise.all`.** A source file
+awaits at least three repository, block client or `$rpc` calls in one
+`Promise.all`. They run in parallel, but each is its own request to
+PostgREST. A read set compiles the same reads into one stable database
+function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
+and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
+See [read sets](/docs/repository/read-sets).
 
 ## Local stacks
 

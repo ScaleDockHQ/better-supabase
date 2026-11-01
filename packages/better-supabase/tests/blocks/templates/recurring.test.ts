@@ -168,14 +168,14 @@ describe("recurring templates", () => {
       enabled: false,
     });
 
-    const listed = await recurring.list("o").orThrow();
+    const listed = await recurring.list({ organizationId: "o" }).orThrow();
     expect(listed.map((row) => row.tzid)).toEqual(["UTC", "UTC"]);
     expect(fake.calls[2]).toEqual([
       "template_schedules_list",
       { tenant: "o", template_id: null },
     ]);
 
-    await recurring.list("o", "t1").orThrow();
+    await recurring.list({ organizationId: "o", template: "t1" }).orThrow();
     expect(fake.calls[3]?.[1]).toEqual({ tenant: "o", template_id: "t1" });
 
     expect(await recurring.remove("s1").orThrow()).toBe(true);
@@ -325,7 +325,10 @@ describe("recurring templates", () => {
     ]);
 
     const direct = await recurring
-      .run("s1", Temporal.Instant.from("2026-10-06T09:00:00Z"))
+      .run({
+        schedule: "s1",
+        occurrenceAt: Temporal.Instant.from("2026-10-06T09:00:00Z"),
+      })
       .orThrow();
 
     expect(direct).toEqual({ status: "applied", application: "a1" });
@@ -336,7 +339,10 @@ describe("recurring templates", () => {
     const { recurring } = createTemplates({ transport: fake });
 
     const result = await recurring
-      .run("s1", Temporal.Instant.from("2026-10-06T09:00:00Z"))
+      .run({
+        schedule: "s1",
+        occurrenceAt: Temporal.Instant.from("2026-10-06T09:00:00Z"),
+      })
       .orThrow();
 
     expect(result).toEqual({ status: "skipped" });

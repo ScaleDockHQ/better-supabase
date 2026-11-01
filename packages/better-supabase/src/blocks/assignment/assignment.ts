@@ -81,42 +81,42 @@ export interface AssignmentRecord {
 }
 
 export interface AssignmentClient {
-  saveQueue(
-    organizationId: string,
-    queue: AssignmentQueueInput,
-  ): AsyncResult<AssignmentQueue>;
+  saveQueue(input: {
+    organizationId: string;
+    queue: AssignmentQueueInput;
+  }): AsyncResult<AssignmentQueue>;
   /** Replaces the queue's members; members who stay keep their turn. */
-  setMembers(
-    queueId: string,
+  setMembers(input: {
+    queueId: string;
     members: readonly {
       readonly userId: string;
       readonly weight?: number;
       readonly active?: boolean;
-    }[],
-  ): AsyncResult<AssignmentQueue>;
+    }[];
+  }): AsyncResult<AssignmentQueue>;
   removeQueue(queueId: string): AsyncResult<boolean>;
   queues(
-    organizationId: string,
-    options?: { readonly subjectType?: string },
+    input: { organizationId: string } & { readonly subjectType?: string },
   ): AsyncResult<AssignmentQueue[]>;
   /**
    * Picks an owner for a record from the first queue whose territory matches
    * `fields` (keyed as the rule fields' columns). Undefined when no queue
    * matches. Writing the owner onto the record is up to the app.
    */
-  assign(
-    organizationId: string,
+  assign(input: {
+    organizationId: string;
     subject: {
       readonly type: string;
       readonly id: string;
       readonly fields?: Readonly<Record<string, unknown>>;
-    },
-  ): AsyncResult<Assignment | undefined>;
+    };
+  }): AsyncResult<Assignment | undefined>;
   /** The picks for a record, newest first. */
   history(
-    organizationId: string,
-    subject: { readonly type: string; readonly id: string },
-    options?: { readonly limit?: number },
+    input: {
+      organizationId: string;
+      subject: { readonly type: string; readonly id: string };
+    } & { readonly limit?: number },
   ): AsyncResult<AssignmentRecord[]>;
 }
 
@@ -177,9 +177,9 @@ export function createAssignment(options: AssignmentOptions): AssignmentClient {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: AssignmentClient = {
-    saveQueue: (organizationId, queue) =>
+    saveQueue: ({ organizationId, queue }) =>
       call("save_assignment_queue", { tenant: organizationId, queue }, queueOf),
-    setMembers: (queueId, members) =>
+    setMembers: ({ queueId, members }) =>
       call("set_assignment_members", { queue: queueId, members }, queueOf),
     removeQueue: (queueId) =>
       call(
@@ -187,13 +187,13 @@ export function createAssignment(options: AssignmentOptions): AssignmentClient {
         { queue: queueId },
         (value) => value === true,
       ),
-    queues: (organizationId, list = {}) =>
+    queues: ({ organizationId, ...list }) =>
       call(
         "list_assignment_queues",
         { tenant: organizationId, subject_type: list.subjectType ?? null },
         (value) => recordsOf(value, "list_assignment_queues").map(queueOf),
       ),
-    assign: (organizationId, subject) =>
+    assign: ({ organizationId, subject }) =>
       call(
         "assign_subject",
         {
@@ -216,7 +216,7 @@ export function createAssignment(options: AssignmentOptions): AssignmentClient {
           };
         },
       ),
-    history: (organizationId, subject, page = {}) =>
+    history: ({ organizationId, subject, ...page }) =>
       call(
         "assignment_history",
         {

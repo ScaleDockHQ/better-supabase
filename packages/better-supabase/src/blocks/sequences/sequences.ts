@@ -198,11 +198,11 @@ export interface Sequences {
    * Enrolls a record in an active sequence. Enrolling a record already running
    * returns its run; a finished or exited run starts over.
    */
-  enroll(
-    sequenceId: string,
-    subject: RecordRef,
-    input?: SequenceEnrollInput,
-  ): AsyncResult<SequenceEnrollment>;
+  enroll(input: {
+    sequenceId: string;
+    subject: RecordRef;
+    input?: SequenceEnrollInput | undefined;
+  }): AsyncResult<SequenceEnrollment>;
   pause(enrollmentId: string): AsyncResult<SequenceEnrollment>;
   resume(enrollmentId: string): AsyncResult<SequenceEnrollment>;
   /** Ends a run by hand; its completed steps stay. */
@@ -498,10 +498,10 @@ export function createSequences(options: SequencesOptions): Sequences {
       );
     }
 
-    const sent = await options.mailer.send(
-      claim.accountId,
-      sequenceDraft(claim),
-    );
+    const sent = await options.mailer.send({
+      accountId: claim.accountId,
+      draft: sequenceDraft(claim),
+    });
 
     return sent.ok ? ok(sent.data.id) : sent;
   };
@@ -536,7 +536,7 @@ export function createSequences(options: SequencesOptions): Sequences {
         { sequence_id: sequenceId },
         (value) => value === true,
       ),
-    enroll: (sequenceId, subject, input = {}) =>
+    enroll: ({ sequenceId, subject, input = {} }) =>
       call(
         "enroll_in_sequence",
         {

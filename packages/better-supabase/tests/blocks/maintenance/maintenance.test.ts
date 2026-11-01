@@ -85,7 +85,7 @@ describe("createMaintenance", () => {
       .orThrow();
 
     const updated = await maintenance
-      .updatePlan("p1", { status: "paused" })
+      .updatePlan({ planId: "p1", change: { status: "paused" } })
       .orThrow();
 
     const deleted = await maintenance.deletePlan("p1").orThrow();
@@ -152,8 +152,10 @@ describe("createMaintenance", () => {
       .createMeter({ name: "Press hours", unit: "h", assetId: "a1" })
       .orThrow();
     await maintenance.createMeter({ name: "Press hours", unit: "h" }).orThrow();
-    await maintenance.recordReading("m1", 1200).orThrow();
-    await maintenance.recordReading("m1", "1300", instant).orThrow();
+    await maintenance.recordReading({ meterId: "m1", value: 1200 }).orThrow();
+    await maintenance
+      .recordReading({ meterId: "m1", value: "1300", readAt: instant })
+      .orThrow();
     const meters = await maintenance.listMeters().orThrow();
 
     const recorded = await maintenance
@@ -204,7 +206,9 @@ describe("createMaintenance", () => {
       (await maintenance.listMeters().orThrow())[0]?.readAt,
     ).toBeUndefined();
     await expect(
-      maintenance.updatePlan("p1", { title: "x" }).orThrow(),
+      maintenance
+        .updatePlan({ planId: "p1", change: { title: "x" } })
+        .orThrow(),
     ).rejects.toThrow(/./);
   });
 

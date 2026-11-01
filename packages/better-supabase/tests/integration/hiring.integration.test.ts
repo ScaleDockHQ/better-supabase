@@ -55,25 +55,30 @@ describe.skipIf(!live)("hiring", () => {
       await s.as(owner);
 
       const draft = await hiring
-        .saveJob(org, { title: "Backend engineer", location: "Utrecht" })
+        .saveJob({
+          organizationId: org,
+          job: { title: "Backend engineer", location: "Utrecht" },
+        })
         .orThrow();
 
       const ada = await createContacts({ transport })
-        .savePerson(org, { name: "Ada" })
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
         .orThrow();
 
-      expect(hint(await hiring.apply(draft.id, { id: ada.id }))).toBe(
-        "JOB_OPENING_NOT_OPEN",
-      );
+      expect(
+        hint(
+          await hiring.apply({ jobId: draft.id, candidate: { id: ada.id } }),
+        ),
+      ).toBe("JOB_OPENING_NOT_OPEN");
 
       const job = await hiring
-        .saveJob(org, { id: draft.id, status: "open" })
+        .saveJob({ organizationId: org, job: { id: draft.id, status: "open" } })
         .orThrow();
 
       expect(job.openedAt).toBeDefined();
 
       const application = await hiring
-        .apply(job.id, { id: ada.id }, { source: "referral" })
+        .apply({ jobId: job.id, candidate: { id: ada.id }, source: "referral" })
         .orThrow();
 
       expect(application).toMatchObject({
@@ -82,15 +87,23 @@ describe.skipIf(!live)("hiring", () => {
         source: "referral",
       });
       expect(
-        (await hiring.apply(job.id, { type: "person", id: ada.id }).orThrow())
-          .id,
+        (
+          await hiring
+            .apply({ jobId: job.id, candidate: { type: "person", id: ada.id } })
+            .orThrow()
+        ).id,
       ).toBe(application.id);
       expect(
-        hint(await hiring.apply(job.id, { id: crypto.randomUUID() })),
+        hint(
+          await hiring.apply({
+            jobId: job.id,
+            candidate: { id: crypto.randomUUID() },
+          }),
+        ),
       ).toBe("HIRING_CANDIDATE_FORBIDDEN");
 
       const [pipeline] = await createPipelines({ transport })
-        .list(org, "application")
+        .list({ organizationId: org, subjectType: "application" })
         .orThrow();
 
       expect(pipeline?.scopeId).toBe(job.id);
@@ -107,11 +120,14 @@ describe.skipIf(!live)("hiring", () => {
       const start = Temporal.Instant.from("2026-10-20T09:00:00Z");
 
       const interview = await hiring
-        .scheduleInterview(application.id, {
-          startsAt: start,
-          endsAt: start.add({ hours: 1 }),
-          interviewerIds: [interviewer.id],
-          kind: "technical",
+        .scheduleInterview({
+          applicationId: application.id,
+          interview: {
+            startsAt: start,
+            endsAt: start.add({ hours: 1 }),
+            interviewerIds: [interviewer.id],
+            kind: "technical",
+          },
         })
         .orThrow();
 
@@ -119,20 +135,22 @@ describe.skipIf(!live)("hiring", () => {
 
       await s.as(interviewer);
       await hiring
-        .score(application.id, {
-          rating: 3,
-          recommendation: "yes",
-          notes: "Solid",
+        .score({
+          applicationId: application.id,
+          card: { rating: 3, recommendation: "yes", notes: "Solid" },
         })
         .orThrow();
       await hiring
-        .score(application.id, { rating: 4, recommendation: "strong_yes" })
+        .score({
+          applicationId: application.id,
+          card: { rating: 4, recommendation: "strong_yes" },
+        })
         .orThrow();
       expect(
         hint(
-          await hiring.score(application.id, {
-            rating: 5,
-            recommendation: "yes",
+          await hiring.score({
+            applicationId: application.id,
+            card: { rating: 5, recommendation: "yes" },
           }),
         ),
       ).toBe("HIRING_SCORECARD_INVALID");
@@ -142,7 +160,10 @@ describe.skipIf(!live)("hiring", () => {
 
       await s.as(owner);
       await hiring
-        .score(application.id, { rating: 2, recommendation: "no" })
+        .score({
+          applicationId: application.id,
+          card: { rating: 2, recommendation: "no" },
+        })
         .orThrow();
       const detail = await hiring.detail(application.id).orThrow();
       expect(detail.scorecards).toHaveLength(2);
@@ -169,13 +190,15 @@ describe.skipIf(!live)("hiring", () => {
       );
 
       const bob = await createContacts({ transport })
-        .savePerson(org, { name: "Bob" })
+        .savePerson({ organizationId: org, input: { name: "Bob" } })
         .orThrow();
 
-      const second = await hiring.apply(job.id, { id: bob.id }).orThrow();
+      const second = await hiring
+        .apply({ jobId: job.id, candidate: { id: bob.id } })
+        .orThrow();
 
       const rejected = await hiring
-        .reject(second.id, "Not enough experience")
+        .reject({ applicationId: second.id, reason: "Not enough experience" })
         .orThrow();
 
       expect(rejected).toMatchObject({
@@ -184,14 +207,16 @@ describe.skipIf(!live)("hiring", () => {
       });
 
       const closed = await hiring
-        .saveJob(org, { id: job.id, status: "closed" })
+        .saveJob({ organizationId: org, job: { id: job.id, status: "closed" } })
         .orThrow();
 
       expect(closed.closedAt).toBeDefined();
       await s.as(interviewer);
-      expect(hint(await hiring.saveJob(org, { title: "x" }))).toBe(
-        "HIRING_FORBIDDEN",
-      );
+      expect(
+        hint(
+          await hiring.saveJob({ organizationId: org, job: { title: "x" } }),
+        ),
+      ).toBe("HIRING_FORBIDDEN");
     } finally {
       await s.close();
     }

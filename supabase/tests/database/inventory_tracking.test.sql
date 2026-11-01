@@ -5,7 +5,7 @@
 -- shipment lines that take the stock out and receive a return. Globex
 -- (…00b1) sees none of it.
 begin;
-select plan(24);
+select plan(27);
 
 select set_config(
   'request.jwt.claims',
@@ -59,6 +59,24 @@ select is(
   jsonb_array_length(better_supabase.expiring_lots('00000000-0000-4000-8000-000000000001', '2030-03-01')),
   1,
   'the lot expires before March'
+);
+
+select better_supabase.set_reorder_point(current_setting('t.v')::uuid, current_setting('t.l')::uuid, 20);
+select is(
+  (select jsonb_build_array(o -> 'levelCount', o -> 'lowStockCount', o -> 'lowStock' -> 0 ->> 'reorderPoint')
+   from better_supabase.inventory_overview('00000000-0000-4000-8000-000000000001', 5, 20000) o),
+  '[1, 1, "20.000000"]'::jsonb,
+  'the overview counts the level and lists it below its reorder point'
+);
+select is(
+  (select o -> 'expiring' -> 0 ->> 'code' from better_supabase.inventory_overview('00000000-0000-4000-8000-000000000001', 5, 20000) o),
+  'L1',
+  'the overview lists the lot that expires within the window'
+);
+select is(
+  (select jsonb_array_length(o -> 'expiring') from better_supabase.inventory_overview('00000000-0000-4000-8000-000000000001', 5, 1) o),
+  0,
+  'a lot outside the window is not listed'
 );
 
 select set_config('t.alloc', better_supabase.allocate_stock('00000000-0000-4000-8000-000000000001', current_setting('t.v')::uuid, current_setting('t.l')::uuid, 12, 'work_order', 'w1', 'l1', true)::text, true);

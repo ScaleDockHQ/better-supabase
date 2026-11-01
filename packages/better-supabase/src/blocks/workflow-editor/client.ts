@@ -53,7 +53,7 @@ export function createWorkflowEditorController(
         const run = state.run();
 
         const [listed, library] = await Promise.all([
-          options.client.definitions.list(tenant ?? undefined),
+          options.client.definitions.list({ tenant: tenant ?? undefined }),
           options.client.steps.list(),
         ]);
 

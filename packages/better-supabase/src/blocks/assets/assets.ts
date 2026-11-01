@@ -283,10 +283,10 @@ export interface AssetLinkTarget {
 export interface Assets {
   /** Needs `assets.manage`. */
   createLocation(input: AssetLocationInput): AsyncResult<AssetLocation>;
-  updateLocation(
-    locationId: string,
-    patch: AssetLocationPatch,
-  ): AsyncResult<AssetLocation>;
+  updateLocation(input: {
+    locationId: string;
+    patch: AssetLocationPatch;
+  }): AsyncResult<AssetLocation>;
   /** Only a location without open sublocations or assets in service. */
   archiveLocation(locationId: string): AsyncResult<AssetLocation>;
   location(locationId: string): AsyncResult<AssetLocationDetail>;
@@ -298,49 +298,51 @@ export interface Assets {
   }): AsyncResult<readonly AssetLocation[]>;
   /** Needs `assets.manage`. */
   createAsset(input: AssetInput): AsyncResult<Asset>;
-  updateAsset(assetId: string, patch: AssetPatch): AsyncResult<Asset>;
+  updateAsset(input: {
+    assetId: string;
+    patch: AssetPatch;
+  }): AsyncResult<Asset>;
   asset(assetId: string): AsyncResult<AssetDetail>;
   /** Newest first, in the block's tenant. */
   assets(options?: AssetListOptions): AsyncResult<readonly Asset[]>;
   /** The assets a member or a record holds. The record decides the tenant. */
   assignedTo(
-    assignee: RecordRef | AssetAssignee,
-    options?: { readonly pageSize?: number },
+    input: { assignee: RecordRef | AssetAssignee } & {
+      readonly pageSize?: number;
+    },
   ): AsyncResult<readonly Asset[]>;
   /** Needs `assets.assign`. Ends the previous assignment. */
   assign(
-    assetId: string,
-    assignee: AssetAssignee,
-    options?: { readonly note?: string },
+    input: { assetId: string; assignee: AssetAssignee } & {
+      readonly note?: string;
+    },
   ): AsyncResult<Asset>;
   release(assetId: string): AsyncResult<Asset>;
   assignments(
-    assetId: string,
-    options?: { readonly pageSize?: number },
+    input: { assetId: string } & { readonly pageSize?: number },
   ): AsyncResult<readonly AssetAssignment[]>;
   /** Assets and locations within a radius, in the block's tenant. */
   near(options: AssetsNearOptions): AsyncResult<AssetsNear>;
   /** Locations whose area contains a point. Needs the `postgis` option. */
   locationsAt(point: GeoPoint): AsyncResult<readonly AssetLocation[]>;
   /** Names (or with `null`, clears) the asset a record is about. */
-  link(
-    target: AssetLinkTarget,
-    assetId: string | null,
-  ): AsyncResult<AssetLinkTarget & { readonly assetId: string | null }>;
+  link(input: {
+    target: AssetLinkTarget;
+    assetId: string | null;
+  }): AsyncResult<AssetLinkTarget & { readonly assetId: string | null }>;
   /** The months an asset has depreciated, oldest first. */
   depreciations(
-    assetId: string,
-    options?: { readonly pageSize?: number },
+    input: { assetId: string } & { readonly pageSize?: number },
   ): AsyncResult<readonly AssetDepreciation[]>;
   /**
    * Needs `assets.manage`. Books depreciation through the month before `on`,
    * retires the asset and books the disposal; the proceeds less the book value
    * are a gain or a loss.
    */
-  dispose(
-    assetId: string,
-    disposal: { readonly on: Temporal.PlainDate; readonly proceeds?: Money },
-  ): AsyncResult<AssetDetail>;
+  dispose(input: {
+    assetId: string;
+    disposal: { readonly on: Temporal.PlainDate; readonly proceeds?: Money };
+  }): AsyncResult<AssetDetail>;
   /**
    * Service role only. Books every month that ended on or before `until`
    * (default today) for the assets in service, in one organization or in all of
@@ -657,7 +659,7 @@ export function createAssets(options: AssetsOptions): Assets {
           (value) => locationOf(value, "create_asset_location"),
         ),
       ),
-    updateLocation: (locationId, patch) =>
+    updateLocation: ({ locationId, patch }) =>
       call(
         "update_asset_location",
         { location_id: locationId, patch: patchArg(patch) },
@@ -712,7 +714,7 @@ export function createAssets(options: AssetsOptions): Assets {
           (value) => assetOf(value, "create_asset"),
         ),
       ),
-    updateAsset: (assetId, patch) =>
+    updateAsset: ({ assetId, patch }) =>
       bookError(patch) ??
       call(
         "update_asset",
@@ -725,12 +727,12 @@ export function createAssets(options: AssetsOptions): Assets {
       ),
     assets: (filter = {}) =>
       tenant().andThen((organizationId) => list(organizationId, filter)),
-    assignedTo: (assignee, filter = {}) =>
+    assignedTo: ({ assignee, ...filter }) =>
       list(null, {
         assignee: { type: assignee.type, id: assignee.id },
         ...optional("pageSize", filter.pageSize),
       }),
-    assign: (assetId, assignee, assign = {}) =>
+    assign: ({ assetId, assignee, ...assign }) =>
       call(
         "assign_asset",
         {
@@ -745,7 +747,7 @@ export function createAssets(options: AssetsOptions): Assets {
       call("release_asset", { asset_id: assetId }, (value) =>
         assetOf(value, "release_asset"),
       ),
-    assignments: (assetId, filter = {}) =>
+    assignments: ({ assetId, ...filter }) =>
       call(
         "asset_assignment_history",
         { asset_id: assetId, page_size: filter.pageSize ?? null },
@@ -799,7 +801,7 @@ export function createAssets(options: AssetsOptions): Assets {
             ),
         ),
       ),
-    depreciations: (assetId, filter = {}) =>
+    depreciations: ({ assetId, ...filter }) =>
       call(
         "list_asset_depreciations",
         { asset_id: assetId, page_size: filter.pageSize ?? null },
@@ -808,7 +810,7 @@ export function createAssets(options: AssetsOptions): Assets {
             depreciationOf(row, "list_asset_depreciations"),
           ),
       ),
-    dispose: (assetId, disposal) =>
+    dispose: ({ assetId, disposal }) =>
       call(
         "dispose_asset",
         {
@@ -836,7 +838,7 @@ export function createAssets(options: AssetsOptions): Assets {
           };
         },
       ),
-    link: (target, assetId) =>
+    link: ({ target, assetId }) =>
       call(
         "set_asset_link",
         { target_type: target.type, target_id: target.id, asset_id: assetId },

@@ -261,36 +261,45 @@ describe("createExpenses", () => {
       .orThrow();
 
     const added = await expenses
-      .addLine("rep-1", {
-        categoryId: CATEGORY_ID,
-        spentOn: Temporal.PlainDate.from("2026-10-20"),
-        amount: money(4200n, "EUR"),
-        description: "Train",
-        merchant: "NS",
-        dimensions: { project: "proj-1" },
+      .addLine({
+        reportId: "rep-1",
+        line: {
+          categoryId: CATEGORY_ID,
+          spentOn: Temporal.PlainDate.from("2026-10-20"),
+          amount: money(4200n, "EUR"),
+          description: "Train",
+          merchant: "NS",
+          dimensions: { project: "proj-1" },
+        },
       })
       .orThrow();
 
     await expenses
-      .addLine("rep-1", {
-        categoryId: CATEGORY_ID,
-        spentOn: Temporal.PlainDate.from("2026-10-20"),
-        amount: money(4200n, "EUR"),
-        description: "Train",
+      .addLine({
+        reportId: "rep-1",
+        line: {
+          categoryId: CATEGORY_ID,
+          spentOn: Temporal.PlainDate.from("2026-10-20"),
+          amount: money(4200n, "EUR"),
+          description: "Train",
+        },
       })
       .orThrow();
 
     const updated = await expenses
-      .updateLine("line-1", {
-        categoryId: CATEGORY_ID,
-        spentOn: Temporal.PlainDate.from("2026-10-21"),
-        amount: money(4300n, "EUR"),
-        description: "Train back",
-        merchant: "NS",
+      .updateLine({
+        lineId: "line-1",
+        update: {
+          categoryId: CATEGORY_ID,
+          spentOn: Temporal.PlainDate.from("2026-10-21"),
+          amount: money(4300n, "EUR"),
+          description: "Train back",
+          merchant: "NS",
+        },
       })
       .orThrow();
 
-    await expenses.updateLine("line-1", {}).orThrow();
+    await expenses.updateLine({ lineId: "line-1", update: {} }).orThrow();
     await expenses.removeLine("line-1").orThrow();
 
     expect(draft.lines).toEqual([]);
@@ -454,13 +463,13 @@ describe("createExpenses", () => {
     await expenses.submit("rep-1").orThrow();
 
     const paid = await expenses
-      .reimburse("rep-1", {
-        paidAt: Temporal.Instant.from(AT),
-        reference: "sepa-1",
+      .reimburse({
+        reportId: "rep-1",
+        input: { paidAt: Temporal.Instant.from(AT), reference: "sepa-1" },
       })
       .orThrow();
 
-    await expenses.reimburse("rep-1").orThrow();
+    await expenses.reimburse({ reportId: "rep-1" }).orThrow();
 
     const cancelled = await expenses.cancel("rep-1").orThrow();
     await expenses.get("rep-1").orThrow();
@@ -570,13 +579,18 @@ describe("createExpenses", () => {
     expect(created).toMatchObject({ status: "draft", employeeId: "emp-1" });
     expect(created.userId).toBeUndefined();
     await expenses
-      .updateExpense("exp-1", { amount: money(4500n, "EUR") })
+      .updateExpense({
+        expenseId: "exp-1",
+        update: { amount: money(4500n, "EUR") },
+      })
       .orThrow();
     await expenses.submitExpense("exp-1").orThrow();
-    await expenses.decideExpense("exp-1", { approved: true }).orThrow();
+    await expenses
+      .decideExpense({ expenseId: "exp-1", decision: { approved: true } })
+      .orThrow();
 
     const paid = await expenses
-      .reimburseExpense("exp-1", { reference: "SEPA-1" })
+      .reimburseExpense({ expenseId: "exp-1", input: { reference: "SEPA-1" } })
       .orThrow();
 
     expect(paid.amount).toEqual(money(4250n, "EUR"));
@@ -674,10 +688,9 @@ describe("createExpenses", () => {
 
     expect(created.employeeId).toBeUndefined();
     await expenses
-      .updateExpense("exp-2", {
-        merchant: null,
-        categoryId: null,
-        fields: { project: "P1" },
+      .updateExpense({
+        expenseId: "exp-2",
+        update: { merchant: null, categoryId: null, fields: { project: "P1" } },
       })
       .orThrow();
     expect((await expenses.withdrawExpense("exp-2").orThrow()).status).toBe(
@@ -804,7 +817,10 @@ describe("expense report fields", () => {
     });
 
     const decided = await expenses
-      .decide("rep-1", { approved: false, note: "receipt missing" })
+      .decide({
+        reportId: "rep-1",
+        decision: { approved: false, note: "receipt missing" },
+      })
       .orThrow();
 
     expect(fake.calls[0]).toEqual([

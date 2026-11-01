@@ -13,6 +13,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   CASE_ACTION_TYPES,
@@ -257,6 +258,11 @@ export interface CaseStat {
   readonly count: number;
 }
 
+/** What `tryClose` answers: the closed case, or what still blocks it. */
+export type CaseTryClose<F extends object = Record<never, never>> =
+  | { readonly closed: true; readonly case: Case<F> }
+  | { readonly closed: false; readonly blockers: readonly CaseBlocker[] };
+
 export interface Cases<F extends object = Record<never, never>> {
   /** Creates or changes a kind; needs `cases.manage`. */
   saveKind(input: CaseKindInput): AsyncResult<CaseKind>;
@@ -269,32 +275,35 @@ export interface Cases<F extends object = Record<never, never>> {
   /** Opens a case on its kind's first stage; needs `cases.create`. */
   open(input: CaseInput<F>): AsyncResult<Case<F>>;
   /** Changes a case; needs `cases.write` or being its owner. */
-  update(caseId: string, change: CaseChange<F>): AsyncResult<Case<F>>;
+  update(input: {
+    caseId: string;
+    change: CaseChange<F>;
+  }): AsyncResult<Case<F>>;
   /** Moves a case on its board; a closing stage needs `cases.close`. */
-  move(caseId: string, to: CaseMove): AsyncResult<Case<F>>;
+  move(input: { caseId: string; to: CaseMove }): AsyncResult<Case<F>>;
   recordRootCause(
-    caseId: string,
-    rootCause: string,
-    options?: { readonly submissionId?: string },
+    input: { caseId: string; rootCause: string } & {
+      readonly submissionId?: string;
+    },
   ): AsyncResult<Case<F>>;
   /** Adds a new work item as an action; needs the tasks block. */
-  createAction(
-    caseId: string,
-    input: CaseActionInput,
-  ): AsyncResult<CaseActionAdded>;
+  createAction(input: {
+    caseId: string;
+    input: CaseActionInput;
+  }): AsyncResult<CaseActionAdded>;
   /** Makes an existing work item an action. */
   linkAction(
-    caseId: string,
-    taskId: string,
-    type: CaseActionType,
-    options?: { readonly required?: boolean },
+    input: { caseId: string; taskId: string; type: CaseActionType } & {
+      readonly required?: boolean;
+    },
   ): AsyncResult<CaseActionAdded>;
   /** Removes an action; the work item stays. */
   removeAction(actionId: string): AsyncResult<Case<F>>;
   recordEffectiveness(
-    caseId: string,
-    effective: boolean,
-    options?: { readonly submissionId?: string; readonly note?: string },
+    input: { caseId: string; effective: boolean } & {
+      readonly submissionId?: string;
+      readonly note?: string;
+    },
   ): AsyncResult<Case<F>>;
   /** What still stops the case from closing; empty when it may close. */
   blockers(caseId: string): AsyncResult<readonly CaseBlocker[]>;
@@ -302,17 +311,34 @@ export interface Cases<F extends object = Record<never, never>> {
    * Closes a case; fails with the first blocker's code while one remains. Needs
    * `cases.close` or being its owner.
    */
-  close(caseId: string, note?: string): AsyncResult<Case<F>>;
+  close(input: {
+    caseId: string;
+    note?: string | undefined;
+  }): AsyncResult<Case<F>>;
   /** Reopens a closed or canceled case; needs `cases.close`. */
-  reopen(caseId: string, reason?: string): AsyncResult<Case<F>>;
+  reopen(input: {
+    caseId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Case<F>>;
   /** Cancels an open case; needs `cases.close`. */
-  cancel(caseId: string, reason?: string): AsyncResult<Case<F>>;
+  cancel(input: {
+    caseId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Case<F>>;
   get(caseId: string): AsyncResult<CaseDetail<F>>;
   list(options?: CaseListOptions): AsyncResult<CasePage<F>>;
   /** Counts per group, most first. */
   stats(options?: CaseStatsOptions): AsyncResult<readonly CaseStat[]>;
   /** Reports the cases whose effectiveness check is due; service role only. */
   notifyDueEffectiveness(): AsyncResult<number>;
+  /**
+   * Closes the case when nothing blocks it. Otherwise it changes nothing and
+   * returns the blockers, so a form can list them instead of parsing an error.
+   */
+  tryClose(input: {
+    caseId: string;
+    note?: string | undefined;
+  }): AsyncResult<CaseTryClose<F>>;
 }
 
 export interface CasesOptions<
@@ -580,7 +606,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
             ).andThen(fields.row),
           ),
       ),
-    update: (caseId, change) =>
+    update: ({ caseId, change }) =>
       fields
         .args(change.fields)
         .andThen((checked) =>
@@ -598,13 +624,13 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
             one("update_case"),
           ).andThen(fields.row),
         ),
-    move: (caseId, to) =>
+    move: ({ caseId, to }) =>
       call(
         "update_case",
         { case_id: caseId, changes: definedOf(to) },
         one("update_case"),
       ).andThen(fields.row),
-    recordRootCause: (caseId, rootCause, record = {}) =>
+    recordRootCause: ({ caseId, rootCause, ...record }) =>
       call(
         "record_case_root_cause",
         {
@@ -614,7 +640,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
         },
         one("record_case_root_cause"),
       ).andThen(fields.row),
-    createAction: (caseId, input) =>
+    createAction: ({ caseId, input }) =>
       call(
         "create_case_action",
         {
@@ -627,7 +653,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => addedOf(value, "create_case_action"),
       ),
-    linkAction: (caseId, taskId, type, link = {}) =>
+    linkAction: ({ caseId, taskId, type, ...link }) =>
       call(
         "link_case_action",
         {
@@ -644,7 +670,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
         { action_id: actionId },
         one("remove_case_action"),
       ).andThen(fields.row),
-    recordEffectiveness: (caseId, effective, record = {}) =>
+    recordEffectiveness: ({ caseId, effective, ...record }) =>
       call(
         "record_case_effectiveness",
         {
@@ -657,19 +683,19 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
       ).andThen(fields.row),
     blockers: (caseId) =>
       call("case_close_blockers", { case_id: caseId }, blockersOf),
-    close: (caseId, note) =>
+    close: ({ caseId, note }) =>
       call(
         "close_case",
         { case_id: caseId, note: note ?? null },
         one("close_case"),
       ).andThen(fields.row),
-    reopen: (caseId, reason) =>
+    reopen: ({ caseId, reason }) =>
       call(
         "reopen_case",
         { case_id: caseId, reason: reason ?? null },
         one("reopen_case"),
       ).andThen(fields.row),
-    cancel: (caseId, reason) =>
+    cancel: ({ caseId, reason }) =>
       call(
         "cancel_case",
         { case_id: caseId, reason: reason ?? null },
@@ -720,10 +746,23 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     notifyDueEffectiveness: () =>
       call("notify_due_case_effectiveness", {}, (value) => numberOf(value)),
+    tryClose: ({ caseId, note }) =>
+      hooked.blockers(caseId).andThen<CaseTryClose<F>>(async (blockers) => {
+        if (blockers.length > 0) {
+          return ok({ closed: false as const, blockers });
+        }
+
+        return hooked
+          .close({ caseId, note })
+          .map((closed) => ({ closed: true as const, case: closed }));
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Cases<F> = withBlockHooks(client, options.hooks, {
     block: "cases",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

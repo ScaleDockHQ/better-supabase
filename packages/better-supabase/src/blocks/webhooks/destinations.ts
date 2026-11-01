@@ -64,19 +64,20 @@ export function jobsDestination<
     name: "jobs",
     deliver: (delivery) =>
       jobs
-        .enqueueOnce(
-          options.queue,
-          // SAFETY: without a mapper the queue's schema validates the delivery itself.
-          options.payload?.(delivery) ??
+        .enqueueOnce({
+          queue: options.queue,
+          // SAFETY: without `payload`, the destination's schema is the delivery's.
+          payload:
+            options.payload?.(delivery) ??
             (delivery as StandardSchemaV1.InferInput<Q[N]>),
-          {
+          options: {
             dedupeKey: `${delivery.endpoint.id}:${delivery.messageId}`,
             context: { tenant: delivery.endpoint.tenant },
             ...(options.maxAttempts === undefined
               ? {}
               : { maxAttempts: options.maxAttempts }),
           },
-        )
+        })
         .orThrow(),
   };
 }

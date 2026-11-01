@@ -1,0 +1,50 @@
+---
+title: Finance
+description: Accounting, tax, banking and invoices, with a period close that reports what blocks it.
+---
+
+Puts the books, the tax rules, the bank and the invoices in one block. The `erp` preset lists it instead of the four blocks.
+
+```bash
+better-supabase add finance
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { finance: {} } });
+```
+
+`add` lists `finance` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/finance` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { financeBlock } from "better-supabase/blocks/finance";
+```
+
+## Parts
+
+Installing `finance` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`accounting`](/docs/blocks/accounting)
+- [`tax`](/docs/blocks/tax)
+- [`banking`](/docs/blocks/banking)
+- [`invoices`](/docs/blocks/invoices)
+
+## Helpers
+
+`closePeriod(periodId)` closes the accounting period when nothing blocks it. A blocked period is not an error: the result is `{ closed: false, blockers }` and nothing changes. A closed period returns `{ closed: true, period }`.
+
+```ts
+const result = await blocks.finance.closePeriod(periodId).orThrow();
+
+if (!result.closed) {
+  console.log(result.blockers);
+}
+```
+
+## Remove
+
+```bash
+better-supabase remove finance
+better-supabase remove finance --with-parts
+```
+
+The first command replaces `finance` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

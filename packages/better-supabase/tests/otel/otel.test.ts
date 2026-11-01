@@ -125,6 +125,7 @@ describe("otel", () => {
           "db.operation.name": "SELECT",
           "db.query.summary": "SELECT customers",
           "better_supabase.executor": "postgrest",
+          "better_supabase.db.round_trips": 1,
           "db.response.returned_rows": 1,
         },
         ended: true,
@@ -138,6 +139,27 @@ describe("otel", () => {
       "db.collection.name": "customers",
       "db.operation.name": "SELECT",
     });
+  });
+
+  it("numbers the round trips: parallel calls share one, a later call starts the next", async () => {
+    const { tracer, spans } = memoryTracer();
+
+    const betterSupabase = defineSupabase(schema).use(
+      otel({ tracer, metrics: false }),
+    );
+
+    const { client } = capturingClient(() => ({ body: [] }));
+    const db = betterSupabase.connect(client);
+
+    await Promise.all([
+      db.customers.list().orThrow(),
+      db.customers.list().orThrow(),
+    ]);
+    await db.customers.list().orThrow();
+
+    expect(
+      spans.map((span) => span.attributes["better_supabase.db.round_trips"]),
+    ).toEqual([1, 1, 2]);
   });
 
   it("marks failed operations", async () => {

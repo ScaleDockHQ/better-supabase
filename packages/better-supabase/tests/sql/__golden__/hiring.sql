@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:7a3d4aaa28b2d9f0655d1184066642d0e746f398577bbdf6145e043002568246
+-- @bsb-hash sha256:7b84a87be20b6741fb0f7595d902e1f3f01e9d8712dc86ad76c2497c280cf95a
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,6 +489,39 @@ $$;
 revoke execute on function "better_supabase"."application_detail"(uuid) from public, anon;
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "better_supabase"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."job_openings" x
+  where x."tenant_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status" = list_jobs.status)
+$$;
+revoke execute on function "better_supabase"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "better_supabase"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "better_supabase"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state" = list_applications.state)
+$$;
+revoke execute on function "better_supabase"."list_applications"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_applications"(uuid, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -619,7 +652,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:10c81c05c1e024a787c463e5a155b75440bd108c18690834c03ac5ab0ca27cc0
+-- @bsb-hash sha256:66d058e7f996a6495746722b48558f9b878624ea2b1cd239e0150b8128021e1c
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1107,6 +1140,39 @@ $$;
 revoke execute on function "better_supabase"."application_detail"(uuid) from public, anon;
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "better_supabase"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."job_openings" x
+  where x."tenant_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status" = list_jobs.status)
+$$;
+revoke execute on function "better_supabase"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "better_supabase"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "better_supabase"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state" = list_applications.state)
+$$;
+revoke execute on function "better_supabase"."list_applications"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_applications"(uuid, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1207,6 +1273,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
+  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
+  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1241,7 +1316,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:b4de97d6d70f4db7f46d35e32891c6c50be4770a3015239f3327cfc06dd0a7f0
+-- @bsb-hash sha256:c80a4ee6588b977f4136012d4b9f2051dbd6ecc9d3ef88585eb60a9236835a71
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1734,6 +1809,39 @@ $$;
 revoke execute on function "app_private"."application_detail"(uuid) from public, anon;
 grant execute on function "app_private"."application_detail"(uuid) to authenticated, service_role;
 
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "app_private"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "app_private"."job_openings" x
+  where x."tenant_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status" = list_jobs.status)
+$$;
+revoke execute on function "app_private"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "app_private"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "app_private"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "app_private"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state" = list_applications.state)
+$$;
+revoke execute on function "app_private"."list_applications"(uuid, text) from public, anon;
+grant execute on function "app_private"."list_applications"(uuid, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1864,7 +1972,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:3d41dfda35a3c581940d87d44347a43515df38da6a5bdf304f6afd6ef04a8ba1
+-- @bsb-hash sha256:c7b156ab7b87da6aade377e562004e3778a2b6a9dbc82cb134a29a5ca6960df0
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2352,6 +2460,39 @@ $$;
 revoke execute on function "better_supabase"."application_detail"(uuid) from public, anon;
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "better_supabase"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."job_openings" x
+  where x."tenant_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status" = list_jobs.status)
+$$;
+revoke execute on function "better_supabase"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "better_supabase"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "better_supabase"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state" = list_applications.state)
+$$;
+revoke execute on function "better_supabase"."list_applications"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_applications"(uuid, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2530,6 +2671,24 @@ as $$ select "better_supabase"."application_detail"($1) $$;
 revoke execute on function "api"."application_detail"(uuid) from public, anon;
 grant execute on function "api"."application_detail"(uuid) to authenticated, service_role;
 
+create or replace function "api"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_jobs"($1, $2) $$;
+revoke execute on function "api"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "api"."list_jobs"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_applications"($1, $2) $$;
+revoke execute on function "api"."list_applications"(uuid, text) from public, anon;
+grant execute on function "api"."list_applications"(uuid, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2560,7 +2719,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:593573e9ef68bd1ca7b94ac3f1ffb69107f2cb3f2ce4fa4e78d5d49a98c5d1c5
+-- @bsb-hash sha256:44fcf7b414b836fea969f1fea788097f5f6894762899a27f97c795076704d618
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3061,6 +3220,39 @@ $$;
 revoke execute on function "better_supabase"."application_detail"(uuid) from public, anon;
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "better_supabase"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."job_openings" x
+  where x."tenant_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status"::text = list_jobs.status)
+$$;
+revoke execute on function "better_supabase"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "better_supabase"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "better_supabase"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state"::text = list_applications.state)
+$$;
+revoke execute on function "better_supabase"."list_applications"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_applications"(uuid, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3191,7 +3383,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:385950ae3c017880b82d6b1a41f4f23d49054bc557d50c8f46f4832335d18074
+-- @bsb-hash sha256:974574af4b9adbe8943cdfe353b66b2a3f52b2a27fb16a60658ea60d23fc0436
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3678,6 +3870,39 @@ as $$
 $$;
 revoke execute on function "better_supabase"."application_detail"(uuid) from public, anon;
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
+
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function "better_supabase"."list_jobs"(tenant uuid, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) order by x."created_at" desc, x."id"), '[]'::jsonb)
+  from "better_supabase"."job_openings" x
+  where x."org_id" = list_jobs.tenant
+    and (list_jobs.status is null or x."status" = list_jobs.status)
+$$;
+revoke execute on function "better_supabase"."list_jobs"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_jobs"(uuid, text) to authenticated, service_role;
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function "better_supabase"."list_applications"(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) order by x."stage_id", x."rank" collate "C", x."id"), '[]'::jsonb)
+  from "better_supabase"."applications" x
+  where x."job_id" = list_applications.job
+    and (list_applications.state is null or x."state" = list_applications.state)
+$$;
+revoke execute on function "better_supabase"."list_applications"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_applications"(uuid, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

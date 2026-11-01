@@ -31,7 +31,9 @@ describe("createPermissions", () => {
     });
 
     const set = await access
-      .permissions(["customers.read", "customers.write", "customers.read"])
+      .permissions({
+        keys: ["customers.read", "customers.write", "customers.read"],
+      })
       .orThrow();
 
     expect(set).toEqual({ tenant: "org-1", keys: ["customers.read"] });
@@ -56,7 +58,7 @@ describe("createPermissions", () => {
       tenant: "org-1",
       keys: ["*"],
     });
-    expect(await access.permissions([]).orThrow()).toEqual({
+    expect(await access.permissions({ keys: [] }).orThrow()).toEqual({
       tenant: "org-1",
       keys: [],
     });
@@ -70,14 +72,14 @@ describe("createPermissions", () => {
     const access = createPermissions({ transport: fake.transport });
 
     expect(
-      await access.can("invoices.write", { tenant: "org-2" }).orThrow(),
+      await access.can({ key: "invoices.write", tenant: "org-2" }).orThrow(),
     ).toBe(true);
     expect(
       await access
-        .flags(
-          { edit: "invoices.write", void: "invoices.void" },
-          { tenant: "org-2" },
-        )
+        .flags({
+          flags: { edit: "invoices.write", void: "invoices.void" },
+          tenant: "org-2",
+        })
         .orThrow(),
     ).toEqual({ canEdit: true, canVoid: false });
   });
@@ -85,9 +87,9 @@ describe("createPermissions", () => {
   it("fails with TENANT_REQUIRED without a tenant", async () => {
     const fake = fakeTransport([]);
 
-    const result = await createPermissions({ transport: fake.transport }).can(
-      "x",
-    );
+    const result = await createPermissions({ transport: fake.transport }).can({
+      key: "x",
+    });
 
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.hint).toBe("TENANT_REQUIRED");
@@ -139,12 +141,22 @@ describe("createPermissions", () => {
     const access = createPermissions({ transport: fake.transport });
 
     const role = await access
-      .setOverride("member", "teams.manage", true, { tenant: "org-2" })
+      .setOverride({
+        role: "member",
+        permission: "teams.manage",
+        granted: true,
+        tenant: "org-2",
+      })
       .orThrow();
 
     expect(role.permissions).toEqual(["teams.manage"]);
     await access
-      .setOverride("member", "teams.manage", null, { tenant: "org-2" })
+      .setOverride({
+        role: "member",
+        permission: "teams.manage",
+        granted: null,
+        tenant: "org-2",
+      })
       .orThrow();
     expect(fake.calls).toEqual([
       [

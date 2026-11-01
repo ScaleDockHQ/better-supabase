@@ -1,11 +1,13 @@
-import type { BlockCategory } from "../blocks/define-block.ts";
+import type { BlockCategory, PartDefaults } from "../blocks/define-block.ts";
+import type { BlockSqlLink } from "../sql/links.ts";
 import type {
   PresetCatalog,
   PresetCatalogBlock,
   PresetCatalogManifest,
 } from "./catalog-types.ts";
-import type { Preset, PresetFieldKey } from "./fields.ts";
+import type { Preset, PresetFieldKey, PresetInstance } from "./fields.ts";
 
+import { linkNeedsRelations } from "../sql/links.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 
 /** One block in a resolved preset, with why it is there. */
@@ -19,6 +21,15 @@ export interface ResolvedPresetBlock {
   readonly requiredBy: readonly string[];
   /** "selected", or "required by comments and tags". */
   readonly reason: string;
+}
+
+/** A declared link between two blocks that are both in the set. */
+export interface PresetLink {
+  /** The block that declares the link. */
+  readonly from: string;
+  readonly to: string;
+  readonly key: string;
+  readonly kind: BlockSqlLink["kind"];
 }
 
 /** A soft integration between two blocks that are both in the set. */
@@ -35,6 +46,15 @@ export interface PresetConflict {
   readonly reason: string;
 }
 
+/** A composite in a resolved preset, with the parts it installs (ADR 0196). */
+export interface ResolvedComposite {
+  readonly name: string;
+  /** Its parts' manifest names, composites among them. */
+  readonly parts: readonly string[];
+  /** What it sets on each part until the app does. */
+  readonly defaults: Readonly<Record<string, PartDefaults>>;
+}
+
 /** What `resolvePreset` returns. */
 export interface ResolvedPreset {
   readonly preset: Preset;
@@ -42,9 +62,26 @@ export interface ResolvedPreset {
   readonly blocks: readonly ResolvedPresetBlock[];
   /** The soft integrations active between blocks in the set. */
   readonly integrations: readonly PresetIntegration[];
+  /** The declared links active between blocks in the set. */
+  readonly links: readonly PresetLink[];
   readonly conflicts: readonly PresetConflict[];
   /** The manifests that cover `blocks`, for `lib/blocks.ts`. */
   readonly manifests: readonly PresetCatalogManifest[];
+  /** The composites among the selected blocks, outermost first. */
+  readonly composites: readonly ResolvedComposite[];
+  /**
+   * The options each part gets: its composites' defaults, in selection order,
+   * then the preset's own `instances.<part>.options`, which win key by key.
+   */
+  readonly partOptions: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
+  /**
+   * The settings each part gets from its composites, with the preset's own
+   * instance over them: options, entity names and subject settings, merged key
+   * by key.
+   */
+  readonly partInstances: Readonly<Record<string, PresetInstance>>;
 }
 
 /** "a", "a and b", "a, b and c". */
@@ -159,6 +196,133 @@ function fieldConflicts(preset: Preset): PresetConflict[] {
   return conflicts;
 }
 
+interface Expanded {
+  readonly names: readonly string[];
+  readonly composites: readonly ResolvedComposite[];
+  readonly partOf: ReadonlyMap<string, readonly string[]>;
+}
+
+/**
+ * `names` with each composite replaced by the SQL modules of its parts (and its
+ * own glue modules), recursively. A composite's name is its manifest's name.
+ */
+function expandComposites(
+  names: readonly string[],
+  catalog: PresetCatalog,
+): Expanded {
+  const manifests = new Map(catalog.manifests.map((each) => [each.name, each]));
+  const composites: ResolvedComposite[] = [];
+  const partOf = new Map<string, string[]>();
+  const out: string[] = [];
+
+  const visit = (name: string, owner: string | undefined): void => {
+    const manifest = manifests.get(name);
+    const parts = manifest?.composes;
+
+    if (manifest === undefined || parts === undefined) {
+      if (!out.includes(name)) {
+        out.push(name);
+      }
+
+      if (owner !== undefined) {
+        partOf.set(name, [...(partOf.get(name) ?? []), owner]);
+      }
+
+      return;
+    }
+
+    if (!composites.some((each) => each.name === name)) {
+      composites.push({ name, parts, defaults: manifest.defaults ?? {} });
+    }
+
+    for (const sql of manifest.sql) {
+      visit(sql, owner ?? name);
+    }
+
+    for (const part of parts) {
+      const partManifest = manifests.get(part);
+
+      for (const sql of partManifest?.composes === undefined
+        ? (partManifest?.sql ?? [part])
+        : [part]) {
+        visit(sql, name);
+      }
+    }
+  };
+
+  for (const name of names) {
+    visit(name, undefined);
+  }
+
+  return { names: out, composites, partOf };
+}
+
+/**
+ * What each part gets: its composites' defaults in selection order, then the
+ * preset's own `instances.<part>` over them, key by key.
+ */
+function partInstancesOf(
+  preset: Preset,
+  composites: readonly ResolvedComposite[],
+): Record<string, PresetInstance> {
+  const layers = new Map<string, PartDefaults[]>();
+
+  for (const composite of composites) {
+    for (const [part, defaults] of Object.entries(composite.defaults)) {
+      layers.set(part, [...(layers.get(part) ?? []), defaults]);
+    }
+  }
+
+  const keyed = <T>(
+    pick: (layer: PartDefaults) => Readonly<Record<string, T>> | undefined,
+    each: readonly PartDefaults[],
+  ): { readonly [key: string]: T } | undefined => {
+    const merged: Record<string, T> = {};
+
+    for (const layer of each) {
+      Object.assign(merged, pick(layer));
+    }
+
+    return Object.keys(merged).length === 0 ? undefined : merged;
+  };
+
+  return Object.fromEntries(
+    [...layers].map(([part, defaults]) => {
+      const own = preset.instances?.[part];
+
+      const all: readonly PartDefaults[] =
+        own === undefined ? defaults : [...defaults, own];
+
+      const options = keyed((layer) => layer.options, all);
+      const names = keyed((layer) => layer.names, all);
+      const subjects = keyed((layer) => layer.subjects, all);
+
+      return [
+        part,
+        {
+          ...own,
+          ...(options === undefined ? {} : { options }),
+          ...(names === undefined ? {} : { names }),
+          ...(subjects === undefined ? {} : { subjects }),
+        },
+      ];
+    }),
+  );
+}
+
+/** The options each part gets from its composites and the preset. */
+function partOptionsOf(
+  instances: Readonly<Record<string, PresetInstance>>,
+): Record<string, Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(instances).flatMap(([part, instance]) =>
+      Object.keys(instance.options ?? {}).length === 0
+        ? []
+        : [[part, { ...instance.options }]],
+    ),
+  );
+}
+
 /**
  * The full block set for a preset: the selected blocks and what they require, a
  * reason per block, the soft integrations active between them, and what can't
@@ -173,9 +337,11 @@ export function resolvePreset(
   const conflicts: PresetConflict[] = fieldConflicts(preset);
   const instances = Object.entries(preset.instances ?? {});
 
+  const expanded = expandComposites(preset.blocks, catalog);
+
   const selected = [
     ...new Set([
-      ...preset.blocks,
+      ...expanded.names,
       ...instances.flatMap(([key, instance]) =>
         (instance.block ?? key) === key ? [key] : [],
       ),
@@ -233,7 +399,35 @@ export function resolvePreset(
     });
   }
 
+  // A declared conversion or relation between two installed blocks needs the
+  // relations block to record it, so it is added like a required block.
+  const linkNeeds = new Map<string, string[]>();
+
+  for (const block of catalog.blocks) {
+    if (!installed.has(block.name)) {
+      continue;
+    }
+
+    for (const link of block.links ?? []) {
+      if (linkNeedsRelations(link) && installed.has(link.target.block)) {
+        linkNeeds.set("relations", [
+          ...new Set([...(linkNeeds.get("relations") ?? []), block.name]),
+        ]);
+      }
+    }
+  }
+
+  if (linkNeeds.has("relations") && !installed.has("relations")) {
+    for (const each of closureOf("relations", preset, byName)) {
+      installed.add(each);
+    }
+  }
+
   const members = catalog.blocks.filter((block) => installed.has(block.name));
+
+  for (const [dependency, by] of linkNeeds) {
+    requiredBy.set(dependency, [...(requiredBy.get(dependency) ?? []), ...by]);
+  }
 
   for (const block of members) {
     for (const dependency of requiresOf(block, preset)) {
@@ -247,6 +441,7 @@ export function resolvePreset(
   const blocks = members.map((block): ResolvedPresetBlock => {
     const by = requiredBy.get(block.name) ?? [];
     const isSelected = selected.includes(block.name);
+    const owners = expanded.partOf.get(block.name) ?? [];
 
     return {
       name: block.name,
@@ -254,7 +449,12 @@ export function resolvePreset(
       category: block.category,
       selected: isSelected,
       requiredBy: by,
-      reason: isSelected ? "selected" : `required by ${listNames(by)}`,
+      reason:
+        owners.length > 0 && !preset.blocks.includes(block.name)
+          ? `part of ${listNames(owners)}`
+          : isSelected
+            ? "selected"
+            : `required by ${listNames(by)}`,
     };
   });
 
@@ -264,7 +464,21 @@ export function resolvePreset(
       .map((to) => ({ from: block.name, to })),
   );
 
-  const manifestNames = new Set(members.map((block) => block.manifest));
+  const links = members.flatMap((block) =>
+    (block.links ?? [])
+      .filter((link) => installed.has(link.target.block))
+      .map((link): PresetLink => ({
+        from: block.name,
+        to: link.target.block,
+        key: link.key,
+        kind: link.kind,
+      })),
+  );
+
+  const manifestNames = new Set([
+    ...members.map((block) => block.manifest),
+    ...expanded.composites.map((each) => each.name),
+  ]);
 
   const manifests = catalog.manifests.filter((manifest) =>
     manifestNames.has(manifest.name),
@@ -287,5 +501,78 @@ export function resolvePreset(
     }
   }
 
-  return { preset, blocks, integrations, conflicts, manifests };
+  const partInstances = partInstancesOf(preset, expanded.composites);
+
+  return {
+    preset,
+    blocks,
+    integrations,
+    links,
+    conflicts,
+    manifests,
+    composites: expanded.composites,
+    partOptions: partOptionsOf(partInstances),
+    partInstances,
+  };
+}
+
+/** What removing a composite leaves behind. */
+export interface CompositeRemoval {
+  /** The preset's `blocks` after the removal. */
+  readonly blocks: readonly string[];
+  /** Parts that stay installed, and why. */
+  readonly kept: readonly { readonly name: string; readonly reason: string }[];
+  /** Parts that go with it. */
+  readonly removed: readonly string[];
+}
+
+/**
+ * Removing a composite takes out its glue and its defaults. Its parts stay as
+ * ordinary blocks unless `withParts` is set, and even then a part another
+ * selected block or composite still needs stays (ADR 0196).
+ */
+export function removeComposite(
+  preset: Preset,
+  name: string,
+  options: { readonly withParts?: boolean } = {},
+  catalog: PresetCatalog = PRESET_CATALOG,
+): CompositeRemoval {
+  const manifest = catalog.manifests.find((each) => each.name === name);
+
+  if (manifest?.composes === undefined) {
+    throw new TypeError(`"${name}" is not a composite block`);
+  }
+
+  if (!preset.blocks.includes(name)) {
+    throw new TypeError(`"${name}" is not installed`);
+  }
+
+  const parts = expandComposites(manifest.composes, catalog).names;
+  const rest = preset.blocks.filter((each) => each !== name);
+
+  if (options.withParts !== true) {
+    return {
+      blocks: [...new Set([...rest, ...parts])],
+      kept: parts.map((part) => ({
+        name: part,
+        reason: "stays as its own block",
+      })),
+      removed: [],
+    };
+  }
+
+  const left = resolvePreset({ ...preset, blocks: rest }, catalog);
+  const still = new Map(left.blocks.map((each) => [each.name, each.reason]));
+
+  const kept = parts.flatMap((part) => {
+    const reason = still.get(part);
+
+    return reason === undefined ? [] : [{ name: part, reason }];
+  });
+
+  return {
+    blocks: rest,
+    kept,
+    removed: parts.filter((part) => !still.has(part)),
+  };
 }

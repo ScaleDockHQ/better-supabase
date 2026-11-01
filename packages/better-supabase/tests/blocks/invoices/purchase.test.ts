@@ -60,14 +60,17 @@ describe("invoices purchase bills", () => {
     const t = transport({ create_invoice: () => BILL });
 
     const bill = await createInvoices({ transport: t })
-      .create("o", {
-        title: "Steel",
-        direction: "purchase",
-        company: { type: "company", id: "s1" },
-        supplierReference: "SUP-77",
-        purchaseOrderId: "po1",
-        dimensions: { project: "P-1" },
-        currency: "EUR",
+      .create({
+        organizationId: "o",
+        input: {
+          title: "Steel",
+          direction: "purchase",
+          company: { type: "company", id: "s1" },
+          supplierReference: "SUP-77",
+          purchaseOrderId: "po1",
+          dimensions: { project: "P-1" },
+          currency: "EUR",
+        },
       })
       .orThrow();
 
@@ -98,7 +101,7 @@ describe("invoices purchase bills", () => {
     const t = transport({ create_invoice: () => row });
 
     const invoice = await createInvoices({ transport: t })
-      .create("o", { title: "Steel" })
+      .create({ organizationId: "o", input: { title: "Steel" } })
       .orThrow();
 
     expect(invoice.direction).toBe("sales");
@@ -157,8 +160,15 @@ describe("invoices purchase bills", () => {
       ],
     });
     expect(
-      (await invoices.aging("o", "EUR", undefined, "purchase").orThrow())
-        .outstanding,
+      (
+        await invoices
+          .aging({
+            organizationId: "o",
+            currency: "EUR",
+            direction: "purchase",
+          })
+          .orThrow()
+      ).outstanding,
     ).toEqual(eur(2400n));
     expect(t.calls[1]).toEqual([
       "invoice_aging",

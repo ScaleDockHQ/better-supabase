@@ -265,3 +265,19 @@ const profiles = createProfiles({ transport });
 const row = await profiles.mine().orThrow();
 await profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
 ```
+
+## Setting the avatar
+
+`setAvatar({ path })` points the profile at an object path the app already stored, and `null` clears it. `setAvatar({ file })` uploads through `options.avatarUploader`: it receives the file, the previous path and a `commit(path)` function, and returns the result of its own upload. Without an uploader, `setAvatar({ file })` fails with `invalid_request`.
+
+```ts
+const profiles = createProfiles({
+  transport,
+  avatarUploader: ({ file, previous, commit }) =>
+    replaceAvatar(file, previous).andThen((path) => commit(path)),
+});
+
+await profiles.setAvatar({ file }).orThrow();
+```
+
+The column defaults to `avatar_path`; set `avatarColumn` to use another. Both forms go through `mine` and `updateMine`, so their hooks run.

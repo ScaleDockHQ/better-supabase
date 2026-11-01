@@ -9,6 +9,7 @@ import {
   lineItemsSql,
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
+import { createdFromLink } from "../links.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   fail,
@@ -60,35 +61,6 @@ export interface QuoteNames {
   readonly appTotals: boolean;
   /** `options.resend`: send takes a rejected, withdrawn or expired quote. */
   readonly resend: boolean;
-}
-
-/**
- * SQL that links `source` to `origin` with a `created_from` relation when the
- * relations module is installed, so lineage reads find the chain.
- */
-export function createdFromLink(
-  ctx: BlockSqlContext,
-  link: {
-    readonly tenant: string;
-    readonly sourceType: string;
-    readonly sourceId: string;
-    readonly originType: string;
-    readonly originId: string;
-  },
-): string {
-  if (!ctx.installed("relations")) {
-    return "";
-  }
-
-  const r = ctx.of("relations");
-  const col = (name: string): string => r.col("relations", name);
-
-  return `insert into ${r.table("relations")} (${col("tenant")}, ${col("kind")}, ${col("sourceType")}, ${col("sourceId")}, ${col("targetType")}, ${col("targetId")}, ${col("createdBy")})
-    select ${link.tenant}, 'created_from', ${link.sourceType}, ${link.sourceId}, ${link.originType}, ${link.originId}, auth.uid()
-    where not exists (
-      select 1 from ${r.table("relations")} x
-      where x.${col("kind")} = 'created_from' and x.${col("sourceType")} = ${link.sourceType} and x.${col("sourceId")} = ${link.sourceId}
-    );`;
 }
 
 export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {

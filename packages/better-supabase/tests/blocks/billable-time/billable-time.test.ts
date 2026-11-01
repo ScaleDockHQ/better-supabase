@@ -347,7 +347,7 @@ describe("createBillableTime", () => {
 
     const time = createBillableTime({ transport: fake.transport });
 
-    const [entry] = await time.invoicedEntries("i1").orThrow();
+    const [entry] = await time.invoicedEntries({ invoiceId: "i1" }).orThrow();
 
     expect(entry).toMatchObject({
       entryId: "e1",
@@ -369,7 +369,7 @@ describe("createBillableTime", () => {
       tenant: "org-1",
     });
 
-    expect((await time.invoicedEntries("i1")).ok).toBe(false);
+    expect((await time.invoicedEntries({ invoiceId: "i1" })).ok).toBe(false);
     expect((await time.invoice()).ok).toBe(false);
   });
 

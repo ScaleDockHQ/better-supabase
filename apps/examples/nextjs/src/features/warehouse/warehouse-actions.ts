@@ -46,7 +46,8 @@ export const optimizePickRoute = bsb.action(
       slots.data.map((slot) => [slot.binId, slot.walkRank]),
     );
 
-    const routed = await db.warehouse.optimizePickRoute(pickListId, {
+    const routed = await db.warehouse.optimizePickRoute({
+      pickListId,
       locate: (line) => {
         const rank =
           line.binId === undefined ? undefined : rankOf.get(line.binId);

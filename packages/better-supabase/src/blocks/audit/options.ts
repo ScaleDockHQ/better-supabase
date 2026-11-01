@@ -23,6 +23,11 @@ export interface AuditSubjectColumn {
 /** `blocks.audit.options`. */
 export type AuditSqlOptions = {
   readonly appendOnly?: boolean;
+  /**
+   * Which block tables get a row trigger: `entities` (default), `all` or
+   * `none`. A row a block function already recorded is not audited twice.
+   */
+  readonly blockTables?: "all" | "entities" | "none";
   readonly chain?: boolean;
   readonly correlationIdHeader?: string;
   readonly eventCategory?: string;
@@ -55,6 +60,7 @@ export type AuditSqlOptions = {
 export const auditSqlOptions: BlockOptionsSchema<AuditSqlOptions> =
   blockOptions<AuditSqlOptions>({
     appendOnly: option.boolean(),
+    blockTables: option.string({ default: "entities" }),
     chain: option.boolean({ default: false }),
     correlationIdHeader: option.string({ default: "x-correlation-id" }),
     eventCategory: option.string({ default: "system" }),

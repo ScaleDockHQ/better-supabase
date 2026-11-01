@@ -53,8 +53,18 @@ describe("createCalendarController", () => {
       readOnly: true,
     });
     const [first] = view().occurrences!;
-    expect(await view().editOccurrence(first!, { title: "Moved" })).toBe(true);
-    expect(await view().editFollowing(first!, { title: "Later" })).toBe(true);
+    expect(
+      await view().editOccurrence({
+        occurrence: first!,
+        changes: { title: "Moved" },
+      }),
+    ).toBe(true);
+    expect(
+      await view().editFollowing({
+        occurrence: first!,
+        changes: { title: "Later" },
+      }),
+    ).toBe(true);
     expect(await view().cancelOccurrence(first!)).toBe(true);
     expect(client.occurrences).toHaveBeenCalledTimes(4);
 

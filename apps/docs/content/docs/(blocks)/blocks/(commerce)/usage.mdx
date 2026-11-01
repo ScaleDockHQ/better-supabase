@@ -197,6 +197,8 @@ resets. `problemResponse` turns it into Problem Details with a `Retry-After`
 header. In SQL, `consume_quota` raises it with SQLSTATE `BSQ29`, so an RPC
 that calls it fails the same way.
 
+`canConsume({ organizationId, meter, quantity })` answers whether the quantity fits right now without recording it, for a button that should be disabled when the quota is used up. A meter without a quota always fits. `consume` stays the call that decides.
+
 ### Every meter of a tenant
 
 A usage page that shows every meter calls `overview` instead of `current`

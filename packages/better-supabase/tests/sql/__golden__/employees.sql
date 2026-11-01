@@ -897,7 +897,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:f180fee0b8f4999a7013cea3b41b961d904c8b84d47887987362fe14edac7a69
+-- @bsb-hash sha256:e47c9feab2915fe42397c16aab6f45d39624aec742fb7efa70077fb0c0201e75
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1857,6 +1857,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_con
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.employees', target_type => 'employee', event_prefix => 'employee', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

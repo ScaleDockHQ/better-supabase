@@ -110,11 +110,11 @@ await db.appraisals
   })
   .orThrow();
 await db.appraisals
-  .calibrateCompetencies(
+  .calibrateCompetencies({
     appraisalId,
-    { teamwork: 4 },
-    "Team feedback was one-sided",
-  )
+    competencies: { teamwork: 4 },
+    reason: "Team feedback was one-sided",
+  })
   .orThrow();
 ```
 

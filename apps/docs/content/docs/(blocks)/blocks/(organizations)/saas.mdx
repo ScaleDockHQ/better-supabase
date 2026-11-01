@@ -1,0 +1,59 @@
+---
+title: SaaS
+description: The workspace blocks every SaaS app needs, from organizations, teams, profiles, billing, entitlements, notifications, audit, API keys and settings to onboarding and the outbox.
+---
+
+Installs the shared base of a SaaS app as one block. Every starter preset lists `saas` instead of the eleven blocks behind it, and `invitations` comes with `organizations`.
+
+```bash
+better-supabase add saas
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { saas: {} } });
+```
+
+`add` lists `saas` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/saas` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { saasBlock } from "better-supabase/blocks/saas";
+```
+
+## Parts
+
+Installing `saas` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`organizations`](/docs/blocks/organizations)
+- [`teams`](/docs/blocks/teams)
+- [`profiles`](/docs/blocks/profiles)
+- [`billing`](/docs/blocks/billing)
+- [`entitlements`](/docs/blocks/entitlements)
+- [`notifications`](/docs/blocks/notifications)
+- [`audit`](/docs/blocks/audit)
+- [`api-keys`](/docs/blocks/api-keys)
+- [`settings`](/docs/blocks/settings)
+- [`onboarding`](/docs/blocks/onboarding)
+- [`outbox`](/docs/blocks/outbox)
+
+## Helpers
+
+`inviteWithinSeats`: Invite a member only while the plan has a seat left. It counts the members, asks `entitlements` for the seats left and sends the invitation. With no seat left it returns an `invalid_request` error and sends nothing.
+
+```ts
+await blocks.saas.inviteWithinSeats({
+  organizationId,
+  email: "ann@example.com",
+  role: "member",
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove saas
+better-supabase remove saas --with-parts
+```
+
+The first command replaces `saas` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).
