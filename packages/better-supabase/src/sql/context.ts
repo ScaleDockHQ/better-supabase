@@ -151,6 +151,11 @@ export interface BlockSqlEntitySubject {
    * module needs no hand-written `ctx.broadcast` for it.
    */
   readonly realtime?: boolean;
+  /**
+   * The entity's logical columns whose changes the `field-history` block keeps
+   * when it is installed, without an entry in `blocks.field-history.on`.
+   */
+  readonly history?: readonly string[];
 }
 
 /**

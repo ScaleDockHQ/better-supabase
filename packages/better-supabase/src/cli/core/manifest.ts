@@ -244,6 +244,29 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "automations",
+    description: "Lists the automations the installed blocks ship",
+    group: "inspect",
+    docs: "/docs/cli/automations",
+    effects: [],
+    subcommands: [
+      {
+        name: "list",
+        description:
+          "Lists each automation's trigger and actions, and with --explain what starts and runs it",
+        docs: "/docs/cli/automations",
+        examples: [
+          {
+            command: "better-supabase automations list --explain",
+            description:
+              "Says which block's event starts each automation and what each action does",
+          },
+        ],
+        effects: [],
+      },
+    ],
+  },
+  {
     name: "skills",
     description:
       "Installs the Agent Skills that ship with this version of better-supabase",

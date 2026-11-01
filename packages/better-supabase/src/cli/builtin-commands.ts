@@ -49,6 +49,11 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/stack.ts").then((m) => m.stackPruneCommand),
   ],
   [
+    "automations list",
+    () =>
+      import("./commands/automations.ts").then((m) => m.automationsListCommand),
+  ],
+  [
     "blocks list",
     () => import("./commands/blocks.ts").then((m) => m.blocksListCommand),
   ],

@@ -58,7 +58,15 @@ interface HistoryBinding {
 function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
   const registry = registeredSubjects(ctx.subjects, ctx.naming);
 
-  return Object.entries(onSettings(ctx)).map(([type, settings]) => {
+  const declared = registry.flatMap((subject) =>
+    subject.config.history !== undefined &&
+    subject.tenant !== undefined &&
+    !Object.hasOwn(onSettings(ctx), subject.type)
+      ? [{ subject, fields: [...new Set(subject.config.history)] }]
+      : [],
+  );
+
+  const listed = Object.entries(onSettings(ctx)).map(([type, settings]) => {
     const where = `blocks.field-history.on.${type}`;
     const subject = registry.find((item) => item.type === type);
 
@@ -82,6 +90,8 @@ function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
 
     return { subject, fields: [...new Set(fields.map(String))] };
   });
+
+  return [...declared, ...listed];
 }
 
 function bindingTrigger(

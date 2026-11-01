@@ -146,6 +146,28 @@ export function featureStatement(
     return `select better_supabase.audit('${schema}.${table}');`;
   }
 
+  if (feature === "events") {
+    return `select better_supabase.track_events('${schema}.${table}');`;
+  }
+
+  if (feature === "audit-reads") {
+    // A Data API select can't be logged, so reads go through this function: it
+    // logs the read for the table's subject type (the table name unless the
+    // subject tag names another), then returns the row as the caller.
+    return `create or replace function ${schema}.read_${table}(p_id text, p_purpose text default null)
+returns setof ${schema}.${table}
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+begin
+  perform better_supabase.record_subject_read('${table}', p_id, p_purpose, null, 'read_${table}');
+  return query select t.* from ${schema}.${table} t where t.id::text = p_id;
+end;
+$$;`;
+  }
+
   return feature === "expose"
     ? `grant select, insert, update, delete on ${schema}.${table} to authenticated;`
     : undefined;

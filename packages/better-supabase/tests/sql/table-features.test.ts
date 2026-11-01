@@ -82,6 +82,19 @@ describe("setFeatureStatement", () => {
     );
   });
 
+  it.each([
+    ["events", "better_supabase.track_events('public.t')"],
+    ["audit-reads", "better_supabase.record_subject_read('t', p_id"],
+  ] as const)("adds and removes the %s statement", (feature, text) => {
+    const on = setFeatureStatement(file, "public", "t", feature, true);
+
+    expect(on).toContain(text);
+    expect(setFeatureStatement(on, "public", "t", feature, true)).toBe(on);
+    expect(setFeatureStatement(on, "public", "t", feature, false).trim()).toBe(
+      file.trim(),
+    );
+  });
+
   it("leaves features without a statement alone", () => {
     expect(setFeatureStatement(file, "public", "t", "realtime", true)).toBe(
       file,

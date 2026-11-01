@@ -3789,7 +3789,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "body"
                 ]
               },
-              "realtime": true
+              "realtime": true,
+              "history": [
+                "title",
+                "body"
+              ]
             }
           },
           "project": {

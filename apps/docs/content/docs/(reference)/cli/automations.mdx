@@ -1,0 +1,25 @@
+---
+title: automations
+description: List the automations the installed blocks ship, and see what starts and runs each one.
+---
+
+```bash
+pnpm better-supabase automations list
+pnpm better-supabase automations list --explain
+pnpm better-supabase automations list --all
+```
+
+Blocks ship default automations: a trigger event and the actions it runs, such as a won deal that
+drafts a quote. `automations list` prints the ones of the blocks in `blocks`, with whether each
+ships turned on or off. The rows live in the `automation_defaults` of the
+[automations block](/docs/blocks/automations), and the block manifests are their single source.
+
+| Flag        | Effect                                                                           |
+| ----------- | -------------------------------------------------------------------------------- |
+| `--explain` | Adds, per automation, the block whose event starts it and what each action does. |
+| `--all`     | Lists the automations of every block, not only the installed ones.               |
+
+An action no block ships is flagged in the explanation: register it in your action registry, or
+doctor reports it.
+
+Side effects: None.

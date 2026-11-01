@@ -740,6 +740,7 @@ const FLAT = {
         permissions: v.optional(blockSchemas.subjectPermissionsSchema),
         scope: v.optional(v.string()),
         cascade: v.optional(v.boolean()),
+        history: v.optional(v.array(v.string())),
         deletedAt: v.optional(v.string()),
         held: v.optional(v.string()),
         readAccess: v.optional(v.picklist(["tenant", "record"])),

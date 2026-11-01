@@ -112,6 +112,7 @@ const NAMES: BlockSqlNames = {
         rank: { column: "rank", group: "stage" },
         search: { title: "title", body: ["identifier", "body"] },
         realtime: true,
+        history: ["title", "body"],
       },
     },
     project: { table: "projects", singular: "project" },
