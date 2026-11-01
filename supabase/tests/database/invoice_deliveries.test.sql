@@ -40,6 +40,10 @@ select is(
   'INV-1.xml',
   'the same channel and reference return the first row'
 );
+-- One transaction shares one now(), so move the first delivery back an hour.
+reset role;
+update better_supabase.invoice_deliveries set sent_at = sent_at - interval '1 hour' where external_ref = 'ref-1';
+set local role authenticated;
 select better_supabase.record_invoice_delivery((select id from ids where name = 'sent'), 'peppol', 'ubl', 'ref-2');
 select is(
   (select jsonb_array_length(better_supabase.list_invoice_deliveries((select id from ids where name = 'sent')))),
