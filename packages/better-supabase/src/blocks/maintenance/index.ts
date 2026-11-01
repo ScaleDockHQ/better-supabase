@@ -53,3 +53,15 @@ export type {
   MaintenancePlanEventData,
   MaintenancePlanWorkOrderEventData,
 } from "./events.ts";
+
+export {
+  createTelemetryHandler,
+  ingestTelemetry,
+  parseOtlpMetrics,
+  parseTelemetryPoints,
+  type TelemetryFailure,
+  type TelemetryHandlerOptions,
+  type TelemetryIngestOptions,
+  type TelemetryPoint,
+  type TelemetrySummary,
+} from "./telemetry.ts";

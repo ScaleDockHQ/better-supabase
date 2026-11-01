@@ -4786,10 +4786,17 @@
   },
   "./fhir": {
     "values": [
+      "cdsCardOfAlert",
+      "cdsServiceOf",
+      "createCdsHooksServer",
+      "createSmartLaunch",
+      "fetchSmartConfiguration",
       "FHIR_MEDICATION_SYSTEMS",
       "FHIR_PRESCRIPTION_SYSTEM",
       "fromFhirMedicationRequest",
       "fromFhirObservation",
+      "pkceChallenge",
+      "smartLaunchStoreOf",
       "toFhirBundle",
       "toFhirCarePlan",
       "toFhirConsent",
@@ -4803,9 +4810,24 @@
     ],
     "types": [
       "* from ./types.ts",
+      "CdsAlertLike",
+      "CdsCard",
+      "CdsHooksServerOptions",
+      "CdsIndicator",
+      "CdsLink",
+      "CdsRequest",
+      "CdsResponse",
+      "CdsService",
+      "CdsSource",
       "FhirSubjectOptions",
       "FhirTemporal",
-      "FhirUserReference"
+      "FhirUserReference",
+      "SmartConfiguration",
+      "SmartLaunch",
+      "SmartLaunchOptions",
+      "SmartLaunchStore",
+      "SmartPending",
+      "SmartTokens"
     ]
   },
   "./blocks/inbox": {
@@ -9431,6 +9453,7 @@
   },
   "./blocks/courses": {
     "values": [
+      "courseCertificateBadge",
       "courseInputSchema",
       "courseLearnersBinding",
       "courseLearnerSectionInputSchema",
@@ -9441,16 +9464,31 @@
       "createCourses",
       "dbTransport",
       "extendBlock",
+      "ltiHasRole",
+      "ltiJwksOf",
+      "OPEN_BADGES_CONTEXT",
+      "openBadgeCredential",
       "rpcTransport",
+      "sendXapiStatements",
       "sqlTransport",
+      "verifyLtiLaunch",
       "withBlockHooks",
-      "wrapTransport"
+      "wrapTransport",
+      "XAPI_ACTIVITY_TYPES",
+      "XAPI_VERBS",
+      "XAPI_VERSION",
+      "xapiCourseCompleted",
+      "xapiDuration",
+      "xapiLessonCompleted",
+      "xapiQuizResult",
+      "xapiStatement"
     ],
     "types": [
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
       "Course",
+      "CourseBadgeOptions",
       "CourseCertificate",
       "CourseCertificateCheck",
       "CourseCertificateEventData",
@@ -9481,7 +9519,25 @@
       "CoursesSqlOptions",
       "CourseStatus",
       "LessonProgress",
-      "RpcClient"
+      "LtiContext",
+      "LtiLaunch",
+      "LtiMessageType",
+      "LtiResourceLink",
+      "LtiRoleName",
+      "OpenBadgeAchievement",
+      "OpenBadgeCredential",
+      "OpenBadgeInput",
+      "OpenBadgeIssuer",
+      "OpenBadgeRecipient",
+      "RpcClient",
+      "VerifyLtiLaunchOptions",
+      "XapiAccount",
+      "XapiActivity",
+      "XapiLrs",
+      "XapiResult",
+      "XapiStatement",
+      "XapiStatementInput",
+      "XapiVerbName"
     ]
   },
   "./blocks/sequences": {
@@ -9591,6 +9647,8 @@
   },
   "./blocks/content": {
     "values": [
+      "articleJsonLd",
+      "breadcrumbJsonLd",
       "contentBlock",
       "contentEntryInputSchema",
       "contentEvents",
@@ -9598,12 +9656,19 @@
       "createContent",
       "dbTransport",
       "extendBlock",
+      "jsonLdScript",
+      "robotsTxt",
       "rpcTransport",
+      "SITEMAP_MAX_URLS",
+      "sitemapChunks",
+      "sitemapIndexXml",
+      "sitemapXml",
       "sqlTransport",
       "withBlockHooks",
       "wrapTransport"
     ],
     "types": [
+      "ArticleJsonLdOptions",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -9620,9 +9685,12 @@
       "ContentSqlOptions",
       "ContentStatus",
       "ContentTranslation",
+      "JsonLd",
       "PublishedContentEntry",
       "PublishedContentFilter",
-      "RpcClient"
+      "RobotsOptions",
+      "RpcClient",
+      "SitemapOptions"
     ]
   },
   "./blocks/qualifications": {
@@ -9966,12 +10034,18 @@
   },
   "./blocks/dam": {
     "values": [
+      "C2PA_AI_SOURCE_TYPES",
+      "c2paIsAiGenerated",
+      "c2paReaderOf",
       "createDam",
       "damBlock",
       "damEvents",
       "damUsageRightInputSchema",
+      "damUsageRightsToOdrl",
       "dbTransport",
       "extendBlock",
+      "ODRL_CONTEXT",
+      "readC2paManifest",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -9981,6 +10055,11 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "C2paAction",
+      "C2paIngredient",
+      "C2paManifest",
+      "C2paReader",
+      "C2paReading",
       "Dam",
       "DamEvents",
       "DamOptions",
@@ -9996,6 +10075,10 @@
       "DamUsageRightInput",
       "DamUsageRightListOptions",
       "DamUsageRightStatus",
+      "OdrlConstraint",
+      "OdrlOptions",
+      "OdrlPermission",
+      "OdrlPolicy",
       "RpcClient"
     ]
   },
@@ -10325,12 +10408,16 @@
   "./blocks/maintenance": {
     "values": [
       "createMaintenance",
+      "createTelemetryHandler",
       "dbTransport",
       "extendBlock",
+      "ingestTelemetry",
       "maintenanceBlock",
       "maintenanceCalibrationInputSchema",
       "maintenanceEvents",
       "maintenancePlanInputSchema",
+      "parseOtlpMetrics",
+      "parseTelemetryPoints",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -10361,7 +10448,12 @@
       "MaintenancePlanStatus",
       "MaintenancePlanWorkOrderEventData",
       "MaintenancePriority",
-      "RpcClient"
+      "RpcClient",
+      "TelemetryFailure",
+      "TelemetryHandlerOptions",
+      "TelemetryIngestOptions",
+      "TelemetryPoint",
+      "TelemetrySummary"
     ]
   },
   "./blocks/appraisals": {
@@ -10580,6 +10672,7 @@
       "bankingEvents",
       "bankMatchInputSchema",
       "bankRuleInputSchema",
+      "berlinGroupFeed",
       "createBanking",
       "creditorReference",
       "dbTransport",
@@ -10624,6 +10717,7 @@
       "BankTransactionListOptions",
       "BankTransactionMatchedEventData",
       "BankTransactionStatus",
+      "BerlinGroupFeedOptions",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",

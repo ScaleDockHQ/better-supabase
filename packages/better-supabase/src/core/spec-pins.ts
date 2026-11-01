@@ -171,6 +171,31 @@ export const SPEC_PINS: {
    * follow.
    */
   readonly shadcnRegistry: "4.21.4";
+  /** IMS LTI 1.3 core, the launch `verifyLtiLaunch` checks. */
+  readonly lti: "1.3";
+  /** IEEE 9274.1.1 xAPI, the statements the courses block writes. */
+  readonly xapi: "2.0.0";
+  /** 1EdTech Open Badges, the credential the courses export writes. */
+  readonly openBadges: "3.0.3";
+  /** HL7 SMART App Launch, the launch `createSmartLaunch` runs. */
+  readonly smartAppLaunch: "2.2.0";
+  /** HL7 CDS Hooks, the service API `createCdsHooksServer` serves. */
+  readonly cdsHooks: "2.0";
+  /** Berlin Group NextGenPSD2 XS2A framework, read by `berlinGroupFeed`. */
+  readonly berlinGroupXs2a: "1.3.12";
+  /** C2PA technical specification, the manifest a `C2paReader` reports on. */
+  readonly c2pa: "2.2";
+  /** W3C ODRL Information Model, the policy the DAM exports. */
+  readonly odrl: "2.2";
+  /** Sitemaps.org protocol, the sitemaps the content block writes. */
+  readonly sitemaps: "0.9";
+  /**
+   * RFC 9309 Robots Exclusion Protocol, the `robots.txt` the content block
+   * writes.
+   */
+  readonly rfc9309: "2022-09";
+  /** W3C JSON-LD, the structured data the content block writes. */
+  readonly jsonLd: "1.1";
   /** RFC 6350 vCard 4.0 that the contacts block imports and exports. */
   readonly rfc6350: "2011-08";
   /**
@@ -305,6 +330,17 @@ export const SPEC_PINS: {
   rfc9700: "2025-01",
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
+  lti: "1.3",
+  xapi: "2.0.0",
+  openBadges: "3.0.3",
+  smartAppLaunch: "2.2.0",
+  cdsHooks: "2.0",
+  berlinGroupXs2a: "1.3.12",
+  c2pa: "2.2",
+  odrl: "2.2",
+  sitemaps: "0.9",
+  rfc9309: "2022-09",
+  jsonLd: "1.1",
   rfc6350: "2011-08",
   openid4vci: "1.0",
   openid4vp: "1.0",

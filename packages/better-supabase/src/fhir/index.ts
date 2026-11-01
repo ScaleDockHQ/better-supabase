@@ -19,3 +19,31 @@ export type {
   FhirTemporal,
   FhirUserReference,
 } from "./shared.ts";
+
+export {
+  cdsCardOfAlert,
+  cdsServiceOf,
+  createCdsHooksServer,
+  type CdsAlertLike,
+  type CdsCard,
+  type CdsHooksServerOptions,
+  type CdsIndicator,
+  type CdsLink,
+  type CdsRequest,
+  type CdsResponse,
+  type CdsService,
+  type CdsSource,
+} from "./cds-hooks.ts";
+
+export {
+  createSmartLaunch,
+  fetchSmartConfiguration,
+  pkceChallenge,
+  smartLaunchStoreOf,
+  type SmartConfiguration,
+  type SmartLaunch,
+  type SmartLaunchOptions,
+  type SmartLaunchStore,
+  type SmartPending,
+  type SmartTokens,
+} from "./smart.ts";

@@ -223,6 +223,12 @@ against the cost on `fixed_asset`, and the difference to `disposal_gain` or
 and `asset.disposed`. The
 [events page](/docs/extending/events) lists their payloads.
 
+## Telemetry
+
+Meter readings for an asset arrive through the maintenance block's
+[telemetry ingest](/docs/blocks/maintenance), which maps a device to the meter
+whose `assetId` is the asset.
+
 ## Without the client
 
 `db.assets` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

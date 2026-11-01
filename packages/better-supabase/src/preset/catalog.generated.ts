@@ -18009,6 +18009,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "CourseBadgeOptions"
+        },
+        {
           "name": "CourseCertificate"
         },
         {
