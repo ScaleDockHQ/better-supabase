@@ -45,6 +45,11 @@ export const meetingInputSchema: EntitySchema<MeetingInput> =
         optional: true,
         description: "The agenda, in order: `{ title, notes, presenterId }`.",
       },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns, keyed by database name.",
+      },
     },
   });
 

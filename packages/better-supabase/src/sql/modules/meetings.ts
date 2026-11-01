@@ -9,7 +9,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  addExtraColumns,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+} from "../shared.ts";
 import { meetingFunctions } from "./meetings-functions.ts";
 import { meetingIntegrations } from "./meetings-integrations.ts";
 import { meetingReads } from "./meetings-read.ts";
@@ -83,7 +88,7 @@ const NAMES: BlockSqlNames = {
     "after_meeting_hold",
     "after_meeting_decision",
   ],
-  options: ["kinds", "calendar"],
+  options: ["kinds", "calendar", "extraColumns"],
   tables: {
     meetings: {
       name: "meetings",
@@ -235,7 +240,7 @@ create table if not exists ${meetings} (
   ${m("updatedAt")} timestamptz not null default now(),
   unique (${m("tenant")}, ${m("id")}),
   check (${m("endsAt")} is null or ${m("endsAt")} >= ${m("startsAt")})
-);${appKey("meetings", "tenant_id", `${m("tenant")}, ${m("id")}`)}
+);${addExtraColumns(meetings, q.extras)}${appKey("meetings", "tenant_id", `${m("tenant")}, ${m("id")}`)}
 create index if not exists ${name("meetings", "tenant_idx")} on ${meetings} (${m("tenant")}, ${m("status")}, ${m("startsAt")} desc);
 ${lockTable(meetings, { read: true })}
 

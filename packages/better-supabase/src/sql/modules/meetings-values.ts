@@ -44,3 +44,12 @@ export const DEFAULT_MEETING_KINDS = [
   "one_on_one",
   "toolbox_talk",
 ] as const;
+
+/** The keys a meeting read returns next to the extra columns. */
+export const MEETING_RESERVED = [
+  "fields",
+  "attendees",
+  "agenda",
+  "decisions",
+  "actionItems",
+] as const;

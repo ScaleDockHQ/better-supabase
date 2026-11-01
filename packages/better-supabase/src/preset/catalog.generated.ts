@@ -8821,6 +8821,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "extraColumns": "meetings",
       "entities": {
         "specs": {
           "meeting": {
@@ -20225,7 +20226,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "Meeting"
+          "name": "Meeting",
+          "fields": true
         },
         {
           "name": "MeetingActionItem"
@@ -20258,7 +20260,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "MeetingCanceledEventData"
         },
         {
-          "name": "MeetingChange"
+          "name": "MeetingChange",
+          "fields": true
         },
         {
           "name": "MeetingDecision"
@@ -20276,19 +20279,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "MeetingDecisionVotes"
         },
         {
-          "name": "MeetingDetail"
+          "name": "MeetingDetail",
+          "fields": true
         },
         {
           "name": "MeetingEventData"
         },
         {
-          "name": "MeetingInput"
+          "name": "MeetingInput",
+          "fields": true
         },
         {
           "name": "MeetingListOptions"
         },
         {
-          "name": "Meetings"
+          "name": "Meetings",
+          "fields": true
         },
         {
           "name": "MeetingsEvents"
@@ -20346,6 +20352,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "array": true,
                 "optional": true,
                 "description": "The agenda, in order: `{ title, notes, presenterId }`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
               }
             },
             "jsonSchema": {
@@ -20392,6 +20403,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "array",
                   "items": {},
                   "description": "The agenda, in order: `{ title, notes, presenterId }`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
                 }
               },
               "required": [
