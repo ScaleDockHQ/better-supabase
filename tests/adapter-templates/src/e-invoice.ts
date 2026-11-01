@@ -15,7 +15,7 @@ const escapeXml = (value: string): string =>
     .replaceAll('"', "&quot;");
 
 /**
- * An `EInvoiceFormat` for one network's layout (ADR 0180). It reads the issued
+ * An `EInvoiceFormat` for one network's layout (ADR 0182). It reads the issued
  * invoice and returns the document; a real format maps the lines, the tax
  * breakdown and the parties. `render` throws for a draft, which has no number.
  */
@@ -44,7 +44,7 @@ export const exampleEInvoiceFormat: EInvoiceFormat = {
 };
 
 /**
- * An `EInvoiceChannel` over an access point's API (ADR 0180). `send` returns
+ * An `EInvoiceChannel` over an access point's API (ADR 0182). `send` returns
  * the access point's message id, which the block keeps in
  * `invoice_e_deliveries`; `status` answers later what the network says about
  * it.

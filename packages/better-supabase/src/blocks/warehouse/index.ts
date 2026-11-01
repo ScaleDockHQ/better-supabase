@@ -1,9 +1,13 @@
 export {
   createWarehouse,
+  type BinSlot,
+  type BinSlotInput,
   type CountPlan,
   type CountPlanInput,
   type CycleCountVariance,
   type CycleCountVarianceLine,
+  type OptimizedPickRoute,
+  type OptimizePickRouteOptions,
   type PickLine,
   type PickLineStatus,
   type PickList,
@@ -14,6 +18,14 @@ export {
   type PickWave,
   type PickWaveInput,
   type PickWaveStatus,
+  type PutawayPlacement,
+  type PutawayRequest,
+  type PutawayRule,
+  type PutawayRuleInput,
+  type PutawaySource,
+  type PutawaySuggestion,
+  type SlottingOptions,
+  type SlottingSuggestion,
   type Warehouse,
   type WarehouseOptions,
 } from "./warehouse.ts";
@@ -40,10 +52,14 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 export { warehouseBlock } from "./manifest.ts";
 
 export {
+  binSlotInputSchema,
   countPlanInputSchema,
   pickListInputSchema,
   pickRecordSchema,
   pickWaveInputSchema,
+  putawayRequestSchema,
+  putawayRuleInputSchema,
+  slottingOptionsSchema,
 } from "./schemas.ts";
 
 export { warehouseEvents } from "./events.ts";

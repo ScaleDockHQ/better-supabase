@@ -1,4 +1,4 @@
-# 0180: Invoices keep Peppol participant ids and a delivery log behind one channel port
+# 0182: Invoices keep Peppol participant ids and a delivery log behind one channel port
 
 - Status: accepted
 - Date: 2026-11-01

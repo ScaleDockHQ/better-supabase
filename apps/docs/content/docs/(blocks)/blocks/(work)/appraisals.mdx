@@ -25,13 +25,15 @@ sign-off waits for its request. With `outbox` it records the events, and with
 
 ## Tables
 
-| Table                    | Holds                                                          |
-| ------------------------ | -------------------------------------------------------------- |
-| `appraisal_cycles`       | A cycle with its dates, status and optional enrollment program |
-| `appraisals`             | One appraisal per person and cycle, with rating and status     |
-| `appraisal_reviews`      | A self, peer or manager review with its rating and comments    |
-| `appraisal_calibrations` | The rating changes of calibration sessions, with their reasons |
-| `appraisal_goals`        | The goals an appraisal looks back on                           |
+| Table                      | Holds                                                          |
+| -------------------------- | -------------------------------------------------------------- |
+| `appraisal_cycles`         | A cycle with its dates, status and optional enrollment program |
+| `appraisals`               | One appraisal per person and cycle, with rating and status     |
+| `appraisal_reviews`        | A self, peer or manager review with its rating and comments    |
+| `appraisal_calibrations`   | The rating changes of calibration sessions, with their reasons |
+| `appraisal_goals`          | The goals an appraisal looks back on                           |
+| `appraisal_competencies`   | The weighted competencies of a cycle's rubric                  |
+| `appraisal_review_ratings` | One rating and comment per competency of a review              |
 
 An appraisal is a subject of type `appraisal`. Writes go through the functions
 below.
@@ -69,11 +71,80 @@ await db.appraisals
 `closeCycle` ends a cycle once every appraisal in it is signed off.
 `listCycles` lists the cycles.
 
+## Rubrics
+
+A cycle can carry a rubric of competencies, each with a key, a name and a
+weight above zero (default 1). Pass them to `createCycle` as `competencies`, or
+replace them on a draft cycle with `setCompetencies`. A cycle that is open has a
+fixed rubric.
+
+```ts
+await db.appraisals
+  .createCycle({
+    name: "2031 review",
+    startsOn: "2031-01-01",
+    endsOn: "2031-03-31",
+    competencies: [
+      { key: "craft", name: "Craft", weight: 3 },
+      { key: "teamwork", name: "Teamwork" },
+    ],
+  })
+  .orThrow();
+```
+
+In a rubric cycle a reviewer rates every competency with `ratings` instead of
+one `rating`, and the review rating is the weighted average of its ratings,
+rounded to a whole number. The appraisal rating is the weighted average of each
+competency's average over all reviews. `calibrateCompetencies` moves single
+competency ratings of a reviewed appraisal and recomputes the calibrated
+rating; the result lists each competency with its average and calibrated value.
+A cycle without a rubric works as before.
+
+```ts
+await db.appraisals
+  .submitReview(reviewId, {
+    ratings: [
+      { competency: "craft", rating: 4, comment: "Solid reviews" },
+      { competency: "teamwork", rating: 3 },
+    ],
+  })
+  .orThrow();
+await db.appraisals
+  .calibrateCompetencies(
+    appraisalId,
+    { teamwork: 4 },
+    "Team feedback was one-sided",
+  )
+  .orThrow();
+```
+
+## Anonymity
+
+A cycle's `anonymity` decides who learns which peer wrote a review:
+
+| Value     | Hidden from                                                            |
+| --------- | ---------------------------------------------------------------------- |
+| `none`    | nobody                                                                 |
+| `subject` | the appraised person (default)                                         |
+| `all`     | the appraised person and every manager and reader, except the reviewer |
+
+Only peer reviews are hidden; self and manager reviews always show their
+author. A reviewer always sees their own review. Where a review is hidden, the
+function outputs return `reviewerId` as `null`, and the read policies of
+`appraisal_reviews` and `appraisal_review_ratings` hide the row from the same
+people, so a direct table query cannot reveal the reviewer. With `all`, the
+service role is the only reader that sees every reviewer.
+
+With `shareFeedback` set on the cycle, the appraised person reads the manager
+and peer reviews and the competency results once the appraisal is signed off.
+Without it they read only their own review.
+
 ## Reviews and calibration
 
 `submitReview` takes a rating from 1 to 5, optional comments and an optional
 `submissionId` from `forms`. Only the assigned reviewer submits. When the last
-review is in, the appraisal is `reviewed` and its rating is the average.
+review is in, the appraisal is `reviewed` and its rating is the average. In a
+rubric cycle see [Rubrics](#rubrics).
 
 `calibrate` changes the rating of a reviewed appraisal in an open cycle and
 keeps the previous rating and the reason. `setGoals` replaces the goals the
@@ -100,12 +171,12 @@ const appraisal = await db.appraisals.signOff(appraisalId).orThrow();
 
 ## Events
 
-| Event                                                                         | Data                                                                  |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `appraisal_cycle.created`, `appraisal_cycle.opened`, `appraisal_cycle.closed` | `organizationId`, `id`, `name`, `status`                              |
-| `appraisal.created`                                                           | `organizationId`, `id`, `cycleId`, `subjectUserId`, `status`          |
-| `appraisal.calibrated`, `appraisal.finalized`                                 | the appraisal data and `rating`                                       |
-| `appraisal_review.submitted`                                                  | `organizationId`, `id`, `appraisalId`, `reviewerId`, `kind`, `rating` |
+| Event                                                                         | Data                                                                                           |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `appraisal_cycle.created`, `appraisal_cycle.opened`, `appraisal_cycle.closed` | `organizationId`, `id`, `name`, `status`                                                       |
+| `appraisal.created`                                                           | `organizationId`, `id`, `cycleId`, `subjectUserId`, `status`                                   |
+| `appraisal.calibrated`, `appraisal.finalized`                                 | the appraisal data and `rating`                                                                |
+| `appraisal_review.submitted`                                                  | `organizationId`, `id`, `appraisalId`, `reviewerId` (null for a hidden peer), `kind`, `rating` |
 
 The hooks are `before_appraisal_cycle_create` and
 `after_appraisal_cycle_create`.

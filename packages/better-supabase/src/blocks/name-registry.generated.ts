@@ -207,21 +207,25 @@ export interface BlockNameRegistry {
   };
   readonly "appraisals": {
     readonly tables: {
-      readonly "cycles": "id" | "tenant" | "name" | "startsOn" | "endsOn" | "program" | "status" | "openedAt" | "closedAt" | "createdBy" | "createdAt";
-      readonly "appraisals": "id" | "tenant" | "cycle" | "subjectUser" | "manager" | "status" | "rating" | "calibratedRating" | "approval" | "signedOffAt" | "signedOffBy" | "createdAt" | "updatedAt";
+      readonly "cycles": "id" | "tenant" | "name" | "startsOn" | "endsOn" | "program" | "status" | "anonymity" | "shareFeedback" | "openedAt" | "closedAt" | "createdBy" | "createdAt";
+      readonly "appraisals": "id" | "tenant" | "cycle" | "subjectUser" | "manager" | "status" | "rating" | "calibratedRating" | "calibratedCompetencies" | "approval" | "signedOffAt" | "signedOffBy" | "createdAt" | "updatedAt";
       readonly "reviews": "id" | "tenant" | "appraisal" | "reviewer" | "kind" | "rating" | "comments" | "submission" | "submittedAt";
-      readonly "calibrations": "id" | "tenant" | "appraisal" | "fromRating" | "toRating" | "reason" | "calibratedBy" | "calibratedAt";
+      readonly "calibrations": "id" | "tenant" | "appraisal" | "fromRating" | "toRating" | "competencyRatings" | "reason" | "calibratedBy" | "calibratedAt";
+      readonly "competencies": "id" | "tenant" | "cycle" | "key" | "name" | "weight" | "position";
+      readonly "ratings": "id" | "tenant" | "review" | "competency" | "rating" | "comment";
       readonly "goals": "id" | "tenant" | "appraisal" | "goal";
     };
-    readonly functions: "appraisal_json" | "calibrate_appraisal" | "close_appraisal_cycle" | "create_appraisal_cycle" | "get_appraisal" | "list_appraisal_cycles" | "list_appraisals" | "open_appraisal_cycle" | "set_appraisal_goals" | "sign_off_appraisal" | "submit_appraisal_review";
+    readonly functions: "appraisal_json" | "appraisal_review_hidden" | "appraisal_score" | "appraisal_write_competencies" | "calibrate_appraisal" | "calibrate_appraisal_competencies" | "close_appraisal_cycle" | "create_appraisal_cycle" | "get_appraisal" | "list_appraisal_cycles" | "list_appraisals" | "open_appraisal_cycle" | "set_appraisal_competencies" | "set_appraisal_goals" | "sign_off_appraisal" | "submit_appraisal_review";
     readonly actions: "read" | "review" | "manage";
     readonly hooks: "before_appraisal_cycle_create" | "after_appraisal_cycle_create";
     readonly entities: {
-      readonly "appraisal": "id" | "tenant_id" | "cycle_id" | "subject_user_id" | "manager_id" | "status" | "rating" | "calibrated_rating" | "approval_id" | "signed_off_at" | "signed_off_by" | "created_at" | "updated_at";
-      readonly "appraisal_cycle": "id" | "tenant_id" | "name" | "starts_on" | "ends_on" | "program" | "status" | "opened_at" | "closed_at" | "created_by" | "created_at";
+      readonly "appraisal": "id" | "tenant_id" | "cycle_id" | "subject_user_id" | "manager_id" | "status" | "rating" | "calibrated_rating" | "calibrated_competencies" | "approval_id" | "signed_off_at" | "signed_off_by" | "created_at" | "updated_at";
+      readonly "appraisal_cycle": "id" | "tenant_id" | "name" | "starts_on" | "ends_on" | "program" | "status" | "anonymity" | "share_feedback" | "opened_at" | "closed_at" | "created_by" | "created_at";
       readonly "appraisal_review": "id" | "tenant_id" | "appraisal_id" | "reviewer_id" | "kind" | "rating" | "comments" | "submission_id" | "submitted_at";
-      readonly "appraisal_calibration": "id" | "tenant_id" | "appraisal_id" | "from_rating" | "to_rating" | "reason" | "calibrated_by" | "calibrated_at";
+      readonly "appraisal_calibration": "id" | "tenant_id" | "appraisal_id" | "from_rating" | "to_rating" | "competency_ratings" | "reason" | "calibrated_by" | "calibrated_at";
       readonly "appraisal_goal": "id" | "tenant_id" | "appraisal_id" | "goal_id";
+      readonly "appraisal_competency": "id" | "tenant_id" | "cycle_id" | "key" | "name" | "weight" | "position";
+      readonly "appraisal_review_rating": "id" | "tenant_id" | "review_id" | "competency_id" | "rating" | "comment";
     };
     readonly primary: "appraisal";
     readonly formerKeys: never;
@@ -2521,17 +2525,23 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "waves": "id" | "tenant" | "name" | "location" | "status" | "releasedAt" | "completedAt" | "createdBy" | "createdAt";
       readonly "lists": "id" | "tenant" | "wave" | "location" | "documentType" | "documentId" | "status" | "assignee" | "task" | "pickedAt" | "createdBy" | "createdAt";
-      readonly "lines": "id" | "tenant" | "list" | "allocation" | "variant" | "bin" | "lot" | "serials" | "quantity" | "picked" | "status" | "pickedAt" | "pickedBy";
+      readonly "lines": "id" | "tenant" | "list" | "allocation" | "variant" | "bin" | "lot" | "serials" | "quantity" | "picked" | "route" | "status" | "pickedAt" | "pickedBy";
       readonly "plans": "id" | "tenant" | "name" | "location" | "everyDays" | "variants" | "varianceLimit" | "nextRunOn" | "lastRunAt" | "lastCount" | "active" | "createdAt";
+      readonly "rules": "id" | "tenant" | "location" | "bin" | "variant" | "priority" | "maxQuantity" | "active" | "createdAt";
+      readonly "slots": "id" | "tenant" | "bin" | "walkRank" | "capacity" | "updatedAt";
+      readonly "sizes": "id" | "tenant" | "variant" | "size" | "updatedAt";
     };
-    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "get_cycle_count_variance" | "get_pick_list" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans";
+    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "delete_putaway_rule" | "get_cycle_count_variance" | "get_pick_list" | "list_bin_slots" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "list_putaway_rules" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "putaway_plan" | "putaway_rule_json" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans" | "save_bin_slot" | "save_putaway_rule" | "save_variant_size" | "set_pick_route" | "suggest_putaway" | "suggest_receipt_putaway" | "suggest_slotting";
     readonly actions: "read" | "pick" | "manage";
     readonly hooks: "before_pick_list_create" | "after_pick_list_create";
     readonly entities: {
       readonly "pick_list": "id" | "tenant_id" | "wave_id" | "location_id" | "document_type" | "document_id" | "status" | "assignee_id" | "task_id" | "picked_at" | "created_by" | "created_at";
       readonly "pick_wave": "id" | "tenant_id" | "name" | "location_id" | "status" | "released_at" | "completed_at" | "created_by" | "created_at";
-      readonly "pick_line": "id" | "tenant_id" | "pick_list_id" | "allocation_id" | "variant_id" | "bin_id" | "lot_id" | "serials" | "quantity" | "picked" | "status" | "picked_at" | "picked_by";
+      readonly "pick_line": "id" | "tenant_id" | "pick_list_id" | "allocation_id" | "variant_id" | "bin_id" | "lot_id" | "serials" | "quantity" | "picked" | "route_position" | "status" | "picked_at" | "picked_by";
       readonly "count_plan": "id" | "tenant_id" | "name" | "location_id" | "every_days" | "variant_ids" | "variance_limit_pct" | "next_run_on" | "last_run_at" | "last_count_id" | "active" | "created_at";
+      readonly "putaway_rule": "id" | "tenant_id" | "location_id" | "bin_id" | "variant_id" | "priority" | "max_quantity" | "active" | "created_at";
+      readonly "bin_slot": "id" | "tenant_id" | "bin_id" | "walk_rank" | "capacity" | "updated_at";
+      readonly "variant_size": "id" | "tenant_id" | "variant_id" | "size" | "updated_at";
     };
     readonly primary: "pick_list";
     readonly formerKeys: never;

@@ -1,6 +1,6 @@
 # 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`
 
-- Status: superseded by [0180](0180-peppol-in-the-blocks.md)
+- Status: superseded by [0182](0182-peppol-in-the-blocks.md)
 - Date: 2026-11-01
 
 ## Context
