@@ -9790,6 +9790,11 @@ msgid "Meter"
 msgstr "Meter"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.Coy6SH"
+msgid "Calendar"
+msgstr "Calendar"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.C2iTEH"
 msgid "Paused"
 msgstr "Paused"
@@ -9835,9 +9840,9 @@ msgid "Maintenance plans"
 msgstr "Maintenance plans"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.HKgDIs"
-msgid "Plans fall due by time or by meter and open dispatch work orders."
-msgstr "Plans fall due by time or by meter and open dispatch work orders."
+msgctxt "maintenance.eVoywZ"
+msgid "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
+msgstr "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.32UjFX"
@@ -9860,9 +9865,9 @@ msgid "No maintenance plans yet"
 msgstr "No maintenance plans yet"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.O4uDKc"
-msgid "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
-msgstr "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
+msgctxt "maintenance.MPVU48"
+msgid "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
+msgstr "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.PTnz1l"

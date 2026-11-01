@@ -1412,21 +1412,21 @@ export interface BlockNameRegistry {
   };
   readonly "maintenance": {
     readonly tables: {
-      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "rrule" | "dtstart" | "tz" | "requiredQualifications" | "createdBy" | "createdAt" | "updatedAt";
       readonly "parts": "id" | "tenant" | "plan" | "name" | "quantity" | "variant";
       readonly "meters": "id" | "tenant" | "name" | "unit" | "asset" | "reading" | "readAt" | "createdAt";
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
-      readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy";
+      readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_work_order_closed" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
+    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "maintenance_rule_starts" | "maintenance_work_order_closed" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
-      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "created_by" | "created_at" | "updated_at";
+      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "rrule" | "dtstart" | "tz" | "required_qualifications" | "created_by" | "created_at" | "updated_at";
       readonly "maintenance_plan_part": "id" | "tenant_id" | "plan_id" | "name" | "quantity" | "variant_id";
       readonly "maintenance_meter": "id" | "tenant_id" | "name" | "unit" | "asset_id" | "reading" | "read_at" | "created_at";
       readonly "maintenance_meter_reading": "id" | "tenant_id" | "meter_id" | "value" | "read_at" | "read_by";
-      readonly "maintenance_calibration": "id" | "tenant_id" | "asset_id" | "instrument" | "performed_at" | "due_at" | "result" | "reference" | "performed_by";
+      readonly "maintenance_calibration": "id" | "tenant_id" | "asset_id" | "instrument" | "performed_at" | "due_at" | "result" | "reference" | "performed_by" | "qualifications";
     };
     readonly primary: "maintenance_plan";
     readonly formerKeys: never;
