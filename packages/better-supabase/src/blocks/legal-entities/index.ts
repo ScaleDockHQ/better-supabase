@@ -1,11 +1,13 @@
 export {
   createLegalEntities,
   type CreateLegalEntityInput,
+  type DisableCheck,
   type LegalEntities,
   type LegalEntitiesOptions,
   type LegalEntity,
   type LegalEntityFiscal,
   type LegalEntityInput,
+  type NumberCollision,
   type ResolvedSetting,
 } from "./legal-entities.ts";
 

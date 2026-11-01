@@ -273,6 +273,14 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly discount?: string;
   /** For `invoice.approved`: the status after the approval. */
   readonly approvalStatus?: string;
+  /** For `invoice.totals_corrected`: the stored and the recounted total. */
+  readonly oldTotal?: string;
+  readonly newTotal?: string;
+  /** For `invoice.totals_corrected`: the stored and the recounted tax. */
+  readonly oldTaxTotal?: string;
+  readonly newTaxTotal?: string;
+  /** For `invoice.totals_corrected`: a posted entry books the old amounts. */
+  readonly needsCorrectingEntry?: boolean;
 }
 
 /** Events from the sla module: a clock on a record warned, breached or was met. */

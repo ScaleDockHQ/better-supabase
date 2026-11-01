@@ -6,12 +6,19 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { NumberedTable } from "./legal-entities-numbers.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { perEntityValues } from "./custom-fields-packs.ts";
 import { legalEntityFunctions } from "./legal-entities-functions.ts";
+import {
+  defaultSwitchGuardSql,
+  disableCheckSql,
+  numberGuardSql,
+  restoreNumberKeysSql,
+} from "./legal-entities-numbers.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<LegalEntitiesEvents> = {
@@ -97,6 +104,8 @@ const ON_TABLES: Readonly<
       readonly tables: readonly string[];
       /** Logical number columns whose unique keys gain the legal entity. */
       readonly numbers?: readonly string[];
+      /** Logical columns that sit in the unique key next to the number. */
+      readonly scope?: readonly string[];
     }
   >
 > = {
@@ -104,8 +113,14 @@ const ON_TABLES: Readonly<
     module: "invoices",
     tables: ["invoices"],
     numbers: ["number", "identifier"],
+    scope: ["direction", "kind"],
   },
-  quotes: { module: "quotes", tables: ["quotes"], numbers: ["number"] },
+  quotes: {
+    module: "quotes",
+    tables: ["quotes"],
+    numbers: ["number"],
+    scope: ["revision"],
+  },
   orders: {
     module: "orders",
     tables: ["orders"],
@@ -210,6 +225,55 @@ begin
 end $$;`;
 }
 
+/** The tables of `kind` that hold documents with numbers: those `own` has. */
+function numberedOf(
+  ctx: BlockSqlContext,
+  key: string,
+): readonly NumberedTable[] {
+  const target = ON_TABLES[key];
+
+  if (target?.numbers === undefined || !ctx.installed(target.module)) {
+    return [];
+  }
+
+  const own = ctx.of(target.module);
+
+  if (own.mode === "custom") {
+    return [];
+  }
+
+  return target.tables
+    .filter((table) => own.owns(table) || own.appOwned.includes(table))
+    .map((table) => ({
+      kind: key,
+      own,
+      table,
+      columns: (target.numbers ?? []).filter((logical) =>
+        own.has(table, logical),
+      ),
+      scope: (target.scope ?? []).filter((logical) => own.has(table, logical)),
+    }))
+    .filter((numbered) => numbered.columns.length > 0);
+}
+
+/** The numbered tables `options.on` names. */
+function numberedTables(ctx: BlockSqlContext): readonly NumberedTable[] {
+  return onKeys(ctx).flatMap((key) => numberedOf(ctx, key));
+}
+
+/**
+ * The per-organization number key of each kind `options.on` leaves out, when
+ * its table still carries the entity column from an earlier run.
+ */
+function restoredKeys(ctx: BlockSqlContext): string {
+  const on = new Set(onKeys(ctx));
+
+  return ON_KEYS.filter((key) => !on.has(key))
+    .flatMap((key) => numberedOf(ctx, key))
+    .map((numbered) => restoreNumberKeysSql(ctx, numbered))
+    .join("\n");
+}
+
 /**
  * A nullable `legal_entity_id` on each table `options.on` names, tied to the
  * same tenant. A null column means the default entity (`legal_entity_of`).
@@ -242,8 +306,23 @@ function onColumns(ctx: BlockSqlContext): string {
 alter table ${own.table(table)} drop constraint if exists ${constraint};
 alter table ${own.table(table)} add constraint ${constraint} foreign key (${tenant}, ${LEGAL_ENTITY_COLUMN}) references ${entities} (${e("tenant")}, ${e("id")}) on delete restrict;
 create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;${entityNumberKeys(own, table, target.numbers ?? [])}`);
+
+      const numbered = numberedOf(ctx, key).find(
+        (each) => each.table === table,
+      );
+
+      if (numbered !== undefined) {
+        lines.push(numberGuardSql(ctx, numbered));
+      }
     }
   }
+
+  const numbered = numberedTables(ctx);
+  lines.push(
+    defaultSwitchGuardSql(ctx, numbered),
+    disableCheckSql(ctx, numbered),
+    restoredKeys(ctx),
+  );
 
   const fields = ctx.installed("custom-fields")
     ? ctx.of("custom-fields")
@@ -393,7 +472,7 @@ ${tables(ctx)}
 ${legalEntityFunctions(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_legal_entity",
@@ -443,6 +522,15 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "uuid"],
       returns: "jsonb",
     },
+    ...(numberedTables(ctx).length === 0
+      ? []
+      : [
+          {
+            name: "legal_entities_disable_check",
+            args: ["{id}"],
+            returns: "jsonb",
+          },
+        ]),
   ];
 }
 

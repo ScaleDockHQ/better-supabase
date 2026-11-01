@@ -333,4 +333,152 @@ describe("invoices open items", () => {
     );
     expect(t.calls.some(([, args]) => args["actor"] === actor)).toBe(true);
   });
+
+  it("recomputes totals as a dry run unless told to apply", async () => {
+    const t = transport({
+      recompute_invoice_totals: () => ({
+        dryRun: true,
+        checked: 2,
+        changed: 1,
+        applied: 0,
+        invoices: [
+          {
+            invoiceId: "i1",
+            identifier: "INV-1",
+            currency: "EUR",
+            status: "issued",
+            old: { subtotal: "100000", taxTotal: "21000", total: "121000" },
+            new: { subtotal: "100000", taxTotal: "15750", total: "115750" },
+            balance: "121000",
+            balanceAfter: "115750",
+            ledger: {
+              posted: true,
+              entryId: "e1",
+              entryNumber: "SAL-2026-00001",
+              periodStatus: "closed",
+              needsCorrectingEntry: true,
+            },
+          },
+        ],
+      }),
+    });
+
+    const invoices = createInvoices({ transport: t });
+    const repair = await invoices.recomputeTotals("o").orThrow();
+    await invoices.recomputeTotals("o", { invoiceIds: ["i1"], dryRun: false });
+
+    expect(repair.dryRun).toBe(true);
+    expect(repair.applied).toBe(0);
+    expect(repair.invoices[0]?.old.total).toEqual(eur(121_000n));
+    expect(repair.invoices[0]?.new.total).toEqual(eur(115_750n));
+    expect(repair.invoices[0]?.ledger.needsCorrectingEntry).toBe(true);
+    expect(t.calls[0]).toEqual([
+      "recompute_invoice_totals",
+      { tenant: "o", invoice_ids: null, dry_run: true },
+    ]);
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "o",
+      invoice_ids: ["i1"],
+      dry_run: false,
+    });
+  });
+});
+
+describe("allocatePayment answers without a credited total", () => {
+  it("leaves credited unset and keeps the rest", async () => {
+    const t = transport({
+      allocate_payment: () => ({
+        reference: "bank-2",
+        currency: "EUR",
+        partyId: "c1",
+        allocated: "100",
+        discount: "0",
+        allocations: [],
+      }),
+    });
+
+    const result = await createInvoices({ transport: t })
+      .allocatePayment("o", {
+        partyId: "c1",
+        amount: eur(100n),
+        allocations: [{ invoiceId: "i1", amount: eur(100n) }],
+        receivedOn: Temporal.PlainDate.from("2026-10-10"),
+        reference: "bank-2",
+      })
+      .orThrow();
+
+    expect(result.credited).toBeUndefined();
+    expect(result.allocated).toEqual(eur(100n));
+  });
+});
+
+describe("optional arguments left out", () => {
+  it("sends null for the filters and entity that were not given", async () => {
+    const t = transport({
+      list_invoice_allocations: () => [],
+      set_invoice_approval_levels: () => [],
+      recompute_invoice_totals: () => ({
+        dryRun: true,
+        checked: 1,
+        changed: 1,
+        applied: 0,
+        invoices: [
+          {
+            invoiceId: "i1",
+            identifier: "INV-1",
+            currency: "EUR",
+            status: "issued",
+            old: {
+              listTotal: "100",
+              discountTotal: "0",
+              subtotal: "100",
+              taxTotal: "21",
+              total: "121",
+            },
+            new: {
+              listTotal: "100",
+              discountTotal: "10",
+              subtotal: "90",
+              taxTotal: "19",
+              total: "109",
+            },
+            balance: "121",
+            balanceAfter: "109",
+            ledger: { posted: false, needsCorrectingEntry: false },
+          },
+        ],
+      }),
+      allocate_payment: () => ({
+        reference: "r",
+        currency: "EUR",
+        partyId: "c1",
+        allocated: "0",
+        discount: "0",
+        allocations: [],
+      }),
+    });
+
+    const invoices = createInvoices({ transport: t });
+
+    await invoices.allocations("o").orThrow();
+    await invoices.setApprovalLevels("o", []).orThrow();
+    const repair = await invoices.recomputeTotals("o").orThrow();
+    await invoices
+      .allocatePayment("o", {
+        partyId: "c1",
+        amount: eur(0n),
+        allocations: [],
+        reference: "r",
+      })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "o",
+      reference: null,
+      invoice_id: null,
+    });
+    expect(t.calls[1]?.[1]).toMatchObject({ legal_entity_id: null });
+    expect(repair.invoices[0]?.new.discountTotal).toEqual(eur(10n));
+    expect(t.calls[3]?.[1]).toMatchObject({ payment: { receivedOn: null } });
+  });
 });

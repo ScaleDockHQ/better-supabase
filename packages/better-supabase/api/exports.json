@@ -7969,6 +7969,9 @@
       "InvoiceSource",
       "InvoiceSources",
       "InvoiceStatus",
+      "InvoiceTotalsCorrection",
+      "InvoiceTotalsRepair",
+      "InvoiceTotalsSnapshot",
       "InvoiceWarning",
       "Line",
       "LineInput",
@@ -9620,6 +9623,7 @@
       "BlockTransport",
       "BlockTransportMiddleware",
       "CreateLegalEntityInput",
+      "DisableCheck",
       "LegalEntities",
       "LegalEntitiesEvents",
       "LegalEntitiesOptions",
@@ -9628,6 +9632,7 @@
       "LegalEntityEventData",
       "LegalEntityFiscal",
       "LegalEntityInput",
+      "NumberCollision",
       "ResolvedSetting",
       "RpcClient"
     ]

@@ -100,6 +100,33 @@ Other blocks call it to find the entity a row belongs to. An unknown key, a
 module that is not installed and a module in custom mode fail when you
 generate the SQL.
 
+## Numbers per entity
+
+With `options.on` listing `invoices`, `quotes` or `orders`, those documents
+number per legal entity. A document without an entity and a document of the
+default entity are one series, so they can't hold the same number
+(`LEGAL_ENTITY_NUMBER_TAKEN`, also for a fixed import number), and
+`set_default_legal_entity` refuses a switch that would make two documents
+share a number (`LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT`).
+
+Before you remove a kind from `options.on`, call `disableCheck()`. It returns
+`{ ok, collisions, defaultCollisions }`: the numbers that two entities share
+and that can't go back to one key per organization, and the pairs that
+already share a number between no entity and the default one. With `ok: true`
+remove the kind and run `upgrade`: the per-organization key comes back and no
+data changes. With a collision the restore raises
+`LEGAL_ENTITIES_DISABLE_COLLISION` and changes nothing; renumber the
+documents named in the check, then run it again. The migration that drops the
+`legal_entity_id` column needs the data-loss confirmation of `db diff`.
+
+```ts
+const check = await db.legalEntities.disableCheck().orThrow();
+
+if (!check.ok) {
+  console.log(check.collisions);
+}
+```
+
 ## Settings per legal entity
 
 `setSetting` stores a value for one entity and `resetSetting` removes it.
@@ -123,14 +150,17 @@ legalEntityId }` when you need to know which level answered.
 
 ## Errors
 
-| Hint                      | When                                                          |
-| ------------------------- | ------------------------------------------------------------- |
-| `LEGAL_ENTITY_FORBIDDEN`  | the caller lacks `legal_entities.manage`                      |
-| `LEGAL_ENTITY_NOT_FOUND`  | the entity does not exist, or belongs to another organization |
-| `LEGAL_ENTITY_CODE_TAKEN` | the organization already has an entity with this code         |
-| `LEGAL_ENTITY_INVALID`    | the code, name, fiscal calendar or patch is not valid         |
-| `LEGAL_ENTITY_ARCHIVED`   | an archived entity was made the default                       |
-| `LEGAL_ENTITY_DEFAULT`    | the default entity was archived                               |
+| Hint                                   | When                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `LEGAL_ENTITY_FORBIDDEN`               | the caller lacks `legal_entities.manage`                                       |
+| `LEGAL_ENTITY_NOT_FOUND`               | the entity does not exist, or belongs to another organization                  |
+| `LEGAL_ENTITY_CODE_TAKEN`              | the organization already has an entity with this code                          |
+| `LEGAL_ENTITY_INVALID`                 | the code, name, fiscal calendar or patch is not valid                          |
+| `LEGAL_ENTITY_ARCHIVED`                | an archived entity was made the default                                        |
+| `LEGAL_ENTITY_DEFAULT`                 | the default entity was archived                                                |
+| `LEGAL_ENTITY_NUMBER_TAKEN`            | a document with no entity and one of the default entity share a number         |
+| `LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT` | the new default entity would share a number with a document that has no entity |
+| `LEGAL_ENTITIES_DISABLE_COLLISION`     | turning the option off would put two documents on one number                   |
 
 ## Events
 
@@ -142,7 +172,7 @@ default and changing the fiscal calendar all record `legal_entity.updated`.
 
 The functions are `create_legal_entity`, `update_legal_entity`,
 `set_default_legal_entity`, `set_legal_entity_archived`, `get_legal_entity`,
-`list_legal_entities`, `legal_entity_of`, `get_legal_entity_settings`,
+`list_legal_entities`, `legal_entities_disable_check`, `legal_entity_of`, `get_legal_entity_settings`,
 `set_legal_entity_setting`, `reset_legal_entity_setting` and
 `resolve_setting`. They are in the `better_supabase` schema, run as the
 caller for reads and as `security definer` with a permission check for
