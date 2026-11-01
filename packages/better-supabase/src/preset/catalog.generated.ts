@@ -10754,6 +10754,445 @@ export const PRESET_CATALOG: PresetCatalog = {
   ],
   "manifests": [
     {
+      "name": "sales",
+      "sql": [],
+      "category": "crm",
+      "client": {
+        "export": "salesBlock",
+        "subpath": "better-supabase/blocks/sales"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "contacts",
+        "pipelines",
+        "deals",
+        "quotes",
+        "orders",
+        "invoices"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "saas",
+      "sql": [],
+      "category": "tenancy",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "organizations",
+        "teams",
+        "profiles",
+        "billing",
+        "entitlements",
+        "notifications",
+        "audit",
+        "api-keys",
+        "settings",
+        "onboarding",
+        "outbox"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "collaboration",
+      "sql": [],
+      "category": "collaboration",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "comments",
+        "tags",
+        "attachments",
+        "timeline",
+        "reactions"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "governance",
+      "sql": [],
+      "category": "admin",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "audit",
+        "field-history",
+        "data-lifecycle"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "commerce",
+      "sql": [],
+      "category": "commerce",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "catalog",
+        "inventory",
+        "orders",
+        "promotions"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "procurement",
+      "sql": [],
+      "category": "commerce",
+      "client": {
+        "export": "procurementBlock",
+        "subpath": "better-supabase/blocks/procurement"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "rfqs",
+        "inventory",
+        "invoices",
+        "banking"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "finance",
+      "sql": [],
+      "category": "commerce",
+      "client": {
+        "export": "financeBlock",
+        "subpath": "better-supabase/blocks/finance"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "accounting",
+        "tax",
+        "banking",
+        "invoices"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "support",
+      "sql": [],
+      "category": "work",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "inbox",
+        "tasks",
+        "sla",
+        "knowledge"
+      ],
+      "defaults": {
+        "tasks": {
+          "names": {
+            "task": "ticket",
+            "project": "issue"
+          }
+        }
+      }
+    },
+    {
+      "name": "projects",
+      "sql": [],
+      "category": "work",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "tasks",
+        "time-tracking",
+        "billable-time",
+        "approvals",
+        "invoices",
+        "meetings"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "service",
+      "sql": [],
+      "category": "work",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "dispatch",
+        "maintenance",
+        "assets",
+        "cases",
+        "inventory",
+        "sla"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "people",
+      "sql": [],
+      "category": "people",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "employees",
+        "leave",
+        "shifts",
+        "payroll-export",
+        "qualifications",
+        "enrollments"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "recruiting",
+      "sql": [],
+      "category": "people",
+      "client": {
+        "export": "recruitingBlock",
+        "subpath": "better-supabase/blocks/recruiting"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "hiring",
+        "employees",
+        "calendar"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "scheduling",
+      "sql": [],
+      "category": "scheduling",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "bookings",
+        "calendar",
+        "reminders"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "learning",
+      "sql": [],
+      "category": "people",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "courses",
+        "enrollments"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "events",
+      "sql": [],
+      "category": "scheduling",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "bookings",
+        "passes"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "cms",
+      "sql": [],
+      "category": "content",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "content",
+        "versions",
+        "approvals",
+        "attachments"
+      ],
+      "defaults": {
+        "attachments": {
+          "options": {
+            "publicBuckets": [
+              "attachments"
+            ],
+            "requireScan": false
+          }
+        }
+      }
+    },
+    {
+      "name": "care",
+      "sql": [],
+      "category": "people",
+      "client": null,
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "contacts",
+        "guests",
+        "field-encryption",
+        "data-lifecycle",
+        "consents",
+        "activities",
+        "care-plans",
+        "observations",
+        "medications",
+        "forms",
+        "bookings",
+        "calendar",
+        "reminders",
+        "time-tracking",
+        "funding",
+        "shifts",
+        "qualifications",
+        "courses",
+        "cases",
+        "acknowledgements",
+        "drive",
+        "attachments",
+        "versions",
+        "approvals",
+        "state-machine",
+        "numbering",
+        "signatures"
+      ],
+      "defaults": {
+        "contacts": {
+          "subjects": {
+            "person": {
+              "auditReads": true,
+              "team": {
+                "actions": [
+                  "read",
+                  "write"
+                ]
+              }
+            }
+          }
+        },
+        "observations": {
+          "options": {
+            "defaults": "vitals"
+          }
+        },
+        "medications": {
+          "options": {
+            "missedCaseKind": "incident"
+          }
+        },
+        "cases": {
+          "options": {
+            "kinds": [
+              {
+                "key": "incident",
+                "name": "Client incident",
+                "prefix": "INC"
+              },
+              {
+                "key": "employee_incident",
+                "name": "Employee incident",
+                "prefix": "EINC"
+              },
+              {
+                "key": "complaint",
+                "name": "Complaint",
+                "prefix": "CMP"
+              }
+            ]
+          }
+        },
+        "drive": {
+          "options": {
+            "control": {
+              "types": [
+                "protocol",
+                "policy",
+                "procedure",
+                "work_instruction",
+                "form"
+              ]
+            }
+          }
+        },
+        "approvals": {
+          "options": {
+            "policies": {
+              "drive_node": {
+                "release": {
+                  "steps": [
+                    {
+                      "approvers": {
+                        "permission": "approvals.manage"
+                      },
+                      "required": 1
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filespace",
+      "sql": [],
+      "category": "content",
+      "client": {
+        "export": "filespaceBlock",
+        "subpath": "better-supabase/blocks/filespace"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "drive",
+        "attachments",
+        "versions",
+        "share-links",
+        "search",
+        "trash"
+      ],
+      "defaults": {}
+    },
+    {
+      "name": "crm",
+      "sql": [],
+      "category": "crm",
+      "client": {
+        "export": "crmBlock",
+        "subpath": "better-supabase/blocks/crm"
+      },
+      "consumes": {},
+      "provides": [],
+      "composes": [
+        "contacts",
+        "pipelines",
+        "deals",
+        "quotes",
+        "goals",
+        "activities",
+        "mail-sync",
+        "sequences",
+        "segments",
+        "assignment",
+        "enrichment",
+        "forecasts",
+        "lead-scoring",
+        "queue"
+      ],
+      "defaults": {}
+    },
+    {
       "name": "permissions",
       "sql": [
         "permissions"
@@ -10833,6 +11272,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "finance"
+      ],
       "entityTypes": [
         {
           "name": "AccountingAccount"
@@ -11583,6 +12025,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "entityTypes": [
         {
           "name": "ApiKey"
@@ -11681,6 +12126,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects",
+        "cms",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "ApprovalApprovers"
@@ -11768,6 +12218,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "attachments"
+      ],
+      "composedBy": [
+        "collaboration",
+        "cms",
+        "care",
+        "filespace"
       ],
       "entityTypes": [
         {
@@ -12029,6 +12485,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas",
+        "governance"
+      ],
       "events": {
         "type": "AuditEvents",
         "types": [
@@ -12048,6 +12508,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "events": {
         "type": "BillingEvents",
         "types": [
@@ -12102,6 +12565,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "scheduling",
+        "events",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Booking"
@@ -12210,6 +12678,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "recruiting",
+        "scheduling",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Calendar",
@@ -12929,6 +13402,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "CarePlan",
@@ -13475,6 +13951,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "commerce"
+      ],
       "entityTypes": [
         {
           "name": "ChannelProduct"
@@ -13663,6 +14142,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "collaboration"
+      ],
       "record": [
         "add",
         "remove"
@@ -13786,6 +14268,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "governance",
+        "care"
+      ],
       "events": {
         "type": "DataLifecycleEvents",
         "types": [
@@ -13812,6 +14298,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Deal",
@@ -14326,6 +14816,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people"
+      ],
       "entityTypes": [
         {
           "name": "LeaveRequest",
@@ -14441,6 +14934,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "service"
+      ],
       "entityTypes": [
         {
           "name": "Asset"
@@ -14623,6 +15119,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people",
+        "learning"
+      ],
       "entityTypes": [
         {
           "name": "Enrollment"
@@ -14710,6 +15210,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Guest"
@@ -14899,6 +15402,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "events"
+      ],
       "entityTypes": [
         {
           "name": "IssuedPass"
@@ -15122,6 +15628,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects"
+      ],
       "entityTypes": [
         {
           "name": "TimeRate"
@@ -16208,6 +16717,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "service"
+      ],
       "entityTypes": [
         {
           "name": "DispatchRoute"
@@ -17604,6 +18116,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Acknowledgement"
@@ -18149,6 +18664,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "learning",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Course",
@@ -18504,6 +19023,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "mailer": "optional"
       },
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Sequence"
@@ -18703,7 +19225,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/lead-scoring"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "crm"
+      ]
     },
     {
       "name": "posts",
@@ -18925,6 +19450,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "cms"
+      ],
       "entityTypes": [
         {
           "name": "ContentEntry"
@@ -19083,6 +19611,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Qualification",
@@ -19765,6 +20297,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "service",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Case",
@@ -20685,6 +21221,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects"
+      ],
       "entityTypes": [
         {
           "name": "Meeting",
@@ -21088,6 +21627,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "service"
+      ],
       "entityTypes": [
         {
           "name": "MaintenanceCalibration"
@@ -22240,6 +22782,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "procurement"
+      ],
       "entityTypes": [
         {
           "name": "Rfq"
@@ -23049,6 +23594,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "procurement",
+        "finance"
+      ],
       "entityTypes": [
         {
           "name": "BankAccount",
@@ -23558,6 +24107,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "FundingAward",
@@ -23796,6 +24348,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people"
+      ],
       "entityTypes": [
         {
           "name": "PayrollLine"
@@ -23895,6 +24450,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "finance"
+      ],
       "entityTypes": [
         {
           "name": "PrepareTaxReturnInput"
@@ -24154,6 +24712,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "MyShift",
@@ -24582,6 +25144,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Consent"
@@ -24767,6 +25332,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Observation",
@@ -25130,6 +25698,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Medication"
@@ -25477,6 +26048,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "recordAccess": "optional"
       },
       "provides": [],
+      "composedBy": [
+        "care",
+        "filespace"
+      ],
       "entityTypes": [
         {
           "name": "DriveNode",
@@ -25531,6 +26106,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "people",
+        "recruiting"
+      ],
       "entityTypes": [
         {
           "name": "Employee",
@@ -25794,6 +26373,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "files": "optional"
       },
       "provides": [],
+      "composedBy": [
+        "care",
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Engagement",
@@ -26233,7 +26816,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/entitlements"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "saas"
+      ]
     },
     {
       "name": "field-encryption",
@@ -26243,7 +26829,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "database",
       "client": null,
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "care"
+      ]
     },
     {
       "name": "flags",
@@ -26374,6 +26963,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "Form",
@@ -26482,6 +27074,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "SignatureRequest",
@@ -26535,6 +27130,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "recruiting"
+      ],
       "entityTypes": [
         {
           "name": "Application"
@@ -26625,6 +27223,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "support"
+      ],
       "entityTypes": [
         {
           "name": "CreateInboxInput"
@@ -26750,6 +27351,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "commerce",
+        "procurement",
+        "service"
+      ],
       "entityTypes": [
         {
           "name": "PurchaseOrderInput"
@@ -26799,6 +27405,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "procurement",
+        "finance",
+        "projects"
+      ],
       "entityTypes": [
         {
           "name": "EInvoiceChannel"
@@ -27010,6 +27622,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "env": [
         {
           "key": "CRON_SECRET",
@@ -27083,6 +27698,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "files": "optional"
       },
       "provides": [],
+      "composedBy": [
+        "support"
+      ],
       "entityTypes": [
         {
           "name": "KnowledgeDocument"
@@ -27599,6 +28217,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "collaboration"
+      ],
       "entityTypes": [
         {
           "name": "ActivityEntry"
@@ -27618,6 +28239,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "mailer"
+      ],
+      "composedBy": [
+        "crm"
       ],
       "entityTypes": [
         {
@@ -27826,6 +28450,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Segment"
@@ -27932,6 +28559,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "AssignmentQueue"
@@ -28037,6 +28667,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Enrichment"
@@ -28089,7 +28722,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/field-history"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "governance"
+      ]
     },
     {
       "name": "forecasts",
@@ -28103,6 +28739,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "ForecastSnapshot"
@@ -28157,6 +28796,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [
         "notifier"
       ],
+      "composedBy": [
+        "saas"
+      ],
       "events": {
         "type": "NotificationsEvents",
         "types": [
@@ -28183,6 +28825,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "events": {
         "type": "NumberingEvents",
         "types": [
@@ -28223,7 +28868,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/onboarding"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "saas"
+      ]
     },
     {
       "name": "orders",
@@ -28237,6 +28885,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "commerce"
+      ],
       "entityTypes": [
         {
           "name": "CartDetails"
@@ -28382,6 +29034,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "events": {
         "type": "OrganizationsEvents",
         "types": [
@@ -28419,6 +29074,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "env": [
         {
           "key": "CRON_SECRET",
@@ -28454,6 +29112,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "care",
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Company",
@@ -29055,6 +29718,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Pipeline",
@@ -29123,7 +29790,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/profiles"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "composedBy": [
+        "saas"
+      ]
     },
     {
       "name": "promotions",
@@ -29137,6 +29807,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "commerce"
+      ],
       "entityTypes": [
         {
           "name": "PromotionCode"
@@ -29208,6 +29881,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "sales",
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "PublicQuote"
@@ -29349,6 +30026,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "collaboration"
+      ],
       "entityTypes": [
         {
           "name": "ReactionCount"
@@ -29476,6 +30156,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifier": "optional"
       },
       "provides": [],
+      "composedBy": [
+        "scheduling",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "ReminderEntry"
@@ -29805,6 +30489,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "sink"
+      ],
+      "composedBy": [
+        "filespace"
       ]
     },
     {
@@ -29850,6 +30537,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "events": {
         "type": "SettingsEvents",
         "types": [
@@ -29872,6 +30562,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "filespace"
+      ],
       "entityTypes": [
         {
           "name": "CreatedShareLink",
@@ -29974,6 +30667,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "support",
+        "service"
+      ],
       "entityTypes": [
         {
           "name": "SlaPolicy",
@@ -30049,6 +30746,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "care"
+      ],
       "events": {
         "type": "StateMachineEvents",
         "types": [
@@ -30112,6 +30812,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "collaboration"
+      ],
       "entityTypes": [
         {
           "name": "CreateTagInput",
@@ -30190,6 +30893,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "crm"
+      ],
       "entityTypes": [
         {
           "name": "Target",
@@ -30220,6 +30926,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "saas"
+      ],
       "entityTypes": [
         {
           "name": "CreateTeamOptions"
@@ -30402,6 +31111,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects",
+        "care"
+      ],
       "entityTypes": [
         {
           "name": "TimeEntry",
@@ -30464,6 +31177,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "filespace"
+      ],
       "extension": "trashExtension",
       "events": {
         "type": "TrashEvents",
@@ -30531,6 +31247,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "cms",
+        "care",
+        "filespace"
+      ],
       "entityTypes": [
         {
           "name": "Version",
@@ -30674,6 +31395,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "sink"
+      ],
+      "composedBy": [
+        "support",
+        "projects"
       ],
       "entityTypes": [
         {

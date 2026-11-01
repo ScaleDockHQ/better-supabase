@@ -273,10 +273,15 @@ const sourcesOf = (block: AnyBlock): string => {
 };
 
 /** A block with a TypeScript side: a directory with an `index.ts` entry. */
-/** A block whose `index.ts` only exports its repository extension has no client. */
+/**
+ * A block whose `index.ts` only exports its repository extension has no client,
+ * and neither has a composite without helpers.
+ */
 const hasClient = (block: AnyBlock): boolean =>
   existsSync(join(dirOf(block), "index.ts")) &&
-  (block.extension === undefined || block.create !== undefined);
+  (block.extension === undefined || block.create !== undefined) &&
+  (Object.keys(block.composes ?? {}).length === 0 ||
+    block.create !== undefined);
 
 const withCreator = BLOCK_MANIFESTS.filter(
   (block) => block.create !== undefined,

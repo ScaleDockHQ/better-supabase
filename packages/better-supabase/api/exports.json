@@ -2587,11 +2587,13 @@
       "blockNames",
       "blockOptions",
       "blockRead",
+      "compositeReadSet",
       "createBlockClient",
       "createBlocks",
       "dbTransport",
       "defineBlock",
       "defineBlocks",
+      "defineCompositeReadSet",
       "defineEvents",
       "defineTransportMiddleware",
       "entityNames",
@@ -2663,6 +2665,8 @@
       "ClientOf",
       "ComposedParts",
       "CompositeOptions",
+      "CompositeReadEntry",
+      "CompositeReadSet",
       "ConsumedPorts",
       "CreateBlocksOptions",
       "CursorPageOptions",
@@ -9765,6 +9769,201 @@
       "DamUsageRightListOptions",
       "DamUsageRightStatus",
       "RpcClient"
+    ]
+  },
+  "./blocks/sales": {
+    "values": [
+      "createDealClosers",
+      "createSales",
+      "salesBlock",
+      "salesParts"
+    ],
+    "types": [
+      "AcceptedQuote",
+      "BilledQuote",
+      "ClosedWon",
+      "Sales",
+      "SalesClients",
+      "SalesOptions",
+      "SalesParts"
+    ]
+  },
+  "./blocks/saas": {
+    "values": [
+      "saasBlock",
+      "saasParts"
+    ],
+    "types": [
+      "SaasParts"
+    ]
+  },
+  "./blocks/collaboration": {
+    "values": [
+      "collaborationBlock",
+      "collaborationParts"
+    ],
+    "types": [
+      "CollaborationParts"
+    ]
+  },
+  "./blocks/governance": {
+    "values": [
+      "governanceBlock",
+      "governanceParts"
+    ],
+    "types": [
+      "GovernanceParts"
+    ]
+  },
+  "./blocks/commerce": {
+    "values": [
+      "commerceBlock",
+      "commerceParts"
+    ],
+    "types": [
+      "CommerceParts"
+    ]
+  },
+  "./blocks/procurement": {
+    "values": [
+      "createProcurement",
+      "procurementBlock",
+      "procurementParts"
+    ],
+    "types": [
+      "Procurement",
+      "ProcurementOptions",
+      "ProcurementParts"
+    ]
+  },
+  "./blocks/finance": {
+    "values": [
+      "createFinance",
+      "financeBlock",
+      "financeParts"
+    ],
+    "types": [
+      "Finance",
+      "FinanceOptions",
+      "FinanceParts"
+    ]
+  },
+  "./blocks/support": {
+    "values": [
+      "supportBlock",
+      "supportParts"
+    ],
+    "types": [
+      "SupportParts"
+    ]
+  },
+  "./blocks/projects": {
+    "values": [
+      "projectsBlock",
+      "projectsParts"
+    ],
+    "types": [
+      "ProjectsParts"
+    ]
+  },
+  "./blocks/service": {
+    "values": [
+      "serviceBlock",
+      "serviceParts"
+    ],
+    "types": [
+      "ServiceParts"
+    ]
+  },
+  "./blocks/people": {
+    "values": [
+      "peopleBlock",
+      "peopleParts"
+    ],
+    "types": [
+      "PeopleParts"
+    ]
+  },
+  "./blocks/recruiting": {
+    "values": [
+      "createRecruiting",
+      "recruitingBlock",
+      "recruitingParts"
+    ],
+    "types": [
+      "Recruiting",
+      "RecruitingOptions",
+      "RecruitingParts"
+    ]
+  },
+  "./blocks/scheduling": {
+    "values": [
+      "schedulingBlock",
+      "schedulingParts"
+    ],
+    "types": [
+      "SchedulingParts"
+    ]
+  },
+  "./blocks/learning": {
+    "values": [
+      "learningBlock",
+      "learningParts"
+    ],
+    "types": [
+      "LearningParts"
+    ]
+  },
+  "./blocks/events": {
+    "values": [
+      "eventsBlock",
+      "eventsParts"
+    ],
+    "types": [
+      "EventsParts"
+    ]
+  },
+  "./blocks/cms": {
+    "values": [
+      "cmsBlock",
+      "cmsParts"
+    ],
+    "types": [
+      "CmsParts"
+    ]
+  },
+  "./blocks/care": {
+    "values": [
+      "careBlock",
+      "careParts"
+    ],
+    "types": [
+      "CareParts"
+    ]
+  },
+  "./blocks/filespace": {
+    "values": [
+      "createFilespace",
+      "filespaceBlock",
+      "filespaceParts"
+    ],
+    "types": [
+      "Filespace",
+      "FilespaceOptions",
+      "FilespaceParts"
+    ]
+  },
+  "./blocks/crm": {
+    "values": [
+      "createCrm",
+      "crmBlock",
+      "crmParts",
+      "crmReadSets"
+    ],
+    "types": [
+      "Crm",
+      "CrmOptions",
+      "CrmParts"
     ]
   },
   "./blocks/rfqs": {

@@ -1110,6 +1110,101 @@
       "types": "./dist/blocks/dam/index.d.ts",
       "default": "./dist/blocks/dam/index.js"
     },
+    "./blocks/sales": {
+      "@better-supabase/source": "./src/blocks/sales/index.ts",
+      "types": "./dist/blocks/sales/index.d.ts",
+      "default": "./dist/blocks/sales/index.js"
+    },
+    "./blocks/saas": {
+      "@better-supabase/source": "./src/blocks/saas/index.ts",
+      "types": "./dist/blocks/saas/index.d.ts",
+      "default": "./dist/blocks/saas/index.js"
+    },
+    "./blocks/collaboration": {
+      "@better-supabase/source": "./src/blocks/collaboration/index.ts",
+      "types": "./dist/blocks/collaboration/index.d.ts",
+      "default": "./dist/blocks/collaboration/index.js"
+    },
+    "./blocks/governance": {
+      "@better-supabase/source": "./src/blocks/governance/index.ts",
+      "types": "./dist/blocks/governance/index.d.ts",
+      "default": "./dist/blocks/governance/index.js"
+    },
+    "./blocks/commerce": {
+      "@better-supabase/source": "./src/blocks/commerce/index.ts",
+      "types": "./dist/blocks/commerce/index.d.ts",
+      "default": "./dist/blocks/commerce/index.js"
+    },
+    "./blocks/procurement": {
+      "@better-supabase/source": "./src/blocks/procurement/index.ts",
+      "types": "./dist/blocks/procurement/index.d.ts",
+      "default": "./dist/blocks/procurement/index.js"
+    },
+    "./blocks/finance": {
+      "@better-supabase/source": "./src/blocks/finance/index.ts",
+      "types": "./dist/blocks/finance/index.d.ts",
+      "default": "./dist/blocks/finance/index.js"
+    },
+    "./blocks/support": {
+      "@better-supabase/source": "./src/blocks/support/index.ts",
+      "types": "./dist/blocks/support/index.d.ts",
+      "default": "./dist/blocks/support/index.js"
+    },
+    "./blocks/projects": {
+      "@better-supabase/source": "./src/blocks/projects/index.ts",
+      "types": "./dist/blocks/projects/index.d.ts",
+      "default": "./dist/blocks/projects/index.js"
+    },
+    "./blocks/service": {
+      "@better-supabase/source": "./src/blocks/service/index.ts",
+      "types": "./dist/blocks/service/index.d.ts",
+      "default": "./dist/blocks/service/index.js"
+    },
+    "./blocks/people": {
+      "@better-supabase/source": "./src/blocks/people/index.ts",
+      "types": "./dist/blocks/people/index.d.ts",
+      "default": "./dist/blocks/people/index.js"
+    },
+    "./blocks/recruiting": {
+      "@better-supabase/source": "./src/blocks/recruiting/index.ts",
+      "types": "./dist/blocks/recruiting/index.d.ts",
+      "default": "./dist/blocks/recruiting/index.js"
+    },
+    "./blocks/scheduling": {
+      "@better-supabase/source": "./src/blocks/scheduling/index.ts",
+      "types": "./dist/blocks/scheduling/index.d.ts",
+      "default": "./dist/blocks/scheduling/index.js"
+    },
+    "./blocks/learning": {
+      "@better-supabase/source": "./src/blocks/learning/index.ts",
+      "types": "./dist/blocks/learning/index.d.ts",
+      "default": "./dist/blocks/learning/index.js"
+    },
+    "./blocks/events": {
+      "@better-supabase/source": "./src/blocks/events/index.ts",
+      "types": "./dist/blocks/events/index.d.ts",
+      "default": "./dist/blocks/events/index.js"
+    },
+    "./blocks/cms": {
+      "@better-supabase/source": "./src/blocks/cms/index.ts",
+      "types": "./dist/blocks/cms/index.d.ts",
+      "default": "./dist/blocks/cms/index.js"
+    },
+    "./blocks/care": {
+      "@better-supabase/source": "./src/blocks/care/index.ts",
+      "types": "./dist/blocks/care/index.d.ts",
+      "default": "./dist/blocks/care/index.js"
+    },
+    "./blocks/filespace": {
+      "@better-supabase/source": "./src/blocks/filespace/index.ts",
+      "types": "./dist/blocks/filespace/index.d.ts",
+      "default": "./dist/blocks/filespace/index.js"
+    },
+    "./blocks/crm": {
+      "@better-supabase/source": "./src/blocks/crm/index.ts",
+      "types": "./dist/blocks/crm/index.d.ts",
+      "default": "./dist/blocks/crm/index.js"
+    },
     "./blocks/rfqs": {
       "@better-supabase/source": "./src/blocks/rfqs/index.ts",
       "types": "./dist/blocks/rfqs/index.d.ts",
@@ -2097,6 +2192,82 @@
       "./blocks/dam": {
         "types": "./dist/blocks/dam/index.d.ts",
         "default": "./dist/blocks/dam/index.js"
+      },
+      "./blocks/sales": {
+        "types": "./dist/blocks/sales/index.d.ts",
+        "default": "./dist/blocks/sales/index.js"
+      },
+      "./blocks/saas": {
+        "types": "./dist/blocks/saas/index.d.ts",
+        "default": "./dist/blocks/saas/index.js"
+      },
+      "./blocks/collaboration": {
+        "types": "./dist/blocks/collaboration/index.d.ts",
+        "default": "./dist/blocks/collaboration/index.js"
+      },
+      "./blocks/governance": {
+        "types": "./dist/blocks/governance/index.d.ts",
+        "default": "./dist/blocks/governance/index.js"
+      },
+      "./blocks/commerce": {
+        "types": "./dist/blocks/commerce/index.d.ts",
+        "default": "./dist/blocks/commerce/index.js"
+      },
+      "./blocks/procurement": {
+        "types": "./dist/blocks/procurement/index.d.ts",
+        "default": "./dist/blocks/procurement/index.js"
+      },
+      "./blocks/finance": {
+        "types": "./dist/blocks/finance/index.d.ts",
+        "default": "./dist/blocks/finance/index.js"
+      },
+      "./blocks/support": {
+        "types": "./dist/blocks/support/index.d.ts",
+        "default": "./dist/blocks/support/index.js"
+      },
+      "./blocks/projects": {
+        "types": "./dist/blocks/projects/index.d.ts",
+        "default": "./dist/blocks/projects/index.js"
+      },
+      "./blocks/service": {
+        "types": "./dist/blocks/service/index.d.ts",
+        "default": "./dist/blocks/service/index.js"
+      },
+      "./blocks/people": {
+        "types": "./dist/blocks/people/index.d.ts",
+        "default": "./dist/blocks/people/index.js"
+      },
+      "./blocks/recruiting": {
+        "types": "./dist/blocks/recruiting/index.d.ts",
+        "default": "./dist/blocks/recruiting/index.js"
+      },
+      "./blocks/scheduling": {
+        "types": "./dist/blocks/scheduling/index.d.ts",
+        "default": "./dist/blocks/scheduling/index.js"
+      },
+      "./blocks/learning": {
+        "types": "./dist/blocks/learning/index.d.ts",
+        "default": "./dist/blocks/learning/index.js"
+      },
+      "./blocks/events": {
+        "types": "./dist/blocks/events/index.d.ts",
+        "default": "./dist/blocks/events/index.js"
+      },
+      "./blocks/cms": {
+        "types": "./dist/blocks/cms/index.d.ts",
+        "default": "./dist/blocks/cms/index.js"
+      },
+      "./blocks/care": {
+        "types": "./dist/blocks/care/index.d.ts",
+        "default": "./dist/blocks/care/index.js"
+      },
+      "./blocks/filespace": {
+        "types": "./dist/blocks/filespace/index.d.ts",
+        "default": "./dist/blocks/filespace/index.js"
+      },
+      "./blocks/crm": {
+        "types": "./dist/blocks/crm/index.d.ts",
+        "default": "./dist/blocks/crm/index.js"
       },
       "./blocks/rfqs": {
         "types": "./dist/blocks/rfqs/index.d.ts",

@@ -5,6 +5,7 @@ import type {
   DefaultAutomation,
 } from "../core/automation.ts";
 import type { EventMap, Events } from "../core/block-events.ts";
+import type { PresetSubjectSettings } from "../preset/fields.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
@@ -86,6 +87,10 @@ export type BlockInvalidates = Readonly<Record<string, readonly string[]>>;
  */
 export interface PartDefaults {
   readonly options?: Readonly<Record<string, unknown>>;
+  /** Entity names, by entity key (`{ task: "ticket" }`). */
+  readonly names?: Readonly<Record<string, string>>;
+  /** The record team and read log of the subjects the part registers. */
+  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
 }
 
 /**

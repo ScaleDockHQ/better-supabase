@@ -26,6 +26,13 @@ export type { BlockHint, BlockHints } from "./block-hints.ts";
 export { BLOCK_CATEGORIES, defineBlock } from "./define-block.ts";
 
 export {
+  compositeReadSet,
+  defineCompositeReadSet,
+  type CompositeReadEntry,
+  type CompositeReadSet,
+} from "./composite-reads.ts";
+
+export {
   blockOptions,
   NO_OPTIONS,
   option,

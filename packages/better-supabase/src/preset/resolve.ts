@@ -5,7 +5,7 @@ import type {
   PresetCatalogBlock,
   PresetCatalogManifest,
 } from "./catalog-types.ts";
-import type { Preset, PresetFieldKey } from "./fields.ts";
+import type { Preset, PresetFieldKey, PresetInstance } from "./fields.ts";
 
 import { linkNeedsRelations } from "../sql/links.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
@@ -76,6 +76,12 @@ export interface ResolvedPreset {
   readonly partOptions: Readonly<
     Record<string, Readonly<Record<string, unknown>>>
   >;
+  /**
+   * The settings each part gets from its composites, with the preset's own
+   * instance over them: options, entity names and subject settings, merged key
+   * by key.
+   */
+  readonly partInstances: Readonly<Record<string, PresetInstance>>;
 }
 
 /** "a", "a and b", "a, b and c". */
@@ -251,24 +257,70 @@ function expandComposites(
   return { names: out, composites, partOf };
 }
 
-/** The options each part gets from its composites and the preset. */
-function partOptionsOf(
+/**
+ * What each part gets: its composites' defaults in selection order, then the
+ * preset's own `instances.<part>` over them, key by key.
+ */
+function partInstancesOf(
   preset: Preset,
   composites: readonly ResolvedComposite[],
-): Record<string, Record<string, unknown>> {
-  const merged: Record<string, Record<string, unknown>> = {};
+): Record<string, PresetInstance> {
+  const layers = new Map<string, PartDefaults[]>();
 
   for (const composite of composites) {
     for (const [part, defaults] of Object.entries(composite.defaults)) {
-      merged[part] = { ...merged[part], ...defaults.options };
+      layers.set(part, [...(layers.get(part) ?? []), defaults]);
     }
   }
 
-  for (const part of Object.keys(merged)) {
-    merged[part] = { ...merged[part], ...preset.instances?.[part]?.options };
-  }
+  const keyed = <T>(
+    pick: (layer: PartDefaults) => Readonly<Record<string, T>> | undefined,
+    each: readonly PartDefaults[],
+  ): { readonly [key: string]: T } | undefined => {
+    const merged: Record<string, T> = {};
 
-  return merged;
+    for (const layer of each) {
+      Object.assign(merged, pick(layer));
+    }
+
+    return Object.keys(merged).length === 0 ? undefined : merged;
+  };
+
+  return Object.fromEntries(
+    [...layers].map(([part, defaults]) => {
+      const own = preset.instances?.[part];
+
+      const all: readonly PartDefaults[] =
+        own === undefined ? defaults : [...defaults, own];
+
+      const options = keyed((layer) => layer.options, all);
+      const names = keyed((layer) => layer.names, all);
+      const subjects = keyed((layer) => layer.subjects, all);
+
+      return [
+        part,
+        {
+          ...own,
+          ...(options === undefined ? {} : { options }),
+          ...(names === undefined ? {} : { names }),
+          ...(subjects === undefined ? {} : { subjects }),
+        },
+      ];
+    }),
+  );
+}
+
+/** The options each part gets from its composites and the preset. */
+function partOptionsOf(
+  instances: Readonly<Record<string, PresetInstance>>,
+): Record<string, Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(instances).flatMap(([part, instance]) =>
+      Object.keys(instance.options ?? {}).length === 0
+        ? []
+        : [[part, { ...instance.options }]],
+    ),
+  );
 }
 
 /**
@@ -449,6 +501,8 @@ export function resolvePreset(
     }
   }
 
+  const partInstances = partInstancesOf(preset, expanded.composites);
+
   return {
     preset,
     blocks,
@@ -457,7 +511,8 @@ export function resolvePreset(
     conflicts,
     manifests,
     composites: expanded.composites,
-    partOptions: partOptionsOf(preset, expanded.composites),
+    partOptions: partOptionsOf(partInstances),
+    partInstances,
   };
 }
 

@@ -26,12 +26,16 @@ import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
 import { calendarBlock } from "./calendar/manifest.ts";
 import { carePlansBlock } from "./care-plans/manifest.ts";
+import { careBlock } from "./care/manifest.ts";
 import { casesBlock } from "./cases/manifest.ts";
 import { catalogBlock } from "./catalog/manifest.ts";
 import { channelsBlock } from "./channels/manifest.ts";
 import { clinicalDecisionSupportBlock } from "./clinical-decision-support/manifest.ts";
+import { cmsBlock } from "./cms/manifest.ts";
+import { collaborationBlock } from "./collaboration/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
+import { commerceBlock } from "./commerce/manifest.ts";
 import { complianceBlock } from "./compliance/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
 import { consentsBlock } from "./consents/manifest.ts";
@@ -41,6 +45,7 @@ import { contractsBlock } from "./contracts/manifest.ts";
 import { coursesBlock } from "./courses/manifest.ts";
 import { createdByBlock } from "./created-by/manifest.ts";
 import { credentialsBlock } from "./credentials/manifest.ts";
+import { crmBlock } from "./crm/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { damBlock } from "./dam/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
@@ -55,14 +60,18 @@ import { employeesBlock } from "./employees/manifest.ts";
 import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
+import { eventsBlock } from "./events/manifest.ts";
 import { expensesBlock } from "./expenses/manifest.ts";
 import { fieldEncryptionBlock } from "./field-encryption/manifest.ts";
 import { fieldHistoryBlock } from "./field-history/manifest.ts";
+import { filespaceBlock } from "./filespace/manifest.ts";
+import { financeBlock } from "./finance/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { forecastsBlock } from "./forecasts/manifest.ts";
 import { formsBlock } from "./forms/manifest.ts";
 import { fundingBlock } from "./funding/manifest.ts";
 import { goalsBlock } from "./goals/manifest.ts";
+import { governanceBlock } from "./governance/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { guestsBlock } from "./guests/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
@@ -77,6 +86,7 @@ import { invoicesBlock } from "./invoices/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { leadScoringBlock } from "./lead-scoring/manifest.ts";
+import { learningBlock } from "./learning/manifest.ts";
 import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
@@ -103,11 +113,14 @@ import { organizationsBlock } from "./organizations/manifest.ts";
 import { outboxBlock } from "./outbox/manifest.ts";
 import { passesBlock } from "./passes/manifest.ts";
 import { payrollExportBlock } from "./payroll-export/manifest.ts";
+import { peopleBlock } from "./people/manifest.ts";
 import { permissionsBlock } from "./permissions/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
 import { postsBlock } from "./posts/manifest.ts";
+import { procurementBlock } from "./procurement/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
+import { projectsBlock } from "./projects/manifest.ts";
 import { promotionsBlock } from "./promotions/manifest.ts";
 import { pushBlock } from "./push/manifest.ts";
 import { qualificationsBlock } from "./qualifications/manifest.ts";
@@ -122,6 +135,7 @@ import { rankBlock } from "./rank/manifest.ts";
 import { reactionsBlock } from "./reactions/manifest.ts";
 import { readSetsBlock } from "./read-sets/manifest.ts";
 import { realtimeTablesBlock } from "./realtime-tables/manifest.ts";
+import { recruitingBlock } from "./recruiting/manifest.ts";
 import { relationsBlock } from "./relations/manifest.ts";
 import { remindersBlock } from "./reminders/manifest.ts";
 import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
@@ -129,13 +143,17 @@ import { reviewsBlock } from "./reviews/manifest.ts";
 import { rfqsBlock } from "./rfqs/manifest.ts";
 import { risksBlock } from "./risks/manifest.ts";
 import { rlsGuardBlock } from "./rls-guard/manifest.ts";
+import { saasBlock } from "./saas/manifest.ts";
+import { salesBlock } from "./sales/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
+import { schedulingBlock } from "./scheduling/manifest.ts";
 import { scoresBlock } from "./scores/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
 import { securityEventsBlock } from "./security-events/manifest.ts";
 import { segmentsBlock } from "./segments/manifest.ts";
 import { sequencesBlock } from "./sequences/manifest.ts";
 import { serviceAccountsBlock } from "./service-accounts/manifest.ts";
+import { serviceBlock } from "./service/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
@@ -148,6 +166,7 @@ import { ssoBlock } from "./sso/manifest.ts";
 import { stateMachineBlock } from "./state-machine/manifest.ts";
 import { streamsBlock } from "./streams/manifest.ts";
 import { subjectsBlock } from "./subjects/manifest.ts";
+import { supportBlock } from "./support/manifest.ts";
 import { tagsBlock } from "./tags/manifest.ts";
 import { tasksBlock } from "./tasks/manifest.ts";
 import { taxBlock } from "./tax/manifest.ts";
@@ -175,6 +194,25 @@ import { workflowsBlock } from "./workflows/manifest.ts";
  * exported from a subpath: it imports every creator.
  */
 export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
+  salesBlock,
+  saasBlock,
+  collaborationBlock,
+  governanceBlock,
+  commerceBlock,
+  procurementBlock,
+  financeBlock,
+  supportBlock,
+  projectsBlock,
+  serviceBlock,
+  peopleBlock,
+  recruitingBlock,
+  schedulingBlock,
+  learningBlock,
+  eventsBlock,
+  cmsBlock,
+  careBlock,
+  filespaceBlock,
+  crmBlock,
   permissionsBlock,
   accessRequestsBlock,
   accountingBlock,
