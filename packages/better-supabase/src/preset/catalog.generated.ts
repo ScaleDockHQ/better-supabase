@@ -9975,6 +9975,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "count_plan": {
             "table": "plans",
             "singular": "count_plan"
+          },
+          "putaway_rule": {
+            "table": "rules",
+            "singular": "putaway_rule"
+          },
+          "bin_slot": {
+            "table": "slots",
+            "singular": "bin_slot"
+          },
+          "variant_size": {
+            "table": "sizes",
+            "singular": "variant_size"
           }
         },
         "tables": {
@@ -10022,6 +10034,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "serials": "serials",
               "quantity": "quantity",
               "picked": "picked",
+              "route": "route_position",
               "status": "status",
               "pickedAt": "picked_at",
               "pickedBy": "picked_by"
@@ -10042,6 +10055,41 @@ export const PRESET_CATALOG: PresetCatalog = {
               "lastCount": "last_count_id",
               "active": "active",
               "createdAt": "created_at"
+            }
+          },
+          "rules": {
+            "name": "putaway_rules",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "location": "location_id",
+              "bin": "bin_id",
+              "variant": "variant_id",
+              "priority": "priority",
+              "maxQuantity": "max_quantity",
+              "active": "active",
+              "createdAt": "created_at"
+            }
+          },
+          "slots": {
+            "name": "bin_slots",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "bin": "bin_id",
+              "walkRank": "walk_rank",
+              "capacity": "capacity",
+              "updatedAt": "updated_at"
+            }
+          },
+          "sizes": {
+            "name": "variant_sizes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "variant": "variant_id",
+              "size": "size",
+              "updatedAt": "updated_at"
             }
           }
         },
@@ -21784,6 +21832,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "BinSlot"
+        },
+        {
+          "name": "BinSlotInput"
+        },
+        {
           "name": "CountPlan"
         },
         {
@@ -21830,6 +21884,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PickWaveStatus"
+        },
+        {
+          "name": "PutawayRule"
+        },
+        {
+          "name": "PutawayRuleInput"
         }
       ],
       "entitySchemas": {

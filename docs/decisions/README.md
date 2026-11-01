@@ -180,3 +180,4 @@ add one, and link it from the code or config it explains.
 | [0178](0178-e-prescribing-block.md)                           | E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned port                                        |
 | [0179](0179-adapter-templates.md)                             | Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port                                             |
 | [0180](0180-appraisal-rubrics-anonymity.md)                   | Appraisal cycles carry a weighted competency rubric and hide peer reviewers from the appraised person or from every reader                                   |
+| [0181](0181-warehouse-putaway-slotting-routes.md)             | Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task                                      |

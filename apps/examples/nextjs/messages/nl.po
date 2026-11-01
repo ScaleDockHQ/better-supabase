@@ -16792,6 +16792,11 @@ msgid "Cancelled"
 msgstr "Geannuleerd"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.u9j3aI"
+msgid "Plan route"
+msgstr "Route plannen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.U78NhE"
 msgid "Complete"
 msgstr "Voltooid"

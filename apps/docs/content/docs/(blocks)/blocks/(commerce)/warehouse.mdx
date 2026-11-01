@@ -1,6 +1,6 @@
 ---
 title: Warehouse
-description: Pick waves and pick lists made from stock allocations, picking tasks, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
+description: Pick waves and pick lists made from stock allocations, putaway and slotting suggestions, walking routes, and cycle count plans that hold large variances for review.
 ---
 
 `warehouse` turns the stock allocated to a document into work for pickers. A
@@ -24,12 +24,15 @@ the events, and with `audit` every change is audited.
 
 ## Tables
 
-| Table         | Holds                                                                         |
-| ------------- | ----------------------------------------------------------------------------- |
-| `pick_waves`  | A wave of one location with its status                                        |
-| `pick_lists`  | One document's stock to pick, with the assignee and the work item             |
-| `pick_lines`  | One allocation to pick, with bin, lot, serial numbers and the quantity picked |
-| `count_plans` | A cycle count schedule with the variants, the interval and the variance limit |
+| Table           | Holds                                                                           |
+| --------------- | ------------------------------------------------------------------------------- |
+| `pick_waves`    | A wave of one location with its status                                          |
+| `pick_lists`    | One document's stock to pick, with the assignee and the work item               |
+| `pick_lines`    | One allocation to pick, with bin, lot, serial numbers and the quantity picked   |
+| `count_plans`   | A cycle count schedule with the variants, the interval and the variance limit   |
+| `putaway_rules` | A bin for a variant, or for any variant, with a priority and a maximum quantity |
+| `bin_slots`     | A bin's walking rank and capacity                                               |
+| `variant_sizes` | The space one unit of a variant takes in a bin                                  |
 
 Writes go through the functions below.
 
@@ -102,6 +105,58 @@ await db.warehouse
   .orThrow();
 ```
 
+## Putaway
+
+`savePutawayRule` names a bin for a variant, or for every variant when
+`variantId` is left out, with a `priority` (lower is first) and an optional
+`maxQuantity`. `suggestPutaway` plans where received stock goes: rule bins first
+(a rule for the variant before a general one), then bins that already hold the
+variant, then free bins by walking rank. Bins on hold or inactive are skipped,
+and a bin's `capacity` divided by the variant's size (`saveVariantSize`) limits
+what fits. Quantity that fits nowhere comes back as `unassigned`.
+`suggestReceiptPutaway` plans each variant of a goods receipt and needs the
+inventory block's receipt tables. Nothing moves stock: the app confirms a
+placement by passing the bin to inventory.
+
+```ts
+await db.warehouse
+  .saveBinSlot({ binId: fastBin, walkRank: 1, capacity: 40 })
+  .orThrow();
+await db.warehouse
+  .savePutawayRule({ binId: fastBin, variantId, priority: 1 })
+  .orThrow();
+
+const plan = await db.warehouse
+  .suggestPutaway({ locationId, variantId, quantity: 8 })
+  .orThrow();
+```
+
+## Slotting
+
+`suggestSlotting` ranks a location's variants by what the pick lines took in the
+last `days` (30 by default) and pairs the fastest with the lowest-ranked bins
+that can hold their stock. Each row says `keep` or `move`, with the current and
+the suggested bin. It suggests only; moving stock goes through inventory.
+
+## Routes
+
+`setPickRoute` sets the walking order of an open list: the lines you pass come
+first and the other open lines follow. Lines read back with `routePosition`.
+`optimizePickRoute` finds the order for you. It asks `locate` for each line's
+point (the app knows where a bin is), runs the [route optimizer](/docs/blocks/dispatch)
+port (nearest neighbour by default) and saves the result. An optimizer that
+fails or returns a wrong order falls back to nearest neighbour, and the result's
+`optimization.source` says which one ran. Lines without a point go last.
+
+```ts
+const routed = await db.warehouse
+  .optimizePickRoute(list.id, {
+    locate: (line) => binPoints.get(line.binId ?? ""),
+    start: packingDesk,
+  })
+  .orThrow();
+```
+
 ## Events
 
 | Event                                                            | Data                                                                                   |
@@ -115,6 +170,5 @@ The hooks are `before_pick_list_create` and `after_pick_list_create`.
 
 ## Not covered
 
-Putaway, slotting and route optimization inside the warehouse are not part of
-the block. A picking task is a plain work item; the app moves it through its own
-states.
+Putaway and slotting suggest bins and never move stock, and route optimization
+orders the lines of one list; it does not batch lists across a wave.
