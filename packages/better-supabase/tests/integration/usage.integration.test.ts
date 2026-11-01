@@ -852,3 +852,111 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
     }
   });
 });
+
+describe.skipIf(!live)("billing a usage period", () => {
+  const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
+  afterAll(() => pool.end());
+
+  it("rates the history into one draft invoice per period", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "invoices", "usage"], {
+        modules: { usage: { options: { history: true } } },
+      });
+      await s.clear([
+        "better_supabase.usage_billed_periods",
+        "better_supabase.usage_meter_prices",
+        "better_supabase.usage_history",
+        "better_supabase.usage_counters",
+      ]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.service();
+
+      await usage
+        .setPrice({
+          meter: "api_calls",
+          unitAmount: { amount: 5n, currency: "EUR" },
+          included: 100,
+          label: "API calls",
+        })
+        .orThrow();
+      await usage
+        .setPrice({
+          meter: "storage",
+          unitAmount: { amount: 20n, currency: "EUR" },
+        })
+        .orThrow();
+
+      await usage
+        .record({
+          organizationId: organization,
+          meter: "api_calls",
+          quantity: 350,
+        })
+        .orThrow();
+      await usage
+        .record({ organizationId: organization, meter: "other", quantity: 9 })
+        .orThrow();
+      await s.rows(
+        `update better_supabase.usage_history set recorded_at = '2026-10-15T10:00:00Z'`,
+      );
+
+      const period = {
+        organizationId: organization,
+        periodStart: Temporal.PlainDate.from("2026-10-01"),
+        periodEnd: Temporal.PlainDate.from("2026-11-01"),
+      };
+
+      const first = await usage.billPeriod(period).orThrow();
+
+      expect(first).toMatchObject({ created: true, lines: 1 });
+
+      const lines = await s.rows<{
+        quantity: string;
+        unit_amount: string;
+        description: string;
+      }>(
+        `select quantity::text, unit_amount::text, description from better_supabase.invoice_lines
+         where parent_id = $1`,
+        [first.invoiceId],
+      );
+
+      expect(lines).toEqual([
+        {
+          quantity: "250.0000",
+          unit_amount: "5",
+          description: "API calls 2026-10-01 to 2026-11-01",
+        },
+      ]);
+
+      expect(await usage.billPeriod(period).orThrow()).toEqual({
+        invoiceId: first.invoiceId,
+        created: false,
+        lines: 0,
+      });
+
+      expect(
+        await usage
+          .billPeriod({
+            ...period,
+            periodStart: Temporal.PlainDate.from("2026-09-01"),
+            periodEnd: Temporal.PlainDate.from("2026-10-01"),
+          })
+          .orThrow(),
+      ).toEqual({ invoiceId: undefined, created: false, lines: 0 });
+
+      await s.asRole(owner);
+      expect(
+        await s.hint(
+          `select better_supabase.bill_usage_period('${organization}', '2026-10-01', '2026-11-01')`,
+        ),
+      ).toContain("permission denied");
+    } finally {
+      await s.close();
+    }
+  });
+});

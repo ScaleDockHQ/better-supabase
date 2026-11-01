@@ -616,3 +616,45 @@ describe("purge", () => {
     ]);
   });
 });
+
+describe("billing", () => {
+  it("sets prices in minor units and bills a period", async () => {
+    const { transport, calls } = fakeTransport((fn) =>
+      fn === "bill_usage_period"
+        ? { invoice_id: "inv", created: true, lines: 2 }
+        : null,
+    );
+
+    const usage = createUsage({ transport });
+
+    await usage
+      .setPrice({
+        meter: "api",
+        unitAmount: { amount: 12n, currency: "EUR" },
+        included: 100,
+      })
+      .orThrow();
+
+    expect(calls[0]![2]).toMatchObject({
+      meter: "api",
+      currency: "EUR",
+      unit_amount: "12",
+      included: 100,
+    });
+
+    expect(
+      await usage
+        .billPeriod({
+          organizationId: "org",
+          periodStart: Temporal.PlainDate.from("2026-10-01"),
+          periodEnd: Temporal.PlainDate.from("2026-11-01"),
+        })
+        .orThrow(),
+    ).toEqual({ invoiceId: "inv", created: true, lines: 2 });
+    expect(calls[1]![2]).toMatchObject({
+      tenant: "org",
+      period_start: "2026-10-01",
+      period_end: "2026-11-01",
+    });
+  });
+});

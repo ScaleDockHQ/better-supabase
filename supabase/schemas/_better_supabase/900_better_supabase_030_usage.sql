@@ -1,6 +1,6 @@
 -- better-supabase module: usage
--- @bsb-block usage@6 managed
--- @bsb-hash sha256:63d5d6b19bc0f9da70537cf0a3d1f3b2f5c8629de3e6ba68dcb6f4cdaa46b262
+-- @bsb-block usage@7 managed
+-- @bsb-hash sha256:3fee9a56f1c2eebe7cadd87f97525c683806b7e49a30d679d46ea28616b2388e
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,6 +68,14 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_billed_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_billed_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_billed_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_billed_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_billed_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
@@ -113,6 +121,28 @@ create table if not exists "better_supabase"."usage_events" (
   primary key ("organization_id", "meter", "idempotency_key")
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
+
+-- options.history: one row per recorded quantity, with who (actor_id) and
+-- what (source, metadata) used it, for a usage page.
+create table if not exists "better_supabase"."usage_history" (
+  "id" bigint generated always as identity primary key,
+  "organization_id" uuid not null,
+  "meter" text not null,
+  "quantity" numeric not null,
+  "actor_id" uuid,
+  "source" text check (length("source") <= 200),
+  "metadata" jsonb not null default '{}',
+  "recorded_at" timestamptz not null default now()
+);
+create index if not exists usage_history_tenant_idx on "better_supabase"."usage_history" ("organization_id", "recorded_at" desc, "id" desc);
+alter table "better_supabase"."usage_history" enable row level security;
+revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
+grant select on "better_supabase"."usage_history" to authenticated;
+grant all on "better_supabase"."usage_history" to service_role;
+drop policy if exists usage_history_read on "better_supabase"."usage_history";
+create policy usage_history_read on "better_supabase"."usage_history"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
@@ -399,6 +429,10 @@ begin
   values (tenant, meter, today, quantity)
   on conflict ("organization_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
+  insert into "better_supabase"."usage_history" ("organization_id", "meter", "quantity", "actor_id", "source", "metadata")
+  values (tenant, meter, quantity,
+    case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(record_usage.actor, auth.uid()) else auth.uid() end,
+    record_usage.source, coalesce(record_usage.metadata, '{}'));
   return jsonb_build_object('recorded', true, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
 end;
 $$;
@@ -586,7 +620,21 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
-  return '[]'::jsonb;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', h."id", 'meter', h."meter", 'quantity', h."quantity",
+      'actor', h."actor_id", 'source', h."source", 'metadata', h."metadata",
+      'recorded_at', h."recorded_at"
+    ) order by h."id" desc), '[]'::jsonb)
+    from (
+      select * from "better_supabase"."usage_history" h
+      where h."organization_id" = usage_history.tenant
+        and (usage_history.meter is null or h."meter" = usage_history.meter)
+        and (before_id is null or h."id" < before_id)
+      order by h."id" desc
+      limit least(greatest(coalesce(max_rows, 100), 1), 1000)
+    ) h
+  );
 end;
 $$;
 
@@ -608,7 +656,16 @@ begin
   end if;
   select * into quota from "better_supabase"."usage_quota"(tenant, meter);
   select * into win from "better_supabase"."usage_window"(tenant, coalesce(quota.period, 'month'));
-  return '[]'::jsonb;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('actor', b.actor, 'source', b.source, 'quantity', b.quantity) order by b.quantity desc), '[]'::jsonb)
+    from (
+      select h."actor_id" as actor, h."source" as source, sum(h."quantity") as quantity
+      from "better_supabase"."usage_history" h
+      where h."organization_id" = usage_breakdown.tenant and h."meter" = usage_breakdown.meter
+        and h."recorded_at" >= win.starts_at and h."recorded_at" < win.ends_at
+      group by 1, 2
+    ) b
+  );
 end;
 $$;
 
@@ -619,8 +676,21 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  purged integer;
 begin
-  return 0;
+  with gone as (
+    delete from "better_supabase"."usage_history" where "id" in (
+      select h."id" from "better_supabase"."usage_history" h
+      where (h."recorded_at" < now() - least(older_than, "better_supabase"."retention_floor"('usage'))
+      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for"('usage', (h."organization_id")::text), older_than)
+      and not "better_supabase"."is_held"('usage', (h."organization_id")::text))
+      order by h."id" limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer into purged from gone;
+  return purged;
 end;
 $$;
 
@@ -680,6 +750,126 @@ grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric,
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- What one unit of a meter costs: unit_amount in minor units of currency
+-- (ADR 0024), and how many units each billing period includes for free.
+create table if not exists "better_supabase"."usage_meter_prices" (
+  "meter" text not null check (length("meter") between 1 and 100),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null check ("unit_amount" >= 0),
+  "included" numeric not null default 0 check ("included" >= 0),
+  "label" text check (length("label") <= 200),
+  primary key ("meter", "currency")
+);
+alter table "better_supabase"."usage_meter_prices" enable row level security;
+revoke all on "better_supabase"."usage_meter_prices" from public, anon, authenticated;
+grant all on "better_supabase"."usage_meter_prices" to service_role;
+
+-- One row per tenant and billed period, so billing a period twice returns the
+-- first invoice.
+create table if not exists "better_supabase"."usage_billed_periods" (
+  "organization_id" uuid not null,
+  "period_start" date not null,
+  "period_end" date not null,
+  "invoice_id" uuid not null,
+  "billed_at" timestamptz not null default now(),
+  constraint "bsb_usage_billed_periods_period_key" primary key ("organization_id", "period_start", "period_end")
+);
+alter table "better_supabase"."usage_billed_periods" enable row level security;
+revoke all on "better_supabase"."usage_billed_periods" from public, anon, authenticated;
+grant all on "better_supabase"."usage_billed_periods" to service_role;
+
+-- Sets the price of one meter in one currency; service role only.
+create or replace function "better_supabase"."set_usage_price"(meter text, currency text, unit_amount bigint, included numeric default 0, label text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only the service role sets usage prices' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."usage_meter_prices" as p ("meter", "currency", "unit_amount", "included", "label")
+  values (set_usage_price.meter, upper(set_usage_price.currency), set_usage_price.unit_amount, coalesce(set_usage_price.included, 0), set_usage_price.label)
+  on conflict ("meter", "currency") do update
+    set "unit_amount" = excluded."unit_amount", "included" = excluded."included", "label" = excluded."label";
+  return jsonb_build_object('meter', set_usage_price.meter, 'currency', upper(set_usage_price.currency), 'unit_amount', set_usage_price.unit_amount);
+exception when check_violation then
+  raise exception 'The usage price is invalid' using errcode = '22023', hint = 'USAGE_PRICE_INVALID';
+end;
+$$;
+
+-- Rates the usage history of [period_start, period_end) (UTC days) by the meter
+-- prices into one draft invoice: per meter, the quantity beyond the included
+-- units times the unit amount. A meter without a price in the currency, or
+-- with nothing beyond its included units, adds no line. Billing the same
+-- period again returns the first invoice with created = false; a period with
+-- nothing to bill returns invoice_id = null. attrs adds invoice fields
+-- (company, contact, termsDays); service role only.
+create or replace function "better_supabase"."bill_usage_period"(tenant uuid, period_start date, period_end date, currency text default 'EUR', attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_currency text := upper(coalesce(bill_usage_period.currency, 'EUR'));
+  v_existing uuid;
+  v_lines jsonb;
+  v_invoice jsonb;
+  v_title text;
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only the service role bills usage' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  if bill_usage_period.period_start is null or bill_usage_period.period_end is null or bill_usage_period.period_end <= bill_usage_period.period_start then
+    raise exception 'The billing period must end after it starts' using errcode = '22023', hint = 'USAGE_PERIOD_INVALID';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(bill_usage_period.tenant::text || bill_usage_period.period_start::text || bill_usage_period.period_end::text, 0));
+  select b."invoice_id" into v_existing from "better_supabase"."usage_billed_periods" b
+  where b."organization_id" = bill_usage_period.tenant
+    and b."period_start" = bill_usage_period.period_start
+    and b."period_end" = bill_usage_period.period_end;
+  if found then
+    return jsonb_build_object('invoice_id', v_existing, 'created', false, 'lines', 0);
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'description', coalesce(p."label", u.meter) || ' ' || bill_usage_period.period_start::text || ' to ' || bill_usage_period.period_end::text,
+      'quantity', round(u.total - p."included", 4),
+      'unitAmount', p."unit_amount"
+    ) order by u.meter), '[]'::jsonb)
+  into v_lines
+  from (
+    select h."meter" as meter, sum(h."quantity") as total
+    from "better_supabase"."usage_history" h
+    where h."organization_id" = bill_usage_period.tenant
+      and h."recorded_at" >= (bill_usage_period.period_start::timestamp at time zone 'UTC')
+      and h."recorded_at" < (bill_usage_period.period_end::timestamp at time zone 'UTC')
+    group by h."meter"
+  ) u
+  join "better_supabase"."usage_meter_prices" p on p."meter" = u.meter and p."currency" = v_currency
+  where round(u.total - p."included", 4) > 0;
+  if jsonb_array_length(v_lines) = 0 then
+    return jsonb_build_object('invoice_id', null, 'created', false, 'lines', 0);
+  end if;
+  v_title := 'Usage ' || bill_usage_period.period_start::text || ' to ' || bill_usage_period.period_end::text;
+  v_invoice := "better_supabase"."create_invoice"(
+    bill_usage_period.tenant,
+    coalesce(bill_usage_period.attrs, '{}'::jsonb) || jsonb_build_object('title', v_title, 'currency', v_currency),
+    v_lines
+  );
+  insert into "better_supabase"."usage_billed_periods" ("organization_id", "period_start", "period_end", "invoice_id")
+  values (bill_usage_period.tenant, bill_usage_period.period_start, bill_usage_period.period_end, (v_invoice ->> 'id')::uuid);
+  return jsonb_build_object('invoice_id', (v_invoice ->> 'id')::uuid, 'created', true, 'lines', jsonb_array_length(v_lines));
+end;
+$$;
+
+revoke execute on function "better_supabase"."set_usage_price"(text, text, bigint, numeric, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_price"(text, text, bigint, numeric, text) to service_role;
+revoke execute on function "better_supabase"."bill_usage_period"(uuid, date, date, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."bill_usage_period"(uuid, date, date, text, jsonb) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -714,6 +904,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as r
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."usage_history" as restrictive
+  for select to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."usage_history" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."usage_history" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."usage_history" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
@@ -921,6 +1132,24 @@ set search_path = ''
 as $$ select "better_supabase"."mark_usage_reported"($1, $2, $3, $4) $$;
 revoke execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
+
+create or replace function "api"."set_usage_price"(meter text, currency text, unit_amount bigint, included numeric default 0, label text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_usage_price"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_usage_price"(text, text, bigint, numeric, text) from public, anon, authenticated;
+grant execute on function "api"."set_usage_price"(text, text, bigint, numeric, text) to service_role;
+
+create or replace function "api"."bill_usage_period"(tenant uuid, period_start date, period_end date, currency text default 'EUR', attrs jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bill_usage_period"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."bill_usage_period"(uuid, date, date, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."bill_usage_period"(uuid, date, date, text, jsonb) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -516,7 +516,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "entitlements",
-        "data-lifecycle"
+        "data-lifecycle",
+        "invoices"
       ],
       "manifest": "usage",
       "scopes": [
@@ -7680,6 +7681,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "risks",
       "entities": {
         "specs": {
@@ -8687,6 +8691,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "created_from"
         }
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "cases",
       "entities": {
         "specs": {

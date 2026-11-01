@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@6 managed
+-- @bsb-block usage@7 managed
 -- @bsb-hash sha256:2526787d81323985af116663a1f98df1bcba0936304b83a77f84076393d8f574
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -755,13 +755,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:7ef3669a0e5f7212dedcb8d76ca839b1218039254cfe9c9b909e71d3f6f31ada
+-- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 6, 'managed')
+values ('usage', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
