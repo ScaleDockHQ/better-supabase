@@ -89,8 +89,14 @@ describe("createBlocks sinks", () => {
       cloudEvent("subject.trashed", { subjectType: "task", subjectId: "t1" }),
       cloudEvent("subject.restored", { subjectType: "task", subjectId: "t2" }),
     ]);
-    expect(remove).toHaveBeenCalledWith("task", "t1");
-    expect(refresh).toHaveBeenCalledWith("task", "t2");
+    expect(remove).toHaveBeenCalledWith({
+      subjectType: "task",
+      subjectId: "t1",
+    });
+    expect(refresh).toHaveBeenCalledWith({
+      subjectType: "task",
+      subjectId: "t2",
+    });
   });
 
   it("rolls metrics up for the events in the metrics block's sink option", async () => {
@@ -137,7 +143,7 @@ describe("createBlocks hooks", () => {
     expect(
       await blocks.organizations.create({ attributes: { name: "Acme" } }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
-    expect(before).toHaveBeenCalledWith([{ name: "Acme" }], {
+    expect(before).toHaveBeenCalledWith([{ attributes: { name: "Acme" } }], {
       block: "organizations",
       method: "create",
     });
@@ -342,12 +348,15 @@ describe("createBlocks", () => {
         subject: { type: "task", id: "42" },
       })
       .orThrow();
-    expect(send).toHaveBeenCalledWith("reminder.due", {
-      recipients: ["u1"],
-      tenant: "o1",
-      key: "reminder:r1:2026-10-14T09:00:00Z",
-      subject: { type: "task", id: "42" },
-      data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
+    expect(send).toHaveBeenCalledWith({
+      type: "reminder.due",
+      input: {
+        recipients: ["u1"],
+        tenant: "o1",
+        key: "reminder:r1:2026-10-14T09:00:00Z",
+        subject: { type: "task", id: "42" },
+        data: { reminderId: "r1", occurrenceAt: "2026-10-14T09:00:00Z" },
+      },
     });
   });
 

@@ -43,7 +43,8 @@ describe("batchPermissions", () => {
     ]);
 
     expect(inner.permissions).toHaveBeenCalledTimes(2);
-    expect(inner.permissions).toHaveBeenCalledWith(["a", "b", "c"], {
+    expect(inner.permissions).toHaveBeenCalledWith({
+      keys: ["a", "b", "c"],
       tenant: "org-1",
     });
     expect(first.ok && first.data).toEqual({ tenant: "org-1", keys: ["a"] });
@@ -69,7 +70,8 @@ describe("batchPermissions", () => {
 
     await batchPermissions(inner).permissions({ tenant: "org-1" });
 
-    expect(inner.permissions).toHaveBeenCalledWith(undefined, {
+    expect(inner.permissions).toHaveBeenCalledWith({
+      keys: undefined,
       tenant: "org-1",
     });
   });

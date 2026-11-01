@@ -66,8 +66,8 @@ function fakeKnowledge(existing: readonly string[] = []) {
 
   const knowledge = {
     documents: {
-      list: (organizationId: string, options: unknown) => {
-        calls.push(["list", organizationId, options]);
+      list: (input: unknown) => {
+        calls.push(["list", input]);
 
         return AsyncResult.ok(existing.map((id) => ({ id })));
       },
@@ -256,7 +256,7 @@ describe("createDriveText", () => {
     expect(await text.extract({ nodeId: "n1" }).orThrow()).toBe("stored");
     const subject = { type: "drive_node", id: "n1" };
     expect(calls).toEqual([
-      ["list", "org-1", { scope: "subject", subject }],
+      ["list", { organizationId: "org-1", scope: "subject", subject }],
       ["remove", "k-old"],
       [
         "ingest",

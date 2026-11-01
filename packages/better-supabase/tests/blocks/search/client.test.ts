@@ -76,10 +76,9 @@ describe("createCommandSearchController", () => {
     view().setQuery(" rev  ");
     expect(view().loading).toBe(true);
     await vi.advanceTimersByTimeAsync(150);
-    expect(client.search).toHaveBeenCalledExactlyOnceWith("rev", {
-      limit: 5,
-      organizationId: "org",
-      types: ["note"],
+    expect(client.search).toHaveBeenCalledExactlyOnceWith({
+      q: "rev",
+      query: { limit: 5, organizationId: "org", types: ["note"] },
     });
     expect(view().groups.map((group) => group.key)).toEqual(["note", "deal"]);
     expect(view().loading).toBe(false);

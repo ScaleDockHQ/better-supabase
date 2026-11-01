@@ -81,15 +81,18 @@ describe("createCommentsController", () => {
     const { list, get, create, edit, remove, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(list).toHaveBeenCalledExactlyOnceWith(CUSTOMER, { limit: 20 });
+    expect(list).toHaveBeenCalledExactlyOnceWith({
+      subject: CUSTOMER,
+      limit: 20,
+    });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1"]);
 
     expect(
       (await view().add({ body: "New", draft: { parentId: "c1" } })).ok,
     ).toBe(true);
-    expect(create).toHaveBeenCalledWith(CUSTOMER, {
-      parentId: "c1",
-      body: "New",
+    expect(create).toHaveBeenCalledWith({
+      subject: CUSTOMER,
+      comment: { parentId: "c1", body: "New" },
     });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1", "c2"]);
 
@@ -188,7 +191,7 @@ describe("createCommentsController", () => {
     const { topic, conversation, controller } = setup({ topic: "chat" });
     const { view, unmount } = mount(controller);
     await flush();
-    expect(conversation).toHaveBeenCalledWith(CUSTOMER);
+    expect(conversation).toHaveBeenCalledWith({ subject: CUSTOMER });
     expect(topic.open()).toEqual([]);
     await view().add({ body: "First" });
     expect(topic.open()).toEqual(["chat:conv-1"]);
@@ -208,8 +211,8 @@ describe("createCommentsController", () => {
     expect(conversation).not.toHaveBeenCalled();
     expect((await view().resolve({ id: "c1" })).ok).toBe(true);
     expect((await view().pin({ id: "c1", pinned: false })).ok).toBe(true);
-    expect(resolve).toHaveBeenCalledWith("c1", undefined);
-    expect(pin).toHaveBeenCalledWith("c1", false);
+    expect(resolve).toHaveBeenCalledWith({ id: "c1", resolved: undefined });
+    expect(pin).toHaveBeenCalledWith({ id: "c1", pinned: false });
     expect(topic.open()).toEqual([]);
     unmount();
   });

@@ -62,15 +62,11 @@ const notesBlock = defineBlock({
           title: "NoteInput",
           fields: { body: { kind: "string", minLength: 1 } },
         }),
-        run: ({
-          organizationId: client,
-          command: subject,
-          ns: input,
-        }: {
-          organizationId: Notes;
-          command: RecordRef;
-          ns: { readonly body: string };
-        }) => client.add(subject, input.body),
+        run: (
+          client: Notes,
+          subject: RecordRef,
+          input: { readonly body: string },
+        ) => client.add(subject, input.body),
       },
     },
   }),
@@ -145,7 +141,9 @@ describe("recordQueries", () => {
     await expect(new QueryClient().query(queries.can())).resolves.toEqual({
       notes: { read: true, add: false },
     });
-    expect(permissions).toHaveBeenCalledWith(["notes.read", "notes.create"]);
+    expect(permissions).toHaveBeenCalledWith({
+      keys: ["notes.read", "notes.create"],
+    });
 
     const open = recordQueries(feature, { notes: notesClient() });
     await expect(new QueryClient().query(open.can())).resolves.toEqual({

@@ -99,7 +99,7 @@ describe("createTagInputController", () => {
     expect(view().pending).toEqual(["t2"]);
     write.release();
     expect((await adding).ok).toBe(true);
-    expect(tagFn).toHaveBeenCalledWith(CUSTOMER, "t2");
+    expect(tagFn).toHaveBeenCalledWith({ record: CUSTOMER, tagId: "t2" });
     expect(onChanged).toHaveBeenCalledWith({
       kind: "added",
       tag: tag("t2", "Churn"),
@@ -144,7 +144,7 @@ describe("createTagInputController", () => {
     await flush();
     expect((await view().create("  churn ")).ok).toBe(true);
     expect(create).not.toHaveBeenCalled();
-    expect(tagFn).toHaveBeenLastCalledWith(CUSTOMER, "t2");
+    expect(tagFn).toHaveBeenLastCalledWith({ record: CUSTOMER, tagId: "t2" });
 
     expect(await view().create("New")).toMatchObject({
       ok: true,

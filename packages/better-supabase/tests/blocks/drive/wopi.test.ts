@@ -32,7 +32,7 @@ function setup(initial: Record<string, unknown> = {}) {
 
   const drive = {
     get: async () => ok(state.node),
-    lock: async (_id: string, o: { until: Temporal.Instant; note: string }) => {
+    lock: async (o: { id: string; until: Temporal.Instant; note: string }) => {
       calls.push(`lock ${o.note}`);
       state.node = node({
         lockedBy: "u1",

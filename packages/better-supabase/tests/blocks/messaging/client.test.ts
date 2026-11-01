@@ -117,7 +117,7 @@ describe("createMessagesController", () => {
     expect(view().messages?.map((each) => each.id)).toEqual(["m1", "m2"]);
     expect(view().hasOlder).toBe(true);
     expect(topic.open()).toEqual(["messages:c1"]);
-    expect(client.markRead).toHaveBeenCalledWith("c1", {});
+    expect(client.markRead).toHaveBeenCalledWith({ conversationId: "c1" });
 
     topic.emit("messages:c1", "typing", { userId: OTHER });
     topic.emit("messages:c1", "typing", { userId: USER });
@@ -194,12 +194,15 @@ describe("createMessagesController", () => {
     await view().loadOlder();
     expect(client.list).not.toHaveBeenCalled();
     await view().send({ body: "reply" });
-    expect(client.send).toHaveBeenCalledWith("c1", {
-      parentId: "m1",
-      body: "reply",
+    expect(client.send).toHaveBeenCalledWith({
+      conversationId: "c1",
+      message: { parentId: "m1", body: "reply" },
     });
     await view().markRead();
-    expect(client.markRead).toHaveBeenCalledWith("c1", { threadId: "m1" });
+    expect(client.markRead).toHaveBeenCalledWith({
+      conversationId: "c1",
+      threadId: "m1",
+    });
     unmount();
   });
 

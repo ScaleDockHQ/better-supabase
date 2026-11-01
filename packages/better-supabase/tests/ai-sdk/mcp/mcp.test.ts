@@ -115,7 +115,7 @@ function fakeConnectors(status: FingerprintStatus = "approved") {
 
   const connectors = {
     grants: {
-      record: (...args: unknown[]) => {
+      record: (args: unknown) => {
         recorded.push(args);
 
         return AsyncResult.ok(grant(mcpOAuthRef("s1")));
@@ -126,19 +126,19 @@ function fakeConnectors(status: FingerprintStatus = "approved") {
         AsyncResult.ok(
           session === undefined ? undefined : { ...session, expiresAt: AT },
         ),
-      upsert: (...args: unknown[]) => {
+      upsert: (args: unknown) => {
         saved.push(args);
 
         return AsyncResult.ok(true);
       },
-      forget: (...args: unknown[]) => {
+      forget: (args: unknown) => {
         forgotten.push(args);
 
         return AsyncResult.ok(true);
       },
     },
     fingerprints: {
-      check: (...args: unknown[]) => {
+      check: (args: unknown) => {
         checked.push(args);
 
         return AsyncResult.ok(status);
@@ -377,15 +377,19 @@ describe("authorizeConnector and completeConnector", () => {
       callbackIssuer: "https://auth.test",
     });
 
-    const [serverId, userId, ref, extra] = fake.recorded[0] as [
-      string,
-      string,
-      CredentialRef,
-      { expiresAt?: Temporal.Instant },
-    ];
+    const { serverId, userId, credentialRef, expiresAt } = fake.recorded[0] as {
+      serverId: string;
+      userId: string;
+      credentialRef: CredentialRef;
+      expiresAt?: Temporal.Instant;
+    };
 
-    expect([serverId, userId, ref]).toEqual(["s1", "u1", mcpOAuthRef("s1")]);
-    expect(extra.expiresAt).toBeInstanceOf(Temporal.Instant);
+    expect([serverId, userId, credentialRef]).toEqual([
+      "s1",
+      "u1",
+      mcpOAuthRef("s1"),
+    ]);
+    expect(expiresAt).toBeInstanceOf(Temporal.Instant);
   });
 
   it("records the grant when stored tokens still work", async () => {
@@ -404,12 +408,12 @@ describe("authorizeConnector and completeConnector", () => {
     expect(mcp.auth.mock.calls[0]?.[1]).toEqual({
       serverUrl: "https://mcp.example.com/mcp",
     });
-    expect(fake.recorded[0]).toEqual([
-      "s1",
-      "u1",
-      mcpOAuthRef("s1"),
-      { scopes: [] },
-    ]);
+    expect(fake.recorded[0]).toEqual({
+      serverId: "s1",
+      userId: "u1",
+      credentialRef: mcpOAuthRef("s1"),
+      scopes: [],
+    });
   });
 
   it("maps auth failures and callback errors", async () => {
@@ -477,14 +481,14 @@ describe("connectTools", () => {
     expect(Object.keys(connected.appTools)).toEqual(["gh_render"]);
     expect(connected.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(fake.saved).toEqual([
-      [
-        "s1",
-        {
+      {
+        serverId: "s1",
+        session: {
           chatKey: "c1",
           sessionId: "sess-1",
           initializeResult: { protocolVersion: "2025-11-25" },
         },
-      ],
+      },
     ]);
     await elicit.handler?.({ params: {} });
     expect(elicitAnswer).toHaveBeenCalledWith({ params: {} });
@@ -584,7 +588,7 @@ describe("connectTools", () => {
     expect(options.initialInitializeResult).toEqual({
       protocolVersion: "2025-06-18",
     });
-    expect(fake.forgotten).toEqual([["s1", ""]]);
+    expect(fake.forgotten).toEqual([{ serverId: "s1", chatKey: "" }]);
     expect(fake.saved).toEqual([]);
     expect(await elicit.handler?.({})).toEqual({ action: "decline" });
   });

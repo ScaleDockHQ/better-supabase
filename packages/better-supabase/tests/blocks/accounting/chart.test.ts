@@ -46,7 +46,12 @@ function fakeAccounting(failOn?: string) {
     saved,
     roles,
     accounting: {
-      saveAccount(_org: string, input: { code: string; parentId?: string }) {
+      saveAccount({
+        input,
+      }: {
+        organizationId: string;
+        input: { code: string; parentId?: string };
+      }) {
         if (input.code === failOn) {
           return Promise.resolve(
             err({ kind: "unknown", message: "boom", status: 500 }),

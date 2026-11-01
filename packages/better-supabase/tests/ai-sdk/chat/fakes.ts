@@ -136,7 +136,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       allowed: () => result((options.models ?? []).map((id) => ({ id }))),
     },
     moderation: {
-      record: (event: unknown) => {
+      record: ({ event }: { event: unknown }) => {
         moderated.push(event);
 
         return result(event);

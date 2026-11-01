@@ -173,16 +173,14 @@ describe("scheduleAgent", () => {
       context: { actor: { id: USER, kind: "user" }, tenant: ORG },
     }).orThrow();
 
-    expect(schedule).toHaveBeenCalledWith(
-      "report:org",
-      "0 9 * * 1",
-      "eve",
-      job,
-      {
-        timeZone: "Europe/Amsterdam",
-        context: { actor: { id: USER, kind: "user" }, tenant: ORG },
-      },
-    );
+    expect(schedule).toHaveBeenCalledWith({
+      name: "report:org",
+      cron: "0 9 * * 1",
+      queue: "eve",
+      payload: job,
+      timeZone: "Europe/Amsterdam",
+      context: { actor: { id: USER, kind: "user" }, tenant: ORG },
+    });
   });
 });
 

@@ -43,7 +43,9 @@ function chatsClient() {
       resolved(query.cursor === undefined ? page(["a"], "p2") : page(["b"])),
     ),
     create: vi.fn(() => resolved(chat("new"))),
-    update: vi.fn((id: string) => resolved({ ...chat(id), title: "Renamed" })),
+    update: vi.fn(({ chatId }: { chatId: string }) =>
+      resolved({ ...chat(chatId), title: "Renamed" }),
+    ),
     remove: vi.fn(() => resolved(true)),
   };
 }
@@ -176,11 +178,17 @@ describe("createAiChatTreeController", () => {
     expect(calls.path).toHaveBeenCalledTimes(4);
 
     await view().step({ messageId: "a1", offset: 1 });
-    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
-    expect(calls.path).toHaveBeenLastCalledWith("c1", { leafId: "a2" });
+    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith({
+      chatId: "c1",
+      messageId: "a2",
+    });
+    expect(calls.path).toHaveBeenLastCalledWith({ chatId: "c1", leafId: "a2" });
     await view().step({ messageId: "a2", offset: 1 });
     await view().step({ messageId: "zz", offset: 0 });
-    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
+    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith({
+      chatId: "c1",
+      messageId: "a2",
+    });
 
     calls.siblings.mockReturnValue(failed("gone"));
     await view().step({ messageId: "a1", offset: 1 });
@@ -286,7 +294,10 @@ describe("createAiShareController", () => {
     await flush();
     expect(view().shares).toHaveLength(1);
     expect(await view().create("leaf")).toMatchObject({ token: "t" });
-    expect(shares.create).toHaveBeenCalledWith("c1", "leaf");
+    expect(shares.create).toHaveBeenCalledWith({
+      chatId: "c1",
+      leafId: "leaf",
+    });
     await view().revoke("s1");
     expect(shares.list).toHaveBeenCalledTimes(3);
     shares.revoke.mockReturnValue(failed("gone"));

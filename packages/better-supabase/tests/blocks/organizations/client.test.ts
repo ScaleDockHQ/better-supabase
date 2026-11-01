@@ -229,7 +229,11 @@ describe("createMembersController", () => {
     write.release();
     expect((await changing).ok).toBe(true);
     expect(view().pending).toEqual([]);
-    expect(updateMemberRole).toHaveBeenCalledWith("org-1", "u-2", "admin");
+    expect(updateMemberRole).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      userId: "u-2",
+      role: "admin",
+    });
     expect(onChanged).toHaveBeenCalledWith({
       kind: "role",
       organizationId: "org-1",
@@ -259,7 +263,10 @@ describe("createMembersController", () => {
     await flush();
     load.mockResolvedValueOnce([{ userId: "u-1", role: "owner" }]);
     expect((await view().remove("u-2")).ok).toBe(true);
-    expect(removeMember).toHaveBeenCalledWith("org-1", "u-2");
+    expect(removeMember).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      userId: "u-2",
+    });
     expect(onChanged).toHaveBeenCalledWith({
       kind: "removed",
       organizationId: "org-1",

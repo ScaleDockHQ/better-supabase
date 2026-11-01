@@ -99,11 +99,10 @@ describe("batchSubjects", () => {
 
     await batchSubjects(inner).summary({ subject, sections: ["comments"] });
 
-    expect(inner.summary).toHaveBeenCalledWith(
+    expect(inner.summary).toHaveBeenCalledWith({
       subject,
-      ["comments"],
-      undefined,
-    );
+      sections: ["comments"],
+    });
   });
 
   it("passes myWork through to the source", async () => {

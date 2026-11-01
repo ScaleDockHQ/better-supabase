@@ -262,7 +262,7 @@ describe("approvalPolicy", () => {
     await expect(
       second.respond(responseCtx(member(LEAD), "cancel")),
     ).resolves.toEqual({ status: "allowed" });
-    expect(second.client.reject).toHaveBeenCalledWith("req_1");
+    expect(second.client.reject).toHaveBeenCalledWith({ id: "req_1" });
     expect(second.requests[0]?.status).toBe("rejected");
   });
 

@@ -67,7 +67,7 @@ describe("drive access requests", () => {
       [{ subjectType: "file", subjectId: "n1" }],
     ]);
     expect(port.records.mock.calls).toEqual([
-      ["file", "n1", { status: "pending" }],
+      [{ subjectType: "file", subjectId: "n1", status: "pending" }],
     ]);
   });
 
@@ -76,7 +76,9 @@ describe("drive access requests", () => {
     await createDrive({ transport: transport({}), recordAccess: port })
       .accessRequests({ nodeId: "n1" })
       .orThrow();
-    expect(port.records.mock.calls[0]![0]).toBe("drive_node");
+    expect(port.records.mock.calls[0]![0]).toMatchObject({
+      subjectType: "drive_node",
+    });
 
     const drive = createDrive({ transport: transport({}) });
     const requested = await drive.requestAccess({ nodeId: "n1" });

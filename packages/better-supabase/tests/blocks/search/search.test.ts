@@ -232,7 +232,7 @@ describe("search block", () => {
       hooks: {
         touch: {
           before: (args) => {
-            seen.push(`before ${args.join("/")}`);
+            seen.push(`before ${args[0].subjectType}/${args[0].subjectId}`);
           },
         },
       },
@@ -254,7 +254,13 @@ describe("searchSink", () => {
         failure = next;
       },
       search: {
-        remove: (type: string, id: string) => {
+        remove: ({
+          subjectType: type,
+          subjectId: id,
+        }: {
+          subjectType: string;
+          subjectId: string;
+        }) => {
           calls.push(`remove ${type}/${id}`);
 
           return Promise.resolve(failure ? err(failure as never) : ok(true));

@@ -328,14 +328,17 @@ describe("createSequences", () => {
       "run_due_sequences",
       { max_count: 5 },
     );
-    expect(send).toHaveBeenCalledWith("acc", {
-      to: [{ address: "ada@example.test", name: "Ada" }],
-      subject: "Hi Ada",
-      text: "Hello Ada",
-      html: "<p>Ada</p>",
-      threadId: "t1",
-      templateVersionId: "tv1",
-      track: false,
+    expect(send).toHaveBeenCalledWith({
+      accountId: "acc",
+      draft: {
+        to: [{ address: "ada@example.test", name: "Ada" }],
+        subject: "Hi Ada",
+        text: "Hello Ada",
+        html: "<p>Ada</p>",
+        threadId: "t1",
+        templateVersionId: "tv1",
+        track: false,
+      },
     });
     expect(service.call).toHaveBeenCalledWith(
       "better_supabase",

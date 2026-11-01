@@ -248,11 +248,14 @@ describe("createAiSchedules", () => {
     });
 
     expect(await tasks.drain({ batch: 1 }).orThrow()).toBe(1);
-    expect(send).toHaveBeenCalledWith("ai_task.finished", {
-      recipients: ["u1"],
-      tenant: "o1",
-      key: "ai-task-run:r1",
-      data: { taskId: "t1", runId: "r1", ok: false, error: "model down" },
+    expect(send).toHaveBeenCalledWith({
+      type: "ai_task.finished",
+      input: {
+        recipients: ["u1"],
+        tenant: "o1",
+        key: "ai-task-run:r1",
+        data: { taskId: "t1", runId: "r1", ok: false, error: "model down" },
+      },
     });
     const silent = vi.fn();
     await createAiSchedules({

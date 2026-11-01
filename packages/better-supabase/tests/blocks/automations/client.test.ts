@@ -212,14 +212,17 @@ describe("createRuleBuilderController", () => {
     view().setName("Huge expenses");
     const saved = await view().save({ enabled: true });
 
-    expect(save).toHaveBeenCalledWith("org-1", {
-      id: "rule-1",
-      version: 1,
-      name: "Huge expenses",
-      conditions,
-      actions: [{ kind: "approvals.request" }],
-      stopProcessing: false,
-      enabled: true,
+    expect(save).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      input: {
+        id: "rule-1",
+        version: 1,
+        name: "Huge expenses",
+        conditions,
+        actions: [{ kind: "approvals.request" }],
+        stopProcessing: false,
+        enabled: true,
+      },
     });
     expect(saved?.version).toBe(2);
     expect(view()).toMatchObject({ saving: false, dirty: false });
@@ -232,13 +235,13 @@ describe("createRuleBuilderController", () => {
     await flush();
 
     await view().save();
-    expect(save).toHaveBeenCalledWith(
-      "org-1",
-      expect.objectContaining({
+    expect(save).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      input: expect.objectContaining({
         subjectType: "expense",
         trigger: "expense.submitted",
       }),
-    );
+    });
     expect(save.mock.calls[0]?.[0]?.input).not.toHaveProperty("id");
     unmount();
   });

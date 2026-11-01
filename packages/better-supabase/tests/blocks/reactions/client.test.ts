@@ -99,12 +99,16 @@ describe("createReactionsController", () => {
     const { view, unmount } = mount(controller);
     await flush();
     await view().toggle({ subject: comment("c1"), emoji: "+1" });
-    expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
+    expect(react).toHaveBeenLastCalledWith({
+      subject: comment("c1"),
+      emoji: "+1",
       present: true,
     });
     expect(view().reactions?.["comment:c1"]).toEqual([count("+1", true)]);
     await view().toggle({ subject: comment("c1"), emoji: "+1" });
-    expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
+    expect(react).toHaveBeenLastCalledWith({
+      subject: comment("c1"),
+      emoji: "+1",
       present: false,
     });
     react.mockReturnValue(failed("denied"));

@@ -54,14 +54,15 @@ describe("createAvailableSlotsController", () => {
     await flush();
     expect(view().loading).toBe(false);
     expect([...view().days.keys()]).toEqual(["2030-03-04", "2030-03-05"]);
-    expect(client.availableSlots).toHaveBeenCalledWith(
-      "s1",
-      {
+    expect(client.availableSlots).toHaveBeenCalledWith({
+      serviceId: "s1",
+      range: {
         from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
         until: Temporal.Instant.from("2030-03-06T00:00:00Z"),
       },
-      { tz: "Europe/Amsterdam", resourceId: "r1" },
-    );
+      tz: "Europe/Amsterdam",
+      resourceId: "r1",
+    });
 
     expect(
       await view().hold({ slot: view().slots![0]!, customer: { name: "Ada" } }),
@@ -110,18 +111,17 @@ describe("createAvailableSlotsController", () => {
     slow.release();
     await flush();
     expect(view().slots?.map((each) => each.localStart.hour)).toEqual([10]);
-    expect(client.public.slots).toHaveBeenLastCalledWith(
-      "share",
-      expect.anything(),
-      {},
-    );
+    expect(client.public.slots).toHaveBeenLastCalledWith({
+      token: "share",
+      range: expect.anything(),
+    });
     await view().hold({ slot: view().slots![0]! });
-    expect(client.public.hold).toHaveBeenCalledWith(
-      "share",
-      "r1",
-      view().slots![0]!.startsAt,
-      { name: "", email: "" },
-    );
+    expect(client.public.hold).toHaveBeenCalledWith({
+      token: "share",
+      resourceId: "r1",
+      startsAt: view().slots![0]!.startsAt,
+      customer: { name: "", email: "" },
+    });
     unmount();
   });
 });
