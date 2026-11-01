@@ -25,8 +25,12 @@ while it waits, 200 with an `accessToken`, `refreshToken`, `expiresAt` and
 
 The login lives in `$XDG_CONFIG_HOME/better-supabase/auth.json`, or
 `~/.config/better-supabase/auth.json`, with mode 0600. `$BSB_CLOUD_URL` points
-the CLI at another cloud address. An expired login asks you to run `login`
-again.
+the CLI at another cloud address.
+
+When the access token is less than a minute from `expiresAt`, the CLI posts the
+`refreshToken` to `POST /api/cli/auth/refresh` and saves the new tokens the
+cloud returns (the same body as an approved poll; the refresh token rotates).
+A refresh token the cloud refuses with 401 asks you to run `login` again.
 
 ## logout
 

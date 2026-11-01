@@ -275,6 +275,72 @@ export async function pollLogin(
   );
 }
 
+/**
+ * Trades the refresh token for a new grant. The cloud rotates the refresh
+ * token, so the caller must save the answer.
+ */
+export async function refreshLogin(
+  fetcher: Fetch,
+  base: string,
+  refreshToken: string,
+): Promise<LoginGrant> {
+  const { status, body, ok } = await send(
+    fetcher,
+    `${base}/api/cli/auth/refresh`,
+    json(undefined, { refreshToken }),
+  );
+
+  if (ok && isLoginGrant(body)) {
+    return body;
+  }
+
+  if (status === 401 || status === 400 || status === 410) {
+    throw new CloudError("unauthorized", "The saved login has expired", {
+      status,
+    });
+  }
+
+  throw new CloudError(
+    "rejected",
+    `The login could not be refreshed (status ${String(status)})`,
+    { status },
+  );
+}
+
+/**
+ * The saved login, refreshed and saved again when its access token has run out.
+ * A refresh the cloud refuses clears nothing: the caller reports "Not logged
+ * in" and the user runs `login`. Returns undefined without a login.
+ */
+export async function activeLogin(
+  path: string,
+  fetcher: Fetch,
+  base: string,
+  now: number,
+): Promise<StoredLogin | undefined> {
+  const login = await readLogin(path);
+
+  if (login === undefined || !isExpired(login, now)) {
+    return login;
+  }
+
+  try {
+    const grant = await refreshLogin(fetcher, base, login.refreshToken);
+
+    await saveLogin(path, grant);
+
+    const { accessToken, refreshToken, expiresAt, email } = grant;
+
+    return { accessToken, refreshToken, expiresAt, email };
+  } catch (error) {
+    if (error instanceof CloudError && error.kind === "network") {
+      throw error;
+    }
+
+    return undefined;
+  }
+}
+
 export async function billingSummary(
   fetcher: Fetch,
   base: string,

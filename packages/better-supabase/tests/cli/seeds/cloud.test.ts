@@ -1,10 +1,19 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   runSeedSample,
   sampleRequest,
 } from "../../../src/cli/commands/seed-cloud.ts";
-import { CloudError, requestSample } from "../../../src/cli/seeds/cloud.ts";
+import {
+  activeLogin,
+  CloudError,
+  readLogin,
+  requestSample,
+  saveLogin,
+} from "../../../src/cli/seeds/cloud.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 const reply = (status: number, body: unknown) => () =>
@@ -99,5 +108,73 @@ describe("runSeedSample", () => {
     );
 
     expect(result).toMatchObject({ code: 3, errorCode: "auth_required" });
+  });
+});
+
+describe("activeLogin", () => {
+  const GRANT = {
+    status: "approved",
+    accessToken: "new-access",
+    refreshToken: "new-refresh",
+    expiresAt: 4_000_000_000,
+    email: "a@b.test",
+  };
+
+  const setup = async (expiresAt: number) => {
+    const dir = await mkdtemp(join(tmpdir(), "bsb-login-"));
+    const path = join(dir, "auth.json");
+
+    await saveLogin(path, {
+      status: "approved",
+      accessToken: "old-access",
+      refreshToken: "old-refresh",
+      expiresAt,
+      email: "a@b.test",
+    });
+
+    return path;
+  };
+
+  it("keeps a token that is still valid", async () => {
+    const path = await setup(4_000_000_000);
+
+    const login = await activeLogin(
+      path,
+      () => Promise.reject(new Error("must not be called")),
+      "https://c.test",
+      1000,
+    );
+
+    expect(login?.accessToken).toBe("old-access");
+  });
+
+  it("refreshes an expired token and saves the rotated grant", async () => {
+    const path = await setup(10);
+    let sent = "";
+
+    const login = await activeLogin(
+      path,
+      (url, init) => {
+        sent = `${url} ${String(init?.body)}`;
+
+        return Promise.resolve(Response.json(GRANT));
+      },
+      "https://c.test",
+      1_000_000,
+    );
+
+    expect(sent).toBe(
+      'https://c.test/api/cli/auth/refresh {"refreshToken":"old-refresh"}',
+    );
+    expect(login?.accessToken).toBe("new-access");
+    expect((await readLogin(path))?.refreshToken).toBe("new-refresh");
+  });
+
+  it("returns nothing when the cloud refuses the refresh token", async () => {
+    const path = await setup(10);
+
+    await expect(
+      activeLogin(path, reply(401, {}), "https://c.test", 1_000_000),
+    ).resolves.toBeUndefined();
   });
 });

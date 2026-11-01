@@ -41,6 +41,13 @@ The CLI gets `db seed --defaults` (with `--tenant`, `--variant block=name`,
 - `POST /api/cli/auth/poll` with `{ deviceCode }` answers 202
   `{ status: "pending" }`, then 200 `{ status: "approved", accessToken,
   refreshToken, expiresAt, email }`, or 410 `{ status: "expired" | "denied" }`.
+- `POST /api/cli/auth/refresh` with `{ refreshToken }` answers 200 with the
+  same body as an approved poll (`{ status: "approved", accessToken,
+  refreshToken, expiresAt, email }`). The cloud rotates the refresh token, so
+  the CLI saves the new one. A refresh token that is unknown, used or expired
+  gets 401 (400 and 410 mean the same); the CLI then reports "Not logged in".
+  The CLI calls it when `expiresAt` is less than a minute away, before
+  `whoami` and `db seed --sample`. The route needs no Bearer header.
 - `GET /api/billing` with a Bearer token answers `{ plan, email? }`.
 - `POST /api/seeds/sample` with a Bearer token takes `{ design?, preset?,
   instances?, variants, locale, size, seed, target: "tenant" | "demoOrg",

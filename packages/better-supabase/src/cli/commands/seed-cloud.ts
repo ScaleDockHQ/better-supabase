@@ -21,8 +21,7 @@ import { insideRoot } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import {
   CloudError,
-  isExpired,
-  readLogin,
+  activeLogin,
   requestSample,
   tokenPath,
 } from "../seeds/cloud.ts";
@@ -278,9 +277,20 @@ export async function runSeedSample(
     return { code: 1, errorCode: "invalid_input", error: request.error };
   }
 
-  const login = await readLogin(tokenPath(env));
+  let login: Awaited<ReturnType<typeof activeLogin>>;
 
-  if (login === undefined || isExpired(login, tools.now())) {
+  try {
+    login = await activeLogin(
+      tokenPath(env),
+      tools.fetch,
+      cloudUrl(env),
+      tools.now(),
+    );
+  } catch (error) {
+    return cloudFailure(error);
+  }
+
+  if (login === undefined) {
     return cloudFailure(
       new CloudError("unauthorized", "Not logged in", { status: 401 }),
     );

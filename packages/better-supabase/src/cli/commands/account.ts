@@ -10,9 +10,8 @@ import {
   clearLogin,
   CloudError,
   DEFAULT_CLOUD_URL,
-  isExpired,
+  activeLogin,
   pollLogin,
-  readLogin,
   saveLogin,
   startLogin,
   tokenPath,
@@ -149,9 +148,15 @@ export async function runWhoami(
   fetcher: Fetch = REAL_TOOLS.fetch,
   now: number = Date.now(),
 ): Promise<CommandResult> {
-  const login = await readLogin(tokenPath(env));
+  let login: Awaited<ReturnType<typeof activeLogin>>;
 
-  if (login === undefined || isExpired(login, now)) {
+  try {
+    login = await activeLogin(tokenPath(env), fetcher, cloudUrl(env), now);
+  } catch (error) {
+    return cloudFailure(error);
+  }
+
+  if (login === undefined) {
     return cloudFailure(
       new CloudError("unauthorized", "Not logged in", { status: 401 }),
     );
