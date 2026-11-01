@@ -6,7 +6,6 @@ import { fromBase64, toBase64Url } from "../core/base64.ts";
 import { isRecord } from "../core/guards.ts";
 import { JwsError, verifyCompact } from "../core/jws.ts";
 import { nowInstant } from "../core/temporal.ts";
-import { nowInstant } from "../core/temporal.ts";
 import { CredentialError, epochSeconds, signJws } from "./shared.ts";
 
 /** The JWS `typ` of a Token Status List Token. */
