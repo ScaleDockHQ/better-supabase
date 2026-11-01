@@ -3,7 +3,7 @@
 -- and opens an action item as a task. The member can't start or decide, and
 -- the Globex owner (…a3) sees none of it. Run with `supabase test db`.
 begin;
-select plan(18);
+select plan(23);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -48,6 +48,37 @@ select is(
    where meeting_id = (select id from ids where name = 'board')),
   1::bigint,
   'the agenda comes with the meeting'
+);
+select is(
+  better_supabase.get_meeting((select id from ids where name = 'board')) -> 'fields' ->> 'room_code',
+  null,
+  'a meeting without fields reads an empty room code'
+);
+select is(
+  better_supabase.update_meeting((select id from ids where name = 'board'),
+    jsonb_build_object('fields', jsonb_build_object('room_code', 'B-12'))) -> 'fields' ->> 'room_code',
+  'B-12',
+  'update_meeting sets a custom field'
+);
+select is(
+  better_supabase.update_meeting((select id from ids where name = 'board'),
+    jsonb_build_object('title', 'Quarterly board')) -> 'fields' ->> 'room_code',
+  'B-12',
+  'an update that leaves fields out keeps them'
+);
+select is(
+  (better_supabase.create_meeting(
+    '00000000-0000-4000-8000-000000000001',
+    jsonb_build_object('title', 'Standup', 'startsAt', '2027-03-02T10:00:00Z',
+      'fields', jsonb_build_object('room_code', 'A-1'))) -> 'fields' ->> 'room_code'),
+  'A-1',
+  'create_meeting sets a custom field in the insert'
+);
+select throws_ok(
+  $$select better_supabase.update_meeting((select id from ids where name = 'board'), '{"fields": "x"}'::jsonb)$$,
+  '22023',
+  null,
+  'fields must be an object'
 );
 select is(
   better_supabase.set_meeting_attendee(

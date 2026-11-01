@@ -57,7 +57,7 @@ jobs:
           - name: Workspace tasks
             run: >-
               pnpm exec turbo run
-              lint lint:root typecheck:tooling check:prose check:migration-order check:no-permdock recipes:check
+              lint lint:root typecheck:tooling check:prose check:skills check:migration-order check:no-permdock recipes:check
               catalog:check docs:drift knip gen:check doctor typecheck:matrix
               $AFFECTED --log-file
           - name: Format

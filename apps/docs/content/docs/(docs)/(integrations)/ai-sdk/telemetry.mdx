@@ -52,6 +52,14 @@ export function register() {
 }
 ```
 
+The spans from `@ai-sdk/otel` carry the OpenTelemetry GenAI attributes, such
+as `gen_ai.usage.input_tokens`, so any backend that reads those conventions
+shows them without extra code. They use the same tracer provider as
+[`better-supabase/otel`](/docs/standards/otel), so a model call and the
+repository queries it triggers land in one trace. better-supabase doesn't add
+its own `gen_ai.*` attributes; the metering above stays the source for
+per-tenant usage.
+
 A call that passes `telemetry: { integrations }` uses those instead of the
 registered ones, so list `meterTelemetry` there too or the call isn't
 metered.

@@ -1,10 +1,34 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:a07565fb8061ab5ceadfc0a9205c1d837e657ab4b00b1f015f69ae0784215827
+-- @bsb-hash sha256:c931a6d81840c6fd6ac8008a2271ffe82f517aaad47871c3459e0bc4a9ee7a83
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create or replace function better_supabase.import_run()
@@ -126,6 +150,7 @@ create table if not exists "better_supabase"."meetings" (
   unique ("tenant_id", "id"),
   check ("ends_at" is null or "ends_at" >= "starts_at")
 );
+alter table "better_supabase"."meetings" add column if not exists "room_code" text;
 create index if not exists "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
 revoke all on "better_supabase"."meetings" from public, anon, authenticated;
@@ -305,7 +330,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -355,6 +380,9 @@ begin
   if length(create_meeting.input ->> 'summary') > 20000 then
     raise exception 'summary is at most 20000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
+  if create_meeting.input ? 'fields' and jsonb_typeof(create_meeting.input -> 'fields') is distinct from 'object' then
+    raise exception 'fields must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
   if create_meeting.input ? 'agenda' and jsonb_typeof(create_meeting.input -> 'agenda') is distinct from 'array' then
     raise exception 'agenda must be a list' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
@@ -366,8 +394,8 @@ begin
         using create_meeting.tenant, create_meeting.input;
     end if;
   end;
-  insert into "better_supabase"."meetings" ("tenant_id", "kind", "title", "starts_at", "ends_at", "location", "summary", "created_by")
-  values (create_meeting.tenant, v_kind, v_title, v_starts, v_ends, nullif(trim(create_meeting.input ->> 'location'), ''), nullif(trim(create_meeting.input ->> 'summary'), ''), auth.uid())
+  insert into "better_supabase"."meetings" ("tenant_id", "kind", "title", "starts_at", "ends_at", "location", "summary", "created_by", "room_code")
+  values (create_meeting.tenant, v_kind, v_title, v_starts, v_ends, nullif(trim(create_meeting.input ->> 'location'), ''), nullif(trim(create_meeting.input ->> 'summary'), ''), auth.uid(), case when create_meeting.input -> 'fields' ? 'room_code' then (jsonb_populate_record(null::"better_supabase"."meetings", jsonb_build_object('room_code', create_meeting.input -> 'fields' -> 'room_code')))."room_code" else better_supabase.column_default('"better_supabase"."meetings"', 'room_code', (null::"better_supabase"."meetings")."room_code") end)
   returning * into v_row;
   perform "better_supabase"."meeting_set_attendees"(v_row."id", v_row."tenant_id", create_meeting.input -> 'attendees');
   insert into "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id")
@@ -392,7 +420,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 exception when check_violation or invalid_text_representation or not_null_violation then
   raise exception 'an attendee or an agenda item has an invalid value' using errcode = '22023', hint = 'MEETING_INVALID';
 end;
@@ -459,6 +487,9 @@ begin
   if length(update_meeting.changes ->> 'summary') > 20000 then
     raise exception 'summary is at most 20000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
+  if update_meeting.changes ? 'fields' and jsonb_typeof(update_meeting.changes -> 'fields') is distinct from 'object' then
+    raise exception 'fields must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
   update "better_supabase"."meetings" x set
     "kind" = v_kind,
     "title" = v_title,
@@ -466,7 +497,7 @@ begin
     "summary" = case when update_meeting.changes ? 'summary' then nullif(trim(update_meeting.changes ->> 'summary'), '') else x."summary" end,
     "starts_at" = v_starts,
     "ends_at" = v_ends,
-    "updated_at" = now()
+    "updated_at" = now(), "room_code" = case when update_meeting.changes -> 'fields' ? 'room_code' then (jsonb_populate_record(null::"better_supabase"."meetings", jsonb_build_object('room_code', update_meeting.changes -> 'fields' -> 'room_code')))."room_code" else x."room_code" end
   where x."id" = v_row."id"
   returning * into v_row;
   perform "better_supabase".emit_event('meeting.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'status', v_row."status"), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
@@ -480,7 +511,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 end;
 $$;
 revoke execute on function "better_supabase"."update_meeting"(uuid, jsonb) from public, anon;
@@ -524,7 +555,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 end;
 $$;
 revoke execute on function "better_supabase"."start_meeting"(uuid) from public, anon;
@@ -593,7 +624,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 end;
 $$;
 revoke execute on function "better_supabase"."hold_meeting"(uuid, text) from public, anon;
@@ -640,7 +671,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'status', v_row."status", 'reason', nullif(trim(cancel_meeting.reason), ''))
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_meeting"(uuid, text) from public, anon;
@@ -683,7 +714,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code")));
 end;
 $$;
 revoke execute on function "better_supabase"."delete_meeting"(uuid) from public, anon;
@@ -1107,7 +1138,7 @@ begin
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
+  return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'title', v_row."title", 'location', v_row."location", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status", 'startedAt', v_row."started_at", 'heldAt', v_row."held_at", 'summary', v_row."summary", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', v_row."room_code"))) || jsonb_build_object(
     'attendees', coalesce((
       select jsonb_agg(jsonb_build_object('meetingId', y."meeting_id", 'userId', y."user_id", 'role', y."role", 'attendance', y."attendance")
         order by case y."role" when 'chair' then 0 when 'secretary' then 1 when 'attendee' then 2 else 3 end, y."created_at")
@@ -1158,7 +1189,7 @@ begin
     raise exception 'not allowed to read meetings' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."starts_at" desc, x."id")
+    select jsonb_agg((jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('fields', jsonb_build_object('room_code', x."room_code"))) order by x."starts_at" desc, x."id")
     from (
       select * from "better_supabase"."meetings" x
       where x."tenant_id" = list_meetings.tenant

@@ -1,4 +1,4 @@
--- The e-invoices an invoice was sent as (ADR 0173). Ann (…a1) owns Acme (…0001),
+-- The e-invoices an invoice was sent as (ADR 0174). Ann (…a1) owns Acme (…0001),
 -- Carl (…a3) owns Globex (…0002). A delivery keeps the channel's reference once
 -- per invoice and channel, and only an issued invoice has one. Run with
 -- `supabase test db`.

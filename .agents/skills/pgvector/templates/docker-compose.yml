@@ -1,0 +1,25 @@
+# Postgres with pgvector. Create pg.env first (0600): POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB.
+services:
+  pgvector:
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    env_file: ./pg.env
+    shm_size: 1g
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql # PG18+; use /var/lib/postgresql/data for PG17 and older
+      - ./schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [llm]
+
+volumes:
+  pgvector-data:
+
+networks:
+  llm:
+    name: llm

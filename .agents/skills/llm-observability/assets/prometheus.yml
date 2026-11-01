@@ -1,0 +1,110 @@
+# Prometheus scrape config for an LLM serving stack.
+# Placeholders: node-a / node-b (GPU hosts), 10.0.0.1 (private address),
+# llm.example.com (gateway). Replace them, delete jobs you don't run, then:
+#   promtool check config prometheus.yml
+# Docs: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: llm-prod
+
+rule_files:
+  - alert-rules.yml
+
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["10.0.0.1:9093"]
+
+storage:
+  tsdb:
+    retention:
+      time: 30d # retention is a decision; default is 15d
+
+scrape_configs:
+  # vLLM: /metrics on the API port, not protected by --api-key. Keep the port private.
+  - job_name: vllm
+    static_configs:
+      - targets: ["node-a:8000"]
+        labels:
+          backend: vllm
+          model: "<served-model-name>"
+      - targets: ["node-b:8000"]
+        labels:
+          backend: vllm
+          model: "<other-served-model-name>"
+
+  # SGLang: start with --enable-metrics. /metrics is exempt from --api-key.
+  - job_name: sglang
+    static_configs:
+      - targets: ["node-b:30000"]
+        labels:
+          backend: sglang
+          model: "<served-model-name>"
+
+  # llama.cpp llama-server: start with --metrics. If --api-key is set, /metrics needs it too.
+  - job_name: llamacpp
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/llamacpp-api-key
+    static_configs:
+      - targets: ["node-a:9931"] # llama-server default port; 8080 on older builds
+        labels:
+          backend: llamacpp
+          model: "<model-id>"
+
+  # llama.cpp in router mode: /metrics requires ?model=<id>; one job per model.
+  # - job_name: llamacpp-router-<model-id>
+  #   params:
+  #     model: ["<model-id>"]
+  #   static_configs:
+  #     - targets: ["node-a:9931"]
+  #       labels: { backend: llamacpp, model: "<model-id>" }
+
+  # llama-swap: host and GPU metrics (llamaswap_*), not per-request latency.
+  # It listens on 8080 by default; 9292 is the host port used in its Docker examples.
+  # If apiKeys is set in its config, /metrics needs a key too (add an authorization block).
+  - job_name: llama-swap
+    static_configs:
+      - targets: ["node-a:9292"]
+        labels:
+          backend: llama-swap
+
+  # LiteLLM proxy: callbacks: ["prometheus"]. /metrics on the proxy port needs a key.
+  # Use a dedicated low-privilege key stored in a file (never inline credentials).
+  - job_name: litellm
+    scheme: https
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/litellm-metrics-key
+    static_configs:
+      - targets: ["llm.example.com:443"]
+        labels:
+          backend: litellm
+    # Backstop if the gateway still emits PII labels (prefer prometheus_exclude_labels in LiteLLM):
+    metric_relabel_configs:
+      - action: labeldrop
+        regex: "user_email|client_ip|user_agent|end_user"
+
+  # Alternative: LiteLLM dedicated metrics listener (--prometheus_metrics_port 4001).
+  # No key auth on this port; reachable from the Prometheus network only.
+  # - job_name: litellm-metrics-port
+  #   static_configs:
+  #     - targets: ["10.0.0.1:4001"]
+  #       labels: { backend: litellm }
+
+  # NVIDIA DCGM exporter on each GPU host.
+  - job_name: dcgm
+    static_configs:
+      - targets: ["node-a:9400", "node-b:9400"]
+
+  # Host metrics (node_exporter), needed for memory on unified-memory GPUs (DGX Spark / GB10).
+  - job_name: node
+    static_configs:
+      - targets: ["node-a:9100", "node-b:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -6181,6 +6181,12 @@
               },
               "calendar": {
                 "type": "string"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

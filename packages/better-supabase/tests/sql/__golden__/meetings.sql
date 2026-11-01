@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:3e930329f5de05c0ccf0c66f7f6cef44789b7f820c17c0703e3b290b4c717039
+-- @bsb-hash sha256:2f28be0d09d2df8c62ee097a40c090d3657d1135e7b4f6b91b45ce7c3de6aabb
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -289,7 +289,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:38c9a546f3ea58a31ac0b49c5be55d7e186f508dc8d588c87f1baf49befd8edc
+-- @bsb-hash sha256:3e3f6b80667a99d39f9f07866d95716a584a9b10a7992d822db78c6b0f75945c
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1544,7 +1544,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -2616,7 +2616,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:5cd52e146561c2ab5ceaebd3b85c3fedc9796565c7a2366a3cbbdfb5884c60e4
+-- @bsb-hash sha256:70d9a524e72263095b554e3114664aba561aa129f58e3a72cda83c6f552cc748
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2909,7 +2909,7 @@ grant execute on function "app_private"."meeting_set_attendees"(uuid, uuid, json
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "app_private"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -3859,7 +3859,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:a0e5892f1c6b36268b1742d487ba833fbe35b60f25c2c0c6457d262a7c41ad4a
+-- @bsb-hash sha256:dea13e398471cc039d8240e7a8b599c5be0695bdb02be7f5937294a6053ad6c6
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4147,7 +4147,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -5272,7 +5272,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:993b7753d47c2ddddf1d90cdd79f57ef3968025df7430438bdc503780bde25a4
+-- @bsb-hash sha256:aa3194f924d89cb4deb67972db1ff21fdb321a4328648386e3daae965027cc08
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5540,7 +5540,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -6490,7 +6490,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:226d6cdafcd1249c00fa6864a2382867a455cfab527d2dd12d2f2da2131668e3
+-- @bsb-hash sha256:e11c65d52507903729481275d110c08333c073062d000a39f90e2c1d4746bc17
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6778,7 +6778,7 @@ grant execute on function "better_supabase"."meeting_set_attendees"(uuid, uuid, 
 
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function "better_supabase"."create_meeting"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql

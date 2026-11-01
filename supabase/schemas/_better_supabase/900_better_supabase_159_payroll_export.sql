@@ -1,6 +1,6 @@
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:448ed0be772acb6006cf7537db94de11ed5bd50c43580509393625a567ad4081
+-- @bsb-hash sha256:cc222a07b92cf9334ee38afb226b66ebd2c494cb9b6e4d4f61f8727cdc29637f
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,6 +150,7 @@ begin
   where x."tenant_id" = v_run."tenant_id"
     and x."ended_at" is not null
     and x."user_id" is not null
+    and "better_supabase"."time_week_approved"(x."tenant_id", x."user_id", x."started_at")
     and (x."started_at" at time zone 'UTC')::date between v_run."period_from" and v_run."period_to"
   group by x."user_id"
   having sum(extract(epoch from x."ended_at" - x."started_at")) > 0;

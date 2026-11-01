@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { MeetingsSql } from "./meetings-sql.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  insertExtraColumns,
+  serviceGrant,
+  updateExtraColumns,
+  userGrant,
+} from "../shared.ts";
 import { managed, meetingsSql } from "./meetings-sql.ts";
 import {
   MEETING_ATTENDANCE,
@@ -133,12 +139,26 @@ function meetingFunctionsSql(ctx: BlockSqlContext, q: MeetingsSql): string {
   const optionalValue = (column: string, src: string): string =>
     has(column) ? `, nullif(trim(${src} ->> '${column}'), '')` : "";
 
+  const fieldsCheck = (src: string): string =>
+    q.extras.length === 0
+      ? ""
+      : `
+  if ${src} ? 'fields' and jsonb_typeof(${src} -> 'fields') is distinct from 'object' then
+    ${q.invalid("fields must be an object")}
+  end if;`;
+
+  const inserted = insertExtraColumns(
+    meetings,
+    q.extras,
+    "create_meeting.input -> 'fields'",
+  );
+
   const forbidTransition = (to: string): string => q.statusInvalid("v_row", to);
 
   return `
 -- Plans a meeting. input is { kind, title, location, startsAt, endsAt,
 -- attendees: [{ userId, role, attendance }], agenda: [{ title, notes,
--- presenterId }] }. It starts planned. Needs meetings.write.
+-- presenterId }], fields: { <extra column>: value } }. It starts planned. Needs meetings.write.
 create or replace function ${fn("create_meeting")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
@@ -160,7 +180,7 @@ begin
     ${q.invalid("input must be an object")}
   end if;
   ${parse("create_meeting.input", (column) => (column === "kind" ? `(${q.kinds})[1]` : "null"))}
-  ${checks("create_meeting.input")}
+  ${checks("create_meeting.input")}${fieldsCheck("create_meeting.input")}
   if create_meeting.input ? 'agenda' and jsonb_typeof(create_meeting.input -> 'agenda') is distinct from 'array' then
     ${q.invalid("agenda must be a list")}
   end if;
@@ -168,8 +188,8 @@ begin
     [idType, "create_meeting.tenant"],
     ["jsonb", "create_meeting.input"],
   ])}
-  insert into ${meetings} (${m("tenant")}, ${m("kind")}, ${m("title")}, ${m("startsAt")}, ${m("endsAt")}${optional("location")}${optional("summary")}${optional("createdBy")})
-  values (create_meeting.tenant, v_kind, v_title, v_starts, v_ends${optionalValue("location", "create_meeting.input")}${optionalValue("summary", "create_meeting.input")}${has("createdBy") ? ", auth.uid()" : ""})
+  insert into ${meetings} (${m("tenant")}, ${m("kind")}, ${m("title")}, ${m("startsAt")}, ${m("endsAt")}${optional("location")}${optional("summary")}${optional("createdBy")}${inserted.columns})
+  values (create_meeting.tenant, v_kind, v_title, v_starts, v_ends${optionalValue("location", "create_meeting.input")}${optionalValue("summary", "create_meeting.input")}${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
   returning * into v_row;
   perform ${fn("meeting_set_attendees")}(v_row.${m("id")}, v_row.${m("tenant")}, create_meeting.input -> 'attendees');
   insert into ${agenda} (${g("tenant")}, ${g("meeting")}, ${g("ordinal")}, ${g("title")}${ctx.has("agenda", "notes") ? `, ${g("notes")}` : ""}, ${g("presenter")})
@@ -212,13 +232,13 @@ begin
     ${q.invalid("changes must be an object")}
   end if;
   ${parse("update_meeting.changes", (column) => `v_row.${m(column)}`)}
-  ${checks("update_meeting.changes")}
+  ${checks("update_meeting.changes")}${fieldsCheck("update_meeting.changes")}
   update ${meetings} x set
     ${m("kind")} = v_kind,
     ${m("title")} = v_title,${has("location") ? `\n    ${m("location")} = case when update_meeting.changes ? 'location' then nullif(trim(update_meeting.changes ->> 'location'), '') else x.${m("location")} end,` : ""}${has("summary") ? `\n    ${m("summary")} = case when update_meeting.changes ? 'summary' then nullif(trim(update_meeting.changes ->> 'summary'), '') else x.${m("summary")} end,` : ""}
     ${m("startsAt")} = v_starts,
     ${m("endsAt")} = v_ends,
-    ${m("updatedAt")} = now()
+    ${m("updatedAt")} = now()${updateExtraColumns(meetings, q.extras, "update_meeting.changes -> 'fields'")}
   where x.${m("id")} = v_row.${m("id")}
   returning * into v_row;
   ${q.record("meeting.updated", "v_row", "meeting updated")}

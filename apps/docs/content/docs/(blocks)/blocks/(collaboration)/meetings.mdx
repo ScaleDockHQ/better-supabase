@@ -150,10 +150,43 @@ summary, and pages with `limit` and `offset`.
 
 ## Options
 
-| Option     | Default                                                               | Does                                                 |
-| ---------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
-| `kinds`    | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`    |
-| `calendar` | none                                                                  | The name of a calendar that mirrors planned meetings |
+| Option         | Default                                                               | Does                                                         |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `kinds`        | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`            |
+| `calendar`     | none                                                                  | The name of a calendar that mirrors planned meetings         |
+| `extraColumns` | none                                                                  | Columns the app adds to `meetings`, written through `fields` |
+
+## Custom fields
+
+`blocks.meetings.options.extraColumns` adds columns to the `meetings` table,
+for example a room code or a cost center. `create` and `update` take their
+values under `fields`, and every read returns them under `fields` next to the
+meeting. Pass a Standard Schema as `fields` to `createMeetings` to type and
+validate them; a rejected write is a `validation` error and nothing reaches the
+database.
+
+```ts
+import { z } from "zod";
+
+const db = createMeetings({
+  transport,
+  tenant,
+  fields: z.object({ room_code: z.string().optional() }),
+});
+
+const meeting = await db
+  .create({
+    title: "Quarterly board",
+    startsAt: Temporal.Instant.from("2027-01-14T14:00:00Z"),
+    fields: { room_code: "B-12" },
+  })
+  .orThrow();
+
+meeting.fields.room_code; // "B-12"
+```
+
+Attendees, agenda items and decisions stay fixed records; app data for them
+goes on the linked tasks and documents.
 
 ## Events
 

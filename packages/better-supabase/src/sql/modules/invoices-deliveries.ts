@@ -11,7 +11,7 @@ import { lockModuleTable } from "./over-app.ts";
 
 /**
  * The `invoice_deliveries` table: the e-invoices an invoice was sent as, with
- * the channel's reference (ADR 0173).
+ * the channel's reference (ADR 0174).
  */
 export const DELIVERIES_TABLE: BlockSqlTableSpec = {
   name: "invoice_deliveries",

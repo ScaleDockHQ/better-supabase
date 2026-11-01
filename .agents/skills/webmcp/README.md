@@ -34,11 +34,11 @@ The draft can change without notice. The skill pins one commit (build posture).
 The skill was written from these sources, pinned in `metadata.json`:
 
 - [WebMCP (published report)](https://webmachinelearning.github.io/webmcp/): Draft Community Group Report, 30 September 2026.
-- [WebMCP spec source, index.bsb](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/index.bsb): commit d61d0e6.
+- [WebMCP spec source, index.bs](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/index.bs): commit d61d0e6.
 - [WebMCP explainer](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/README.md): commit d61d0e6.
 - [WebMCP implementation status](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/implementation-status.md): commit d61d0e6.
 - [Pull request #184](https://github.com/webmachinelearning/webmcp/pull/184): the move from `navigator` to `document`.
-- [index.bsb at a816d2e](https://raw.githubusercontent.com/webmachinelearning/webmcp/a816d2e91d762adb9f3a07e1d5ce81f462ccd45a/index.bsb) and the [index.bsb commit history](https://github.com/webmachinelearning/webmcp/commits/main/index.bsb): the navigator-era draft and the changes since.
+- [index.bs at a816d2e](https://raw.githubusercontent.com/webmachinelearning/webmcp/a816d2e91d762adb9f3a07e1d5ce81f462ccd45a/index.bs) and the [index.bs commit history](https://github.com/webmachinelearning/webmcp/commits/main/index.bs): the navigator-era draft and the changes since.
 - [Chrome: WebMCP](https://developer.chrome.com/docs/ai/webmcp), [Imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api) and [tool security](https://developer.chrome.com/docs/ai/webmcp/secure-tools).
 
 ## License

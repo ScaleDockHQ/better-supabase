@@ -1,8 +1,8 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, SERVICE_CALLER } from "../shared.ts";
-import { DEFAULT_MEETING_KINDS } from "./meetings-values.ts";
+import { fail, SERVICE_CALLER, withExtraFields } from "../shared.ts";
+import { DEFAULT_MEETING_KINDS, MEETING_RESERVED } from "./meetings-values.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const WHERE = "blocks.meetings.options";
@@ -56,6 +56,8 @@ export interface MeetingsSql {
   readonly x: (column: string) => string;
   /** `row.column`, or `null` when the table lacks the column. */
   readonly of: (table: string, row: string, column: string) => string;
+  /** The extra columns of the meetings table. */
+  readonly extras: readonly ExtraColumn[];
   readonly meetings: string;
   readonly attendees: string;
   readonly agenda: string;
@@ -117,8 +119,11 @@ export function meetingsSql(ctx: BlockSqlContext): MeetingsSql {
     .map((kind) => sqlString(kind))
     .join(", ");
 
+  const extras = ctx.extraColumns("meetings", MEETING_RESERVED);
+
   return {
     fn,
+    extras,
     m,
     a,
     g,
@@ -157,7 +162,11 @@ export function meetingsSql(ctx: BlockSqlContext): MeetingsSql {
     statusInvalid: (row, to) =>
       `raise exception 'the meeting can''t move from % to %', ${row}.${m("status")}, ${sqlString(to)} using errcode = '55000', hint = 'MEETING_STATUS_INVALID', detail = jsonb_build_object('from', ${row}.${m("status")}, 'to', ${sqlString(to)})::text;`,
     meetingJson: (row) =>
-      `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'kind', ${row}.${m("kind")}, 'title', ${row}.${m("title")}, 'location', ${of("meetings", row, "location")}, 'startsAt', ${row}.${m("startsAt")}, 'endsAt', ${row}.${m("endsAt")}, 'status', ${row}.${m("status")}, 'startedAt', ${row}.${m("startedAt")}, 'heldAt', ${row}.${m("heldAt")}, 'summary', ${of("meetings", row, "summary")}, 'createdBy', ${of("meetings", row, "createdBy")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`,
+      withExtraFields(
+        `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'kind', ${row}.${m("kind")}, 'title', ${row}.${m("title")}, 'location', ${of("meetings", row, "location")}, 'startsAt', ${row}.${m("startsAt")}, 'endsAt', ${row}.${m("endsAt")}, 'status', ${row}.${m("status")}, 'startedAt', ${row}.${m("startedAt")}, 'heldAt', ${row}.${m("heldAt")}, 'summary', ${of("meetings", row, "summary")}, 'createdBy', ${of("meetings", row, "createdBy")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`,
+        row,
+        extras,
+      ),
     attendeeJson: (row) =>
       `jsonb_build_object('meetingId', ${row}.${a("meeting")}, 'userId', ${row}.${a("user")}, 'role', ${row}.${a("role")}, 'attendance', ${row}.${a("attendance")})`,
     agendaJson: (row) =>
