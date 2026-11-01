@@ -28,3 +28,27 @@ it would rot.
 Maintenance plans, appointments and calendar alarms keep their own recurrence
 handling until the shared expander exists. Revisit when a second block needs
 the same rule.
+
+## Deferred: Postgres features (phase 8)
+
+Shipped, all opt-in with a default of off so existing databases render the same
+SQL: the `@bsb search` tag and the `searchColumn` option (contacts, deals,
+tasks, invoices, drive texts), the `noOverlap` exclusion constraints (leases,
+calendar events, passes), `partitioned` for `field_changes`, and the BS360
+doctor check. They follow ADR 0198.
+
+Deferred, with the reason:
+
+- Feeding `search_documents` from the `search_tsv` column: the search block
+  indexes through its own trigger and ranking, so merging the two needs a
+  design of its own.
+- Partitioning `pipeline_stage_history` and the timeline activity table: both
+  rely on a unique constraint without the time column (the one open row per
+  record, and the unique event with `on conflict`), which a partitioned table
+  can't keep.
+- SLA event partitioning and maintenance window exclusions: neither has a
+  table to attach to yet.
+- `outbox.backend: "pgmq"` with a native DLQ, and statement-level triggers with
+  transition tables for the outbox and metrics rollups: both change the
+  delivery contract of the outbox and need their own change with an
+  integration test against the stack.

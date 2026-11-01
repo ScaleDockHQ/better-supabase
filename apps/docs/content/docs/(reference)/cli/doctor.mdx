@@ -1524,6 +1524,22 @@ If your own trigger seals the column, name its function in
 for the columns it fills, or for every column of the table when doctor can't
 tell which ones it fills.
 
+### BS360
+
+**Warning: secret column outside Vault.** One of your tables has a `text`,
+`varchar`, `char`, `json` or `jsonb` column whose name ends in `credentials`,
+`token`, `secret` or `header_value`, and neither
+[`field-encryption`](/docs/blocks/field-encryption) nor the
+[`credentials`](/docs/extending/credentials) module is installed. The value
+sits in the row as written, so every role that reads the row, and every
+backup, has the secret. Store the value with `vault.create_secret`, keep the
+returned id in a `uuid` column such as `access_token_secret_id`, and read it
+through `vault.decrypted_secrets` in a security definer function. Block
+tables, columns that a function in `tooling.doctor.sealTriggers` fills, and
+names that end in another word, such as `token_hash` or `secret_id`, are not
+reported. BS352 reports the same columns when field-encryption or credentials
+is installed.
+
 ## Auth config
 
 ### BS353

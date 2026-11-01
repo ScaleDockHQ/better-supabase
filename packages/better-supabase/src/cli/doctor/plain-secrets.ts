@@ -148,7 +148,54 @@ function plainSecretColumns(context: DoctorContext): FindingInput[] {
     );
 }
 
+/**
+ * Plain secret columns in the app's tables while neither `field-encryption` nor
+ * `credentials` is installed (BS360). BS352 covers the projects that have one
+ * of them.
+ */
+function secretsOutsideVault(context: DoctorContext): FindingInput[] {
+  if (
+    SECRET_BLOCKS.some((block) => context.config.blockNames.includes(block))
+  ) {
+    return [];
+  }
+
+  const own = appTablesOf(context);
+
+  return catalogOf(context)
+    .tables.filter(
+      (table) => table.kind === "table" && Object.hasOwn(own, qualified(table)),
+    )
+    .flatMap((table) =>
+      table.columns
+        .filter(
+          (column) =>
+            SECRET_NAME.test(column.name) &&
+            PLAIN_TYPES.has(column.udt) &&
+            !column.generated &&
+            !sealedByTrigger(context, table, column),
+        )
+        .map((column) => {
+          const target = `${qualified(table)}.${column.name}`;
+
+          return {
+            message: `${target} stores a ${column.udt} value named like a secret in plain text. Anyone who can read the row or a backup reads the secret. Store the value with vault.create_secret, keep the returned id in a uuid column such as ${column.name}_secret_id, and read it through vault.decrypted_secrets in a security definer function.`,
+            target,
+            object: tableObject(table),
+          };
+        }),
+    );
+}
+
 export const PLAIN_SECRET_RULES: readonly Rule[] = [
+  {
+    code: "BS360",
+    severity: "warning",
+    title: "Secret column outside Vault",
+    description:
+      "One of your tables has a `text`, `varchar` or `json` column whose name ends in `credentials`, `token`, `secret` or `header_value`, and neither `field-encryption` nor `credentials` is installed. The value sits in the row as written, so every role that reads the row, and every backup, has the secret. Store it with `vault.create_secret` and keep the returned id in a `uuid` column, or install `field-encryption` and mark the column `encrypted`. Block tables, columns that a seal function listed in `tooling.doctor.sealTriggers` assigns in a `before` trigger, and names such as `token_hash` or `secret_id` are not reported. BS352 reports the same columns when one of those blocks is installed.",
+    check: secretsOutsideVault,
+  },
   {
     code: "BS352",
     severity: "warning",
