@@ -139,4 +139,41 @@ describe("moderation module", () => {
 
     expect(MODERATION.build(custom, {})).toBe("");
   });
+
+  describe("DSA workflow", () => {
+    const dsa = (): string => sqlOf(["moderation"]);
+
+    it("creates statements, notices, flaggers and appeals", () => {
+      for (const table of [
+        "moderation_statements",
+        "moderation_notices",
+        "moderation_flaggers",
+        "moderation_appeals",
+      ]) {
+        expect(dsa()).toContain(table);
+      }
+    });
+
+    it("names every Article 17 restriction", () => {
+      for (const restriction of [
+        "removal",
+        "disabled_access",
+        "demotion",
+        "visibility_suspension",
+        "monetary_suspension",
+        "service_suspension",
+        "service_termination",
+        "account_suspension",
+        "account_termination",
+      ]) {
+        expect(dsa()).toContain(`'${restriction}'`);
+      }
+    });
+
+    it("renders the transparency report as CSV and bumps the version", () => {
+      expect(dsa()).toContain("transparency_report");
+      expect(dsa()).toContain("metric,dimension,value");
+      expect(MODERATION.version).toBe(2);
+    });
+  });
 });

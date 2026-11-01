@@ -10,6 +10,11 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  moderationDsaFunctions,
+  moderationDsaPolicies,
+  moderationDsaTables,
+} from "./moderation-dsa.ts";
 import { moderationFunctions } from "./moderation-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -46,6 +51,47 @@ const EVENTS: BlockSqlEvents<ModerationEvents> = {
   "moderation_ban.lifted": {
     subject: "moderation-bans",
     payload: ["organizationId", "id", "userId", "expiresAt"],
+  },
+  "moderation_notice.received": {
+    subject: "moderation-notices",
+    payload: [
+      "organizationId",
+      "id",
+      "itemId",
+      "subjectType",
+      "subjectId",
+      "trusted",
+    ],
+  },
+  "moderation_notice.decided": {
+    subject: "moderation-notices",
+    payload: [
+      "organizationId",
+      "id",
+      "itemId",
+      "status",
+      "decision",
+      "notifierId",
+    ],
+  },
+  "moderation_statement.issued": {
+    subject: "moderation-statements",
+    payload: ["organizationId", "id", "itemId", "restriction", "authorId"],
+  },
+  "moderation_appeal.filed": {
+    subject: "moderation-appeals",
+    payload: ["organizationId", "id", "statementId", "noticeId", "appellantId"],
+  },
+  "moderation_appeal.decided": {
+    subject: "moderation-appeals",
+    payload: [
+      "organizationId",
+      "id",
+      "statementId",
+      "noticeId",
+      "status",
+      "appellantId",
+    ],
   },
 };
 
@@ -130,6 +176,80 @@ const NAMES: BlockSqlNames = {
         expiresAt: "expires_at",
         liftedBy: "lifted_by",
         liftedAt: "lifted_at",
+        createdAt: "created_at",
+      },
+    },
+    statements: {
+      name: "moderation_statements",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        item: "item_id",
+        restriction: "restriction",
+        facts: "facts",
+        legalGround: "legal_ground",
+        termsGround: "terms_ground",
+        automatedDetection: "automated_detection",
+        automatedDecision: "automated_decision",
+        redress: "redress",
+        issuedBy: "issued_by",
+        createdAt: "created_at",
+      },
+    },
+    notices: {
+      name: "moderation_notices",
+      app: {},
+      lifecycle: { tenant: "tenant", user: "notifier", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        item: "item_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        explanation: "explanation",
+        url: "url",
+        notifierName: "notifier_name",
+        notifierEmail: "notifier_email",
+        notifier: "notifier_id",
+        trusted: "trusted",
+        status: "status",
+        outcome: "outcome",
+        decidedBy: "decided_by",
+        decidedAt: "decided_at",
+        createdAt: "created_at",
+      },
+    },
+    flaggers: {
+      name: "moderation_flaggers",
+      app: {},
+      lifecycle: { tenant: "tenant", user: "user", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        user: "user_id",
+        name: "name",
+        awardedBy: "awarded_by",
+        revokedAt: "revoked_at",
+        createdAt: "created_at",
+      },
+    },
+    appeals: {
+      name: "moderation_appeals",
+      app: {},
+      lifecycle: { tenant: "tenant", user: "appellant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        statement: "statement_id",
+        notice: "notice_id",
+        reasons: "reasons",
+        appellant: "appellant_id",
+        status: "status",
+        outcome: "outcome",
+        decidedBy: "decided_by",
+        decidedAt: "decided_at",
         createdAt: "created_at",
       },
     },
@@ -291,8 +411,11 @@ ${renderPolicy(makePolicy({ table: bans, name: name("bans", "read"), command: "s
 
   return `${schemaPreamble(ctx)}
 ${moderationTables(ctx)}
+${moderationDsaTables(ctx)}
 ${policies}
-${moderationFunctions(ctx)}`;
+${moderationDsaPolicies(ctx, read)}
+${moderationFunctions(ctx)}
+${moderationDsaFunctions(ctx)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -318,6 +441,44 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "text", "timestamptz"],
       returns: "jsonb",
     },
+    {
+      name: "submit_notice",
+      args: ["{id}", "text", "text", "text", "text", "text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_notices",
+      args: ["{id}", "text", "integer"],
+      returns: "jsonb",
+    },
+    { name: "decide_notice", args: ["uuid", "text", "text"], returns: "jsonb" },
+    {
+      name: "issue_statement",
+      args: [
+        "uuid",
+        "text",
+        "text",
+        "text",
+        "text",
+        "boolean",
+        "boolean",
+        "text[]",
+      ],
+      returns: "jsonb",
+    },
+    { name: "list_statements", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "set_trusted_flagger",
+      args: ["{id}", "uuid", "text", "text", "boolean"],
+      returns: "jsonb",
+    },
+    { name: "file_appeal", args: ["uuid", "uuid", "text"], returns: "jsonb" },
+    { name: "decide_appeal", args: ["uuid", "text", "text"], returns: "jsonb" },
+    {
+      name: "transparency_report",
+      args: ["{id}", "timestamptz", "timestamptz"],
+      returns: "text",
+    },
   ];
 }
 
@@ -332,7 +493,16 @@ export const MODERATION: BlockSqlDefinition = {
   integrates: ["messaging", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "DSA workflow: statements of reasons, notices with trusted flaggers, appeals and a transparency report export. New tables only; the module file creates them.",
+      sql: () => "",
+    },
+  ],
   build,
 };
