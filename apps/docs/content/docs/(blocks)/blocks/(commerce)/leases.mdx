@@ -62,6 +62,13 @@ const rows = useLeases({ limit: 50 });
 
 `create` validates them before the call, and every read that returns a lease parses them under `lease.fields`.
 
+## No overlapping leases
+
+`noOverlap: true` adds the `leases_no_overlap` exclusion constraint. A unit
+can't have two active leases whose date ranges overlap; an open-ended lease
+counts as running to infinity. It is off by default because existing data may
+already overlap.
+
 ## Create and start a lease
 
 ```ts

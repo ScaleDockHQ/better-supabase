@@ -11,8 +11,12 @@ import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  defaultPartition,
+  defaultPartitionName,
   lockTable,
+  MONTHLY_PARTITIONS,
   pageSize,
+  registerPartitions,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
@@ -22,6 +26,7 @@ import { onSettings } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
+  options: ["partitioned"],
   tables: {
     changes: {
       name: "field_changes",
@@ -150,18 +155,25 @@ function build(ctx: BlockSqlContext): string {
   const readable = (tenant: string, type: string, id: string): string =>
     `(${SERVICE_CALLER} or (${ctx.scope.can(tenant, read)} and coalesce(${canSubject}(${type}, ${id}, 'read'), false)))`;
 
+  // Monthly partitions on changed_at (ADR 0038): the key includes it, so the
+  // id comes from a sequence. A table created before the option stays as it is.
+  const partitioned =
+    ctx.owns("changes") && at && ctx.flag("partitioned", false);
+
+  const sequence = `${ctx.schema}.${ctx.naming.rename("field_changes_id_seq")}`;
+  const fallback = defaultPartitionName(ctx.tableName("changes"));
+
   return `${schemaPreamble(ctx)}
 -- Field history: the old and new value of the watched columns of a record on
--- every update, who made it and when.
+-- every update, who made it and when.${partitioned ? `\ncreate sequence if not exists ${sequence};` : ""}
 create table if not exists ${t} (
-  ${c("id")} bigint generated always as identity primary key,
+  ${partitioned ? `${c("id")} bigint not null default nextval('${sequence}'),` : `${c("id")} bigint generated always as identity primary key,`}
   ${c("tenant")} ${ctx.idType} not null,
   ${c("subjectType")} text not null,
   ${c("subjectId")} text not null,
   ${c("field")} text not null,
   ${c("before")} jsonb,
-  ${c("after")} jsonb${by ? `,\n  ${c("changedBy")} uuid references auth.users (id) on delete set null` : ""}${at ? `,\n  ${c("changedAt")} timestamptz not null default now()` : ""}
-);
+  ${c("after")} jsonb${by ? `,\n  ${c("changedBy")} uuid references auth.users (id) on delete set null` : ""}${at ? `,\n  ${c("changedAt")} timestamptz not null default now()` : ""}${partitioned ? `,\n  primary key (${c("id")}, ${c("changedAt")})\n) partition by range (${c("changedAt")});\n${defaultPartition(t, fallback)}` : "\n);"}
 create index if not exists ${ctx.naming.rename("field_changes_subject_idx")} on ${t} (${c("subjectType")}, ${c("subjectId")}, ${c("id")} desc);
 create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on ${t} (${c("tenant")}${at ? `, ${c("changedAt")}` : ""});${
     by
@@ -170,7 +182,7 @@ create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on $
   }
 ${lockTable(t, { read: true })}
 ${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)` }), { drop: true, target: t })}
-${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
+${partitioned ? `\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}\n` : ""}${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
 
 -- A record's changes, newest first, optionally of one field. before is the id
 -- of the last change of the previous page. Needs history.read and read access

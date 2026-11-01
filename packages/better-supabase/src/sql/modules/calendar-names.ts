@@ -55,6 +55,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "attendeeKey",
     "calendarDetails",
     "ruleDialect",
+    "noOverlap",
     "readOnly",
     "defaultAlarms",
   ],

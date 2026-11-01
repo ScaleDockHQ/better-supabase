@@ -57,6 +57,13 @@ export type CalendarSqlOptions = {
    * copies onto a new event that sets no `alarms`. Needs the alarms table.
    */
   readonly defaultAlarms?: boolean;
+  /**
+   * Adds a gist exclusion constraint (ADR 0198) so a calendar has no two
+   * opaque, single, timed events at the same time. Needs `btree_gist`, which
+   * the module creates. Rows that already overlap make the migration fail.
+   * Default `false`.
+   */
+  readonly noOverlap?: boolean;
 };
 
 export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
@@ -74,4 +81,5 @@ export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
     ruleDialect: option.unknown<CalendarRuleDialect>(),
     readOnly: option.unknown<CalendarReadOnly>(),
     defaultAlarms: option.boolean({ default: false }),
+    noOverlap: option.boolean({ default: false }),
   });

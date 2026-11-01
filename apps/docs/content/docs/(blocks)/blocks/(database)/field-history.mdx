@@ -79,6 +79,14 @@ const rows = useFieldHistory({ limit: 50 });
 JSON form: a number for a numeric column, a string for text, a date or an id,
 and `null` for SQL null.
 
+## Partitioned history
+
+`partitioned: true` makes `field_changes` a table partitioned by month on
+`changed_at`, with a default partition and monthly partitions created by the
+shared partition helper (ADR 0038). The id comes from a sequence because a
+partitioned primary key must include the partition key. It is off by default;
+switch it on before the table grows.
+
 ## Without the client
 
 `db.fieldHistory` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
