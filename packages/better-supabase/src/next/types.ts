@@ -86,6 +86,13 @@ export interface NextOptions extends ServerOptions {
    * ```
    */
   readonly rootParams?: NextRootParams;
+  /**
+   * In development, warns when one render waits on more sequential database
+   * round trips than this, and names the fix: load the page's data in one read
+   * set. Defaults to 4; `false` turns the warning off. It needs the proxy,
+   * which forwards the request id the totals are kept under.
+   */
+  readonly devRoundTripBudget?: number | false;
 }
 
 export interface NextDebugOptions {

@@ -2079,6 +2079,16 @@ never share them and every deploy starts cold. Set `remoteCacheHandler` in
 `createNextConfig()` (or `cacheHandlers.remote`) to a shared handler such as
 Redis. See [remote cache scope](/docs/frameworks/next-cache-components#remote-scope).
 
+### BS609
+
+**Info: three or more database reads in one `Promise.all`.** A source file
+awaits at least three repository, block client or `$rpc` calls in one
+`Promise.all`. They run in parallel, but each is its own request to
+PostgREST. A read set compiles the same reads into one stable database
+function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
+and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
+See [read sets](/docs/repository/read-sets).
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

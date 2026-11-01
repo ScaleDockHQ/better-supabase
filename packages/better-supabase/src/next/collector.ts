@@ -6,6 +6,9 @@ import { StatsRecorder } from "../core/stats.ts";
 /** Forwarded by the proxy so every scope of one render shares an id. */
 export const REQUEST_ID_HEADER = "x-bsb-request-id";
 
+/** Sequential database round trips a development render may wait on. */
+export const DEFAULT_ROUND_TRIPS = 4;
+
 export interface DbBudget {
   readonly calls?: number;
   readonly waves?: number;
@@ -117,7 +120,7 @@ export class StatsCollector {
       }
 
       logger.warn(
-        `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}`,
+        `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}; load the page's data in one read set (defineReadSet) to make it one call`,
         { requestId: id, ...stats },
       );
     }, idleMs ?? 250);

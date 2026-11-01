@@ -80,6 +80,7 @@ import {
   tableTags,
 } from "./cache.ts";
 import {
+  DEFAULT_ROUND_TRIPS,
   REQUEST_ID_HEADER,
   formatStats,
   sharedCollector,
@@ -149,13 +150,20 @@ export function createNext<
   const statsRoute = debug?.route ?? "/api/bsb-stats";
   const development = process.env["NODE_ENV"] === "development";
 
-  const collector = debug?.enabled
-    ? sharedCollector({
-        logger: betterSupabase.events.logger,
-        warn: development,
-        ...(debug.budget ? { budget: debug.budget } : {}),
-      })
-    : undefined;
+  const roundTrips = options.devRoundTripBudget ?? DEFAULT_ROUND_TRIPS;
+  const watching = development && roundTrips !== false;
+
+  const budget =
+    debug?.budget ?? (watching ? { waves: roundTrips } : undefined);
+
+  const collector =
+    debug?.enabled || watching
+      ? sharedCollector({
+          logger: betterSupabase.events.logger,
+          warn: development,
+          ...(budget ? { budget } : {}),
+        })
+      : undefined;
 
   const statsFor = (request: Request): ContextOptions => {
     const id = collector && request.headers.get(REQUEST_ID_HEADER);
