@@ -578,7 +578,7 @@ export interface BlockNameRegistry {
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_control_evidence" | "archive_compliance_policy" | "control_posture" | "get_control" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
+    readonly functions: "add_control_evidence" | "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "export_oscal_assessment_results" | "get_control" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
     readonly actions: "read" | "manage" | "collect";
     readonly hooks: never;
     readonly entities: {
@@ -610,8 +610,10 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "purposes": "id" | "tenant" | "key" | "title" | "description" | "legalBasis" | "version" | "requiresSignature" | "validMonths" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "consents": "id" | "tenant" | "purpose" | "subjectType" | "subjectId" | "givenBy" | "givenByContact" | "givenByUser" | "status" | "scope" | "grantedAt" | "validUntil" | "withdrawnAt" | "withdrawnReason" | "signature" | "submission" | "attachment" | "createdBy" | "createdAt";
+      readonly "signals": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "raw" | "parsed" | "consents" | "createdBy" | "receivedAt";
+      readonly "receipts": "id" | "tenant" | "subjectType" | "subjectId" | "consent" | "status" | "receipt" | "digest" | "issuedAt";
     };
-    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "list_consent_purposes" | "list_consents" | "record_consent" | "save_consent_purpose" | "withdraw_consent";
+    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "save_consent_purpose" | "withdraw_consent";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
@@ -745,8 +747,9 @@ export interface BlockNameRegistry {
       readonly "deletions": "tenant" | "requestedBy" | "requestedAt" | "purgeAfter" | "cancelledAt" | "purgedAt" | "previouslyDisabled";
       readonly "policies": "id" | "tenant" | "plan" | "kind" | "keep" | "updatedAt";
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
+      readonly "requests": "id" | "tenant" | "kind" | "requester" | "subjectType" | "subjectId" | "details" | "status" | "receivedAt" | "receivedBy" | "dueAt" | "extendedAt" | "extensionReason" | "verifiedAt" | "verifiedBy" | "verificationMethod" | "exportId" | "resolution" | "closedAt" | "closedBy";
     };
-    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
+    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "expired_data_exports" | "extend_data_subject_request" | "fail_data_export" | "forget_data_exports" | "fulfil_data_subject_request" | "get_data_export" | "is_held" | "list_data_exports" | "list_data_subject_requests" | "list_legal_holds" | "list_retention_policies" | "open_data_subject_request" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "refuse_data_subject_request" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy" | "verify_data_subject_request";
     readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
@@ -1187,9 +1190,11 @@ export interface BlockNameRegistry {
       readonly "impacts": "tenant" | "incident" | "component" | "impact";
       readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "postmortem" | "task" | "createdAt";
+      readonly "profiles": "incident" | "tenant" | "regimes" | "awareAt" | "classification" | "classifiedAt" | "significant" | "activelyExploited" | "measureAvailableAt" | "createdAt" | "updatedAt";
+      readonly "filings": "id" | "tenant" | "incident" | "regime" | "stage" | "dueAt" | "reminder" | "submittedAt" | "submittedBy" | "reference" | "notes" | "createdAt";
       readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
     };
-    readonly functions: "delete_status_component" | "get_incident" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incidents" | "list_status_components" | "open_incident" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "update_incident";
+    readonly functions: "delete_status_component" | "get_incident" | "get_incident_regulatory_profile" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incident_filings" | "list_incidents" | "list_status_components" | "open_incident" | "plan_incident_filings" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_incident_regulatory_profile" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "submit_incident_filing" | "update_incident";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1587,8 +1592,12 @@ export interface BlockNameRegistry {
       readonly "reports": "id" | "tenant" | "item" | "reporter" | "reason" | "note" | "status" | "resolvedBy" | "resolvedAt" | "createdAt";
       readonly "actions": "id" | "tenant" | "item" | "action" | "fromStatus" | "toStatus" | "reason" | "actor" | "createdAt";
       readonly "bans": "id" | "tenant" | "user" | "reason" | "bannedBy" | "expiresAt" | "liftedBy" | "liftedAt" | "createdAt";
+      readonly "statements": "id" | "tenant" | "item" | "restriction" | "facts" | "legalGround" | "termsGround" | "automatedDetection" | "automatedDecision" | "redress" | "issuedBy" | "createdAt";
+      readonly "notices": "id" | "tenant" | "item" | "subjectType" | "subjectId" | "explanation" | "url" | "notifierName" | "notifierEmail" | "notifier" | "trusted" | "status" | "outcome" | "decidedBy" | "decidedAt" | "createdAt";
+      readonly "flaggers": "id" | "tenant" | "user" | "name" | "awardedBy" | "revokedAt" | "createdAt";
+      readonly "appeals": "id" | "tenant" | "statement" | "notice" | "reasons" | "appellant" | "status" | "outcome" | "decidedBy" | "decidedAt" | "createdAt";
     };
-    readonly functions: "ban_user" | "list_bans" | "moderate" | "moderation_apply" | "moderation_banned" | "moderation_item" | "moderation_queue" | "moderation_statuses" | "moderation_track" | "report_content" | "unban_user";
+    readonly functions: "ban_user" | "decide_appeal" | "decide_notice" | "file_appeal" | "issue_statement" | "list_bans" | "list_notices" | "list_statements" | "moderate" | "moderation_apply" | "moderation_banned" | "moderation_item" | "moderation_queue" | "moderation_statuses" | "moderation_track" | "report_content" | "set_trusted_flagger" | "submit_notice" | "transparency_report" | "unban_user";
     readonly actions: "read" | "report" | "manage" | "ban";
     readonly hooks: never;
     readonly entities: {

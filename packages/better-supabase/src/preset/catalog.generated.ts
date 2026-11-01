@@ -5998,7 +5998,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "outbox",
         "audit",
-        "tasks"
+        "tasks",
+        "reminders"
       ],
       "manifest": "incidents",
       "scopes": [
@@ -13567,7 +13568,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "organization.deletion_cancelled",
           "organization.purged",
           "legal_hold.placed",
-          "legal_hold.released"
+          "legal_hold.released",
+          "data_subject_request.received",
+          "data_subject_request.verified",
+          "data_subject_request.extended",
+          "data_subject_request.fulfilled",
+          "data_subject_request.refused"
         ]
       }
     },
@@ -14378,7 +14384,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "moderation_report.created",
           "moderation_item.decided",
           "moderation_ban.created",
-          "moderation_ban.lifted"
+          "moderation_ban.lifted",
+          "moderation_notice.received",
+          "moderation_notice.decided",
+          "moderation_statement.issued",
+          "moderation_appeal.filed",
+          "moderation_appeal.decided"
         ]
       }
     },
@@ -16987,6 +16998,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ControlFramework"
         },
         {
+          "name": "ControlFrameworkImportedEventData"
+        },
+        {
           "name": "ControlFrameworkInput"
         },
         {
@@ -17359,7 +17373,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "control.updated",
           "control.evidence_added",
           "evidence_task.missed",
-          "compliance_policy.published"
+          "compliance_policy.published",
+          "control_framework.imported"
         ]
       }
     },
@@ -17461,6 +17476,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "IncidentFilingSubmittedEventData"
+        },
+        {
           "name": "IncidentImpact"
         },
         {
@@ -17475,6 +17493,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "IncidentOpenedEventData"
+        },
+        {
+          "name": "IncidentProfileUpdatedEventData"
         },
         {
           "name": "IncidentResolvedEventData"
@@ -17904,6 +17925,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident.updated",
           "incident.resolved",
           "incident_postmortem.published",
+          "incident_profile.updated",
+          "incident_filing.submitted",
           "status_component.changed"
         ]
       }
@@ -24564,10 +24587,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ConsentPurposeInput"
         },
         {
+          "name": "ConsentReceipt"
+        },
+        {
+          "name": "ConsentReceiptIssuedEventData"
+        },
+        {
           "name": "Consents"
         },
         {
           "name": "ConsentsEvents"
+        },
+        {
+          "name": "ConsentSignal"
+        },
+        {
+          "name": "ConsentSignalInput"
+        },
+        {
+          "name": "ConsentSignalKind"
+        },
+        {
+          "name": "ConsentSignalRecordedEventData"
         },
         {
           "name": "ConsentsOptions"
@@ -24702,7 +24743,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "consent.withdrawn",
           "consent.expired",
           "consent_purpose.created",
-          "consent_purpose.updated"
+          "consent_purpose.updated",
+          "consent_signal.recorded",
+          "consent_receipt.issued"
         ]
       },
       "schedules": [

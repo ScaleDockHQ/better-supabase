@@ -159,6 +159,27 @@ export const SPEC_PINS: {
    * `better-supabase/mapper` speaks.
    */
   readonly typescriptContentMapper: "1";
+  /** Regulation (EU) 2022/2065 (Digital Services Act), OJ L 277, 27.10.2022. */
+  readonly euDsa: "2022/2065";
+  /** Directive (EU) 2022/2555 (NIS2), OJ L 333, 27.12.2022. */
+  readonly euNis2: "2022/2555";
+  /** Regulation (EU) 2022/2554 (DORA), OJ L 333, 27.12.2022. */
+  readonly euDora: "2022/2554";
+  /** Regulation (EU) 2024/2847 (Cyber Resilience Act), OJ L, 20.11.2024. */
+  readonly euCra: "2024/2847";
+  /** Regulation (EU) 2016/679 (GDPR), OJ L 119, 4.5.2016. */
+  readonly euGdpr: "2016/679";
+  /** W3C Global Privacy Control, Working Draft of 24 September 2026. */
+  readonly gpc: "WD-20260924";
+  /** IAB Europe Transparency and Consent Framework release (TC String v2). */
+  readonly iabTcf: "2.2";
+  /** IAB Tech Lab Global Privacy Platform string specification. */
+  readonly iabGpp: "1.1";
+  /**
+   * NIST OSCAL release whose catalog, profile and assessment-results models are
+   * read and written.
+   */
+  readonly oscal: "1.2.3";
 } = {
   otelSemconv: "1.37.0",
   otlp: "1.7.0",
@@ -225,4 +246,13 @@ export const SPEC_PINS: {
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
   typescriptContentMapper: "1",
+  euDsa: "2022/2065",
+  euNis2: "2022/2555",
+  euDora: "2022/2554",
+  euCra: "2024/2847",
+  euGdpr: "2016/679",
+  gpc: "WD-20260924",
+  iabTcf: "2.2",
+  iabGpp: "1.1",
+  oscal: "1.2.3",
 };

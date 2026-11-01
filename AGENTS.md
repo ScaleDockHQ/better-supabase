@@ -296,6 +296,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
+- 0182: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
 
 ## Pre-release pins
 
