@@ -543,6 +543,21 @@ const tree = useTree({
 
 Load a folder's children with `list(organizationId, { parentId })` as it opens, and build the tree again from all the nodes loaded so far.
 
+## Helpers for a folder page
+
+A folder page needs the node, its children, the breadcrumbs, what the caller may do and who has a grant. `drive.folder` reads all of it in one call, and returns only the children at the root.
+
+```ts
+const view = await db.drive.folder({ organizationId, nodeId }).orThrow();
+// view.node, view.children, view.breadcrumbs, view.access, view.grants
+```
+
+`view.access` comes from the SQL function `drive_node_access`, so the flags (`role`, `read`, `comment`, `download`, `upload`, `write`, `share`) follow your configured roles. `drive.can(id)` returns the same flags for one node. `drive.search({ organizationId, query })` finds nodes by name or extracted text, and treats `%` and `_` as plain characters.
+
+`drive.put` uploads a file from the server: it creates the pending node, stores the bytes and commits it, and deletes the node when the upload fails. `drive.shareMany({ ids, grants })` gives every grant on every node and stops at the first failure.
+
+The block stores no member names, so `drive.grantsWithNames({ id, names })` takes a `names(principal)` function that you answer from your own users table. It is called once for each distinct principal.
+
 ## Comments, search and relations on nodes
 
 `driveSubject()` describes the node table as a subject, so the [subject registry](/docs/blocks/sql#subject-registry) lets comments, reactions and other blocks attach to nodes with the drive's read and write rules. It also carries a `search` entry: with the [search block](/docs/blocks/search) installed, node names and their [extracted text](#text-extraction) (its first 100,000 characters) are indexed as they are created, renamed and read, trashed nodes drop out of the results, and [relations](/docs/blocks/relations) can link a node to any other subject:

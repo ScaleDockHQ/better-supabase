@@ -100,3 +100,13 @@ Versions, signatures, drive revisions and field history have no `copy`: copying 
 history. The record bindings for `custom-fields`, `field-history`, `reactions`, `drive` and
 `signatures` ship with this change; the signatures client takes the request tenant like the other
 tenant blocks.
+
+## Addendum: drive helpers
+
+`drive.folder` reads the node, children, breadcrumbs, caller flags and grants in parallel. The flags come
+from the SQL function `drive_node_access`, because they depend on the configured roles, which the client
+does not know. `drive.search` is the SQL function `drive_search`, which escapes `like` wildcards.
+
+Grants with names are not possible inside the block: it stores no member names. `grantsWithNames` takes a
+`names` resolver that the app answers from its own users table. `attachments.uploadFile` can report only
+start and end through `onProgress`, because supabase-js gives no byte progress.

@@ -16,6 +16,7 @@ import type {
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DriveLifecycle } from "./changes.ts";
 import type { DriveDocument, DriveDocuments } from "./documents.ts";
+import type { DriveHelpers } from "./helpers.ts";
 import type { DriveAccess } from "./ownership.ts";
 import type {
   DriveContribution,
@@ -40,6 +41,7 @@ import {
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
 import { driveLifecycle } from "./changes.ts";
 import { driveDocuments } from "./documents.ts";
+import { driveHelpers } from "./helpers.ts";
 import { driveAccess } from "./ownership.ts";
 import {
   KINDS,
@@ -427,6 +429,7 @@ export interface Drive<F extends object = Record<never, never>>
   extends
     DriveDocuments<DriveNode<F>>,
     DriveLifecycle<DriveNode<F>>,
+    DriveHelpers<F>,
     DriveAccess {
   createFolder(input: {
     organizationId: string;
@@ -757,6 +760,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   const client: Drive = {
     ...driveDocuments(call, nodeOf, nodesOf),
     ...driveLifecycle(call, nodeOf),
+    ...driveHelpers(call, () => built, storage),
     ...driveAccess({
       call,
       recordAccess: options.recordAccess,
@@ -1250,9 +1254,11 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       }),
   };
 
-  return withBlockHooks(
+  const built = withBlockHooks(
     withFields<FieldsOf<S>>(client, fields),
     options.hooks,
     { block: "drive", ...(options.logger ? { logger: options.logger } : {}) },
   );
+
+  return built;
 }

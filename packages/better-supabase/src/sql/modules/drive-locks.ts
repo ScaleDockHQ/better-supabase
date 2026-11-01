@@ -146,6 +146,28 @@ as $$
   ), false)
 $$;
 ${userGrant(`${fn("drive_can_upload")}(uuid)`)}
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function ${fn("drive_node_access")}(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', ${fn("drive_role")}(drive_node_access.node),
+    'read', ${canRead("drive_node_access.node")},
+    'comment', ${canComment("drive_node_access.node")},
+    'download', ${fn("drive_can_download")}(drive_node_access.node),
+    'upload', ${canUpload("drive_node_access.node")},
+    'write', ${canWrite("drive_node_access.node")},
+    'share', ${canShare("drive_node_access.node")}
+  )
+$$;
+${userGrant(`${fn("drive_node_access")}(uuid)`)}
 ${
   roles.upload === undefined
     ? ""
