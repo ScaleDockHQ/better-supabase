@@ -36,6 +36,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { lazyStripe } from "../stripe.ts";
+import { billingReads } from "./reads.ts";
 import {
   ORGANIZATION_KEY,
   SEAT_EVENT,
@@ -984,6 +985,7 @@ export function createBilling(options: BillingOptions): Billing {
         };
       }),
     syncSeats,
+    ...billingReads(call),
     subscription: (organizationId) =>
       call("billing_subscription", { tenant: organizationId }, (value) =>
         isRecord(value) ? value : undefined,

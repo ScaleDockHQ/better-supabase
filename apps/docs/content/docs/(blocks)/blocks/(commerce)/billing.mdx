@@ -678,3 +678,13 @@ export const billing = createBilling({
 ## Starting a trial
 
 `startTrial({ organizationId, options })` opens a subscription Checkout with a free trial of `options.days` days. It is `checkout` with `subscription_data.trial_period_days` set; other `subscription_data` in `options.params` stay. Stripe starts the subscription as `trialing`, and the same webhooks follow.
+
+## Billing overview
+
+`overview({ organizationId, invoiceLimit })` reads the billing page in one call from the SQL function `billing_overview`. The result holds the Stripe `customerId` and `accountId`, the `seats` count, the active `subscription` item, the latest `invoiceLimit` invoices (default 10) as the Sync Engine stores them, and, with the `usage` block, one status per meter in `usage`. The function runs as the caller and reads through `billing_status`, `billing_invoices` and `usage_overview`, so the billing and usage read permissions apply. Plan entitlements stay in the `entitlements` block: call `entitlements.seatsLeft` with the `seats` from the overview.
+
+```ts
+const { seats, invoices, usage } = await db.billing
+  .overview({ organizationId })
+  .orThrow();
+```

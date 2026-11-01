@@ -50,7 +50,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time wip_valuation",
   billing:
-    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
+    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_overview billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
   bookings:
     "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings save_booking_resource save_booking_service set_booking_availability",
   bulk: "bulk_apply bulk_run bulk_step start_bulk",
@@ -193,7 +193,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   orders:
     "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote order_status_board place_order price_cart purchase_order_from_order receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
-    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
+    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   passes:

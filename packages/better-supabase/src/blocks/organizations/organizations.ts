@@ -17,6 +17,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { OrganizationsEvents } from "./events.ts";
+import type { OrganizationOverview } from "./overview.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
 import {
@@ -36,6 +37,7 @@ import {
   isRecord,
   recordsOf,
 } from "../shared.ts";
+import { decodeOverview } from "./overview.ts";
 
 /**
  * Organization columns by database name: `name`, `slug`, the columns in
@@ -369,6 +371,12 @@ export interface Organizations<
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
+  /**
+   * The organization page in one call: the caller's role, the members with
+   * their roles, the open invitations and the billed seats. `members` and
+   * `invitations` give the same pieces one call at a time.
+   */
+  overview(organizationId: string): AsyncResult<OrganizationOverview>;
   invite(request: InviteRequest<I, R>): AsyncResult<InvitationSent<I>>;
   resendInvitation(input: {
     invitationId: string;
@@ -1021,6 +1029,13 @@ function organizationsClient<
           })),
       );
     },
+    overview: (organizationId) =>
+      run(
+        "organizations",
+        "organization_overview",
+        { organization: organizationId },
+        decodeOverview,
+      ),
     invitations(organizationId) {
       return run(
         "organizations",

@@ -362,7 +362,7 @@ export interface BlockNameRegistry {
       readonly "customers": "tenant" | "customer" | "account" | "createdAt";
       readonly "subscriptions": "tenant" | "subscription" | "status" | "price" | "plan" | "periodEnd" | "cancelAt" | "eventAt" | "updatedAt";
     };
-    readonly functions: "billing_account" | "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "link_billing_account" | "link_billing_customer";
+    readonly functions: "billing_account" | "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_overview" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "link_billing_account" | "link_billing_customer";
     readonly actions: "read" | "manage" | "viewAll";
     readonly hooks: never;
     readonly entities: {};
@@ -1678,7 +1678,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "organizations": "id" | "name" | "slug" | "createdBy" | "createdAt" | "updatedAt" | "disabledAt" | "deletedAt";
     };
-    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
+    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
     readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership" | "create" | "updatePlatform" | "deletePlatform" | "updateRolePlatform" | "removeMemberPlatform";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};

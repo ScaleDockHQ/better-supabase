@@ -244,6 +244,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "audit",
+        "billing",
         "data-lifecycle",
         "entitlements",
         "invitations",
@@ -252,6 +253,49 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "organizations",
       "scopes": [
         "tenant"
+      ],
+      "reads": [
+        {
+          "name": "overview",
+          "function": "organization_overview",
+          "args": {
+            "organizationId": {
+              "param": "organization",
+              "type": "id"
+            }
+          },
+          "result": {
+            "id": "text",
+            "name": "text",
+            "slug": "text?",
+            "role": "text",
+            "seats": "number?",
+            "members": [
+              {
+                "userId": "text",
+                "role": "text",
+                "roles": [
+                  "text"
+                ],
+                "disabledAt": "text?"
+              }
+            ],
+            "invitations": [
+              {
+                "id": "text",
+                "email": "text",
+                "role": "text",
+                "expiresAt": "text?"
+              }
+            ]
+          },
+          "summary": "An organization with the caller's role, its members with their roles, its open invitations and its billed seats.",
+          "tables": [
+            "organizations",
+            "memberships",
+            "invitations"
+          ]
+        }
       ],
       "extraColumns": "organizations"
     },
@@ -464,11 +508,46 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "organizations"
+        "organizations",
+        "usage"
       ],
       "manifest": "billing",
       "scopes": [
         "tenant"
+      ],
+      "reads": [
+        {
+          "name": "overview",
+          "function": "billing_overview",
+          "args": {
+            "organizationId": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "invoiceLimit": {
+              "param": "invoice_limit",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": {
+            "customerId": "text?",
+            "accountId": "text?",
+            "seats": "number",
+            "subscription": "json",
+            "invoices": [
+              "json"
+            ],
+            "usage": [
+              "json"
+            ]
+          },
+          "summary": "The billing page in one call: the Stripe customer, the seat count, the subscription item, the latest invoices and the usage against each quota.",
+          "tables": [
+            "customers",
+            "subscriptions"
+          ]
+        }
       ]
     },
     {

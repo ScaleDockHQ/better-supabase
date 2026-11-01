@@ -10,6 +10,7 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { StripeSource, StripeTaxId } from "../stripe.ts";
 import type { BillingEvents } from "./events.ts";
+import type { BillingReads } from "./reads.ts";
 
 export interface BillingOptions extends BlockTemporalOptions {
   /** `withBlockHooks` hooks around the client's methods. */
@@ -256,7 +257,7 @@ export interface BillingCustomerUpdate {
   readonly params?: Readonly<Record<string, unknown>>;
 }
 
-export interface Billing {
+export interface Billing extends BillingReads {
   /** The tenant's Stripe customer, or `undefined` before the first checkout. */
   customer(organizationId: string): AsyncResult<string | undefined>;
   /**

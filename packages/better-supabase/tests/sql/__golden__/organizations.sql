@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:7c14a28ec3d2f3351fc7d02c0951fa8409688c599972448268c2c47b1ead0ec1
+-- @bsb-hash sha256:e49285cf6ae5d3887b64873da03b3bb9a726a8160b6d267e28cb4ec0c7aa5a3d
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -707,6 +707,47 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "better_supabase"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "better_supabase"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "better_supabase"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', '[]'::jsonb
+  );
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -729,6 +770,8 @@ revoke execute on function "better_supabase"."list_my_organizations"() from publ
 grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_overview"(uuid) from public, anon;
+grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from public, anon;
@@ -764,7 +807,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:a6759002bffc0763105a79d5ebef5a286b36e8c42639e15d3a470bc1fb2d26d0
+-- @bsb-hash sha256:2dee218f41b8585269be934f4b2250478e0f545491e42e1f1416782ba95602dd
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1583,6 +1626,56 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "better_supabase"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "better_supabase"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  begin
+    v_seats := ("better_supabase"."billing_status"(organization_overview.organization) ->> 'seats')::integer;
+  exception when others then
+    v_seats := null;
+  end;
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "better_supabase"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'id', i.id, 'email', i.email, 'role', i.role, 'expiresAt', to_jsonb(i) -> 'expires_at')
+          order by i.email)
+        from "better_supabase"."list_organization_invitations"(organization_overview.organization) i
+      ), '[]'::jsonb)
+  );
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -1605,6 +1698,8 @@ revoke execute on function "better_supabase"."list_my_organizations"() from publ
 grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_overview"(uuid) from public, anon;
+grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."list_organization_invitations"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from public, anon;
@@ -1642,7 +1737,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:6aaa00dd2fd596b1c8f486532311ffa3ed41a9fda9e075776d190f4cc9033fbe
+-- @bsb-hash sha256:824938edce5f202e519b6a794720faaa4f0473b84e76b1367a93d6f4dc0dfb9d
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2353,6 +2448,47 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "app_private"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "app_private"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "app_private"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', '[]'::jsonb
+  );
+end;
+$$;
+
 revoke execute on function "app_private"."create_organization"(jsonb) from public, anon;
 grant execute on function "app_private"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "app_private"."update_organization"(uuid, jsonb) from public, anon;
@@ -2375,6 +2511,8 @@ revoke execute on function "app_private"."list_my_organizations"() from public, 
 grant execute on function "app_private"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "app_private"."list_members"(uuid) from public, anon;
 grant execute on function "app_private"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."organization_overview"(uuid) from public, anon;
+grant execute on function "app_private"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."suspend_member"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "app_private"."resume_member"(uuid, uuid) from public, anon;
@@ -2410,7 +2548,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:6720fead67db6edf40c13558eb1d6a83728ab113ae6480828194d08e3edc7b4a
+-- @bsb-hash sha256:01cd28350c7f5406fd03e2e3e50a9fa9a215241de2ca24f540b4772319e58207
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3116,6 +3254,47 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "better_supabase"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "better_supabase"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "better_supabase"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', '[]'::jsonb
+  );
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -3138,6 +3317,8 @@ revoke execute on function "better_supabase"."list_my_organizations"() from publ
 grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_overview"(uuid) from public, anon;
+grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from public, anon;
@@ -3285,6 +3466,15 @@ as $$ select * from "better_supabase"."list_members"($1) $$;
 revoke execute on function "api"."list_members"(uuid) from public, anon;
 grant execute on function "api"."list_members"(uuid) to authenticated, service_role;
 
+create or replace function "api"."organization_overview"(organization uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."organization_overview"($1) $$;
+revoke execute on function "api"."organization_overview"(uuid) from public, anon;
+grant execute on function "api"."organization_overview"(uuid) to authenticated, service_role;
+
 create or replace function "api"."suspend_member"(organization uuid, member uuid)
 returns boolean
 language sql
@@ -3333,7 +3523,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:7152b8b149990d148f8da48bf2395b2ac68cf5b99c70dc0a3d87f1e282947fcd
+-- @bsb-hash sha256:be4875bcb8db9f12802711ce163ce13063f3a2d5e14950b434e746f5fabd4832
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4020,6 +4210,47 @@ begin
 end;
 $$;
 
+-- The organization page in one call. It runs as the caller and reads through
+-- the listing functions, so the permissions to list members and invitations
+-- apply. Seats come from billing_status and are null when the caller may not
+-- read billing.
+create or replace function "better_supabase"."organization_overview"(organization uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org jsonb;
+  v_seats integer;
+begin
+  select to_jsonb(o) into v_org
+  from "better_supabase"."list_my_organizations"() o
+  where o.id = organization_overview.organization;
+  if v_org is null then
+    raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  
+  return jsonb_build_object(
+    'id', v_org ->> 'id',
+    'name', v_org ->> 'name',
+    'slug', v_org -> 'slug',
+    'role', v_org ->> 'role',
+    'seats', v_seats,
+    'members', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'userId', m.user_id, 'role', m.role,
+        'roles', coalesce(to_jsonb(m) -> 'roles', jsonb_build_array(m.role)),
+        'disabledAt', to_jsonb(m) -> 'disabled_at')
+        order by m.user_id)
+      from "better_supabase"."list_members"(organization_overview.organization) m
+    ), '[]'::jsonb),
+    'invitations', '[]'::jsonb
+  );
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -4042,6 +4273,8 @@ revoke execute on function "better_supabase"."list_my_organizations"() from publ
 grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
 revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_overview"(uuid) from public, anon;
+grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from public, anon;

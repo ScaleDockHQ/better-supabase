@@ -151,10 +151,19 @@ import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-edito
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
 import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
+import { governanceBlock as governanceBlockInstance } from "better-supabase/blocks/governance";
+import { commerceBlock as commerceBlockInstance } from "better-supabase/blocks/commerce";
 import { procurementBlock as procurementBlockInstance } from "better-supabase/blocks/procurement";
 import { financeBlock as financeBlockInstance } from "better-supabase/blocks/finance";
+import { supportBlock as supportBlockInstance } from "better-supabase/blocks/support";
+import { projectsBlock as projectsBlockInstance } from "better-supabase/blocks/projects";
+import { serviceBlock as serviceBlockInstance } from "better-supabase/blocks/service";
 import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
 import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
+import { learningBlock as learningBlockInstance } from "better-supabase/blocks/learning";
+import { eventsBlock as eventsBlockInstance } from "better-supabase/blocks/events";
+import { cmsBlock as cmsBlockInstance } from "better-supabase/blocks/cms";
+import { careBlock as careBlockInstance } from "better-supabase/blocks/care";
 import { filespaceBlock as filespaceBlockInstance } from "better-supabase/blocks/filespace";
 import { crmBlock as crmBlockInstance } from "better-supabase/blocks/crm";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -1282,10 +1291,19 @@ export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenam
 export const blocks = {
   sales: salesBlockInstance,
   collaboration: collaborationBlockInstance,
+  governance: governanceBlockInstance,
+  commerce: commerceBlockInstance,
   procurement: procurementBlockInstance,
   finance: financeBlockInstance,
+  support: supportBlockInstance,
+  projects: projectsBlockInstance,
+  service: serviceBlockInstance,
   recruiting: recruitingBlockInstance,
   scheduling: schedulingBlockInstance,
+  learning: learningBlockInstance,
+  events: eventsBlockInstance,
+  cms: cmsBlockInstance,
+  care: careBlockInstance,
   filespace: filespaceBlockInstance,
   crm: crmBlockInstance,
   permissions: permissionsBlockInstance,
@@ -3886,6 +3904,30 @@ export type OrdersBoardResult = {
   }[];
 };
 
+/** The arguments of `reads.organizations.overview`. @public */
+export type OrganizationsOverviewArgs = { readonly organizationId: string };
+
+/** What `reads.organizations.overview` returns. @public */
+export type OrganizationsOverviewResult = {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string | null;
+  readonly role: string;
+  readonly seats: number | null;
+  readonly members: readonly {
+    readonly userId: string;
+    readonly role: string;
+    readonly roles: readonly string[];
+    readonly disabledAt: string | null;
+  }[];
+  readonly invitations: readonly {
+    readonly id: string;
+    readonly email: string;
+    readonly role: string;
+    readonly expiresAt: string | null;
+  }[];
+};
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -3900,5 +3942,8 @@ export const reads = {
   },
   orders: {
     board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "api"),
+  },
+  organizations: {
+    overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
   },
 } as const;

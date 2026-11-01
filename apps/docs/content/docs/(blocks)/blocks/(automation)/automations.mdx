@@ -196,12 +196,12 @@ A block that feeds another ships default automations: rows its SQL module writes
 
 {/* default-automations:start, written by `pnpm catalog` */}
 
-| Default                                      | Block    | Trigger                     | Action                       | Ships when               |
-| -------------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |
-| Preboard each hired candidate                | `hiring` | `application.hired`         | `employees.from_application` | `employees` is installed |
-| Open a task for each new conversation        | `inbox`  | `inbox_conversation.opened` | `tasks.from_conversation`    | `tasks` is installed     |
-| Order each accepted quote (turned off)       | `quotes` | `quote.accepted`            | `orders.from_quote`          | `orders` is installed    |
-| Draft a quote for each won deal (turned off) | `quotes` | `deal.closed`               | `quotes.from_deal`           | `deals` is installed     |
+| Default | Block | Trigger | Action | Ships when |
+| --- | --- | --- | --- | --- |
+| Preboard each hired candidate | `hiring` | `application.hired` | `employees.from_application` | `employees` is installed |
+| Open a task for each new conversation | `inbox` | `inbox_conversation.opened` | `tasks.from_conversation` | `tasks` is installed |
+| Order each accepted quote (turned off) | `quotes` | `quote.accepted` | `orders.from_quote` | `orders` is installed |
+| Draft a quote for each won deal (turned off) | `quotes` | `deal.closed` | `quotes.from_deal` | `deals` is installed |
 
 {/* default-automations:end */}
 

@@ -113,6 +113,17 @@ describe("billing module", () => {
     expect(sql).toContain("BILLING_FORBIDDEN");
   });
 
+  it("composes the billing page from the status, invoice and usage reads", () => {
+    const sql = billing();
+    expect(sql).toContain(`"billing_status"(billing_overview.tenant)`);
+    expect(sql).toContain(
+      `"billing_invoices"(billing_overview.tenant, billing_overview.invoice_limit)`,
+    );
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."billing_overview"(uuid, integer) to authenticated, service_role;`,
+    );
+  });
+
   it("reads a tenant's subscription unchecked for the owner's functions only", () => {
     const sql = billing();
     expect(sql).toContain(

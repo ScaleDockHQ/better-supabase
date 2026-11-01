@@ -4,7 +4,7 @@
 -- and is a member of Globex (…0002); the member belongs to Acme only
 -- (supabase/seed.sql).
 begin;
-select plan(19);
+select plan(20);
 
 -- The invitations module rechecks the inviter with the access scope
 -- (`organization` by default), so the contract answers for both names.
@@ -94,6 +94,16 @@ select is(
   (select count(*)::int from public.organization_invitations('00000000-0000-4000-8000-000000000001')),
   2,
   'an owner lists the open invitations'
+);
+select is(
+  (select jsonb_build_array(
+      o ->> 'role' = (select m.role from better_supabase.list_my_organizations() m where m.id = '00000000-0000-4000-8000-000000000001'),
+      jsonb_array_length(o -> 'members'),
+      jsonb_array_length(o -> 'invitations'),
+      o #>> '{members,0,roles,0}' is not null)
+   from (select better_supabase.organization_overview('00000000-0000-4000-8000-000000000001') o) x),
+  '[true, 2, 2, true]'::jsonb,
+  'the overview holds the role, the members with roles and the open invitations in one call'
 );
 select is(
   (select array_agg(role order by name) from public.my_organizations()),
