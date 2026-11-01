@@ -4,7 +4,7 @@
   "tags": ["example"],
   "tasks": {
     "typecheck": {
-      "dependsOn": ["transit", "^build"]
+      "dependsOn": ["$TURBO_EXTENDS$", "^build"]
     }
   }
 }

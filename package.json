@@ -18,6 +18,7 @@
     "check:no-permdock": "node scripts/check-no-permdock.ts",
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
+    "check:skills": "node scripts/check-skills.ts",
     "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
     "dev": "turbo run dev",
     "dev:cleanup": "portless prune",
@@ -60,7 +61,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:migration-order check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:migration-order check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {

@@ -1,0 +1,15 @@
+# LiteLLM proxy config.yaml fragment: send one $ai_generation event per request to PostHog.
+# Verified against PostHog docs "LiteLLM AI Observability installation" (needs LiteLLM 1.77.3 or newer), 2026-10-11.
+# Environment (names only; set values from a 0600 env file): POSTHOG_API_KEY (the project token), POSTHOG_API_URL.
+model_list:
+  - model_name: local-llm
+    litellm_params:
+      model: openai/<served-model-name>
+      api_base: http://127.0.0.1:8000/v1
+      api_key: os.environ/UPSTREAM_API_KEY
+
+litellm_settings:
+  success_callback: ["posthog"]
+  failure_callback: ["posthog"]
+  # Redacts message content for callbacks that honor it. Canary-test that no $ai_input arrives before relying on it.
+  turn_off_message_logging: true

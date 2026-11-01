@@ -1,0 +1,177 @@
+# Alert rules for an LLM serving stack.
+# Page on symptoms users feel; warn on causes. Thresholds are starting points:
+# set them from your SLOs and observed baselines, then validate with
+#   promtool check rules alert-rules.yml
+# Metric names: vLLM, SGLang, llama.cpp, LiteLLM (counters carry _total), DCGM exporter.
+# Verify each name against your own /metrics output before relying on a rule.
+
+groups:
+  - name: llm-symptoms
+    rules:
+      - alert: LLMTargetDown
+        expr: up{job=~"vllm|sglang|llamacpp|litellm"} == 0
+        for: 3m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }} target {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }}. Check the process, port and scrape auth."
+          runbook_url: "https://llm.example.com/runbooks/target-down"
+
+      - alert: LLMGatewayHighErrorRatio
+        expr: |
+          (
+            sum by (requested_model) (rate(litellm_proxy_failed_requests_metric_total[5m]))
+              /
+            sum by (requested_model) (rate(litellm_proxy_total_requests_metric_total[5m]))
+          ) > 0.05
+          and
+          sum by (requested_model) (rate(litellm_proxy_total_requests_metric_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "LLM error ratio above 5% for {{ $labels.requested_model }}"
+          description: "More than 5% of gateway requests for {{ $labels.requested_model }} failed over 10 minutes."
+          runbook_url: "https://llm.example.com/runbooks/llm-errors"
+
+      - alert: LLMGatewayHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (model_group, le) (rate(litellm_request_total_latency_metric_bucket[5m]))
+          ) > 30
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "p95 end-to-end latency above 30s for {{ $labels.model_group }}"
+          description: "Gateway p95 latency for {{ $labels.model_group }} is {{ $value | humanizeDuration }}."
+          runbook_url: "https://llm.example.com/runbooks/llm-latency"
+
+      - alert: LLMEngineHighTTFTP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (model_name, le) (rate(vllm:time_to_first_token_seconds_bucket[5m]))
+          ) > 5
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "vLLM p95 time to first token above 5s for {{ $labels.model_name }}"
+          description: "p95 TTFT is {{ $value | humanizeDuration }}. Check queue depth and KV-cache usage."
+          runbook_url: "https://llm.example.com/runbooks/llm-ttft"
+
+      - alert: LLMDeploymentOutage
+        expr: litellm_deployment_state == 2
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "LiteLLM reports a complete outage for {{ $labels.litellm_model_name }}"
+          description: "Deployment {{ $labels.litellm_model_name }} at {{ $labels.api_base }} is in complete outage (state 2). Demote to warning if other deployments serve this model."
+
+  - name: llm-causes
+    rules:
+      - alert: LLMRequestsQueueing
+        expr: |
+          sum by (instance, model_name) (vllm:num_requests_waiting) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "vLLM requests waiting on {{ $labels.instance }} ({{ $labels.model_name }})"
+          description: "Requests have been queueing for 10 minutes. Capacity or concurrency limits may be too low."
+
+      - alert: SGLangRequestsQueueing
+        expr: sum by (instance, model_name) (sglang:num_queue_reqs) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SGLang requests queueing on {{ $labels.instance }}"
+
+      - alert: LlamaCppRequestsDeferred
+        expr: sum by (instance) (llamacpp:requests_deferred) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "llama.cpp requests deferred on {{ $labels.instance }}"
+          description: "All slots busy for 10 minutes. Consider more --parallel slots or another instance."
+
+      - alert: LLMKVCacheNearFull
+        expr: max by (instance, model_name) (vllm:kv_cache_usage_perc) > 0.95
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "vLLM KV cache above 95% on {{ $labels.instance }}"
+
+      - alert: LLMPreemptions
+        expr: sum by (instance, model_name) (rate(vllm:num_preemptions_total[5m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "vLLM is preempting requests on {{ $labels.instance }}"
+          description: "Sustained preemptions mean KV-cache pressure; latency will degrade."
+
+      - alert: LLMTruncatedResponses
+        expr: |
+          (
+            sum by (model_name) (rate(vllm:request_success_total{finished_reason="length"}[30m]))
+              /
+            sum by (model_name) (rate(vllm:request_success_total[30m]))
+          ) > 0.2
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Over 20% of {{ $labels.model_name }} responses hit max_tokens"
+
+      - alert: GPUXidError
+        expr: DCGM_FI_DEV_XID_ERRORS > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU XID error {{ $value }} on {{ $labels.instance }} GPU {{ $labels.gpu }}"
+          description: "Look up the XID code in NVIDIA's XID documentation; some require a GPU reset."
+
+      - alert: GPUHighTemperature
+        expr: DCGM_FI_DEV_GPU_TEMP > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.gpu }} on {{ $labels.instance }} above 85C"
+          description: "Adjust the threshold to your GPU's documented limits."
+
+      - alert: LLMSpendSpike
+        expr: |
+          sum(rate(litellm_spend_metric_total[1h]))
+            > 3 * sum(avg_over_time(rate(litellm_spend_metric_total[1h])[7d:1h]))
+          and
+          sum(rate(litellm_spend_metric_total[1h])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM spend rate is over 3x its 7-day average"
+
+      - alert: LLMZeroCostRequests
+        expr: sum by (requested_model, reason) (increase(litellm_zero_cost_requests_total[1h])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Requests for {{ $labels.requested_model }} priced at $0 ({{ $labels.reason }})"
+          description: "Pricing is missing or failed for a model with a non-zero rate; spend is under-reported."
+
+      - alert: LLMLoggingCallbackFailures
+        expr: sum by (callback_name) (increase(litellm_callback_logging_failures_metric_total[15m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LiteLLM failing to deliver logs to {{ $labels.callback_name }}"

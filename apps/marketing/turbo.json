@@ -37,12 +37,12 @@
       "dependsOn": ["transit", "//#catalog", "//#recipes"]
     },
     "typecheck": {
-      "dependsOn": ["transit", "//#catalog", "//#recipes"]
+      "dependsOn": ["$TURBO_EXTENDS$", "//#catalog", "//#recipes"]
     },
     "test": {
-      "dependsOn": ["transit", "//#catalog", "//#recipes"],
+      "dependsOn": ["$TURBO_EXTENDS$", "//#catalog", "//#recipes"],
       "inputs": [
-        "$TURBO_DEFAULT$",
+        "$TURBO_EXTENDS$",
         "$TURBO_ROOT$/packages/registry/registry.json"
       ]
     }
