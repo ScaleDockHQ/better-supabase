@@ -97,7 +97,7 @@ export function tenantFallbackSql(idType: BlockSqlIdType): string {
  * In the row trigger: skips a row `audit_event` already recorded
  * (`bsb.recorded`).
  */
-export function recordedSkipSql(): string {
+function recordedSkipSql(): string {
   return `  if position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\\n') > 0 then
     return null;
   end if;`;

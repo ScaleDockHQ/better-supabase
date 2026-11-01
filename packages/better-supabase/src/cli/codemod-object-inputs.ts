@@ -72,11 +72,6 @@ const BY_METHOD: ReadonlyMap<string, readonly Signature[]> = (() => {
   return map;
 })();
 
-/** Every method name whose signature the table changed. */
-export const OBJECT_INPUT_METHODS: ReadonlySet<string> = new Set(
-  BY_METHOD.keys(),
-);
-
 /** How many rows the table holds. */
 export const OBJECT_INPUT_COUNT: number = OBJECT_INPUT_ROWS.length;
 

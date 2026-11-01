@@ -92,7 +92,7 @@ $$;`;
  * The `staff` actor kind's test, from `blocks.audit.options.staffClaim` (a
  * dotted JWT path such as `app_metadata.platform_role`), or undefined.
  */
-export function staffTest(ctx: BlockSqlContext): string | undefined {
+function staffTest(ctx: BlockSqlContext): string | undefined {
   const raw = ctx.option("staffClaim");
 
   if (raw === undefined) {
