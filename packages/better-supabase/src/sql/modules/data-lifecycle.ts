@@ -23,6 +23,7 @@ import {
   credentialsSql,
   refuseHeldTenant,
 } from "./data-lifecycle-credentials.ts";
+import { DSAR_CONTRACT, DSAR_TABLES, dsarSql } from "./data-lifecycle-dsar.ts";
 import {
   entries,
   bucketOf,
@@ -107,6 +108,7 @@ const NAMES: BlockSqlNames = {
       optional: ["requestedBy", "requestedAt"],
     },
     ...RETENTION_TABLES,
+    ...DSAR_TABLES,
   },
 };
 
@@ -343,6 +345,7 @@ create index if not exists ${ctx.naming.rename("organization_deletions_due_idx")
 ${requested("requestedBy") ? `create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;\n` : ""}${ctx.owns("deletions") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("deletions").name}_tenant_key`)} on ${d} (${cd("tenant")});\n`}${lockTable(d)}
 
 ${retentionSql(ctx)}
+${dsarSql(ctx)}
 
 ${restoreSql(ctx)}
 
@@ -843,6 +846,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "anonymize_due", args: ["integer"], returns: "jsonb" },
     ...RESTORE_CONTRACT,
     ...RETENTION_CONTRACT,
+    ...DSAR_CONTRACT,
   ];
 }
 
@@ -857,7 +861,7 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
   integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   names: NAMES,
   contract,
   upgrades: [
@@ -901,6 +905,12 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
       from: 7,
       description:
         "data_restore_tables lists what a restore may write and restore_data_row writes one exported row into an organization through the import record map; with the imports block installed, createDataImporter restores an export (source restore).",
+      sql: () => "",
+    },
+    {
+      from: 8,
+      description:
+        "data_subject_requests and the GDPR request workflow: open_data_subject_request, verify_data_subject_request, extend_data_subject_request (once, to three months from receipt), fulfil_data_subject_request (access and portability start the record export, erasure refuses under a legal hold) and refuse_data_subject_request.",
       sql: () => "",
     },
   ],
