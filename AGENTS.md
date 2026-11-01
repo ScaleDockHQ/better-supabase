@@ -296,6 +296,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
+- 0182: `agent-checkout` runs ACP and UCP sessions and AP2 mandates over orders and signing-keys; `agents` serves an A2A card and task endpoint; `better-supabase/webmcp` registers permitted block actions as page tools.
 
 ## Pre-release pins
 

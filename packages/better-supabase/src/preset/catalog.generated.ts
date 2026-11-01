@@ -10517,6 +10517,80 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "agent-checkout",
+      "title": "Agent checkout",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "orders",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "agent-checkout",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "checkout_session": {
+            "table": "sessions",
+            "singular": "checkout_session",
+            "primary": true
+          },
+          "agent_mandate": {
+            "table": "mandates",
+            "singular": "agent_mandate"
+          }
+        },
+        "tables": {
+          "sessions": {
+            "name": "checkout_sessions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "cart": "cart_id",
+              "protocol": "protocol",
+              "status": "status",
+              "idempotencyKey": "idempotency_key",
+              "requestHash": "request_hash",
+              "buyer": "buyer",
+              "order": "order_id",
+              "expiresAt": "expires_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "mandates": {
+            "name": "agent_mandates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "session": "session_id",
+              "vct": "vct",
+              "status": "status",
+              "credential": "credential",
+              "credentialHash": "credential_hash",
+              "issuerKid": "issuer_kid",
+              "subject": "subject",
+              "expiresAt": "expires_at",
+              "consumedAt": "consumed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "agent_checkout.read",
+          "write": "agent_checkout.write",
+          "manage": "agent_checkout.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -11047,7 +11121,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "A2AAgentCard"
+        },
+        {
+          "name": "A2AAgentSkill"
+        },
+        {
           "name": "Agent"
+        },
+        {
+          "name": "AgentCardOptions"
         },
         {
           "name": "AgentFields"
@@ -22455,6 +22538,136 @@ export const PRESET_CATALOG: PresetCatalog = {
           "till_movement.recorded",
           "till_deposit.recorded",
           "till_deposit.reconciled"
+        ]
+      }
+    },
+    {
+      "name": "agent-checkout",
+      "sql": [
+        "agent-checkout"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "agentCheckoutBlock",
+        "subpath": "better-supabase/blocks/agent-checkout"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AgentMandate"
+        },
+        {
+          "name": "AgentMandateEventData"
+        },
+        {
+          "name": "AgentMandateKind"
+        },
+        {
+          "name": "AgentMandateListOptions"
+        },
+        {
+          "name": "AgentMandateStatus"
+        },
+        {
+          "name": "AgentMandateType"
+        },
+        {
+          "name": "CheckoutSession"
+        },
+        {
+          "name": "CheckoutSessionCompletedEventData"
+        },
+        {
+          "name": "CheckoutSessionEventData"
+        },
+        {
+          "name": "CheckoutSessionListOptions"
+        },
+        {
+          "name": "CheckoutSessionStatus"
+        },
+        {
+          "name": "CompleteCheckoutSessionInput"
+        },
+        {
+          "name": "CompletedCheckoutSession"
+        },
+        {
+          "name": "CreateCheckoutSessionInput"
+        },
+        {
+          "name": "CreatedCheckoutSession"
+        },
+        {
+          "name": "UpdateCheckoutSessionInput"
+        }
+      ],
+      "entitySchemas": {
+        "checkout_session": {
+          "input": {
+            "title": "CheckoutSessionInput",
+            "fields": {
+              "cartId": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "protocol": {
+                "kind": "enum",
+                "values": [
+                  "acp",
+                  "ucp"
+                ]
+              },
+              "idempotencyKey": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "The agent's Idempotency-Key header."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CheckoutSessionInput",
+              "type": "object",
+              "properties": {
+                "cartId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "protocol": {
+                  "type": "string",
+                  "enum": [
+                    "acp",
+                    "ucp"
+                  ]
+                },
+                "idempotencyKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "description": "The agent's Idempotency-Key header."
+                }
+              },
+              "required": [
+                "cartId",
+                "protocol",
+                "idempotencyKey"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "AgentCheckoutEvents",
+        "types": [
+          "checkout_session.created",
+          "checkout_session.updated",
+          "checkout_session.completed",
+          "agent_mandate.created",
+          "agent_mandate.consumed",
+          "agent_mandate.revoked"
         ]
       }
     },

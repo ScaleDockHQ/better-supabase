@@ -78,6 +78,9 @@ may be your own enum or domain.
   - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
   - `better_supabase.engagement_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
   - `better_supabase.engagement_notes`: `activity_id`, `tenant_id`, `summary`, `action_items`, `source`; typed: `source`
+- `agent-checkout`
+  - `better_supabase.checkout_sessions`: `id`, `tenant_id`, `cart_id`, `protocol`, `status`, `idempotency_key`, `request_hash`, `buyer`, `order_id`, `expires_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.agent_mandates`: `id`, `tenant_id`, `session_id`, `vct`, `status`, `credential`, `credential_hash`, `issuer_kid`, `subject`, `expires_at`, `consumed_at`, `created_by`, `created_at`
 - `agents`
   - `better_supabase.agents`: `id`, `organization_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
   - `better_supabase.agent_installs`: `agent_id`, `user_id`, `organization_id`

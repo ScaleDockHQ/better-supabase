@@ -75,6 +75,7 @@ An adapter verifies the session, refreshes it in the proxy and gives each handle
 | React, React Native, Vue, Solid, Svelte                                   | [Frontend](https://bettersupabase.com/docs/frontend/client)       |
 | PowerSync and SQLite on the device                                        | [Local data](https://bettersupabase.com/docs/frontend/local-data) |
 | MCP servers                                                               | [MCP](https://bettersupabase.com/docs/frameworks/mcp)             |
+| Page tools for browser agents (WebMCP)                                    | [WebMCP](https://bettersupabase.com/docs/frameworks/webmcp)       |
 
 ## The CLI
 

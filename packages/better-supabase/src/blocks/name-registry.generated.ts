@@ -79,6 +79,21 @@ export interface BlockNameRegistry {
     readonly primary: "activity";
     readonly formerKeys: "engagement";
   };
+  readonly "agent-checkout": {
+    readonly tables: {
+      readonly "sessions": "id" | "tenant" | "cart" | "protocol" | "status" | "idempotencyKey" | "requestHash" | "buyer" | "order" | "expiresAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "mandates": "id" | "tenant" | "session" | "vct" | "status" | "credential" | "credentialHash" | "issuerKid" | "subject" | "expiresAt" | "consumedAt" | "createdBy" | "createdAt";
+    };
+    readonly functions: "complete_checkout_session" | "consume_agent_mandate" | "create_checkout_session" | "get_agent_mandate" | "get_checkout_session" | "list_agent_mandates" | "list_checkout_sessions" | "revoke_agent_mandate" | "store_agent_mandate" | "update_checkout_session";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "checkout_session": "id" | "tenant_id" | "cart_id" | "protocol" | "status" | "idempotency_key" | "request_hash" | "buyer" | "order_id" | "expires_at" | "created_by" | "created_at" | "updated_at";
+      readonly "agent_mandate": "id" | "tenant_id" | "session_id" | "vct" | "status" | "credential" | "credential_hash" | "issuer_kid" | "subject" | "expires_at" | "consumed_at" | "created_by" | "created_at";
+    };
+    readonly primary: "checkout_session";
+    readonly formerKeys: never;
+  };
   readonly "agents": {
     readonly tables: {
       readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";

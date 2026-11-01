@@ -159,6 +159,18 @@ export const SPEC_PINS: {
    * `better-supabase/mapper` speaks.
    */
   readonly typescriptContentMapper: "1";
+  /** Agentic Commerce Protocol revision the `agent-checkout` sessions follow. */
+  readonly acp: "2026-04-17";
+  /** Universal Commerce Protocol revision the `agent-checkout` sessions follow. */
+  readonly ucp: "2026-08-25";
+  /** Agent Payments Protocol release behind the `agent-checkout` mandates. */
+  readonly ap2: "0.2";
+  /** X402 protocol version of the `PAYMENT-REQUIRED` helpers. */
+  readonly x402: "2";
+  /** A2A protocol version of the Agent Card and the task endpoint. */
+  readonly a2a: "1.0";
+  /** WebMCP Draft Community Group Report (30 September 2026) behind `webmcp`. */
+  readonly webmcp: "CG-2026-09-30";
 } = {
   otelSemconv: "1.37.0",
   otlp: "1.7.0",
@@ -225,4 +237,10 @@ export const SPEC_PINS: {
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
   typescriptContentMapper: "1",
+  acp: "2026-04-17",
+  ucp: "2026-08-25",
+  ap2: "0.2",
+  x402: "2",
+  a2a: "1.0",
+  webmcp: "CG-2026-09-30",
 };

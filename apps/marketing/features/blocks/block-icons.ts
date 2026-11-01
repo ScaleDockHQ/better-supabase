@@ -347,6 +347,7 @@ export const BLOCK_ICONS = {
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
   tills: CoinsIcon,
+  "agent-checkout": HandCoinsIcon,
   "clinical-decision-support": ShieldAlertIcon,
   "e-prescribing": FileSignatureIcon,
   "care-plans": ClipboardPlusIcon,

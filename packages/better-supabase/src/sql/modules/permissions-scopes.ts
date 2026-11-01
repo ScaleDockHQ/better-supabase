@@ -303,6 +303,7 @@ export const MODULE_PERMISSION_SCOPES: {
   lims: { read: "tenant", write: "tenant", manage: "tenant" },
   rfqs: { read: "tenant", write: "tenant", manage: "tenant" },
   tills: { read: "tenant", write: "tenant", manage: "tenant" },
+  "agent-checkout": { read: "tenant", write: "tenant", manage: "tenant" },
   "clinical-decision-support": {
     read: "tenant",
     write: "tenant",

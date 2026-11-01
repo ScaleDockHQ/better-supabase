@@ -260,6 +260,11 @@
       "types": "./dist/mcp/sdk/index.d.ts",
       "default": "./dist/mcp/sdk/index.js"
     },
+    "./webmcp": {
+      "@better-supabase/source": "./src/webmcp/index.ts",
+      "types": "./dist/webmcp/index.d.ts",
+      "default": "./dist/webmcp/index.js"
+    },
     "./blocks/queue": {
       "@better-supabase/source": "./src/blocks/queue/index.ts",
       "types": "./dist/blocks/queue/index.d.ts",
@@ -1130,6 +1135,11 @@
       "types": "./dist/blocks/tills/index.d.ts",
       "default": "./dist/blocks/tills/index.js"
     },
+    "./blocks/agent-checkout": {
+      "@better-supabase/source": "./src/blocks/agent-checkout/index.ts",
+      "types": "./dist/blocks/agent-checkout/index.d.ts",
+      "default": "./dist/blocks/agent-checkout/index.js"
+    },
     "./blocks/lims": {
       "@better-supabase/source": "./src/blocks/lims/index.ts",
       "types": "./dist/blocks/lims/index.d.ts",
@@ -1421,6 +1431,10 @@
       "./mcp/sdk": {
         "types": "./dist/mcp/sdk/index.d.ts",
         "default": "./dist/mcp/sdk/index.js"
+      },
+      "./webmcp": {
+        "types": "./dist/webmcp/index.d.ts",
+        "default": "./dist/webmcp/index.js"
       },
       "./blocks/queue": {
         "types": "./dist/blocks/queue/index.d.ts",
@@ -2118,6 +2132,10 @@
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",
         "default": "./dist/blocks/tills/index.js"
+      },
+      "./blocks/agent-checkout": {
+        "types": "./dist/blocks/agent-checkout/index.d.ts",
+        "default": "./dist/blocks/agent-checkout/index.js"
       },
       "./blocks/lims": {
         "types": "./dist/blocks/lims/index.d.ts",

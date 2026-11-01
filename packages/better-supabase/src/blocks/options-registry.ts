@@ -377,6 +377,7 @@ export interface BlockOptionsRegistry {
   readonly warehouse: Record<never, never>;
   readonly rfqs: Record<never, never>;
   readonly tills: Record<never, never>;
+  readonly "agent-checkout": Record<never, never>;
   readonly "clinical-decision-support": Record<never, never>;
   readonly "e-prescribing": Record<never, never>;
   readonly inventory: InventorySqlOptions;
@@ -570,6 +571,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   warehouse: NO_OPTIONS,
   rfqs: NO_OPTIONS,
   tills: NO_OPTIONS,
+  "agent-checkout": NO_OPTIONS,
   "clinical-decision-support": NO_OPTIONS,
   "e-prescribing": NO_OPTIONS,
   memberships: membershipsSqlOptions,
