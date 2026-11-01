@@ -48,6 +48,6 @@ integrates with `tasks`, `relations`, outbox and audit.
   counts stay in inventory, and the block only adds work and a review gate.
 - Opening and posting a count needs `inventory.manage` as well as
   `warehouse.manage`, because inventory guards its own functions.
-- Putaway, slotting and in-warehouse route optimization are not covered.
+- Putaway, slotting and in-warehouse route optimization are not covered here; ADR 0177 adds them, and `complete_pick_list` now moves the picking work item to done.
 - The block needs the inventory block's count tables; the build fails without
   them.

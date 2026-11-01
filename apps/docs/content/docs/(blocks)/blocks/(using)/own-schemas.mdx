@@ -758,8 +758,11 @@ may be your own enum or domain.
 - `warehouse`
   - `better_supabase.pick_waves`: `id`, `tenant_id`, `name`, `location_id`, `status`, `released_at`, `completed_at`, `created_by`, `created_at`
   - `better_supabase.pick_lists`: `id`, `tenant_id`, `wave_id`, `location_id`, `document_type`, `document_id`, `status`, `assignee_id`, `task_id`, `picked_at`, `created_by`, `created_at`
-  - `better_supabase.pick_lines`: `id`, `tenant_id`, `pick_list_id`, `allocation_id`, `variant_id`, `bin_id`, `lot_id`, `serials`, `quantity`, `picked`, `status`, `picked_at`, `picked_by`
+  - `better_supabase.pick_lines`: `id`, `tenant_id`, `pick_list_id`, `allocation_id`, `variant_id`, `bin_id`, `lot_id`, `serials`, `quantity`, `picked`, `route_position`, `status`, `picked_at`, `picked_by`
   - `better_supabase.count_plans`: `id`, `tenant_id`, `name`, `location_id`, `every_days`, `variant_ids`, `variance_limit_pct`, `next_run_on`, `last_run_at`, `last_count_id`, `active`, `created_at`
+  - `better_supabase.putaway_rules`: `id`, `tenant_id`, `location_id`, `bin_id`, `variant_id`, `priority`, `max_quantity`, `active`, `created_at`
+  - `better_supabase.bin_slots`: `id`, `tenant_id`, `bin_id`, `walk_rank`, `capacity`, `updated_at`
+  - `better_supabase.variant_sizes`: `id`, `tenant_id`, `variant_id`, `size`, `updated_at`
 - `webhook-inbox`
   - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `locked_until`, `received_at`
 - `webhooks-in`

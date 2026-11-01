@@ -9974,6 +9974,7 @@
   },
   "./blocks/warehouse": {
     "values": [
+      "binSlotInputSchema",
       "countPlanInputSchema",
       "createWarehouse",
       "dbTransport",
@@ -9981,7 +9982,10 @@
       "pickListInputSchema",
       "pickRecordSchema",
       "pickWaveInputSchema",
+      "putawayRequestSchema",
+      "putawayRuleInputSchema",
       "rpcTransport",
+      "slottingOptionsSchema",
       "sqlTransport",
       "warehouseBlock",
       "warehouseEvents",
@@ -9989,6 +9993,8 @@
       "wrapTransport"
     ],
     "types": [
+      "BinSlot",
+      "BinSlotInput",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -9998,6 +10004,8 @@
       "CountPlanInput",
       "CycleCountVariance",
       "CycleCountVarianceLine",
+      "OptimizedPickRoute",
+      "OptimizePickRouteOptions",
       "PickLine",
       "PickLineStatus",
       "PickList",
@@ -10011,7 +10019,15 @@
       "PickWaveEventData",
       "PickWaveInput",
       "PickWaveStatus",
+      "PutawayPlacement",
+      "PutawayRequest",
+      "PutawayRule",
+      "PutawayRuleInput",
+      "PutawaySource",
+      "PutawaySuggestion",
       "RpcClient",
+      "SlottingOptions",
+      "SlottingSuggestion",
       "Warehouse",
       "WarehouseEvents",
       "WarehouseOptions"
