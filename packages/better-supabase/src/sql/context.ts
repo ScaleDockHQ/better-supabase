@@ -145,6 +145,12 @@ export interface BlockSqlEntitySubject {
   };
   readonly url?: string;
   readonly cascade?: boolean;
+  /**
+   * Tracks the entity's table for Realtime (`track_realtime`, keyed by the
+   * tenant column) when the `realtime-tables` module is installed, so the
+   * module needs no hand-written `ctx.broadcast` for it.
+   */
+  readonly realtime?: boolean;
 }
 
 /**

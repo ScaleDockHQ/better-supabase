@@ -15,6 +15,8 @@ export const TABLE_FEATURES = [
   "server",
   "events",
   "vector-search",
+  "history",
+  "lifecycle",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];
@@ -132,15 +134,20 @@ export function tableTagComments(
 /**
  * The statement a feature needs besides its tag: `audit` registers the row
  * trigger through a static `audit()` call, which pg-delta keeps in the schema
- * file's diff. Other features are read from the tag alone.
+ * file's diff, and `expose` grants the Data API privileges (row level security
+ * still decides the rows). Other features are read from the tag alone.
  */
 export function featureStatement(
   feature: TableFeature,
   schema: string,
   table: string,
 ): string | undefined {
-  return feature === "audit"
-    ? `select better_supabase.audit('${schema}.${table}');`
+  if (feature === "audit") {
+    return `select better_supabase.audit('${schema}.${table}');`;
+  }
+
+  return feature === "expose"
+    ? `grant select, insert, update, delete on ${schema}.${table} to authenticated;`
     : undefined;
 }
 

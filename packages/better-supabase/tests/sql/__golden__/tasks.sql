@@ -2196,7 +2196,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:fe22f5a890439d7c75bc6d965ca49c7d1967e3ce3033a0d715b87c04ec439093
+-- @bsb-hash sha256:9f654be009c3cb61543994a632618b6b4717ca3706cf3f0015e09b85fe6be399
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2297,6 +2297,9 @@ select better_supabase.audit('better_supabase.tasks', target_type => 'task', eve
 select better_supabase.audit('better_supabase.projects', target_type => 'project', event_prefix => 'project', deferred => true);
 select better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
 select better_supabase.audit('better_supabase.task_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
+
+-- Realtime for the module's entities (subject.realtime)
+select better_supabase.track_realtime('better_supabase.tasks', tenant_column => 'tenant_id');
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 4, 'managed')

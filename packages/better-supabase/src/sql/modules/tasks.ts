@@ -111,6 +111,7 @@ const NAMES: BlockSqlNames = {
         permissions: { read: "read", write: "write" },
         rank: { column: "rank", group: "stage" },
         search: { title: "title", body: ["identifier", "body"] },
+        realtime: true,
       },
     },
     project: { table: "projects", singular: "project" },
