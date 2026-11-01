@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
+import type { RecordSummaryRead } from "../../src/core/spec.ts";
 
+import { blockRead } from "../../src/core/block-reads.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -89,5 +91,36 @@ describe("function reads", () => {
 
     expectTypeOf(result.total).toEqualTypeOf<number>();
     expectTypeOf(result.counts).not.toBeAny();
+  });
+});
+
+describe("block reads in a read set", () => {
+  it("types the arguments and the result of a block read", () => {
+    const set = defineReadSet(
+      betterSupabase,
+      "typed_block_reads",
+      {
+        params: { status: "text" },
+        blocks: {
+          customers: {
+            byStatus: blockRead<{ status: string }, { readonly total: number }>(
+              "customers_by_status",
+              { status: "p_status" },
+            ),
+          },
+        },
+      },
+      (s, p) => ({
+        byStatus: s.blocks.customers.byStatus({ status: p.status }),
+        header: s.record("customer", "c1"),
+      }),
+    );
+
+    expectTypeOf(db.$many(set, { status: "x" })).toEqualTypeOf<
+      AsyncResult<{
+        readonly byStatus: { readonly total: number };
+        readonly header: RecordSummaryRead | null;
+      }>
+    >();
   });
 });

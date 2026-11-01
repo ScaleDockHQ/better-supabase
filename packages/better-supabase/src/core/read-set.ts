@@ -1,14 +1,17 @@
 import type { AnyFunctions, AnyModels, SchemaMeta } from "../schema/types.ts";
+import type { BlockReadMap } from "./block-reads.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
 import type { InferEntryResult, ReadSetEntry, ReadSetSpecs } from "./spec.ts";
 
+import { createBlockReadSpecs } from "./block-reads.ts";
 import { dbError } from "./errors.ts";
 import {
   createFunctionSpecs,
   isFunctionSpec,
   isQuerySpec,
+  recordSpec,
   specTables,
 } from "./spec.ts";
 
@@ -108,8 +111,16 @@ export type ReadSetResult<S> =
 export type InferReadSetParams<S> =
   S extends ReadSet<string, infer P> ? ReadSetParams<P> : never;
 
-export interface ReadSetOptions<P extends ReadSetParamTypes> {
+export interface ReadSetOptions<
+  P extends ReadSetParamTypes,
+  B extends BlockReadMap = Record<never, never>,
+> {
   readonly params?: P;
+  /**
+   * The reads the installed blocks ship, from `blocks.generated.ts` (`reads`):
+   * `s.blocks.deals.board({ pipelineId: p.pipelineId })`.
+   */
+  readonly blocks?: B;
   /** Roles that may call the function. Defaults to `['authenticated']`. */
   readonly roles?: readonly ReadSetRole[];
 }
@@ -184,12 +195,13 @@ export function defineReadSet<
   const N extends string,
   const P extends ReadSetParamTypes,
   const S extends Readonly<Record<string, ReadSetEntry>>,
+  const B extends BlockReadMap = Record<never, never>,
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
   name: N,
-  options: ReadSetOptions<P>,
+  options: ReadSetOptions<P, B>,
   build: (
-    specs: ReadSetSpecs<M, F, E>,
+    specs: ReadSetSpecs<M, F, E, B>,
     params: ReadSetParams<P>,
     auth: ReadSetAuth,
   ) => S,
@@ -228,7 +240,9 @@ export function defineReadSet<
     {
       ...betterSupabase.spec,
       $fn: createFunctionSpecs(),
-    } as unknown as ReadSetSpecs<M, F, E>,
+      blocks: createBlockReadSpecs(options.blocks ?? {}),
+      record: recordSpec,
+    } as unknown as ReadSetSpecs<M, F, E, B>,
     placeholders as ReadSetParams<P>,
     AUTH,
   );

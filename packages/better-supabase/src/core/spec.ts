@@ -13,6 +13,7 @@ import type {
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type { BlockReadMap, BlockReadSpecs } from "./block-reads.ts";
 import type {
   CursorPageArgs,
   FindExt,
@@ -88,12 +89,42 @@ export type ReadSetEntry = QuerySpec | FunctionSpec;
 export type InferEntryResult<S> =
   S extends FunctionSpec<string, infer R> ? R : InferResult<S>;
 
-/** The builders a read set gets: the table specs and `$fn`. */
+/** What `record_summary` returns for a record the caller can read. */
+export interface RecordSummaryRead {
+  readonly type: string;
+  readonly id: string;
+  readonly title: string | null;
+  readonly url: string | null;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly unread: Readonly<Record<string, boolean>>;
+}
+
+/** The options of `s.record(type, id, options)`. */
+export interface RecordReadOptions {
+  /** The sections to count (`comments`, `attachments`); at most 20. */
+  readonly sections?: readonly string[];
+  /** When the caller last saw the record, as an ISO timestamp. */
+  readonly seenAt?: string;
+}
+
+/**
+ * The builders a read set gets: the table specs, `$fn`, `blocks` (the reads the
+ * installed blocks ship) and `record` (the record summary).
+ */
 export type ReadSetSpecs<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> = Specs<M, E> & { readonly $fn: FunctionSpecs<F> };
+  B extends BlockReadMap = Record<never, never>,
+> = Specs<M, E> & {
+  readonly $fn: FunctionSpecs<F>;
+  readonly blocks: BlockReadSpecs<B>;
+  record(
+    type: string,
+    id: string,
+    options?: RecordReadOptions,
+  ): FunctionSpec<"record_summary", RecordSummaryRead | null>;
+};
 
 /** The result type of a `QuerySpec`. */
 export type InferResult<S> =
@@ -154,6 +185,25 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
   }
 
   return specs;
+}
+
+/** `s.record`: the record summary as a function entry. */
+export function recordSpec(
+  type: string,
+  id: string,
+  options: RecordReadOptions = {},
+): FunctionSpec<"record_summary", RecordSummaryRead | null> {
+  return {
+    v: 1,
+    kind: "function",
+    name: "record_summary",
+    args: {
+      subject_type: type,
+      subject_id: id,
+      sections: [...(options.sections ?? [])],
+      ...(options.seenAt === undefined ? {} : { seen_at: options.seenAt }),
+    },
+  };
 }
 
 /** `s.$fn`: any property is a builder; the read set checks the name. */

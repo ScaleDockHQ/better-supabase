@@ -6,12 +6,15 @@ import type { Operation } from "../../src/ir/types.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { batchingExecutor } from "../../src/core/batch.ts";
+import { blockRead } from "../../src/core/block-reads.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok } from "../../src/core/result.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
+import meta from "../fixtures/generated-camel.meta.js";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -670,5 +673,56 @@ describe("function reads in a read set", () => {
 
   it("leaves the tables of a function call out of readSetTables", () => {
     expect(readSetTables(overview)).toEqual(["customers"]);
+  });
+});
+
+describe("block reads and record summaries in a read set", () => {
+  const reads = {
+    customers: {
+      byStatus: blockRead<{ status: string }, { readonly total: number }>(
+        "customers_by_status",
+        { status: "p_status" },
+      ),
+    },
+  };
+
+  const withSummary = defineSupabase(
+    defineSchema({
+      ...meta,
+      functions: {
+        ...meta.functions,
+        record_summary: {
+          ...meta.functions["customers_by_status"]!,
+          volatility: "stable",
+          returnsSet: false,
+        },
+      },
+    }),
+  );
+
+  const page = defineReadSet(
+    withSummary,
+    "customer_page",
+    { params: { status: "text", id: "text" }, blocks: reads },
+    (s, p) => ({
+      list: s.blocks.customers.byStatus({ status: p.status }),
+      header: s.record("customer", p.id, { sections: ["comments"] }),
+    }),
+  );
+
+  it("maps block read arguments to the function's parameters", async () => {
+    const { sql } = await compileReadSet(page);
+
+    expect(sql).toContain(
+      `"public"."customers_by_status"("p_status" => ((p->>'status')::text)) f`,
+    );
+  });
+
+  it("compiles s.record into a record_summary call", async () => {
+    const { sql } = await compileReadSet(page);
+
+    expect(sql).toContain(
+      `'header', to_jsonb("public"."record_summary"("subject_type" => 'customer', "subject_id" => ((p->>'id')::text), "sections" => '{"comments"}'))`,
+    );
   });
 });
