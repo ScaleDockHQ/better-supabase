@@ -143,6 +143,11 @@ export const COMMANDS: readonly CommandSpec[] = [
         description:
           "Removes the block, then names the db diff that drops its tables",
       },
+      {
+        command: "better-supabase remove crm --with-parts",
+        description:
+          "Removes a composite and its parts, except the parts another block still needs",
+      },
     ],
     effects: [FILES],
   },

@@ -6,6 +6,7 @@ import type {
 } from "./module-types.ts";
 
 import { BLOCK_SCOPES } from "../config/blocks.ts";
+import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { renamedBlock } from "./block-renames.ts";
 import { migrationOptionUses } from "./migration-options.ts";
@@ -449,9 +450,24 @@ function renderPosition(module: BlockSql): number {
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveBlocks });
 
+/** The modules a composite block stands for, through its parts. */
+function compositeModules(name: string): string[] | undefined {
+  const manifest = PRESET_CATALOG.manifests.find((each) => each.name === name);
+
+  if (manifest?.composes === undefined) {
+    return undefined;
+  }
+
+  const parts = manifest.composes.flatMap(
+    (part) => compositeModules(part) ?? [part],
+  );
+
+  return [...manifest.sql, ...parts];
+}
+
 /**
- * The modules to install for `names`, dependencies first. Throws on an unknown
- * name.
+ * The modules to install for `names`, dependencies first. A composite block
+ * stands for the modules of its parts. Throws on an unknown name.
  */
 export function resolveBlocks(
   names: readonly string[],
@@ -492,7 +508,14 @@ export function resolveBlocks(
   };
 
   for (const name of names) {
-    visit(name);
+    if (name in SQL_MODULES) {
+      visit(name);
+      continue;
+    }
+
+    for (const module of compositeModules(name) ?? [name]) {
+      visit(module);
+    }
   }
 
   // Modules that share a position sort by name, so the rendered SQL doesn't

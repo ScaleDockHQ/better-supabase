@@ -1353,9 +1353,10 @@ Arguments
   [block...]  Blocks to remove: their config entries, their clients in lib/blocks.ts, and the schema files no other block needs
 
 Options
-  --dry-run  Print what would change, with a diff, and write nothing
-  --check    Write nothing; exit 1 with a diff when a file would change
-  --force    Overwrite or remove block files that were edited by hand
+  --with-parts  With a composite block, remove its parts too, except the ones another block still needs. Without it the parts stay as their own blocks
+  --dry-run     Print what would change, with a diff, and write nothing
+  --check       Write nothing; exit 1 with a diff when a file would change
+  --force       Overwrite or remove block files that were edited by hand
 
 Global options
   --cwd <dir>            Project directory
@@ -1372,6 +1373,8 @@ Global options
 Examples
   # Removes the block, then names the db diff that drops its tables
   $ better-supabase remove comments
+  # Removes a composite and its parts, except the parts another block still needs
+  $ better-supabase remove crm --with-parts
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/init#remove
