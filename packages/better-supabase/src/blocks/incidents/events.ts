@@ -36,6 +36,24 @@ export interface PostmortemPublishedEventData {
   readonly incidentId: string;
 }
 
+/** `incident_profile.updated`: the regulatory reporting profile was saved. */
+export interface IncidentProfileUpdatedEventData {
+  readonly organizationId: string;
+  readonly incidentId: string;
+  readonly regimes: readonly string[];
+}
+
+/** `incident_filing.submitted`: a submission to an authority was recorded. */
+export interface IncidentFilingSubmittedEventData {
+  readonly organizationId: string;
+  readonly incidentId: string;
+  readonly id: string;
+  readonly regime: string;
+  readonly stage: string;
+  readonly dueAt: string | null;
+  readonly reference: string | null;
+}
+
 /** `status_component.changed`: a component's current status changed. */
 export interface StatusComponentChangedEventData {
   readonly organizationId: string;
@@ -50,6 +68,8 @@ export type IncidentsEvents = {
   readonly "incident.updated": IncidentUpdatedEventData;
   readonly "incident.resolved": IncidentResolvedEventData;
   readonly "incident_postmortem.published": PostmortemPublishedEventData;
+  readonly "incident_profile.updated": IncidentProfileUpdatedEventData;
+  readonly "incident_filing.submitted": IncidentFilingSubmittedEventData;
   readonly "status_component.changed": StatusComponentChangedEventData;
 };
 
@@ -59,5 +79,7 @@ export const incidentsEvents: Events<IncidentsEvents> = defineEvents({
   "incident.updated": event<IncidentUpdatedEventData>(),
   "incident.resolved": event<IncidentResolvedEventData>(),
   "incident_postmortem.published": event<PostmortemPublishedEventData>(),
+  "incident_profile.updated": event<IncidentProfileUpdatedEventData>(),
+  "incident_filing.submitted": event<IncidentFilingSubmittedEventData>(),
   "status_component.changed": event<StatusComponentChangedEventData>(),
 });

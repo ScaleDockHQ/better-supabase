@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bsb-block incidents@3 managed
--- @bsb-hash sha256:4d9b4081628943863201eccf5f7b5f592db5e340f06c3497989767c4b5ddbdc2
+-- @bsb-block incidents@4 managed
+-- @bsb-hash sha256:fe6fcddb6ecd3b912c793ef55d3005bd4a8a224dcafe9858aa640ce2b5fcdcd3
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,6 +90,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -276,6 +292,58 @@ grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
 drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
+
+-- The regulatory reporting profile of an incident: which regimes apply, when
+-- the organization became aware, and the facts that move a deadline.
+create table if not exists "better_supabase"."incident_regulatory_profiles" (
+  "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
+  "aware_at" timestamptz not null,
+  "classification" text check ("classification" is null or "classification" in ('major', 'non_major')),
+  "classified_at" timestamptz,
+  "significant" boolean not null default false,
+  "actively_exploited" boolean not null default false,
+  "measure_available_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
+alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
+revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
+grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
+grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
+drop policy if exists "incident_regulatory_profiles_read" on "better_supabase"."incident_regulatory_profiles";
+create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
+
+-- One row per deadline. A submission fills submitted_at and the reference the
+-- authority gave; reminder_id is the reminder that warns the commander.
+create table if not exists "better_supabase"."incident_regulatory_filings" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
+  "regime" text not null check ("regime" in ('nis2', 'dora', 'cra')),
+  "stage" text not null check ("stage" in ('early_warning', 'notification', 'initial', 'intermediate', 'final')),
+  "due_at" timestamptz,
+  "reminder_id" uuid,
+  "submitted_at" timestamptz,
+  "submitted_by" uuid,
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  "notes" text check ("notes" is null or length("notes") <= 5000),
+  "created_at" timestamptz not null default now(),
+  unique ("incident_id", "regime", "stage")
+);
+create index if not exists "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
+alter table "better_supabase"."incident_regulatory_filings" enable row level security;
+revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
+grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
+grant all on "better_supabase"."incident_regulatory_filings" to service_role;
+drop policy if exists "incident_regulatory_filings_read" on "better_supabase"."incident_regulatory_filings";
+create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -766,6 +834,246 @@ end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
 grant execute on function "better_supabase"."publish_incident_postmortem"(uuid) to authenticated, service_role;
+-- Plans the filings of an incident from its profile: the NIS2 early warning
+-- (24 hours), notification (72 hours) and final report (one month after the
+-- notification); the DORA initial notification (24 hours from awareness, or
+-- 4 hours from classifying the incident as major), intermediate report (72
+-- hours after the initial one) and final report (one month after the
+-- intermediate one); and the CRA early warning (24 hours), notification (72
+-- hours) and final report (14 days after a corrective measure is available).
+-- Submitted filings keep their dates.
+create or replace function "better_supabase"."plan_incident_filings"(incident_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_inc "better_supabase"."incidents";
+  v_p "better_supabase"."incident_regulatory_profiles";
+  v_filing "better_supabase"."incident_regulatory_filings";
+  v_plan jsonb := '[]'::jsonb;
+  v_keys text[];
+  v_due timestamptz;
+  v_initial_due timestamptz;
+  v_initial_sub timestamptz;
+  v_inter_due timestamptz;
+  v_inter_sub timestamptz;
+  v_notice_sub timestamptz;
+  v_el jsonb;
+  v_user uuid;
+  v_at timestamptz;
+  v_reminder uuid;
+begin
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = plan_incident_filings.incident_id;
+  select * into v_p from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = plan_incident_filings.incident_id;
+  if v_p."incident_id" is null then
+    return;
+  end if;
+  v_user := coalesce(v_inc."commander_id", v_inc."created_by", auth.uid());
+  if 'nis2' = any(v_p."regimes") then
+    select x."submitted_at" into v_notice_sub from "better_supabase"."incident_regulatory_filings" x
+    where x."incident_id" = v_inc."id" and x."regime" = 'nis2' and x."stage" = 'notification';
+    v_plan := v_plan
+      || jsonb_build_array(jsonb_build_object('regime', 'nis2', 'stage', 'early_warning', 'due', v_p."aware_at" + interval '24 hours'))
+      || jsonb_build_array(jsonb_build_object('regime', 'nis2', 'stage', 'notification', 'due', v_p."aware_at" + interval '72 hours'))
+      || jsonb_build_array(jsonb_build_object('regime', 'nis2', 'stage', 'final', 'due', coalesce(v_notice_sub, v_p."aware_at" + interval '72 hours') + interval '1 month'));
+  end if;
+  if 'dora' = any(v_p."regimes") then
+    v_initial_due := v_p."aware_at" + interval '24 hours';
+    if v_p."classification" = 'major' and v_p."classified_at" is not null then
+      v_initial_due := least(v_initial_due, v_p."classified_at" + interval '4 hours');
+    end if;
+    select x."submitted_at" into v_initial_sub from "better_supabase"."incident_regulatory_filings" x
+    where x."incident_id" = v_inc."id" and x."regime" = 'dora' and x."stage" = 'initial';
+    v_inter_due := coalesce(v_initial_sub, v_initial_due) + interval '72 hours';
+    select x."submitted_at" into v_inter_sub from "better_supabase"."incident_regulatory_filings" x
+    where x."incident_id" = v_inc."id" and x."regime" = 'dora' and x."stage" = 'intermediate';
+    v_plan := v_plan
+      || jsonb_build_array(jsonb_build_object('regime', 'dora', 'stage', 'initial', 'due', v_initial_due))
+      || jsonb_build_array(jsonb_build_object('regime', 'dora', 'stage', 'intermediate', 'due', v_inter_due))
+      || jsonb_build_array(jsonb_build_object('regime', 'dora', 'stage', 'final', 'due', coalesce(v_inter_sub, v_inter_due) + interval '1 month'));
+  end if;
+  if 'cra' = any(v_p."regimes") then
+    v_plan := v_plan
+      || jsonb_build_array(jsonb_build_object('regime', 'cra', 'stage', 'early_warning', 'due', v_p."aware_at" + interval '24 hours'))
+      || jsonb_build_array(jsonb_build_object('regime', 'cra', 'stage', 'notification', 'due', v_p."aware_at" + interval '72 hours'));
+    if v_p."measure_available_at" is not null then
+      v_plan := v_plan || jsonb_build_array(jsonb_build_object('regime', 'cra', 'stage', 'final', 'due', v_p."measure_available_at" + interval '14 days'));
+    end if;
+  end if;
+  select coalesce(array_agg(e ->> 'regime' || ':' || (e ->> 'stage')), '{}') into v_keys from jsonb_array_elements(v_plan) e;
+  delete from "better_supabase"."incident_regulatory_filings" x
+  where x."incident_id" = v_inc."id" and x."submitted_at" is null
+    and not (x."regime" || ':' || x."stage" = any(v_keys));
+  for v_el in select e from jsonb_array_elements(v_plan) e loop
+    v_due := (v_el ->> 'due')::timestamptz;
+    insert into "better_supabase"."incident_regulatory_filings" as fl ("tenant_id", "incident_id", "regime", "stage", "due_at")
+    values (v_inc."tenant_id", v_inc."id", v_el ->> 'regime', v_el ->> 'stage', v_due)
+    on conflict ("incident_id", "regime", "stage") do update set "due_at" = excluded."due_at"
+    where fl."submitted_at" is null;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."plan_incident_filings"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."plan_incident_filings"(uuid) to service_role;
+
+-- Saves the regulatory reporting profile of an incident and plans its
+-- filings. attrs: regimes (nis2, dora, cra), awareAt, classification (major or
+-- non_major), classifiedAt, significant, activelyExploited and
+-- measureAvailableAt; a key left out keeps its value. The first save needs
+-- regimes and awareAt.
+create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_inc "better_supabase"."incidents";
+  v_old "better_supabase"."incident_regulatory_profiles";
+  v_row "better_supabase"."incident_regulatory_profiles";
+  v_regimes text[];
+  v_aware timestamptz;
+  v_class text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  if v_inc."id" is null then
+    raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
+    raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
+  end if;
+  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+    raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
+  if save_incident_regulatory_profile.attrs ? 'regimes' then
+    select coalesce(array_agg(distinct e), '{}') into v_regimes
+    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+  else
+    v_regimes := v_old."regimes";
+  end if;
+  if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
+    raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  if v_aware is null then
+    raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  if v_class is not null and v_class not in ('major', 'non_major') then
+    raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
+  values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
+    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+  on conflict ("incident_id") do update set
+    "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
+    "classified_at" = excluded."classified_at", "significant" = excluded."significant",
+    "actively_exploited" = excluded."actively_exploited", "measure_available_at" = excluded."measure_available_at",
+    "updated_at" = now()
+  returning * into v_row;
+  perform "better_supabase"."plan_incident_filings"(v_inc."id");
+  null;
+  return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+
+-- The regulatory profile of an incident with its filings, or null.
+create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('incidentId', x."incident_id", 'organizationId', x."tenant_id", 'regimes', to_jsonb(x."regimes"), 'awareAt', x."aware_at", 'classification', x."classification", 'classifiedAt', x."classified_at", 'significant', x."significant", 'activelyExploited', x."actively_exploited", 'measureAvailableAt', x."measure_available_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = x."incident_id"), '[]'::jsonb))
+  from "better_supabase"."incident_regulatory_profiles" x
+  where x."incident_id" = get_incident_regulatory_profile.incident_id
+$$;
+revoke execute on function "better_supabase"."get_incident_regulatory_profile"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_incident_regulatory_profile"(uuid) to authenticated, service_role;
+
+-- The filings of an organization, the earliest deadline first. Without
+-- pending, only the ones not submitted yet.
+create or replace function "better_supabase"."list_incident_filings"(tenant uuid, pending boolean default true)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_incident_filings.tenant, 'incidents.read'), false)) then
+    raise exception 'not allowed to read incident filings' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'incidentId', x."incident_id", 'regime', x."regime", 'stage', x."stage", 'dueAt', x."due_at", 'submittedAt', x."submitted_at", 'submittedBy', x."submitted_by", 'reference', x."reference", 'notes', x."notes", 'createdAt', x."created_at") order by x."due_at" nulls last, x."id")
+    from "better_supabase"."incident_regulatory_filings" x
+    where x."tenant_id" = list_incident_filings.tenant
+      and (coalesce(list_incident_filings.pending, true) is false or x."submitted_at" is null)
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_incident_filings"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_incident_filings"(uuid, boolean) to authenticated, service_role;
+
+-- Records that a filing was submitted to the authority: when, by whom and the
+-- reference the authority gave. A later stage's deadline then counts from it,
+-- and the reminder for the filing is removed.
+create or replace function "better_supabase"."submit_incident_filing"(incident_id uuid, regime text, stage text, reference text default null, notes text default null, submitted_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."incident_regulatory_filings";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."incident_regulatory_filings" x
+  where x."incident_id" = submit_incident_filing.incident_id and x."regime" = submit_incident_filing.regime and x."stage" = submit_incident_filing.stage
+  for update;
+  if v_row."id" is null then
+    raise exception 'no such filing is planned for this incident' using errcode = 'P0002', hint = 'INCIDENT_FILING_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
+    raise exception 'not allowed to record a filing' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
+  end if;
+  if v_row."submitted_at" is not null then
+    raise exception 'this filing was submitted already' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  if length(submit_incident_filing.reference) > 200 or length(submit_incident_filing.notes) > 5000 then
+    raise exception 'the reference holds at most 200 characters and the notes 5000' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  end if;
+  update "better_supabase"."incident_regulatory_filings" x
+  set "submitted_at" = coalesce(submit_incident_filing.submitted_at, now()), "submitted_by" = auth.uid(),
+    "reference" = nullif(trim(submit_incident_filing.reference), ''), "notes" = nullif(trim(submit_incident_filing.notes), '')
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase"."plan_incident_filings"(v_row."incident_id");
+  select * into v_row from "better_supabase"."incident_regulatory_filings" x where x."id" = v_row."id";
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'incidentId', v_row."incident_id", 'regime', v_row."regime", 'stage', v_row."stage", 'dueAt', v_row."due_at", 'submittedAt', v_row."submitted_at", 'submittedBy', v_row."submitted_by", 'reference', v_row."reference", 'notes', v_row."notes", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."submit_incident_filing"(uuid, text, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."submit_incident_filing"(uuid, text, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
@@ -1058,6 +1366,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_pos
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
@@ -1096,13 +1446,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block-data incidents
--- @bsb-hash sha256:52bbfcfc58f60eda6824df5900cda640c660b7c55adb67cd2e240a93c367c892
+-- @bsb-hash sha256:f6fcc5899b31cc05cb008985cc56ce9548a5a99291841b96bc19c924850bc989
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('incidents', 3, 'managed')
+values ('incidents', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
