@@ -46,6 +46,18 @@ await blocks.support.openTicket({
 });
 ```
 
+`escalate`: Hand a ticket to new assignees and restart its SLA clocks at a higher priority. It calls `tasks.assign`, which replaces the assignees and notifies the new ones, then `sla.start` with the new priority. If the SLA step fails the new assignees stay; call `blocks.sla.start` again for the ticket.
+
+```ts
+await blocks.support.escalate({
+  ticketId,
+  assigneeIds: [leadId],
+  priority: "urgent",
+});
+```
+
+The Next.js example calls it from the `escalateTicket` server action in `composite-actions.ts`.
+
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove

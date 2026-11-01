@@ -39,6 +39,19 @@ await blocks.commerce.payAndFulfil({
 });
 ```
 
+`processReturn`: Settle a return by what happens to its units. `restock` receives them and puts tracked units back in stock, `quarantine` receives them without restocking so the app can inspect them first, and `reject` refuses the return. With `refund`, a received return is then refunded through `orders.refund`, linked to the return. A failed refund leaves the units received; retry it with `orders.refund`.
+
+```ts
+await blocks.commerce.processReturn({
+  orderId,
+  returnId,
+  disposition: "restock",
+  refund: true,
+});
+```
+
+The Next.js example calls it from the `settleReturn` server action in `composite-actions.ts`.
+
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove

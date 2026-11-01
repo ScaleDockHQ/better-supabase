@@ -60,9 +60,27 @@ export const crmDashboard = defineCompositeReadSet(
 
 Pass the result to `db.$many(crmDashboard, { pipelineId })`. `defineCompositeReadSet` throws a `TypeError` that names the block read when it is missing, for example when `deals` is not installed.
 
+`route`: Pick an owner for a record. It reads the segments the record is in, then runs the assignment queues with the segment names under the `segments` field, so a queue territory can match a segment. Extra `fields` are merged in. The helper returns the segments and the pick (or `undefined` when no queue matched), and writing the owner onto the record stays with the app, as with `assignment.assign`.
+
+```ts
+const routed = await blocks.crm.route({
+  organizationId,
+  subject: { type: "contact", id: contactId },
+  fields: { country: "NL" },
+});
+```
+
+`attainment`: How the running targets stand. It reads `goals.progress` for the day (today by default), sums progress and goal per metric so amounts and counts never mix, and lists the targets whose attainment is below the share of their period that has passed.
+
+```ts
+const { byMetric, pace, behind } = (
+  await blocks.crm.attainment({ organizationId })
+).orThrow();
+```
+
 ## Example
 
-The Next.js example builds the helpers over the clients it already installs, in `apps/examples/nextjs/src/features/composites/composites.ts`, and calls them from the server actions in `composite-actions.ts`:
+The Next.js example builds the helpers over the clients it already installs, in `apps/examples/nextjs/src/features/composites/composites.ts`, and calls them from the server actions in `composite-actions.ts`. `routeContact` runs `route` and `salesAttainment` runs `attainment`; `closeDealWon` is the call below:
 
 ```ts
 const closed = await crmOf(db).closeWon({ dealId, quote: true });
