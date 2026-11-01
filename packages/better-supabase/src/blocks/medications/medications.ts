@@ -416,6 +416,20 @@ export interface Medications<F extends object = Record<never, never>> {
       readonly until?: Temporal.Instant;
     },
   ): AsyncResult<MedicationChart<F>>;
+  /**
+   * Prescribes the order, then plans the administrations of the organization up
+   * to `until`, so the first doses are on the chart when it returns.
+   */
+  prescribeAndPlan(input: {
+    organizationId: string;
+    subject: RecordRef;
+    medicationId: string;
+    input: MedicationOrderInput<F>;
+    until: Temporal.Instant;
+  }): AsyncResult<{
+    readonly order: MedicationOrder<F>;
+    readonly planned: number;
+  }>;
 }
 
 const CODE_SYSTEMS = ["gtin", "hpk", "atc", "rxnorm", "custom"] as const;
@@ -883,10 +897,24 @@ export function createMedications<
       ).andThen((chart) =>
         fields.rows(chart.orders).map((orders) => ({ ...chart, orders })),
       ),
+    prescribeAndPlan: ({ until, ...prescription }) =>
+      hooked
+        .prescribe(prescription)
+        .andThen((order) =>
+          hooked
+            .planAdministrations({
+              organizationId: prescription.organizationId,
+              until,
+            })
+            .map((planned) => ({ order, planned })),
+        ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Medications<F> = withBlockHooks(client, options.hooks, {
     block: "medications",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

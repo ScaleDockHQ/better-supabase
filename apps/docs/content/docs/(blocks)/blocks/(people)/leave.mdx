@@ -288,3 +288,14 @@ const request = await leave
   .orThrow();
 // request.amount: 5 (working days), request.status: "pending"
 ```
+
+## Decide and list pending
+
+`approve({ requestId, note })` and `reject({ requestId, note })` call `decide` with the matching decision. `pending({ organizationId, everyone })` lists the requests that wait for a decision.
+
+```ts
+await db.leave.approve({ requestId, note: "Enjoy" }).orThrow();
+const waiting = await db.leave
+  .pending({ organizationId, everyone: true })
+  .orThrow();
+```

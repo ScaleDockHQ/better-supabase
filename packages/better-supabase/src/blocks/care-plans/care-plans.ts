@@ -5,13 +5,13 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   CARE_PLAN_ACTION_KINDS,
@@ -344,6 +344,19 @@ export interface CarePlans<F extends object = Record<never, never>> {
   }): AsyncResult<CarePlan<F>>;
   /** Reports the plans and actions whose review is due; service role only. */
   dueReviews(): AsyncResult<number>;
+  /**
+   * Creates the plan with its problems, goals and actions in order and returns
+   * the plan as `get` reads it. It stops at the first failure and leaves what
+   * it saved.
+   */
+  createTree(input: {
+    plan: CarePlanInput<F>;
+    problems: readonly (CarePlanProblemInput & {
+      readonly goals?: readonly (CarePlanGoalInput & {
+        readonly actions?: readonly CarePlanActionInput[];
+      })[];
+    })[];
+  }): AsyncResult<CarePlan<F>>;
 }
 
 export interface CarePlansOptions<
@@ -717,10 +730,56 @@ export function createCarePlans<
       ).andThen(fields.row),
     dueReviews: () =>
       call("due_care_plan_reviews", {}, (value) => numberOf(value)),
+    createTree: ({ plan, problems }) =>
+      AsyncResult.from(async () => {
+        const created = await hooked.create(plan);
+
+        if (!created.ok) {
+          return created;
+        }
+
+        for (const { goals = [], ...problem } of problems) {
+          const savedProblem = await hooked.addProblem({
+            planId: created.data.id,
+            input: problem,
+          });
+
+          if (!savedProblem.ok) {
+            return savedProblem;
+          }
+
+          for (const { actions = [], ...goal } of goals) {
+            const savedGoal = await hooked.addGoal({
+              problemId: savedProblem.data.id,
+              input: goal,
+            });
+
+            if (!savedGoal.ok) {
+              return savedGoal;
+            }
+
+            for (const action of actions) {
+              const savedAction = await hooked.addAction({
+                goalId: savedGoal.data.id,
+                input: action,
+              });
+
+              if (!savedAction.ok) {
+                return savedAction;
+              }
+            }
+          }
+        }
+
+        return hooked.get(created.data.id);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: CarePlans<F> = withBlockHooks(client, options.hooks, {
     block: "care-plans",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

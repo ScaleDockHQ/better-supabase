@@ -502,6 +502,18 @@ export interface Funding<F extends object = Record<never, never>> {
     readonly claim: FundingClaim;
     readonly invoice: Readonly<Record<string, unknown>>;
   }>;
+  /** The awards with their usage, read one award at a time. */
+  awardsWithUsage(
+    input: { organizationId: string } & {
+      readonly subject?: RecordRef;
+      readonly includeEnded?: boolean;
+    },
+  ): AsyncResult<
+    readonly {
+      readonly award: FundingAwardWithProduct<F>;
+      readonly usage: FundingAwardUsage;
+    }[]
+  >;
 }
 
 const UNITS = ["minute", "hour", "day_part", "day", "visit", "piece"] as const;
@@ -1096,10 +1108,32 @@ export function createFunding<
           };
         },
       ),
+    awardsWithUsage: (input) =>
+      hooked.awards(input).andThen(async (awards) => {
+        const rows: {
+          award: FundingAwardWithProduct<F>;
+          usage: FundingAwardUsage;
+        }[] = [];
+
+        for (const award of awards) {
+          const usage = await hooked.usage(award.id);
+
+          if (!usage.ok) {
+            return usage;
+          }
+
+          rows.push({ award, usage: usage.data });
+        }
+
+        return ok(rows);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Funding<F> = withBlockHooks(client, options.hooks, {
     block: "funding",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

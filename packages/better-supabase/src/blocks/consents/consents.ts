@@ -6,6 +6,8 @@ import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
+import { err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -170,6 +172,12 @@ export interface Consents {
   ): AsyncResult<readonly Consent[]>;
   /** Expires the grants past `validUntil`; service role only. Returns how many. */
   expire(): AsyncResult<number>;
+  /**
+   * Succeeds when the record has an active consent for the purpose, and
+   * otherwise fails with a `forbidden` error whose `permission` is
+   * `consent:<purposeKey>`.
+   */
+  require(input: { subject: RecordRef; purposeKey: string }): AsyncResult<true>;
 }
 
 export interface ConsentsOptions extends BlockOptions {
@@ -349,10 +357,27 @@ export function createConsents(options: ConsentsOptions): Consents {
           recordsOf(value, "list_consents").map(consent("list_consents")),
       ),
     expire: () => call("expire_consents", {}, (value) => Number(value ?? 0)),
+    require: ({ subject, purposeKey }) =>
+      hooked
+        .isActive({ subject, purposeKey })
+        .andThen((active) =>
+          Promise.resolve(
+            active
+              ? ok(true as const)
+              : err(
+                  dbError("forbidden", `No active consent for ${purposeKey}`, {
+                    permission: `consent:${purposeKey}`,
+                  }),
+                ),
+          ),
+        ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Consents = withBlockHooks(client, options.hooks, {
     block: "consents",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

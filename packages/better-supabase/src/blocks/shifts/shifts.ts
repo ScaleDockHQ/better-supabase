@@ -7,12 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -352,6 +352,31 @@ export interface Shifts<F extends object = Record<never, never>> {
   toTimeEntries(
     input: { organizationId: string } & { readonly until?: Temporal.Instant },
   ): AsyncResult<number>;
+  /**
+   * Generates the shifts of a template between two dates and, with `publish`,
+   * publishes that range. A failed generate publishes nothing.
+   */
+  rollout(input: {
+    organizationId: string;
+    templateId: string;
+    from: Temporal.PlainDate;
+    until: Temporal.PlainDate;
+    publish?: boolean | undefined;
+    teamId?: string | undefined;
+  }): AsyncResult<{
+    readonly shifts: readonly Shift<F>[];
+    readonly published: number;
+  }>;
+  /** Assigns each user to the shift, in order, and stops at the first failure. */
+  fill(input: {
+    shiftId: string;
+    userIds: readonly string[];
+  }): AsyncResult<readonly ShiftAssignment[]>;
+  /** `decideSwap` with `approve: true`. */
+  approveSwap(input: {
+    swapId: string;
+    approvalId?: string | undefined;
+  }): AsyncResult<ShiftSwap>;
 }
 
 const SHIFT_STATUSES: readonly ShiftStatus[] = [
@@ -763,10 +788,52 @@ export function createShifts<
         },
         numberOf,
       ),
+    rollout: ({ organizationId, templateId, from, until, publish, teamId }) =>
+      hooked
+        .generate({ organizationId, templateId, from, until })
+        .andThen(async (shifts) => {
+          if (publish !== true) {
+            return ok({ shifts, published: 0 });
+          }
+
+          return hooked
+            .publish({
+              organizationId,
+              from,
+              until,
+              ...(teamId === undefined ? {} : { teamId }),
+            })
+            .map((published) => ({ shifts, published }));
+        }),
+    fill: ({ shiftId, userIds }) =>
+      AsyncResult.from(async () => {
+        const assignments: ShiftAssignment[] = [];
+
+        for (const userId of userIds) {
+          const assigned = await hooked.assign({ shiftId, userId });
+
+          if (!assigned.ok) {
+            return assigned;
+          }
+
+          assignments.push(assigned.data);
+        }
+
+        return ok(assignments);
+      }),
+    approveSwap: ({ swapId, approvalId }) =>
+      hooked.decideSwap({
+        swapId,
+        approve: true,
+        ...(approvalId === undefined ? {} : { approvalId }),
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Shifts<F> = withBlockHooks(client, options.hooks, {
     block: "shifts",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

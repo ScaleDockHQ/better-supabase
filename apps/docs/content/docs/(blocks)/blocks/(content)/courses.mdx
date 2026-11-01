@@ -277,3 +277,19 @@ await courses.upsert({ id: course.id, status: "published" }).orThrow();
 
 await courses.enroll(course.id).orThrow();
 ```
+
+## Create from an outline and publish
+
+`createFromOutline({ course, modules })` saves the course, each module and its lessons in order, then returns the outline. It stops at the first failure and keeps what it saved. `publish(courseId)` saves the course with the `published` status.
+
+```ts
+const outline = await db.courses
+  .createFromOutline({
+    course: { key: "safety", title: "Safety" },
+    modules: [
+      { title: "Basics", lessons: [{ title: "Welcome", kind: "text" }] },
+    ],
+  })
+  .orThrow();
+await db.courses.publish(outline.course.id).orThrow();
+```

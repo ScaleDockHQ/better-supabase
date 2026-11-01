@@ -418,6 +418,22 @@ export interface Leave<F extends object = Record<never, never>> {
     organizationId: string;
     period: number;
   }): AsyncResult<number>;
+  /** `decide` with `approved: true`. */
+  approve(input: {
+    requestId: string;
+    note?: string | undefined;
+    decidedBy?: string | undefined;
+  }): AsyncResult<LeaveRequest<F>>;
+  /** `decide` with `approved: false`. */
+  reject(input: {
+    requestId: string;
+    note?: string | undefined;
+    decidedBy?: string | undefined;
+  }): AsyncResult<LeaveRequest<F>>;
+  /** The requests waiting for a decision, from every member when `everyone`. */
+  pending(
+    input: { organizationId: string } & Omit<LeaveRequestListOptions, "status">,
+  ): AsyncResult<readonly LeaveRequest<F>[]>;
 }
 
 const UNITS: readonly LeaveUnit[] = ["days", "hours"];
@@ -833,10 +849,32 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     closePeriod: ({ organizationId, period }) =>
       call("close_leave_year", { tenant: organizationId, period }, numberOf),
+    approve: ({ requestId, note, decidedBy }) =>
+      hooked.decide({
+        requestId,
+        decision: {
+          approved: true,
+          ...(note === undefined ? {} : { note }),
+          ...(decidedBy === undefined ? {} : { decidedBy }),
+        },
+      }),
+    reject: ({ requestId, note, decidedBy }) =>
+      hooked.decide({
+        requestId,
+        decision: {
+          approved: false,
+          ...(note === undefined ? {} : { note }),
+          ...(decidedBy === undefined ? {} : { decidedBy }),
+        },
+      }),
+    pending: (input) => hooked.list({ ...input, status: "pending" }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Leave<F> = withBlockHooks(client, options.hooks, {
     block: "leave",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

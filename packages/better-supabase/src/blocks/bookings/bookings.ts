@@ -20,7 +20,8 @@ import {
 } from "../../core/block-fields.ts";
 import { applyTemporal } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
@@ -303,7 +304,26 @@ export interface Bookings<F extends object = Record<never, never>> {
       bookingId: string;
       accessToken: string;
     }): AsyncResult<Booking & F>;
+    /** `hold` then `confirm` with the access token the hold returns. */
+    book(input: {
+      token: string;
+      resourceId: string;
+      startsAt: Temporal.Instant;
+      customer: BookingCustomer &
+        Partial<F> & { readonly name: string; readonly email: string };
+    }): AsyncResult<Booking & F>;
   };
+  /**
+   * Holds and confirms a booking in one call. Without `resourceId` it books the
+   * resource that has a free slot at `startsAt`, and fails with `not_found`
+   * when none has.
+   */
+  book(input: {
+    serviceId: string;
+    startsAt: Temporal.Instant;
+    resourceId?: string | undefined;
+    customer?: (BookingCustomer & Partial<F>) | undefined;
+  }): AsyncResult<PlacedBooking & F>;
 }
 
 function placedOf(value: unknown): PlacedBooking {
@@ -597,11 +617,56 @@ export function createBookings<
         change(bookingId, accessToken, "confirmed"),
       cancel: ({ bookingId, accessToken }) =>
         change(bookingId, accessToken, "cancelled"),
+      book: (input) =>
+        client.public
+          .hold(input)
+          .andThen((held) =>
+            client.public.confirm({
+              bookingId: held.id,
+              accessToken: held.accessToken,
+            }),
+          ),
     },
+    book: ({ serviceId, startsAt, resourceId, customer }) =>
+      AsyncResult.from(async () => {
+        let chosen = resourceId;
+
+        if (chosen === undefined) {
+          const slots = await hooked.availableSlots({
+            serviceId,
+            range: { from: startsAt, until: startsAt.add({ seconds: 1 }) },
+          });
+
+          if (!slots.ok) {
+            return slots;
+          }
+
+          chosen = slots.data.find((slot) =>
+            slot.startsAt.equals(startsAt),
+          )?.resourceId;
+
+          if (chosen === undefined) {
+            return err(
+              dbError("not_found", "No resource is free at that time"),
+            );
+          }
+        }
+
+        return hooked.hold({
+          serviceId,
+          resourceId: chosen,
+          startsAt,
+          confirm: true,
+          customer,
+        });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Bookings<F> = withBlockHooks(client, options.hooks, {
     block: "bookings",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

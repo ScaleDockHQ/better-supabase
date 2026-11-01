@@ -246,6 +246,17 @@ export interface Qualifications<F extends object = Record<never, never>> {
    * returns how many. Service role only; run it daily.
    */
   notifyExpiring(): AsyncResult<number>;
+  /**
+   * Whether `holderId` holds a valid qualification of `typeKey` today, or on
+   * `on`.
+   */
+  check(input: {
+    organizationId: string;
+    typeKey: string;
+    holderId: string;
+    holderType?: QualificationHolderType | undefined;
+    on?: Temporal.PlainDate | undefined;
+  }): AsyncResult<boolean>;
 }
 
 const HOLDER_TYPES: readonly QualificationHolderType[] = [
@@ -514,10 +525,22 @@ export function createQualifications<
         idsOf,
       ),
     notifyExpiring: () => call("notify_expiring_qualifications", {}, numberOf),
+    check: ({ organizationId, typeKey, holderId, holderType, on }) =>
+      hooked
+        .qualifiedHolders({
+          organizationId,
+          typeKey,
+          ...(holderType === undefined ? {} : { holderType }),
+          ...(on === undefined ? {} : { on }),
+        })
+        .map((holders) => holders.includes(holderId)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Qualifications<F> = withBlockHooks(client, options.hooks, {
     block: "qualifications",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

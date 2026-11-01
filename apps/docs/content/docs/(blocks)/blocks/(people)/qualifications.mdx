@@ -248,3 +248,13 @@ import { createQualifications } from "better-supabase/blocks/qualifications";
 const qualifications = createQualifications({ transport });
 const gaps = await qualifications.gaps(organizationId).orThrow();
 ```
+
+## Check one holder
+
+`check({ organizationId, typeKey, holderId })` returns whether the holder is among the qualified holders today, or on `on`.
+
+```ts
+const ok = await db.qualifications
+  .check({ organizationId, typeKey: "first-aid", holderId: userId })
+  .orThrow();
+```

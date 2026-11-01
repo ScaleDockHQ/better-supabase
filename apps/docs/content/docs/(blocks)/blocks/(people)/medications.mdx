@@ -349,3 +349,7 @@ import { createMedications } from "better-supabase/blocks/medications";
 const medications = createMedications({ transport });
 const chart = await medications.chart(subject).orThrow();
 ```
+
+## Prescribe and plan
+
+`prescribeAndPlan({ organizationId, subject, medicationId, input, until })` prescribes the order, then plans the administrations up to `until`, and returns `{ order, planned }`.

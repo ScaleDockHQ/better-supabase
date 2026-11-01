@@ -9,7 +9,6 @@ import type {
   FormJsonSchema,
 } from "../../core/contracts/form-definition.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
@@ -17,6 +16,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { isFormDefinition } from "../../core/contracts/form-definition.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -318,6 +318,19 @@ export interface Courses<F extends object = Record<never, never>> {
   verifyCertificate(code: string): AsyncResult<CourseCertificateCheck | null>;
   /** Revokes a certificate; `false` when it already was. */
   revokeCertificate(certificateId: string): AsyncResult<boolean>;
+  /**
+   * Creates the course, its modules and their lessons in order, and returns the
+   * outline. It stops at the first failure and leaves what it saved.
+   */
+  createFromOutline(input: {
+    course: CourseInput<F>;
+    modules: readonly {
+      readonly title: string;
+      readonly lessons?: readonly Omit<CourseLessonInput, "moduleId">[];
+    }[];
+  }): AsyncResult<CourseOutline<F>>;
+  /** `upsert` with `status: "published"`. */
+  publish(courseId: string): AsyncResult<Course<F>>;
 }
 
 export interface CoursesOptions<
@@ -723,10 +736,46 @@ export function createCourses<
         { certificate_id: certificateId },
         (value) => value === true,
       ),
+    createFromOutline: ({ course, modules }) =>
+      AsyncResult.from(async () => {
+        const saved = await hooked.upsert(course);
+
+        if (!saved.ok) {
+          return saved;
+        }
+
+        for (const { title, lessons = [] } of modules) {
+          const module = await hooked.saveModule({
+            courseId: saved.data.id,
+            module: { title },
+          });
+
+          if (!module.ok) {
+            return module;
+          }
+
+          for (const lesson of lessons) {
+            const lessonSaved = await hooked.saveLesson({
+              courseId: saved.data.id,
+              lesson: { ...lesson, moduleId: module.data.id },
+            });
+
+            if (!lessonSaved.ok) {
+              return lessonSaved;
+            }
+          }
+        }
+
+        return hooked.outline(saved.data.id);
+      }),
+    publish: (courseId) => hooked.upsert({ id: courseId, status: "published" }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Courses<F> = withBlockHooks(client, options.hooks, {
     block: "courses",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
