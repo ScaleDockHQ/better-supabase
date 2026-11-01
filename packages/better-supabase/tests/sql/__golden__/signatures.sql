@@ -560,7 +560,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:8d4be6dea574e8a466be295e966b98220b92dc39f9d42af774a6bd580bfb5e1d
+-- @bsb-hash sha256:d4a3382026ddb0413737edf29486c21f70721d656c56e21ebf07101215517666
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1139,6 +1139,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.signature_requests', target_type => 'signature_request', event_prefix => 'signature_request', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1155,14 +1162,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block-data signatures
--- @bsb-hash sha256:fd9e09efd53e6f9147a8545444b2a1b699c830304cc7ff4adc37234d1976057a
+-- @bsb-hash sha256:60d4f60f0497e6f4c25a101c6509c7c3f2624d76a1b38ef0dd34918d9d221802
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.signature_requests', target_type => 'signature_request', event_prefix => 'signature_request', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('signatures', 1, 'managed')

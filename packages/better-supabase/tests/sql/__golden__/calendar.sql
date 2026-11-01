@@ -1468,7 +1468,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:d7183ea46280cc7b458406385e2ec5007127e57ad239de7f584cb1e1c3326946
+-- @bsb-hash sha256:434dbdcb6bf26e5cd924e6a1942b3c998eddf7463cac72c70b3f894bd5205974
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2998,6 +2998,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hou
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.calendar_events', target_type => 'calendar_event', event_prefix => 'calendar_event', deferred => true);
+  perform better_supabase.audit('better_supabase.calendars', target_type => 'calendar', event_prefix => 'calendar', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3014,15 +3022,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block-data calendar
--- @bsb-hash sha256:4d8dd7e441db819c4e13867c386a86b4100e19b62d27e6ee55671c376504be23
+-- @bsb-hash sha256:d394b8cd042344b4f2cc937a4b1a75f47403ab3daa823c307e6f4711cc462311
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.calendar_events', target_type => 'calendar_event', event_prefix => 'calendar_event', deferred => true);
-select better_supabase.audit('better_supabase.calendars', target_type => 'calendar', event_prefix => 'calendar', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('calendar', 1, 'managed')

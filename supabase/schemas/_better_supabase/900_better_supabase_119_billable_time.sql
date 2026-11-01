@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:332f972d19e346fb960511b22e4c91f2a1275c0c7b915062d064da335b89cd24
+-- @bsb-hash sha256:ca63f2a9a90741afc66277b7e984393b175d9fb2785f332e4102b586e9b4681e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1040,6 +1040,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.time_rates', target_type => 'time_rate', event_prefix => 'time_rate', deferred => true);
+end;
+$$;
 
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";

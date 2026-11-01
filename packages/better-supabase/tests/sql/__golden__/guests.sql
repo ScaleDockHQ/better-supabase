@@ -580,7 +580,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:6cf2efff58da90e0c4fd5f458f022add2af1f335ed96af02952bcc72e147d0db
+-- @bsb-hash sha256:e82be57b68c3be4f247d2e6f2cd59cdd8488ecae3185f52b6a84928da7c178c7
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1185,6 +1185,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
+  perform better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1201,15 +1209,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block-data guests
--- @bsb-hash sha256:dced392f17ba7c319610f3dac193505ba8b94dd6bac885fb9ad100284945e077
+-- @bsb-hash sha256:4a19d1ee72e2093a935c6efbfefa8034950fd9bfb109063d45605c54bd34d9a6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
-select better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('guests', 1, 'managed')

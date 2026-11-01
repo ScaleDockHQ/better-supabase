@@ -889,7 +889,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:403e27310431838614f83f9f72aff711bbcda008a2c99185039e5945a29d96e1
+-- @bsb-hash sha256:f56957d6fdd8a0b7c6630e3d585900a6805ef88aafdde0b53b913872f1b61c6e
 -- Performance appraisals: review cycles that can follow an enrollment program, one appraisal per person with self, peer and manager reviews, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1906,6 +1906,17 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.appraisals', target_type => 'appraisal', event_prefix => 'appraisal', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_cycles', target_type => 'appraisal_cycle', event_prefix => 'appraisal_cycle', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_reviews', target_type => 'appraisal_review', event_prefix => 'appraisal_review', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_calibrations', target_type => 'appraisal_calibration', event_prefix => 'appraisal_calibration', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_goals', target_type => 'appraisal_goal', event_prefix => 'appraisal_goal', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1922,18 +1933,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
--- @bsb-hash sha256:b48a6852947c0e7a9e2d53342982b8193fde3d27db4480322fa77cbddebb4c99
+-- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.appraisals', target_type => 'appraisal', event_prefix => 'appraisal', deferred => true);
-select better_supabase.audit('better_supabase.appraisal_cycles', target_type => 'appraisal_cycle', event_prefix => 'appraisal_cycle', deferred => true);
-select better_supabase.audit('better_supabase.appraisal_reviews', target_type => 'appraisal_review', event_prefix => 'appraisal_review', deferred => true);
-select better_supabase.audit('better_supabase.appraisal_calibrations', target_type => 'appraisal_calibration', event_prefix => 'appraisal_calibration', deferred => true);
-select better_supabase.audit('better_supabase.appraisal_goals', target_type => 'appraisal_goal', event_prefix => 'appraisal_goal', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('appraisals', 1, 'managed')

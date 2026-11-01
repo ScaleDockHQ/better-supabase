@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:d06ede51fdc512bdbc68dc5e412537c8a882ca8ac3cfe1174740a960935f3fa3
+-- @bsb-hash sha256:c85b0a3d43d079093d7e34db549733e0f8ec8b9fa7077f3eeeffa5fb06781163
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1024,6 +1024,13 @@ drop trigger if exists "bsb_search_employee_index" on "better_supabase"."employe
 create trigger "bsb_search_employee_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
   for each row execute function "better_supabase"."search_index_row"('employee', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.employees', target_type => 'employee', event_prefix => 'employee', deferred => true);
+end;
+$$;
 
 -- blocks.employees.api: entry points for the Data API.
 create schema if not exists "api";

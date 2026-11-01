@@ -440,7 +440,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:2f4bd7f8e0a5c38f387bd0c724b1483c5c2cfc0c786e338bd67283b47958b2da
+-- @bsb-hash sha256:ffdfdb5fd4d502bf950d74043e267c8c3c66ca0e89b3c9b67940e50b8d462521
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -849,6 +849,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restric
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.tags', target_type => 'tag', event_prefix => 'tag', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -865,14 +872,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block-data tags
--- @bsb-hash sha256:4a538cb00afa1154676f39e52532164e88416b6ba1d30e3c1dc6425a7b495b0a
+-- @bsb-hash sha256:baa1d5b6721528e763808c231522383a33db513a6254d0a316c15c1087308cb6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.tags', target_type => 'tag', event_prefix => 'tag', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tags', 2, 'managed')

@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:e9f9c5bd3356a50618e5c8e0ba1722ff9638ef5ae20ab41cae109ab1538144f0
+-- @bsb-hash sha256:26ebc6b9aa0fa3598bebefb9595bc4660d545e0ff9a12a1f693840a7c0450e36
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1746,6 +1746,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_sta
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.pipelines', target_type => 'pipeline', event_prefix => 'pipeline', deferred => true);
+end;
+$$;
 
 -- blocks.pipelines.api: entry points for the Data API.
 create schema if not exists "api";

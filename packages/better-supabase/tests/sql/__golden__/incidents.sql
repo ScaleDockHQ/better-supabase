@@ -1101,7 +1101,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@3 managed
--- @bsb-hash sha256:42253b7fb5828d73e28a8b7612c5b11bf6bf118297df689f3046bdf03d40337e
+-- @bsb-hash sha256:57734ace3eaf645e6b085ab8aa58e79f6821cfb7ab6790033b139ba4de6e3a0a
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2384,6 +2384,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_page
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.incidents', target_type => 'incident', event_prefix => 'incident', deferred => true);
+  perform better_supabase.audit('better_supabase.incident_status_components', target_type => 'status_component', event_prefix => 'status_component', deferred => true);
+  perform better_supabase.audit('better_supabase.incident_postmortems', target_type => 'incident_postmortem', event_prefix => 'incident_postmortem', deferred => true);
+  perform better_supabase.audit('better_supabase.incident_status_pages', target_type => 'status_page', event_prefix => 'status_page', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2400,17 +2410,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block-data incidents
--- @bsb-hash sha256:ac92b9d8b52fe4487192e0f407db610b8cfc32433b5fc3a3ce42a7ebc358f561
+-- @bsb-hash sha256:52bbfcfc58f60eda6824df5900cda640c660b7c55adb67cd2e240a93c367c892
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.incidents', target_type => 'incident', event_prefix => 'incident', deferred => true);
-select better_supabase.audit('better_supabase.incident_status_components', target_type => 'status_component', event_prefix => 'status_component', deferred => true);
-select better_supabase.audit('better_supabase.incident_postmortems', target_type => 'incident_postmortem', event_prefix => 'incident_postmortem', deferred => true);
-select better_supabase.audit('better_supabase.incident_status_pages', target_type => 'status_page', event_prefix => 'status_page', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('incidents', 3, 'managed')

@@ -372,7 +372,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:00e6b06bc8d98b565ae9b09c2de0d85616651ef5596a00bcbeaf91d27b335676
+-- @bsb-hash sha256:b2e4a757d5afa6edae53cdd6165c40c422900a1ca84863ebe6045d5b9525af1e
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -713,6 +713,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.reminders', target_type => 'reminder', event_prefix => 'reminder', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -729,14 +736,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
--- @bsb-hash sha256:9a018c1f68e5f775dd43dad880f158928c22cf2839fb5f278b4cdc28a2414185
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.reminders', target_type => 'reminder', event_prefix => 'reminder', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('reminders', 1, 'managed')

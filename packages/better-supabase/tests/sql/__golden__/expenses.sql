@@ -879,7 +879,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:9e89c7a2ff9ef994bb99a62ac6e31834165681ffefd1076b7b4a4e09c8a927c1
+-- @bsb-hash sha256:86a8f5479183906fb995bfbc8049065a9384f63f78a8c763ee6ab98fa2fa2814
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1844,6 +1844,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.expense_reports', target_type => 'expense_report', event_prefix => 'expense_report', deferred => true);
+  perform better_supabase.audit('better_supabase.expense_lines', target_type => 'expense_line', event_prefix => 'expense_line', deferred => true);
+  perform better_supabase.audit('better_supabase.expense_categories', target_type => 'expense_category', event_prefix => 'expense_category', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1860,16 +1869,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block-data expenses
--- @bsb-hash sha256:4bb15b3dc7b3519077541886245e20b0585fcd2a0be14886b47311e20fc85d54
+-- @bsb-hash sha256:acad5782117da37aa32eb5b47f0372cb87a9105ea9687dd5f8de16d1ca73932f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.expense_reports', target_type => 'expense_report', event_prefix => 'expense_report', deferred => true);
-select better_supabase.audit('better_supabase.expense_lines', target_type => 'expense_line', event_prefix => 'expense_line', deferred => true);
-select better_supabase.audit('better_supabase.expense_categories', target_type => 'expense_category', event_prefix => 'expense_category', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('expenses', 1, 'managed')

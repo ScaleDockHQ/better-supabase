@@ -1081,7 +1081,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:7d911308cd0d2625266c9e29539ffb1c19946eb316cb068daad062a5b62d35a3
+-- @bsb-hash sha256:34d03166b05f85ea6513edc97db1588e17006f0ee14ee05b9658fc9dc9a898e2
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2218,6 +2218,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_list', event_prefix => 'pick_list', deferred => true);
+  perform better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
+  perform better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
+  perform better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2234,17 +2244,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
--- @bsb-hash sha256:7bfcff651ed4466f4db9481e0cce08a425a25213fcc8aafe7c86520749cb3602
+-- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_list', event_prefix => 'pick_list', deferred => true);
-select better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
-select better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
-select better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('warehouse', 1, 'managed')

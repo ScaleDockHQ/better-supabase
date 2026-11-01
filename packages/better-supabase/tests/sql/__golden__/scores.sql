@@ -659,7 +659,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:0a27a0568ae821ec9afb026e2fc86d65b592e625da79b8e13bcb990d7cd8ea95
+-- @bsb-hash sha256:6fbe37c7b330d864d5c482b761283bd8f939cd12fc88d3c764f897761f1bd510
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1317,6 +1317,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.score_models', target_type => 'score_model', event_prefix => 'score_model', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1333,14 +1340,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block-data scores
--- @bsb-hash sha256:810f775915ea54b780507f9dd8604dd208be9bca5ef0f3a6f1d31df45d8a280c
+-- @bsb-hash sha256:6f7c9cc86a08b5480b4f7941a14408ff700c102e1241a9529bcf6e776cacf087
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.score_models', target_type => 'score_model', event_prefix => 'score_model', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('scores', 1, 'managed')

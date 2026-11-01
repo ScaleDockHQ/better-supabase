@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:ab26420284a895814d061caf425820731d56e4160a8c26563579005f5730837e
+-- @bsb-hash sha256:dbacd0c9d8bf9d00188c2ae2c4eda60ee935242cc52d20a51d19ae7049302737
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -806,6 +806,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
+  perform better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
+end;
+$$;
 
 -- blocks.guests.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:9e261540900728eca31e587a0cac3588a380a2040c66d2607d9a095d4009274a
+-- @bsb-hash sha256:b78085cd46f7d8750d8a9536e04b7ebec18853348f8b514bcf43a7ef87104e3d
 -- Preventive maintenance plans that fall due by time or by a meter, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,6 +970,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.maintenance_plans', target_type => 'maintenance_plan', event_prefix => 'maintenance_plan', deferred => true);
+  perform better_supabase.audit('better_supabase.maintenance_plan_parts', target_type => 'maintenance_plan_part', event_prefix => 'maintenance_plan_part', deferred => true);
+  perform better_supabase.audit('better_supabase.maintenance_meters', target_type => 'maintenance_meter', event_prefix => 'maintenance_meter', deferred => true);
+  perform better_supabase.audit('better_supabase.maintenance_meter_readings', target_type => 'maintenance_meter_reading', event_prefix => 'maintenance_meter_reading', deferred => true);
+  perform better_supabase.audit('better_supabase.maintenance_calibrations', target_type => 'maintenance_calibration', event_prefix => 'maintenance_calibration', deferred => true);
+end;
+$$;
 
 -- blocks.maintenance.api: entry points for the Data API.
 create schema if not exists "api";

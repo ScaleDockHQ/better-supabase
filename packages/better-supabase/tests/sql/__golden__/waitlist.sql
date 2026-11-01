@@ -481,7 +481,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:45d1beecc807765979f8da6f6eb25a58df7d68ced281d55ce4e5f3cb66811ae0
+-- @bsb-hash sha256:3225aa80997712c0184a2076dea1dae321db45f18287c23ad60ca9aea0400d1e
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -971,6 +971,13 @@ grant execute on function "better_supabase"."waitlist_admit"(text, text) to serv
 grant execute on function "better_supabase"."redeem_for"(text, uuid) to service_role;
 grant execute on function "better_supabase"."redeem_invite_code"(text) to authenticated, service_role;
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.waitlist_entries', target_type => 'waitlist_entry', event_prefix => 'waitlist_entry', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -987,16 +994,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block-data waitlist
--- @bsb-hash sha256:029604f136d5df8183e09e8aa760cd6a295266eaa6217ee1cd19a6425e6dc975
+-- @bsb-hash sha256:d2114d835d02603771b06e4c11a5f251e18b9573fe93b85c85fa3c3fa26c3374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.waitlist_entries', target_type => 'waitlist_entry', event_prefix => 'waitlist_entry', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('waitlist', 1, 'managed')

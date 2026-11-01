@@ -1240,7 +1240,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:3dcf531ad0151d5e91595da3d1d34b750cedb3bc98e5d5ef42393cf1554d3539
+-- @bsb-hash sha256:024a835c75babe1f95629e1eda3d462d448dcd63e9cf03075cabb070d13b1b01
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2939,6 +2939,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.document_templates', target_type => 'document_template', event_prefix => 'document_template', deferred => true);
+  perform better_supabase.audit('better_supabase.document_text_blocks', target_type => 'document_text_block', event_prefix => 'document_text_block', deferred => true);
+  perform better_supabase.audit('better_supabase.rendered_documents', target_type => 'document_snapshot', event_prefix => 'document_snapshot', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2955,16 +2964,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
--- @bsb-hash sha256:9583aaa09d07839093d6d62721ded388961f4622fdffe43a1e36011ffc2c8765
+-- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.document_templates', target_type => 'document_template', event_prefix => 'document_template', deferred => true);
-select better_supabase.audit('better_supabase.document_text_blocks', target_type => 'document_text_block', event_prefix => 'document_text_block', deferred => true);
-select better_supabase.audit('better_supabase.rendered_documents', target_type => 'document_snapshot', event_prefix => 'document_snapshot', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('document-templates', 1, 'managed')

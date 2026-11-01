@@ -1109,7 +1109,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:1f73b6ee55ca6351e7f7adf2de94aae96c4898a26c8d4d423af0181d38c513fa
+-- @bsb-hash sha256:f53f6ada5e51d845f2c29a948dcceda98ae368f1a7aa222ba65a9fc07090ec41
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2303,6 +2303,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.donations', target_type => 'donation', event_prefix => 'donation', deferred => true);
+  perform better_supabase.audit('better_supabase.pledges', target_type => 'pledge', event_prefix => 'pledge', deferred => true);
+  perform better_supabase.audit('better_supabase.donation_funds', target_type => 'donation_fund', event_prefix => 'donation_fund', deferred => true);
+  perform better_supabase.audit('better_supabase.donation_receipts', target_type => 'donation_receipt', event_prefix => 'donation_receipt', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2319,17 +2329,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block-data donations
--- @bsb-hash sha256:16f1acb7c5d7b4939d5b1ede742178ea14dc0129b25739202d47f15536f3710c
+-- @bsb-hash sha256:766adfa3e7067c6f8172269a3181465a320dd4dc98f6ab433fc4ba3e69980c75
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.donations', target_type => 'donation', event_prefix => 'donation', deferred => true);
-select better_supabase.audit('better_supabase.pledges', target_type => 'pledge', event_prefix => 'pledge', deferred => true);
-select better_supabase.audit('better_supabase.donation_funds', target_type => 'donation_fund', event_prefix => 'donation_fund', deferred => true);
-select better_supabase.audit('better_supabase.donation_receipts', target_type => 'donation_receipt', event_prefix => 'donation_receipt', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('donations', 2, 'managed')

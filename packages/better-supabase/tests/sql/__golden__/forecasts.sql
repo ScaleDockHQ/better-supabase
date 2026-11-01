@@ -370,7 +370,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:2cdc691a0ff37fcdfd5dd57fcd83dfd08cf8902aa162b487deb9b85fdd19d69a
+-- @bsb-hash sha256:84e1e8428feca7771c02b7519b4ed7a0471162c6d29a79d055f60c33171886a8
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -709,6 +709,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -725,14 +732,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
--- @bsb-hash sha256:56fd601d3dd92737e5b575fd3f55fa5ec74d3726ac3990fa3866b5e2d52e16ef
+-- @bsb-hash sha256:1a236d3062db7e93bf2739b0ee553543da0d1d3546fd673f331fd49953cbf0af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('forecasts', 1, 'managed')

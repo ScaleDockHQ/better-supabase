@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:4bf365955ed5335888b52c00168f67a4545311e5213c228a3b9846a3f9df8276
+-- @bsb-hash sha256:0299e571a21a6e13782036c73dc69c5ea027002fee25486ca10e521b53049317
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -100,9 +100,6 @@ from (values
   ('workflow.published', 'workflow_definition.published')
 ) as m(old_type, next_type)
 where t."type" = m.old_type;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.timeline_entries', target_type => 'timeline_entry', event_prefix => 'timeline_entry', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('timeline', 2, 'managed')

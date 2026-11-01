@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../src/sql/index.ts";
 
-const dataOf = (
+const schemaOf = (
   names: string[],
   options?: Record<string, unknown>,
   module = "tasks",
@@ -11,26 +11,26 @@ const dataOf = (
     names,
     options === undefined ? {} : { modules: { audit: { options } } },
   )
-    .filter((file) => file.kind === "data" && file.module === module)
+    .filter((file) => file.kind === "schema" && file.module === module)
     .map((file) => file.contents)
     .join("\n");
 
 describe("row audit of block tables", () => {
   it("registers the entity tables of a block when audit is installed", () => {
-    expect(dataOf(["audit", "tasks"])).toContain(
-      "select better_supabase.audit('better_supabase.tasks'",
+    expect(schemaOf(["audit", "tasks"])).toContain(
+      "perform better_supabase.audit('better_supabase.tasks'",
     );
   });
 
   it("leaves tables alone without audit or with blockTables none", () => {
-    expect(dataOf(["tasks"])).not.toContain("better_supabase.audit(");
-    expect(dataOf(["audit", "tasks"], { blockTables: "none" })).not.toContain(
+    expect(schemaOf(["tasks"])).not.toContain("better_supabase.audit(");
+    expect(schemaOf(["audit", "tasks"], { blockTables: "none" })).not.toContain(
       "better_supabase.audit(",
     );
   });
 
   it("never audits the audit module's own tables", () => {
-    expect(dataOf(["audit"], undefined, "audit")).not.toContain(
+    expect(schemaOf(["audit"], undefined, "audit")).not.toContain(
       "Row audit for",
     );
   });

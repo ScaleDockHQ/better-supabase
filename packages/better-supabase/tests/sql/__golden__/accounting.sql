@@ -3382,7 +3382,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:630ea5c64aa35ab62fd58910838e4b84dbe3a055a745fa5119b24d5590207f1c
+-- @bsb-hash sha256:f8ae78562cc8b331a707761f00e822f3605830b9abd9335c04385f9e5e6d2477
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6891,6 +6891,18 @@ create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_li
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.accounting_accounts', target_type => 'accounting_account', event_prefix => 'accounting_account', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_journals', target_type => 'accounting_journal', event_prefix => 'accounting_journal', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_periods', target_type => 'accounting_period', event_prefix => 'accounting_period', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_entries', target_type => 'accounting_entry', event_prefix => 'accounting_entry', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_dimensions', target_type => 'accounting_dimension', event_prefix => 'accounting_dimension', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_budgets', target_type => 'accounting_budget', event_prefix => 'accounting_budget', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -6907,7 +6919,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
--- @bsb-hash sha256:3d0316c5150b15b7a730b48a3cfcdff523aed3c83484e2dcd5f88163b806f9eb
+-- @bsb-hash sha256:51851417a9dc349b1d7c5a2e3bd03d12ebf0417519b093f85ae57b6e24866f4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6928,14 +6940,6 @@ cross join (values ('disposal_gain', '4910', 'Gains on asset disposals'), ('disp
 join "better_supabase"."accounting_accounts" y on y."tenant_id" = s."tenant_id" and y."code" = c.code and y."name" = c.name
 where not exists (select 1 from "better_supabase"."accounting_account_roles" z where z."tenant_id" = s."tenant_id" and z."role" = c.role)
 on conflict ("tenant_id", "role") do nothing;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.accounting_accounts', target_type => 'accounting_account', event_prefix => 'accounting_account', deferred => true);
-select better_supabase.audit('better_supabase.accounting_journals', target_type => 'accounting_journal', event_prefix => 'accounting_journal', deferred => true);
-select better_supabase.audit('better_supabase.accounting_periods', target_type => 'accounting_period', event_prefix => 'accounting_period', deferred => true);
-select better_supabase.audit('better_supabase.accounting_entries', target_type => 'accounting_entry', event_prefix => 'accounting_entry', deferred => true);
-select better_supabase.audit('better_supabase.accounting_dimensions', target_type => 'accounting_dimension', event_prefix => 'accounting_dimension', deferred => true);
-select better_supabase.audit('better_supabase.accounting_budgets', target_type => 'accounting_budget', event_prefix => 'accounting_budget', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('accounting', 1, 'managed')

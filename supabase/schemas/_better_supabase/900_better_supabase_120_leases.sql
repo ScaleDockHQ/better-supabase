@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:61b8f146a58e60697a193048c3363c700f91455359a5f0f6b151f9d572c5d629
+-- @bsb-hash sha256:0f61aca908529f46f431e62d50da88a07905321a745ec54c36b0bf3e49e2fce9
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -837,6 +837,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_charge
 create policy bsb_tenant_scope_delete on "better_supabase"."lease_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.leases', target_type => 'lease', event_prefix => 'lease', deferred => true);
+end;
+$$;
 
 -- blocks.leases.api: entry points for the Data API.
 create schema if not exists "api";

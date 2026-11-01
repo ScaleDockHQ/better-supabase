@@ -848,7 +848,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:d0dee23f376df9c8bfeff0d5cacf784abc98792b2c54ecac968c0687404a87e1
+-- @bsb-hash sha256:6e7d6a9b38199439685f68a384c627f21d7f373e8d6854e941678494a924076c
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1834,6 +1834,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.qualifications', target_type => 'qualification', event_prefix => 'qualification', deferred => true);
+  perform better_supabase.audit('better_supabase.qualification_types', target_type => 'qualification_type', event_prefix => 'qualification_type', deferred => true);
+  perform better_supabase.audit('better_supabase.qualification_requirements', target_type => 'qualification_requirement', event_prefix => 'qualification_requirement', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1850,16 +1859,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block-data qualifications
--- @bsb-hash sha256:650c2bd75077321a10c7aedecf9c1f5e7a4a7614cc2114b510b41e78f4ddebe8
+-- @bsb-hash sha256:1f1ceefd448a88336e3ab139e2cfc3cbc37f1aa636a3352e739a57f2a75c507c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.qualifications', target_type => 'qualification', event_prefix => 'qualification', deferred => true);
-select better_supabase.audit('better_supabase.qualification_types', target_type => 'qualification_type', event_prefix => 'qualification_type', deferred => true);
-select better_supabase.audit('better_supabase.qualification_requirements', target_type => 'qualification_requirement', event_prefix => 'qualification_requirement', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('qualifications', 1, 'managed')

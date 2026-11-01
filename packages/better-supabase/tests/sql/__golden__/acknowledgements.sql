@@ -720,7 +720,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:6734d52cbc21d78827d98e643ac6513bb35ba652d7cd5ff93dc42afde71e2b3b
+-- @bsb-hash sha256:3f4bf185641cde30845eaed319259f32cba9d3fcf05d59fd8b5a425ac373309c
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1521,6 +1521,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.acknowledgements', target_type => 'acknowledgement', event_prefix => 'acknowledgement', deferred => true);
+  perform better_supabase.audit('better_supabase.acknowledgement_assignments', target_type => 'acknowledgement_assignment', event_prefix => 'acknowledgement_assignment', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1537,15 +1545,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block-data acknowledgements
--- @bsb-hash sha256:a85a51f7724de98242442b4d1689c9d37875253e10b13364a40f59d91ae5c0a5
+-- @bsb-hash sha256:f804dc1bd56a250af2771946adc718a33fc2dbcbbb8cd45180ca0480d6b11329
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.acknowledgements', target_type => 'acknowledgement', event_prefix => 'acknowledgement', deferred => true);
-select better_supabase.audit('better_supabase.acknowledgement_assignments', target_type => 'acknowledgement_assignment', event_prefix => 'acknowledgement_assignment', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('acknowledgements', 1, 'managed')

@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:dc69eec10e3583c9a23b9b53810971bf79f5fc6e60c3c04ec93ee2dc52e13de8
+-- @bsb-hash sha256:e3f1bbd109d6cd2da82811e4fc9ec8b418a7a28a5fba029f78f750504a177982
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1315,6 +1315,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."intrastat_li
 create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.shipments', target_type => 'shipment', event_prefix => 'shipment', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_packages', target_type => 'shipment_package', event_prefix => 'shipment_package', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_tracking_events', target_type => 'shipment_tracking_event', event_prefix => 'shipment_tracking_event', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_lines', target_type => 'shipment_line', event_prefix => 'shipment_line', deferred => true);
+end;
+$$;
 
 -- blocks.shipments.api: entry points for the Data API.
 create schema if not exists "api";

@@ -3605,7 +3605,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:2947dd8efe547938ace9f4f180e22ccfe48b2d5ddc2307389ed2e907e2d3f90b
+-- @bsb-hash sha256:5d763db54afe4daeab8f2f40aeae54bf2ac884ed9ece8fd83b6ac0f53c97c76f
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8127,6 +8127,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.invoices', target_type => 'invoice', event_prefix => 'invoice', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -8143,14 +8150,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:e18fc61ff94e7b7178a4a1cbb8685d15b7aada2f5858bea4b64848f74c7c7178
+-- @bsb-hash sha256:c00c51a11ad9c8aaa07dd314eed28f6c5079977dd7aed37e8fb1a704b4023060
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.invoices', target_type => 'invoice', event_prefix => 'invoice', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('invoices', 2, 'managed')

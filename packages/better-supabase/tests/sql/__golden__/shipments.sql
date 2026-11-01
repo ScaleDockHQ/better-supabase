@@ -759,7 +759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:f1cb8b47f01d5cf33a527f8479156b37afd10da6d647a6bd52194ea32c294f98
+-- @bsb-hash sha256:4ca94d74d35c5a7e807165738f0f1d3b607690c7807c9167c03d473fc798a228
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1994,6 +1994,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.shipments', target_type => 'shipment', event_prefix => 'shipment', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_packages', target_type => 'shipment_package', event_prefix => 'shipment_package', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_tracking_events', target_type => 'shipment_tracking_event', event_prefix => 'shipment_tracking_event', deferred => true);
+  perform better_supabase.audit('better_supabase.shipment_lines', target_type => 'shipment_line', event_prefix => 'shipment_line', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2010,17 +2020,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block-data shipments
--- @bsb-hash sha256:766ce6f17da496eb98f3fc55b02d29819491da1ed30e5f00d4fe21958f20c170
+-- @bsb-hash sha256:11114c45bc76d3e4028398e28ee2c2a1d6e35189ca63081e232f2d14217adcd7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.shipments', target_type => 'shipment', event_prefix => 'shipment', deferred => true);
-select better_supabase.audit('better_supabase.shipment_packages', target_type => 'shipment_package', event_prefix => 'shipment_package', deferred => true);
-select better_supabase.audit('better_supabase.shipment_tracking_events', target_type => 'shipment_tracking_event', event_prefix => 'shipment_tracking_event', deferred => true);
-select better_supabase.audit('better_supabase.shipment_lines', target_type => 'shipment_line', event_prefix => 'shipment_line', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('shipments', 3, 'managed')
