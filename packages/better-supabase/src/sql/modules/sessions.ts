@@ -63,7 +63,19 @@ const BOOTSTRAP_NAME = /^[a-z][a-z0-9_]*$/;
 
 const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
-/** `blocks['sessions'].options.bootstrap`: wrapper name to `schema.function`. */
+function isReadSetRef(value: unknown): value is { readonly readSet: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "readSet" in value &&
+    typeof value.readSet === "string"
+  );
+}
+
+/**
+ * `blocks['sessions'].options.bootstrap`: wrapper name to `schema.function`, or
+ * to a read set, which is the function `public.rs_<name>`.
+ */
 function bootstrapFunctions(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
@@ -75,7 +87,7 @@ function bootstrapFunctions(
 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
-      `${WHERE} must map names to functions, e.g. { home: "app.home_data" }`,
+      `${WHERE} must map names to functions, e.g. { home: "app.home_data" } or { home: { readSet: "home" } }`,
     );
   }
 
@@ -84,6 +96,16 @@ function bootstrapFunctions(
       throw new TypeError(
         `${WHERE}.${name} must be a lowercase name (letters, digits, _)`,
       );
+    }
+
+    if (isReadSetRef(fn)) {
+      if (!BOOTSTRAP_NAME.test(fn.readSet)) {
+        throw new TypeError(
+          `${WHERE}.${name}.readSet must be a lowercase read set name (letters, digits, _)`,
+        );
+      }
+
+      return [name, `public.rs_${fn.readSet}`] as const;
     }
 
     if (typeof fn !== "string" || !FUNCTION_NAME.test(fn)) {
