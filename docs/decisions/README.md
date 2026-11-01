@@ -178,3 +178,4 @@ add one, and link it from the code or config it explains.
 | [0176](0176-tills-example-cash-account.md)                    | The tills example creates each till with a cash account, mapped from or added to the accounting chart                                                        |
 | [0177](0177-maintenance-rrule-qualifications.md)              | Maintenance plans take RFC 5545 calendar rules and required qualifications, checked on technician assignment and calibration                                 |
 | [0178](0178-e-prescribing-block.md)                           | E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned port                                        |
+| [0179](0179-adapter-templates.md)                             | Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port                                             |
