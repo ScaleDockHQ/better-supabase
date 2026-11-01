@@ -2,7 +2,7 @@
 -- block keeps its tables in `better_supabase`, which the Data API doesn't
 -- expose. SECURITY INVOKER, so the block's read policies decide what each
 -- caller sees.
-create or replace function api.billing_invoices(tenant uuid)
+create or replace function api.invoice_summaries(tenant uuid)
 returns jsonb
 language sql
 stable
@@ -23,8 +23,8 @@ as $$
     'overdue', i.status in ('issued', 'partially_paid') and i.due_on < current_date
   ) order by i.created_at desc), '[]'::jsonb)
   from better_supabase.invoices i
-  where i.tenant_id = billing_invoices.tenant;
+  where i.tenant_id = invoice_summaries.tenant;
 $$;
 
-revoke all on function api.billing_invoices(uuid) from public, anon;
-grant execute on function api.billing_invoices(uuid) to authenticated;
+revoke all on function api.invoice_summaries(uuid) from public, anon;
+grant execute on function api.invoice_summaries(uuid) to authenticated;

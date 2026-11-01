@@ -47,7 +47,7 @@ export interface InvoiceSummary {
 
 /**
  * The organization's invoices, newest first. The invoices block has no list
- * function, so `api.billing_invoices` reads them with the caller's token and
+ * function, so `api.invoice_summaries` reads them with the caller's token and
  * the block's `invoices.read` policy.
  */
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
@@ -60,7 +60,7 @@ async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   }
 
   const rows = await db
-    .$api("billing_invoices", { tenant }, { returns: v.array(InvoiceRow) })
+    .$api("invoice_summaries", { tenant }, { returns: v.array(InvoiceRow) })
     .orThrow();
 
   return rows.map(({ currency, total, balance, ...row }) => ({

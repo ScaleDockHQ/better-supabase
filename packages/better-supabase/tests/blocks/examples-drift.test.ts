@@ -22,13 +22,7 @@ const CLIENT_FUNCTION_NAMES: ReadonlySet<string> = new Set(
  * entry), so the list only shrinks. Each entry waits for a block client method
  * and the example moving onto it (ADR 0177).
  */
-const BASELINE: ReadonlySet<string> = new Set([
-  "nextjs/src/features/billing/invoice-queries.ts:billing_invoices",
-  "nextjs/src/features/people/people-queries.ts:list_pipelines",
-  "nextjs/src/features/user/user-actions.ts:my_profile",
-  "nextjs/src/features/user/user-actions.ts:update_my_profile",
-  "nextjs/src/features/user/user-queries.ts:my_profile",
-]);
+const BASELINE: ReadonlySet<string> = new Set<string>();
 
 const CALL = /\.\$(?:api|rpc)\(\s*"([a-z_0-9]+)"/gu;
 

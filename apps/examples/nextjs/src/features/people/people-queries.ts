@@ -6,7 +6,6 @@ import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
-import * as v from "valibot";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -159,17 +158,6 @@ export async function loadTimesheet(
   };
 }
 
-const Id = v.pipe(v.string(), v.uuid());
-
-const StageRow = v.object({
-  id: Id,
-  name: v.string(),
-  category: v.string(),
-  archived_at: v.nullish(v.string()),
-});
-
-const PipelineRow = v.object({ id: Id, stages: v.array(StageRow) });
-
 export interface HiringJob {
   readonly id: string;
   readonly title: string;
@@ -215,14 +203,10 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     return null;
   }
 
-  const [jobs, pipelines, customers] = await Promise.all([
+  const [jobs, pipeline, customers] = await Promise.all([
     db.hiring.jobs({ organizationId: tenant }).orThrow(),
-    db
-      .$api(
-        "list_pipelines",
-        { tenant, subject_type: "application" },
-        { returns: v.array(PipelineRow) },
-      )
+    db.pipelines
+      .default({ organizationId: tenant, subjectType: "application" })
       .orThrow(),
     db.customers
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
@@ -239,8 +223,6 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     customers.map((customer) => [customer.id, customer.name]),
   );
 
-  const pipeline = pipelines[0];
-
   return {
     jobs: jobs.map((job) => ({
       id: job.id,
@@ -248,13 +230,11 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
       status: job.status,
       location: job.location ?? null,
     })),
-    stages: (pipeline?.stages ?? [])
-      .filter((stage) => !stage.archived_at)
-      .map((stage) => ({
-        id: stage.id,
-        name: stage.name,
-        category: stage.category,
-      })),
+    stages: (pipeline?.stages ?? []).map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      category: stage.category,
+    })),
     cards: applications.flatMap((application) =>
       application.stageId
         ? [
