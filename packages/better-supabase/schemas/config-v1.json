@@ -284,6 +284,50 @@
             "perTenant": {
               "type": "string",
               "default": "supabase/seed.tenant.ts"
+            },
+            "defaults": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "onCreate": {
+                      "type": "boolean"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "variants": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "sample": {
+              "type": "object",
+              "properties": {
+                "size": {
+                  "enum": ["s", "m", "l"],
+                  "type": "string"
+                },
+                "seed": {
+                  "type": "number"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

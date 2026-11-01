@@ -118,6 +118,55 @@ export interface SeedConfig {
    * `better-supabase db seed --tenant <slug>` applies it to one tenant.
    */
   readonly perTenant?: string;
+  /**
+   * Tenant defaults (ADR 0196): the rows every organization starts with, from
+   * the blocks' `seed_<block>_defaults` functions. `false` turns them off;
+   * an object sets what `seed_tenant_defaults` is called with.
+   */
+  readonly defaults?: boolean | SeedDefaultsConfig;
+  /** Sample data from the cloud (`better-supabase db seed --sample`), a Pro feature. */
+  readonly sample?: SeedSampleConfig;
+}
+
+export interface SeedDefaultsConfig {
+  /** Seed new organizations from the create hook. Defaults to `true`. */
+  readonly onCreate?: boolean;
+  /** The locale defaults are written in. Defaults to `en`. */
+  readonly locale?: string;
+  /** The variant each block seeds, keyed by block name. */
+  readonly variants?: Readonly<Record<string, string>>;
+}
+
+export type SeedSampleSize = "s" | "m" | "l";
+
+export interface SeedSampleConfig {
+  /** How much data to generate. Defaults to `m`. */
+  readonly size?: SeedSampleSize;
+  /** The random seed, so the same number gives the same data. Defaults to 1. */
+  readonly seed?: number;
+  /** The locale of names and addresses. Defaults to the defaults' locale. */
+  readonly locale?: string;
+  /** SQL file `db seed --sample` writes with `--out`. */
+  readonly output?: string;
+}
+
+/** `database.seed` after defaults: what the CLI reads. */
+export interface ResolvedSeedConfig {
+  readonly entry: string;
+  readonly output: string;
+  readonly perTenant: string;
+  readonly defaults: {
+    readonly enabled: boolean;
+    readonly onCreate: boolean;
+    readonly locale: string;
+    readonly variants: Readonly<Record<string, string>>;
+  };
+  readonly sample: {
+    readonly size: SeedSampleSize;
+    readonly seed: number;
+    readonly locale: string;
+    readonly output: string;
+  };
 }
 
 export interface RealtimeConfig {

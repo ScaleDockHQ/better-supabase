@@ -777,6 +777,24 @@ const FLAT = {
       entry: v.optional(v.string()),
       output: v.optional(v.string()),
       perTenant: v.optional(v.string()),
+      defaults: v.optional(
+        v.union([
+          v.boolean(),
+          v.strictObject({
+            onCreate: v.optional(v.boolean()),
+            locale: v.optional(v.string()),
+            variants: v.optional(v.record(v.string(), v.string())),
+          }),
+        ]),
+      ),
+      sample: v.optional(
+        v.strictObject({
+          size: v.optional(v.picklist(["s", "m", "l"])),
+          seed: v.optional(v.number()),
+          locale: v.optional(v.string()),
+          output: v.optional(v.string()),
+        }),
+      ),
     }),
   ),
   openapi: v.optional(
