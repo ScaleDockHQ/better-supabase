@@ -280,6 +280,26 @@ describe("createEnrollments", () => {
     ]);
   });
 
+  it("pauses and resumes an enrollment", async () => {
+    const PAUSED = "2026-10-02T09:00:00Z";
+
+    const fake = fakeTransport({
+      pause_enrollment: { ...ENROLLMENT, pausedAt: PAUSED },
+      resume_enrollment: ENROLLMENT,
+    });
+
+    const enrollments = createEnrollments({ transport: fake.transport });
+
+    const paused = await enrollments.pause("e1").orThrow();
+
+    expect(paused.pausedAt).toBeInstanceOf(Temporal.Instant);
+    expect((await enrollments.resume("e1").orThrow()).pausedAt).toBeUndefined();
+    expect(fake.calls).toEqual([
+      ["pause_enrollment", { enrollment_id: "e1" }],
+      ["resume_enrollment", { enrollment_id: "e1" }],
+    ]);
+  });
+
   it("reads step assignees, due dates and the schedule", async () => {
     const fake = fakeTransport({
       save_enrollment_program: {

@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:85a77331679163a60469d60029cde514f5bec3bb0c65737f08e0802ed28fb1f8
+-- @bsb-hash sha256:2c2f3e575470cd30708b04e6a364f45413f22a8a0081f1bef42a97e932a9dfc4
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1003,6 +1003,92 @@ $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
 
+-- Pauses an active enrollment; one that already is paused is returned as it is.
+-- Programs a module drives and enrollments that ended can't be changed here.
+create or replace function "better_supabase"."pause_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollments";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = pause_enrollment.enrollment_id for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and can''t be changed here' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if v_row."status" <> 'active' then
+    raise exception 'only an active enrollment can be paused' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if (v_row."paused_at" is not null) is distinct from false then
+    return "better_supabase"."enrollment_json"(v_row."id");
+  end if;
+  update "better_supabase"."enrollments" x
+  set "paused_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  if v_row."tenant_id" is not null then
+    perform "better_supabase".emit_event('enrollment.paused', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'program', v_row."program", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status", 'step', null::text, 'completedSteps', v_row."completed_steps", 'totalSteps', cardinality(v_row."steps"), 'reason', null::text), 'enrollments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  end if;
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."pause_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."pause_enrollment"(uuid) to authenticated, service_role;
+
+-- Resumes an active enrollment; one that already is running is returned as it is.
+-- Programs a module drives and enrollments that ended can't be changed here.
+create or replace function "better_supabase"."resume_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollments";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = resume_enrollment.enrollment_id for update;
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and can''t be changed here' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if v_row."status" <> 'active' then
+    raise exception 'only an active enrollment can be resumed' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if (v_row."paused_at" is not null) is distinct from true then
+    return "better_supabase"."enrollment_json"(v_row."id");
+  end if;
+  update "better_supabase"."enrollments" x
+  set "paused_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  if v_row."tenant_id" is not null then
+    perform "better_supabase".emit_event('enrollment.resumed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'program', v_row."program", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status", 'step', null::text, 'completedSteps', v_row."completed_steps", 'totalSteps', cardinality(v_row."steps"), 'reason', null::text), 'enrollments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  end if;
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."resume_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."resume_enrollment"(uuid) to authenticated, service_role;
+
 -- Sets the dates an enrollment's due dates count from and renders them again.
 -- dates is { startsAt?, endsAt? }; keys left out keep their value and null
 -- clears one. Needs enrollments.enroll. Module programs have no schedules.
@@ -1299,6 +1385,24 @@ set search_path = ''
 as $$ select "better_supabase"."cancel_enrollment"($1) $$;
 revoke execute on function "api"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "api"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+create or replace function "api"."pause_enrollment"(enrollment_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."pause_enrollment"($1) $$;
+revoke execute on function "api"."pause_enrollment"(uuid) from public, anon;
+grant execute on function "api"."pause_enrollment"(uuid) to authenticated, service_role;
+
+create or replace function "api"."resume_enrollment"(enrollment_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resume_enrollment"($1) $$;
+revoke execute on function "api"."resume_enrollment"(uuid) from public, anon;
+grant execute on function "api"."resume_enrollment"(uuid) to authenticated, service_role;
 
 create or replace function "api"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
 returns jsonb

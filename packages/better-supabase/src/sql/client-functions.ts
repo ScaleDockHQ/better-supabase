@@ -106,7 +106,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:
-    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps reset_enrollment_step save_enrollment_program set_enrollment_dates",
+    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
   entitlements: "entitlement_value has_entitlement",
   expenses:
     "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",

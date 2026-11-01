@@ -169,6 +169,13 @@ again. `cancel(enrollmentId)` cancels an active enrollment: its completed steps
 stay, a cancelled enrollment takes no new steps, and a completed one can't be
 cancelled.
 
+`pause(enrollmentId)` holds an active enrollment by setting `pausedAt` and
+`resume(enrollmentId)` clears it; calling either twice returns the enrollment as
+it is. Both need the `paused_at` column, fail with `ENROLLMENTS_INVALID` for an
+enrollment that ended and for programs a module drives (sequences pause theirs
+themselves), and need the same permission as `cancel`. Pausing emits
+`enrollment.paused` and resuming `enrollment.resumed`.
+
 `enrollment(program, subject)` returns one subject's enrollment, or `null`.
 `list()` returns the organization's enrollments, most recently changed first:
 filter by `program`, `subject` or `status`, and pass `before` with the last
@@ -208,6 +215,7 @@ these enrollments: schedules and `open_enrollment_steps` skip them.
 | `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`     | `authenticated`, `service_role` | The organization's enrollments             |
 | `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)`  | `authenticated`, `service_role` | Marks a step done or not done              |
 | `cancel_enrollment(enrollment_id)`                                             | `authenticated`, `service_role` | Cancels an active enrollment               |
+| `pause_enrollment(enrollment_id)`, `resume_enrollment(enrollment_id)`          | `authenticated`, `service_role` | Holds or releases an active enrollment     |
 | `set_enrollment_dates(enrollment_id, dates)`                                   | `authenticated`, `service_role` | Sets the dates and renders due dates again |
 | `open_enrollment_steps(tenant, assignee_role, assignee_user, due_before, ...)` | `authenticated`, `service_role` | Open steps with an assignee or a due date  |
 
