@@ -9822,6 +9822,14 @@ export const PRESET_CATALOG: PresetCatalog = {
           "appraisal_goal": {
             "table": "goals",
             "singular": "appraisal_goal"
+          },
+          "appraisal_competency": {
+            "table": "competencies",
+            "singular": "appraisal_competency"
+          },
+          "appraisal_review_rating": {
+            "table": "ratings",
+            "singular": "appraisal_review_rating"
           }
         },
         "tables": {
@@ -9836,6 +9844,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "rating": "rating",
               "calibratedRating": "calibrated_rating",
+              "calibratedCompetencies": "calibrated_competencies",
               "approval": "approval_id",
               "signedOffAt": "signed_off_at",
               "signedOffBy": "signed_off_by",
@@ -9853,6 +9862,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "endsOn": "ends_on",
               "program": "program",
               "status": "status",
+              "anonymity": "anonymity",
+              "shareFeedback": "share_feedback",
               "openedAt": "opened_at",
               "closedAt": "closed_at",
               "createdBy": "created_by",
@@ -9881,6 +9892,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "appraisal": "appraisal_id",
               "fromRating": "from_rating",
               "toRating": "to_rating",
+              "competencyRatings": "competency_ratings",
               "reason": "reason",
               "calibratedBy": "calibrated_by",
               "calibratedAt": "calibrated_at"
@@ -9893,6 +9905,29 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "appraisal": "appraisal_id",
               "goal": "goal_id"
+            }
+          },
+          "competencies": {
+            "name": "appraisal_competencies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "cycle": "cycle_id",
+              "key": "key",
+              "name": "name",
+              "weight": "weight",
+              "position": "position"
+            }
+          },
+          "ratings": {
+            "name": "appraisal_review_ratings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "review": "review_id",
+              "competency": "competency_id",
+              "rating": "rating",
+              "comment": "comment"
             }
           }
         },
@@ -21550,10 +21585,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Appraisal"
         },
         {
+          "name": "AppraisalAnonymity"
+        },
+        {
           "name": "AppraisalAssignment"
         },
         {
           "name": "AppraisalCalibration"
+        },
+        {
+          "name": "AppraisalCompetencyDefinition"
+        },
+        {
+          "name": "AppraisalCompetencyResult"
         },
         {
           "name": "AppraisalCycle"
@@ -21587,6 +21631,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AppraisalReviewKind"
+        },
+        {
+          "name": "AppraisalReviewRating"
+        },
+        {
+          "name": "AppraisalRubricCompetency"
         },
         {
           "name": "Appraisals"
@@ -21623,6 +21673,27 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "description": "The key of an enrollment program the cycle's appraisals follow."
+              },
+              "anonymity": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "none",
+                  "subject",
+                  "all"
+                ],
+                "description": "Who learns which peer wrote a review: `none`, `subject` (default) or `all`."
+              },
+              "shareFeedback": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "Whether the appraised person reads the manager and peer reviews once signed off."
+              },
+              "competencies": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The rubric, at most 20 items: `{ key, name, weight }` with a weight above 0 (default 1)."
               }
             },
             "jsonSchema": {
@@ -21646,6 +21717,24 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "program": {
                   "type": "string",
                   "description": "The key of an enrollment program the cycle's appraisals follow."
+                },
+                "anonymity": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "subject",
+                    "all"
+                  ],
+                  "description": "Who learns which peer wrote a review: `none`, `subject` (default) or `all`."
+                },
+                "shareFeedback": {
+                  "type": "boolean",
+                  "description": "Whether the appraised person reads the manager and peer reviews once signed off."
+                },
+                "competencies": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The rubric, at most 20 items: `{ key, name, weight }` with a weight above 0 (default 1)."
                 }
               },
               "required": [
@@ -21663,8 +21752,16 @@ export const PRESET_CATALOG: PresetCatalog = {
             "fields": {
               "rating": {
                 "kind": "integer",
+                "optional": true,
                 "minimum": 1,
-                "maximum": 5
+                "maximum": 5,
+                "description": "The overall rating, for a cycle without a rubric."
+              },
+              "ratings": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "One `{ competency, rating, comment }` per competency, for a cycle with a rubric."
               },
               "comments": {
                 "kind": "string",
@@ -21685,7 +21782,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "rating": {
                   "type": "integer",
                   "minimum": 1,
-                  "maximum": 5
+                  "maximum": 5,
+                  "description": "The overall rating, for a cycle without a rubric."
+                },
+                "ratings": {
+                  "type": "array",
+                  "items": {},
+                  "description": "One `{ competency, rating, comment }` per competency, for a cycle with a rubric."
                 },
                 "comments": {
                   "type": "string",
@@ -21697,9 +21800,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "description": "The forms submission that holds the longer answers."
                 }
               },
-              "required": [
-                "rating"
-              ],
               "additionalProperties": false
             }
           }

@@ -318,7 +318,8 @@ packages that live outside this repository.
 ### Adapter packages
 
 These are external adapter repositories, not part of the library. They are
-still to be written, and each plugs into a versioned port:
+still to be written, and each plugs into a versioned port. Start one from the
+tested skeletons in [Write an adapter](/docs/extending/write-an-adapter):
 
 - iWlz, iJw and iWmo claims through `FundingClaimFormat`.
 - The G-Standaard through `MedicationCatalog`.
@@ -326,6 +327,8 @@ still to be written, and each plugs into a versioned port:
 - Peppol access points through `EInvoiceChannel`, with a UBL schema
   validator.
 - Bank feeds through `BankFeed`.
+- Pharmacy and national prescription services through `PrescriptionGateway`,
+  and drug databases through `ClinicalDecisionSupport`.
 
 ### Platform and naming
 

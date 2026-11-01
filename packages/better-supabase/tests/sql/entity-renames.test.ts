@@ -118,6 +118,7 @@ describe("blocks.<name>.entities in the SQL", () => {
       "'invoice_party'",
       "'invoiceId'",
     ],
+    appraisals: ["'competencies'", "'ratings'", "'appraisalsCreated'"],
     medications: ["'medication'", "'medicationId'"],
     meetings: ["'meetingId'"],
     memory: ["'/memories'", "'/memories{}'"],

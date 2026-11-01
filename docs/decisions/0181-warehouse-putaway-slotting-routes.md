@@ -1,4 +1,4 @@
-# 0179: Warehouse suggests putaway and slotting, orders pick routes and closes the picking task
+# 0181: Warehouse suggests putaway and slotting, orders pick routes and closes the picking task
 
 - Status: accepted
 - Date: 2026-11-01

@@ -294,7 +294,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
-- 0179: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
+- 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
+- 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
 
 ## Pre-release pins
 
