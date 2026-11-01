@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Five blocks gain regulatory workflows (ADR 0182). `moderation` records DSA statements of reasons,
+Five blocks gain regulatory workflows (ADR 0187). `moderation` records DSA statements of reasons,
 notices from trusted flaggers and appeals, and exports a transparency report as CSV. `incidents`
 keeps a regulatory profile per incident and one filing per NIS2, DORA or CRA deadline, with a
 `reminders` rule for each when that block is installed. `consents` records Sec-GPC as an opt-out,
