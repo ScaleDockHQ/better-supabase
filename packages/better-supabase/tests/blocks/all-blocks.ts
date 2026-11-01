@@ -2,8 +2,8 @@ import type { accessRequestsBlock } from "../../src/blocks/access-requests/manif
 import type { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import type { acknowledgementsBlock } from "../../src/blocks/acknowledgements/manifest.ts";
 import type { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
-import type { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import type { advisoriesBlock } from "../../src/blocks/advisories/manifest.ts";
+import type { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
 import type { aiChatBlock } from "../../src/blocks/ai-chat/manifest.ts";
