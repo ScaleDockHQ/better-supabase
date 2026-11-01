@@ -302,3 +302,198 @@ describe("createEvalJob", () => {
     });
   });
 });
+
+describe("createAiEvals reads and writes", () => {
+  const fullRun = {
+    ...runRow("failed"),
+    organization_id: "o1",
+    scorers: [
+      { name: "tone", kind: "llm_judge", criteria: "polite", threshold: 0.4 },
+      { name: "layout", kind: "json_schema", jsonSchema: { type: "object" } },
+      { name: "weird", kind: "other" },
+      "not a scorer",
+    ],
+    summary: {
+      total: 3,
+      passed: 2,
+      failed: 1,
+      errored: 0,
+      passRate: 0.67,
+      scorers: { tone: { avg: 0.8, passRate: 1 }, broken: "x" },
+    },
+    finished_at: AT,
+  };
+
+  const result = (extra: Record<string, unknown> = {}) => ({
+    run_id: "r1",
+    item_id: "i1",
+    output: "A",
+    scores: {
+      tone: { score: 0.9, passed: true, reason: "kind" },
+      layout: { passed: false },
+      broken: "x",
+    },
+    passed: true,
+    error: null,
+    latency_ms: 12,
+    created_at: AT,
+    ...extra,
+  });
+
+  it("creates datasets and items", async () => {
+    const { transport, calls } = fake({
+      create_eval_dataset: () => ({
+        id: "d1",
+        organization_id: "o1",
+        name: "support",
+        description: "d",
+        created_at: AT,
+      }),
+      add_eval_items: () => 2,
+      list_eval_items: () => [
+        {
+          ...item("i1", "a", "A"),
+          metadata: { tag: "x" },
+          source_chat_id: "c1",
+          source_message_id: "m1",
+        },
+      ],
+    });
+
+    const evals = createAiEvals({ transport });
+
+    const dataset = await evals.datasets
+      .create("support", { organizationId: "o1", description: "d" })
+      .orThrow();
+
+    expect(dataset).toMatchObject({ id: "d1", organizationId: "o1" });
+
+    await expect(
+      evals.items
+        .add("d1", [{ input: "a" }, { input: "b", expected: "B" }])
+        .orThrow(),
+    ).resolves.toBe(2);
+
+    const listed = await evals.items
+      .list("d1", { pendingRun: "r1", after: "i0", limit: 5 })
+      .orThrow();
+
+    expect(listed[0]).toMatchObject({
+      metadata: { tag: "x" },
+      sourceChatId: "c1",
+      sourceMessageId: "m1",
+    });
+    expect(calls.at(-1)?.args).toMatchObject({
+      pending_run: "r1",
+      after: "i0",
+      max_rows: 5,
+    });
+  });
+
+  it("creates, reads, lists, records and finishes runs", async () => {
+    const { transport, calls } = fake({
+      create_eval_run: () => fullRun,
+      get_eval_run: (args) => (args["run"] === "none" ? null : fullRun),
+      list_eval_runs: () => [fullRun, runRow("cancelled")],
+      record_eval_result: () => result(),
+      list_eval_results: () => [
+        result(),
+        result({ latency_ms: "slow", error: "x" }),
+      ],
+      finish_eval_run: () => fullRun,
+    });
+
+    const evals = createAiEvals({ transport });
+
+    const created = await evals.runs
+      .create("d1", {
+        promptName: "greet",
+        promptVersion: 2,
+        model: "m",
+        scorers: [exactMatch()],
+      })
+      .orThrow();
+
+    expect(created).toMatchObject({
+      status: "failed",
+      organizationId: "o1",
+      summary: { total: 3, scorers: { tone: { avg: 0.8, passRate: 1 } } },
+    });
+    expect(created.scorers).toEqual([
+      { name: "tone", kind: "llm_judge", criteria: "polite", threshold: 0.4 },
+      { name: "layout", kind: "json_schema", jsonSchema: { type: "object" } },
+    ]);
+    expect(created.finishedAt).toBeDefined();
+
+    await expect(evals.runs.get("none").orThrow()).resolves.toBeUndefined();
+    await expect(evals.runs.get("r1").orThrow()).resolves.toMatchObject({
+      id: "r1",
+    });
+
+    const listed = await evals.runs.list("d1", { limit: 2 }).orThrow();
+
+    expect(listed.map((run) => run.status)).toEqual(["failed", "cancelled"]);
+
+    const recorded = await evals.runs
+      .record("r1", "i1", { output: "A", latencyMs: 12 })
+      .orThrow();
+
+    expect(recorded.scores["tone"]).toEqual({
+      score: 0.9,
+      passed: true,
+      reason: "kind",
+    });
+    expect(recorded.scores["layout"]).toEqual({ score: 0, passed: false });
+    expect(recorded.latencyMs).toBe(12);
+
+    const results = await evals.runs
+      .results("r1", { onlyFailed: true, after: "i0", limit: 3 })
+      .orThrow();
+
+    expect(results[1]).toMatchObject({ latencyMs: undefined, error: "x" });
+    expect(calls.at(-1)?.args).toMatchObject({
+      only_failed: true,
+      max_rows: 3,
+    });
+
+    await expect(evals.runs.finish("r1").orThrow()).resolves.toMatchObject({
+      id: "r1",
+    });
+    expect(calls.at(-1)?.args).toMatchObject({ status: "completed" });
+  });
+
+  it("falls back to empty summaries and counts in a sparse comparison", async () => {
+    const { transport } = fake({
+      compare_eval_runs: () => ({
+        base: null,
+        candidate: null,
+        regressions: [
+          { item_id: "i1", base_output: "a", candidate_output: "b" },
+        ],
+        improvements: [{ item_id: "i2", base_score: 0, candidate_score: 1 }],
+      }),
+    });
+
+    const compared = await createAiEvals({ transport })
+      .runs.compare("a", "b", { scoreDrop: 0.2 })
+      .orThrow();
+
+    expect(compared).toMatchObject({
+      passRateDelta: 0,
+      unchanged: 0,
+      missing: 0,
+      base: { total: 0 },
+    });
+    expect(compared.regressions[0]).toEqual({
+      itemId: "i1",
+      baseScore: undefined,
+      candidateScore: undefined,
+      baseOutput: "a",
+      candidateOutput: "b",
+    });
+    expect(compared.improvements[0]).toMatchObject({
+      baseScore: 0,
+      candidateScore: 1,
+    });
+  });
+});
