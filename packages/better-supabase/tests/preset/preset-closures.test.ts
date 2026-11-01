@@ -16,10 +16,13 @@ const composites = new Set(
 /**
  * What a composite adds because its part is a whole block: `support` installs
  * `inbox` with the `chat-sdk-state` module it ships, which the preset listed by
- * module name did not.
+ * module name did not. `field-service` lists `service`, which also installs
+ * maintenance plans, cases and SLAs.
  */
 const ADDED: Readonly<Record<string, readonly string[]>> = {
   helpdesk: ["chat-sdk-state"],
+  // The `service` composite adds maintenance plans, cases and SLAs to dispatch.
+  "field-service": ["cases", "maintenance", "pipelines", "sla"],
 };
 
 const closureOf = (name: keyof typeof PRESETS): string[] =>

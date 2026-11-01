@@ -294,11 +294,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     group: "products",
     blocks: [
       ...SAAS_LINKED,
-      "employees",
-      "hiring",
+      "recruiting",
       "time-tracking",
       "approvals",
-      "calendar",
       "documents",
       "automations",
     ],
@@ -454,9 +452,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     blocks: [
       ...SAAS_LINKED,
       "contacts",
-      "dispatch",
-      "assets",
-      "inventory",
+      "service",
       "quotes",
       "invoices",
       "forms",
