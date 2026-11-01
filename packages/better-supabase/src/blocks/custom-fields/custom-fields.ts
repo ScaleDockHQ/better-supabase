@@ -11,7 +11,7 @@ import type { FieldPack } from "./pack.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   optionalText,
@@ -175,6 +175,11 @@ export interface CustomFields {
   }): AsyncResult<FieldValue>;
   /** Keyed layout: removes one field value. */
   deleteValue(id: string): AsyncResult<boolean>;
+  /** `setField` for each input, in order. It stops at the first failure. */
+  setMany(input: {
+    subject: RecordRef;
+    inputs: readonly SetFieldInput[];
+  }): AsyncResult<FieldValue[]>;
 }
 
 function fieldValueOf(value: unknown): FieldValue {
@@ -379,10 +384,29 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       ),
     deleteValue: (id) =>
       call("delete_field_value", { value_id: id }, (value) => value === true),
+    setMany: ({ subject, inputs }) =>
+      AsyncResult.from(async () => {
+        const values: FieldValue[] = [];
+
+        for (const input of inputs) {
+          const value = await hooked.setField({ subject, input });
+
+          if (!value.ok) {
+            return value;
+          }
+
+          values.push(value.data);
+        }
+
+        return ok(values);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: CustomFields = withBlockHooks(client, options.hooks, {
     block: "custom-fields",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

@@ -7,7 +7,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions, BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { bySubjectType } from "../../core/block-subjects.ts";
+import { bySubjectType, subjectKey } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
@@ -121,6 +121,14 @@ export interface Reactions {
   saveCustomEmoji(input: CustomEmojiInput): AsyncResult<CustomEmoji>;
   /** Deletes a custom emoji and the reactions that used it. */
   deleteCustomEmoji(id: string): AsyncResult<boolean>;
+  /**
+   * Adds the caller's reaction, or removes it when they already reacted with
+   * that emoji, and returns the counts.
+   */
+  toggle(input: {
+    subject: RecordRef;
+    emoji: string;
+  }): AsyncResult<readonly ReactionCount[]>;
 }
 
 /** The topic the module broadcasts an organization's reaction changes to. */
@@ -271,10 +279,22 @@ export function createReactions(options: ReactionsOptions): Reactions {
       ),
     deleteCustomEmoji: (id) =>
       call("delete_custom_emoji", { emoji_id: id }, (value) => value === true),
+    toggle: ({ subject, emoji }) =>
+      hooked.summary([subject]).andThen((summary) => {
+        const reacted =
+          summary[subjectKey(subject)]?.some(
+            (c) => c.emoji === emoji && c.reacted,
+          ) ?? false;
+
+        return hooked.react({ subject, emoji, present: !reacted });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Reactions = withBlockHooks(client, options.hooks, {
     block: "reactions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

@@ -14,7 +14,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -121,6 +121,14 @@ export interface Tags<F extends object = Record<never, never>> {
    * tags on the record `on` names.
    */
   list(params?: ListTagsParams): AsyncResult<readonly Tag<F>[]>;
+  /**
+   * Makes `tagIds` the tags on the record: attaches the missing ones and
+   * detaches the others, in that order. It stops at the first failure.
+   */
+  replace(input: {
+    record: RecordRef;
+    tagIds: readonly string[];
+  }): AsyncResult<{ readonly attached: number; readonly detached: number }>;
 }
 
 function tagOf(value: unknown): Tag {
@@ -267,10 +275,44 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
         return listed.andThen(fields.rows);
       }),
+    replace: ({ record, tagIds }) =>
+      AsyncResult.from(async () => {
+        const current = await hooked.list({ on: record });
+
+        if (!current.ok) {
+          return current;
+        }
+
+        const have = new Set(current.data.map((tag) => tag.id));
+        const want = new Set(tagIds);
+        const toAttach = [...want].filter((id) => !have.has(id));
+        const toDetach = [...have].filter((id) => !want.has(id));
+
+        for (const tagId of toAttach) {
+          const attached = await hooked.attach({ record, tagId });
+
+          if (!attached.ok) {
+            return attached;
+          }
+        }
+
+        for (const tagId of toDetach) {
+          const detached = await hooked.detach({ record, tagId });
+
+          if (!detached.ok) {
+            return detached;
+          }
+        }
+
+        return ok({ attached: toAttach.length, detached: toDetach.length });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Tags<F> = withBlockHooks(client, options.hooks, {
     block: "tags",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

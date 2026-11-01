@@ -191,6 +191,12 @@ export interface Relations<F extends object = Record<never, never>> {
     readonly origins: RelationNode[];
     readonly conversions: RelationNode[];
   }>;
+  /** `ancestors` or `descendants` of a subject, by `direction`. */
+  walk(input: {
+    subject: RecordRef;
+    kind: string;
+    direction: "up" | "down";
+  }): AsyncResult<RelationNode[]>;
 }
 
 const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -428,10 +434,17 @@ export function createRelations<
               : null,
         ),
       ),
+    walk: ({ subject, kind, direction }) =>
+      direction === "up"
+        ? hooked.ancestors({ subject, kind })
+        : hooked.descendants({ subject, kind }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Relations<F> = withBlockHooks(client, options.hooks, {
     block: "relations",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

@@ -254,3 +254,7 @@ const byDoc = await reactions
 byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
 await reactions.react(doc, "👍", { present: false }).orThrow();
 ```
+
+## Toggle a reaction
+
+`toggle({ subject, emoji })` adds the caller's reaction, or removes it when they already reacted with that emoji, and returns the counts.

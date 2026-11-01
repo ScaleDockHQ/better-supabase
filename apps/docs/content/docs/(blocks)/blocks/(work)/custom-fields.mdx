@@ -320,3 +320,7 @@ const tier = await fields
 await fields.setValue(customer, tier.id, "gold").orThrow();
 const values = await fields.readValues(customer).orThrow();
 ```
+
+## Set several values
+
+`setMany({ subject, inputs })` calls `setField` for each input in order and stops at the first failure.

@@ -213,6 +213,14 @@ export interface Comments<F extends object = Record<never, never>> {
   markRead(
     input: { subject: RecordRef } & { readonly readAt?: Temporal.Instant },
   ): AsyncResult<Temporal.Instant | undefined>;
+  /** `create` with `parentId`. */
+  reply(input: {
+    subject: RecordRef;
+    parentId: string;
+    comment: Omit<NewComment<F>, "parentId">;
+  }): AsyncResult<Comment<F>>;
+  /** `resolve` with `resolved: false`. */
+  reopen(id: string): AsyncResult<Comment<F>>;
 }
 
 /**
@@ -456,10 +464,16 @@ export function createComments<
               (value) => requiredInstant(value, "readAt"),
             ),
       ),
+    reply: ({ subject, parentId, comment }) =>
+      hooked.create({ subject, comment: { ...comment, parentId } }),
+    reopen: (id) => hooked.resolve({ id, resolved: false }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Comments<F> = withBlockHooks(client, options.hooks, {
     block: "comments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

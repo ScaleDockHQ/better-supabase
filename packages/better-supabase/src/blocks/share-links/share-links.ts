@@ -234,6 +234,15 @@ export interface ShareLinks<F extends object = Record<never, never>> {
     subject: RecordRef;
     starred: boolean;
   }): AsyncResult<boolean>;
+  /**
+   * Creates a replacement link, then revokes the old one, so the subject is
+   * never without a working link. The old link stays when the new one fails.
+   */
+  rotate(input: {
+    subject: RecordRef;
+    linkId: string;
+    options?: string | CreateShareLinkOptions<F> | undefined;
+  }): AsyncResult<CreatedShareLink<F>>;
 }
 
 const fieldsOf = (row: Readonly<Record<string, unknown>>) =>
@@ -419,10 +428,17 @@ export function createShareLinks<
         { subject_type: subject.type, subject_id: subject.id, starred },
         (value) => value === true,
       ),
+    rotate: ({ subject, linkId, options }) =>
+      hooked
+        .create({ subject, options })
+        .andThen((created) => hooked.revoke(linkId).map(() => created)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: ShareLinks<F> = withBlockHooks(client, options.hooks, {
     block: "share-links",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

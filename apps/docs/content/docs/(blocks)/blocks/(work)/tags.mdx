@@ -236,3 +236,11 @@ const vip = await tags
 await tags.attach(customer, vip.id).orThrow();
 const onCustomer = await tags.list({ on: customer }).orThrow();
 ```
+
+## Replace a record's tags
+
+`replace({ record, tagIds })` reads the tags on the record, attaches the ones that are missing and detaches the others, and returns `{ attached, detached }`. It stops at the first failure.
+
+```ts
+await db.tags.replace({ record, tagIds: [vip.id, lead.id] }).orThrow();
+```

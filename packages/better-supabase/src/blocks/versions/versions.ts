@@ -142,6 +142,11 @@ export interface Versions<F extends object = Record<never, never>> {
     fromId: string;
     toId: string;
   }): AsyncResult<JsonPatchOperation[]>;
+  /**
+   * Snapshots the subject as it is, labeled `before restore`, then restores the
+   * version. Nothing is restored when the snapshot fails.
+   */
+  restoreSafely(id: string): AsyncResult<RestoreResult>;
 }
 
 function versionOf(value: unknown, fn: string): Version {
@@ -273,10 +278,24 @@ export function createVersions<
           createPatch(from.content ?? null, to.content ?? null),
         ),
       ),
+    restoreSafely: (id) =>
+      hooked
+        .get(id)
+        .andThen((version) =>
+          hooked
+            .snapshot({
+              subject: version.subject,
+              input: { label: "before restore" },
+            })
+            .andThen(() => hooked.restore(id)),
+        ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Versions<F> = withBlockHooks(client, options.hooks, {
     block: "versions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
