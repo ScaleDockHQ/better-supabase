@@ -209,6 +209,7 @@ export {
   testGraphCompiler,
   testMedicationCatalog,
   testNoteTaker,
+  testPrescriptionGateway,
   testTextExtractor,
   testTranscriber,
 } from "./injectables.ts";
@@ -224,6 +225,7 @@ export type {
   TestGraphCompilerOptions,
   TestMedicationCatalogOptions,
   TestNoteTakerOptions,
+  TestPrescriptionGatewayOptions,
   TestTextExtractorOptions,
   TestTranscriberOptions,
 } from "./injectables.ts";

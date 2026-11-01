@@ -10373,6 +10373,67 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "e-prescribing",
+      "title": "E-prescribing",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "medications"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "e-prescribing",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "prescription": {
+            "table": "prescriptions",
+            "singular": "prescription",
+            "primary": true
+          }
+        },
+        "tables": {
+          "prescriptions": {
+            "name": "prescriptions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "order": "order_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "prescriber": "prescriber_id",
+              "prescriberName": "prescriber_name",
+              "status": "status",
+              "snapshot": "snapshot",
+              "signedBy": "signed_by",
+              "signedAt": "signed_at",
+              "gateway": "gateway",
+              "gatewayReference": "gateway_reference",
+              "sentAt": "sent_at",
+              "deliveryError": "delivery_error",
+              "dispensedAt": "dispensed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "e_prescribing.read",
+          "write": "e_prescribing.write",
+          "sign": "e_prescribing.sign",
+          "manage": "e_prescribing.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -22423,6 +22484,59 @@ export const PRESET_CATALOG: PresetCatalog = {
           "care_rule.created",
           "care_rule.updated",
           "care_rule.deleted"
+        ]
+      }
+    },
+    {
+      "name": "e-prescribing",
+      "sql": [
+        "e-prescribing"
+      ],
+      "category": "people",
+      "client": {
+        "export": "ePrescribingBlock",
+        "subpath": "better-supabase/blocks/e-prescribing"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Prescription"
+        },
+        {
+          "name": "PrescriptionCancellation"
+        },
+        {
+          "name": "PrescriptionDelivery"
+        },
+        {
+          "name": "PrescriptionEventData"
+        },
+        {
+          "name": "PrescriptionGateway"
+        },
+        {
+          "name": "PrescriptionListOptions"
+        },
+        {
+          "name": "PrescriptionReceipt"
+        },
+        {
+          "name": "PrescriptionRequest"
+        },
+        {
+          "name": "PrescriptionStatus"
+        }
+      ],
+      "events": {
+        "type": "EPrescribingEvents",
+        "types": [
+          "prescription.created",
+          "prescription.signed",
+          "prescription.sent",
+          "prescription.delivery_failed",
+          "prescription.dispensed",
+          "prescription.cancelled"
         ]
       }
     },

@@ -874,6 +874,19 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "e-prescribing": {
+    readonly tables: {
+      readonly "prescriptions": "id" | "tenant" | "order" | "subjectType" | "subjectId" | "prescriber" | "prescriberName" | "status" | "snapshot" | "signedBy" | "signedAt" | "gateway" | "gatewayReference" | "sentAt" | "deliveryError" | "dispensedAt" | "cancelledAt" | "cancelReason" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "cancel_prescription" | "create_prescription" | "get_prescription" | "list_prescriptions" | "prescription_order_snapshot" | "record_prescription_delivery" | "record_prescription_dispense" | "sign_prescription";
+    readonly actions: "read" | "write" | "sign" | "manage";
+    readonly hooks: "before_prescription_sign" | "after_prescription_sign";
+    readonly entities: {
+      readonly "prescription": "id" | "tenant_id" | "order_id" | "subject_type" | "subject_id" | "prescriber_id" | "prescriber_name" | "status" | "snapshot" | "signed_by" | "signed_at" | "gateway" | "gateway_reference" | "sent_at" | "delivery_error" | "dispensed_at" | "cancelled_at" | "cancel_reason" | "created_at" | "updated_at";
+    };
+    readonly primary: "prescription";
+    readonly formerKeys: never;
+  };
   readonly "employees": {
     readonly tables: {
       readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt" | "firstName" | "lastName";
