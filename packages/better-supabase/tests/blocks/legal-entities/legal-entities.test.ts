@@ -394,3 +394,23 @@ describe("createLegalEntities with every field", () => {
     });
   });
 });
+
+describe("createLegalEntities with a logger", () => {
+  it("wraps the client in hooks and keeps the logger", async () => {
+    const t = fieldsTransport({
+      legal_entities_disable_check: () => ({
+        ok: true,
+        collisions: [],
+        defaultCollisions: [],
+      }),
+    });
+
+    const entities = createLegalEntities({
+      transport: t,
+      tenant: "org-1",
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+
+    expect((await entities.disableCheck().orThrow()).ok).toBe(true);
+  });
+});
