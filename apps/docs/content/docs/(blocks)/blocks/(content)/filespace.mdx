@@ -1,0 +1,70 @@
+---
+title: Filespace
+description: The drive with attachments, versions, share links, search and the bin, with helpers to upload and share files.
+---
+
+Is the Drive-style app as one block. The plan called it `documents`; see [the names](/docs/blocks/catalog-composites).
+
+```bash
+better-supabase add filespace
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { filespace: {} } });
+```
+
+`add` lists `filespace` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/filespace` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { filespaceBlock } from "better-supabase/blocks/filespace";
+```
+
+## Parts
+
+Installing `filespace` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`drive`](/docs/blocks/drive)
+- [`attachments`](/docs/blocks/attachments)
+- [`versions`](/docs/blocks/versions)
+- [`share-links`](/docs/blocks/share-links)
+- [`search`](/docs/blocks/search)
+- [`trash`](/docs/blocks/trash)
+
+## Helpers
+
+| Helper                                                   | What it does                                                                                                                                                                              |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `put({ organizationId, file, send })`                    | Creates the file, hands its signed upload to `send`, which PUTs the bytes, then commits it. When `send` throws, the pending file goes to the bin and the error comes back as a `DbError`. |
+| `shareMany({ id, principals, expiresAt })`               | Shares a node with each principal. A grant is idempotent, so a retry finishes the rest.                                                                                                   |
+| `publicLink({ id, role, expiresAt, password, maxUses })` | Creates a link anyone with the token can open.                                                                                                                                            |
+
+```ts
+const node = await blocks.filespace
+  .put({
+    organizationId,
+    file: {
+      parentId: folderId,
+      name: "plan.pdf",
+      size: bytes.length,
+      mimeType: "application/pdf",
+    },
+    send: (upload) => putBytes(upload, bytes),
+  })
+  .orThrow();
+
+const link = await blocks.filespace
+  .publicLink({
+    id: node.id,
+    expiresAt: Temporal.Now.instant().add({ hours: 72 }),
+  })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove filespace
+better-supabase remove filespace --with-parts
+```
+
+The first command replaces `filespace` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

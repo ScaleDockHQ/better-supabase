@@ -1,0 +1,40 @@
+---
+title: Commerce
+description: Catalog, inventory, orders and promotions for a shop, installed as one block.
+---
+
+Covers the order side of a shop: products and prices, stock, orders and discount rules. It matches what the `commerce` preset installed before it became a composite.
+
+```bash
+better-supabase add commerce
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { commerce: {} } });
+```
+
+`add` lists `commerce` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/commerce` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { commerceBlock } from "better-supabase/blocks/commerce";
+```
+
+## Parts
+
+Installing `commerce` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`catalog`](/docs/blocks/catalog)
+- [`inventory`](/docs/blocks/inventory)
+- [`orders`](/docs/blocks/orders)
+- [`promotions`](/docs/blocks/promotions)
+
+It has no helpers yet. Shipments and invoices stay separate blocks, so add them next to it when the shop ships or bills.
+
+## Remove
+
+```bash
+better-supabase remove commerce
+better-supabase remove commerce --with-parts
+```
+
+The first command replaces `commerce` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

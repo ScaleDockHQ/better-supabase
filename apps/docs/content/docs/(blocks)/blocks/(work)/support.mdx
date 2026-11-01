@@ -1,0 +1,44 @@
+---
+title: Support
+description: The shared inbox, tasks named as tickets, SLAs and a knowledge base, installed as one block.
+---
+
+Covers a help desk. It sets the task names to ticket and issue until the app sets its own.
+
+```bash
+better-supabase add support
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { support: {} } });
+```
+
+`add` lists `support` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/support` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { supportBlock } from "better-supabase/blocks/support";
+```
+
+## Parts
+
+Installing `support` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`inbox`](/docs/blocks/inbox)
+- [`tasks`](/docs/blocks/tasks)
+- [`sla`](/docs/blocks/sla)
+- [`knowledge`](/docs/blocks/knowledge)
+
+## Defaults
+
+Tasks are named `ticket` and `issue`. Set `blocks.tasks.names` in the config to change them; your keys win over the default.
+
+The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/extending/composite-blocks)).
+
+## Remove
+
+```bash
+better-supabase remove support
+better-supabase remove support --with-parts
+```
+
+The first command replaces `support` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

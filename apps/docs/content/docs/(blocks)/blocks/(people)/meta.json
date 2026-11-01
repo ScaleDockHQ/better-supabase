@@ -17,6 +17,12 @@
     "medications",
     "clinical-decision-support",
     "passes",
-    "enrollments"
+    "enrollments",
+    "care",
+    "events",
+    "learning",
+    "people",
+    "recruiting",
+    "scheduling"
   ]
 }

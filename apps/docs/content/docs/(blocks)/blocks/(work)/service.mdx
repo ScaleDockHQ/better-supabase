@@ -1,0 +1,40 @@
+---
+title: Service
+description: Dispatch, maintenance plans, assets, cases, inventory and SLAs for field work.
+---
+
+Covers a service team: work orders on a dispatch board at customer assets, planned maintenance, cases, parts from stock and response targets. The `field-service` preset lists it.
+
+```bash
+better-supabase add service
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { service: {} } });
+```
+
+`add` lists `service` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/service` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { serviceBlock } from "better-supabase/blocks/service";
+```
+
+## Parts
+
+Installing `service` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`dispatch`](/docs/blocks/dispatch)
+- [`maintenance`](/docs/blocks/maintenance)
+- [`assets`](/docs/blocks/assets)
+- [`cases`](/docs/blocks/cases)
+- [`inventory`](/docs/blocks/inventory)
+- [`sla`](/docs/blocks/sla)
+
+## Remove
+
+```bash
+better-supabase remove service
+better-supabase remove service --with-parts
+```
+
+The first command replaces `service` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

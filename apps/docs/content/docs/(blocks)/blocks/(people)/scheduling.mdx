@@ -1,0 +1,52 @@
+---
+title: Scheduling
+description: Bookings on the calendar with reminders, and a helper that books a slot and sets the reminder.
+---
+
+Covers appointments: services and resources with availability, holds and confirmations, calendar events and reminders.
+
+```bash
+better-supabase add scheduling
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { scheduling: {} } });
+```
+
+`add` lists `scheduling` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/scheduling` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { schedulingBlock } from "better-supabase/blocks/scheduling";
+```
+
+## Parts
+
+Installing `scheduling` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`bookings`](/docs/blocks/bookings)
+- [`calendar`](/docs/blocks/calendar)
+- [`reminders`](/docs/blocks/reminders)
+
+## Helpers
+
+`bookWithReminder({ serviceId, resourceId, startsAt, customer, reminder })` confirms the booking, then sets the caller's reminder on it, `reminder` minutes before the booking or once at an instant. A failed reminder returns its error and leaves the booking confirmed, so retry it with `reminders.upsert`.
+
+```ts
+const { booking } = await blocks.scheduling
+  .bookWithReminder({
+    serviceId,
+    resourceId,
+    startsAt: Temporal.Instant.from("2026-12-01T09:00:00Z"),
+    reminder: 60,
+  })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove scheduling
+better-supabase remove scheduling --with-parts
+```
+
+The first command replaces `scheduling` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

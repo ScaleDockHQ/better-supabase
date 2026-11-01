@@ -1,0 +1,42 @@
+---
+title: Projects
+description: Tasks, time tracking, billable time, approvals, invoices and meetings for project work.
+---
+
+Covers work that is tracked and billed: tasks, time entries priced from a rate card, approvals of the time, invoices from the approved hours and meetings.
+
+```bash
+better-supabase add projects
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { projects: {} } });
+```
+
+`add` lists `projects` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/projects` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { projectsBlock } from "better-supabase/blocks/projects";
+```
+
+## Parts
+
+Installing `projects` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`tasks`](/docs/blocks/tasks)
+- [`time-tracking`](/docs/blocks/time-tracking)
+- [`billable-time`](/docs/blocks/billable-time)
+- [`approvals`](/docs/blocks/approvals)
+- [`invoices`](/docs/blocks/invoices)
+- [`meetings`](/docs/blocks/meetings)
+
+It has no helpers yet. The `projects` preset keeps listing its own blocks, because it adds ranking, reminders and a state machine, not these parts.
+
+## Remove
+
+```bash
+better-supabase remove projects
+better-supabase remove projects --with-parts
+```
+
+The first command replaces `projects` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

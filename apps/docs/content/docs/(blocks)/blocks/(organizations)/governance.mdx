@@ -1,0 +1,37 @@
+---
+title: Governance
+description: Audit, field history and data lifecycle, the blocks behind records of who changed what and how long it is kept.
+---
+
+Covers accountability: the audit log, per-field change history and retention with legal holds. The plan called it `compliance`; see [the names](/docs/blocks/catalog-composites).
+
+```bash
+better-supabase add governance
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { governance: {} } });
+```
+
+`add` lists `governance` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/governance` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { governanceBlock } from "better-supabase/blocks/governance";
+```
+
+## Parts
+
+Installing `governance` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`audit`](/docs/blocks/audit)
+- [`field-history`](/docs/blocks/field-history)
+- [`data-lifecycle`](/docs/blocks/data-lifecycle)
+
+## Remove
+
+```bash
+better-supabase remove governance
+better-supabase remove governance --with-parts
+```
+
+The first command replaces `governance` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

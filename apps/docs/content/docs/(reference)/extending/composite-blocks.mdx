@@ -78,6 +78,12 @@ takes out the composite and its glue and keeps the parts as ordinary blocks.
 With `withParts` it also removes each part that no other selected block or
 composite still needs, and reports the ones it kept and why.
 
+## The composites that ship
+
+The library ships nineteen composites, each with a page: [saas](/docs/blocks/saas), [sales](/docs/blocks/sales), [crm](/docs/blocks/crm), [commerce](/docs/blocks/commerce), [procurement](/docs/blocks/procurement), [finance](/docs/blocks/finance), [support](/docs/blocks/support), [projects](/docs/blocks/projects), [service](/docs/blocks/service), [people](/docs/blocks/people), [recruiting](/docs/blocks/recruiting), [scheduling](/docs/blocks/scheduling), [learning](/docs/blocks/learning), [events](/docs/blocks/events), [cms](/docs/blocks/cms), [care](/docs/blocks/care), [filespace](/docs/blocks/filespace), [collaboration](/docs/blocks/collaboration) and [governance](/docs/blocks/governance). The [overview](/docs/blocks/catalog-composites) explains why two carry names that differ from the block they build on.
+
+Presets list composites in place of long block arrays. The preset tests resolve every named preset and compare its closure with the list recorded before the change, so a preset installs the same blocks. Where a composite adds blocks, the test names them: `helpdesk` gains `chat-sdk-state` and `field-service` gains cases, maintenance, pipelines and SLAs.
+
 ## The catalog
 
 Each manifest in the catalog carries `composes` and `defaults` for a

@@ -24,6 +24,9 @@
     "cases",
     "inspections",
     "incidents",
-    "assignment"
+    "assignment",
+    "projects",
+    "service",
+    "support"
   ]
 }
