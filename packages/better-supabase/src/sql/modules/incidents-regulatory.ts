@@ -12,10 +12,10 @@ import {
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The regimes of the regulatory reporting profile. */
-export const REGULATORY_REGIMES = ["nis2", "dora", "cra"] as const;
+const REGULATORY_REGIMES = ["nis2", "dora", "cra"] as const;
 
 /** The filing stages each regime names. */
-export const REGULATORY_STAGES = [
+const REGULATORY_STAGES = [
   "early_warning",
   "notification",
   "initial",

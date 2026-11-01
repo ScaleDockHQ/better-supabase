@@ -87,7 +87,7 @@ export async function signerFromJwk(
 
 let encoder: InstanceType<typeof TextEncoder> | undefined;
 
-export function utf8(text: string): Uint8Array<ArrayBuffer> {
+function utf8(text: string): Uint8Array<ArrayBuffer> {
   return (encoder ??= new TextEncoder()).encode(text);
 }
 

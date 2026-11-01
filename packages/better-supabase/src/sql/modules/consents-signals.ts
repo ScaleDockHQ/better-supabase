@@ -8,10 +8,10 @@ import { subjectTenant } from "../subject-check-sql.ts";
 import { consentsSql } from "./consents-sql.ts";
 
 /** The signals a record can carry as consent evidence. */
-export const SIGNAL_KINDS = ["gpc", "tcf", "gpp"] as const;
+const SIGNAL_KINDS = ["gpc", "tcf", "gpp"] as const;
 
 /** The IAB TCF policy version that TCF v2.2 introduced. */
-export const TCF_V22_POLICY = 4;
+const TCF_V22_POLICY = 4;
 
 /**
  * The bit positions of a TC string's core segment (IAB TCF v2.2, "Transparency
@@ -65,7 +65,7 @@ const instant = (field: keyof typeof TC_FIELDS): string =>
  * features as lists of ids. The vendor sections stay unread. It raises
  * `invalid_parameter_value` for a string that isn't a TCF v2 core segment.
  */
-export function tcParserSql(name: string): string {
+function tcParserSql(name: string): string {
   const invalid = (message: string): string =>
     `raise exception '${message}' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID'`;
 
@@ -120,7 +120,7 @@ $$;`;
  * (`DBABM~section~section`): the type (3) and the version (1), and keeps the
  * sections as given. It raises for anything else.
  */
-export function gppParserSql(name: string): string {
+function gppParserSql(name: string): string {
   const invalid = (message: string): string =>
     `raise exception '${message}' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID'`;
 

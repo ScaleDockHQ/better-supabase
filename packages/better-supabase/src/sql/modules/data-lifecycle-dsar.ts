@@ -10,7 +10,7 @@ import { lifecycleJson } from "./data-lifecycle-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The kinds of request GDPR Arts. 15 to 20 give a data subject. */
-export const DSAR_KINDS = [
+const DSAR_KINDS = [
   "access",
   "erasure",
   "rectification",
@@ -18,12 +18,7 @@ export const DSAR_KINDS = [
 ] as const;
 
 /** Where a request stands. */
-export const DSAR_STATUSES = [
-  "received",
-  "verified",
-  "fulfilled",
-  "refused",
-] as const;
+const DSAR_STATUSES = ["received", "verified", "fulfilled", "refused"] as const;
 
 /** The request table. */
 export const DSAR_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {

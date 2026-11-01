@@ -9,7 +9,7 @@ import { moduleOperations } from "./permissions-model.ts";
  * The restrictions a statement of reasons names, as in Article 17(1) of
  * Regulation (EU) 2022/2065 (the Digital Services Act).
  */
-export const DSA_RESTRICTIONS = [
+const DSA_RESTRICTIONS = [
   "removal",
   "disabled_access",
   "demotion",

@@ -118,7 +118,7 @@ const KEV_URL =
 const CVE_ID = /^CVE-\d{4}-\d{4,}$/u;
 
 /** Whether `value` is a CVE id. */
-export const isCveId = (value: string): boolean => CVE_ID.test(value);
+const isCveId = (value: string): boolean => CVE_ID.test(value);
 
 const text = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim().length > 0
