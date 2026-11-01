@@ -309,6 +309,12 @@ export const MODULE_PERMISSION_SCOPES: {
     write: "tenant",
     manage: "tenant",
   },
+  "e-prescribing": {
+    read: "tenant",
+    write: "tenant",
+    sign: "tenant",
+    manage: "tenant",
+  },
   maintenance: { read: "tenant", record: "tenant", manage: "tenant" },
   appraisals: { read: "tenant", review: "tenant", manage: "tenant" },
   warehouse: { read: "tenant", pick: "tenant", manage: "tenant" },

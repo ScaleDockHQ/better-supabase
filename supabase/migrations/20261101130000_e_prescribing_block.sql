@@ -1,130 +1,222 @@
 SET local check_function_bodies = off;
 
-ALTER TABLE "better_supabase"."invoice_deliveries"
-  DROP CONSTRAINT "invoice_deliveries_invoice_id_fkey";
-
-DROP FUNCTION "api"."list_invoice_deliveries"(uuid);
-
-DROP FUNCTION "api"."record_invoice_delivery"(uuid, text, text, text, text);
-
-DROP FUNCTION "better_supabase"."list_invoice_deliveries"(uuid);
-
-DROP FUNCTION "better_supabase"."record_invoice_delivery"(uuid, text, text, text, text);
-
-DROP TABLE "better_supabase"."invoice_deliveries";
-
-CREATE TABLE "better_supabase"."invoice_e_deliveries" (
-  "id"            uuid                     NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id"     uuid                     NOT NULL,
-  "invoice_id"    uuid,
-  "direction"     text                     NOT NULL,
-  "format"        text,
-  "channel"       text                     NOT NULL,
-  "message_id"    text                     NOT NULL,
-  "state"         text                     NOT NULL,
-  "reason"        text,
-  "document_hash" text,
-  "created_at"    timestamp with time zone NOT NULL DEFAULT now(),
-  "updated_at"    timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT "invoice_e_deliveries_channel_check" CHECK (((length(channel) >= 1) AND (length(channel) <= 100))),
-  CONSTRAINT "invoice_e_deliveries_direction_check" CHECK ((direction = ANY (ARRAY['outbound'::text, 'inbound'::text]))),
-  CONSTRAINT "invoice_e_deliveries_document_hash_check" CHECK (((document_hash IS NULL) OR (document_hash ~ '^[0-9a-f]{64}$'::text))),
-  CONSTRAINT "invoice_e_deliveries_format_check" CHECK (((format IS NULL) OR ((length(format) >= 1) AND (length(format) <= 100)))),
-  CONSTRAINT "invoice_e_deliveries_message_id_check" CHECK (((length(message_id) >= 1) AND (length(message_id) <= 300))),
-  CONSTRAINT "invoice_e_deliveries_pkey" PRIMARY KEY (id),
-  CONSTRAINT "invoice_e_deliveries_reason_check" CHECK (((reason IS NULL) OR (length(reason) <= 2000))),
-  CONSTRAINT "invoice_e_deliveries_state_check" CHECK ((state = ANY (ARRAY['pending'::text, 'delivered'::text, 'rejected'::text, 'received'::text, 'unmatched'::text])))
+CREATE TABLE "better_supabase"."prescriptions" (
+  "id"                uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "tenant_id"         uuid                     NOT NULL,
+  "order_id"          uuid                     NOT NULL,
+  "subject_type"      text                     NOT NULL,
+  "subject_id"        text                     NOT NULL,
+  "prescriber_id"     uuid                     NOT NULL,
+  "prescriber_name"   text,
+  "status"            text                     NOT NULL DEFAULT 'draft'::text,
+  "snapshot"          jsonb,
+  "signed_by"         uuid,
+  "signed_at"         timestamp with time zone,
+  "gateway"           text,
+  "gateway_reference" text,
+  "sent_at"           timestamp with time zone,
+  "delivery_error"    text,
+  "dispensed_at"      timestamp with time zone,
+  "cancelled_at"      timestamp with time zone,
+  "cancel_reason"     text,
+  "created_at"        timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at"        timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT "prescriptions_cancel_reason_check" CHECK (((cancel_reason IS NULL) OR (length(cancel_reason) <= 1000))),
+  CONSTRAINT "prescriptions_check1" CHECK (((signed_by IS NULL) OR (signed_by = prescriber_id))),
+  CONSTRAINT "prescriptions_check2" CHECK (((status <> ALL (ARRAY['sent'::text, 'dispensed'::text])) OR ((sent_at IS NOT NULL) AND (gateway IS NOT NULL)))),
+  CONSTRAINT "prescriptions_check3" CHECK (((status <> 'dispensed'::text) OR (dispensed_at IS NOT NULL))),
+  CONSTRAINT "prescriptions_check4" CHECK (((status <> 'cancelled'::text) OR (cancelled_at IS NOT NULL))),
+  CONSTRAINT "prescriptions_check" CHECK (((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) OR ((signed_by IS NOT NULL) AND (signed_at IS NOT NULL) AND (snapshot IS
+    NOT NULL)))),
+  CONSTRAINT "prescriptions_delivery_error_check" CHECK (((delivery_error IS NULL) OR (length(delivery_error) <= 1000))),
+  CONSTRAINT "prescriptions_gateway_check" CHECK (((gateway IS NULL) OR ((length(gateway) >= 1) AND (length(gateway) <= 100)))),
+  CONSTRAINT "prescriptions_gateway_reference_check" CHECK (((gateway_reference IS NULL) OR (length(gateway_reference) <= 200))),
+  CONSTRAINT "prescriptions_pkey" PRIMARY KEY (id),
+  CONSTRAINT "prescriptions_prescriber_name_check" CHECK (((prescriber_name IS NULL) OR (length(prescriber_name) <= 300))),
+  CONSTRAINT "prescriptions_status_check" CHECK ((status = ANY (ARRAY['draft'::text, 'signed'::text, 'sent'::text, 'dispensed'::text, 'cancelled'::text])))
 );
 
-ALTER TABLE "better_supabase"."invoice_e_deliveries"
+ALTER TABLE "better_supabase"."prescriptions"
   ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE "better_supabase"."invoice_e_endpoints" (
-  "id"          uuid                     NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id"   uuid                     NOT NULL,
-  "party_kind"  text                     NOT NULL,
-  "party_id"    text                     NOT NULL,
-  "scheme"      text                     NOT NULL,
-  "endpoint_id" text                     NOT NULL,
-  "created_at"  timestamp with time zone NOT NULL DEFAULT now(),
-  "updated_at"  timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT "invoice_e_endpoints_endpoint_id_check" CHECK (((length(endpoint_id) >= 1) AND (length(endpoint_id) <= 200))),
-  CONSTRAINT "invoice_e_endpoints_party_id_check" CHECK (((length(party_id) >= 1) AND (length(party_id) <= 150))),
-  CONSTRAINT "invoice_e_endpoints_party_kind_check" CHECK ((party_kind = ANY (ARRAY['organization'::text, 'legal_entity'::text, 'company'::text]))),
-  CONSTRAINT "invoice_e_endpoints_pkey" PRIMARY KEY (id),
-  CONSTRAINT "invoice_e_endpoints_scheme_check" CHECK ((scheme ~ '^[0-9]{4}$'::text))
-);
-
-ALTER TABLE "better_supabase"."invoice_e_endpoints"
-  ENABLE ROW LEVEL SECURITY;
-
-CREATE OR REPLACE FUNCTION api.find_e_endpoint_party (
-  tenant      uuid,
-  scheme      text,
-  endpoint_id text
+CREATE OR REPLACE FUNCTION api.cancel_prescription (
+  prescription_id uuid,
+  reason          text DEFAULT NULL::text
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."find_e_endpoint_party"($1, $2, $3) $function$;
+  AS $function$ select "better_supabase"."cancel_prescription"($1, $2) $function$;
 
-CREATE OR REPLACE FUNCTION api.invoice_e_endpoints (
-  invoice uuid
+CREATE OR REPLACE FUNCTION api.create_prescription (
+  tenant   uuid,
+  order_id uuid,
+  attrs    jsonb DEFAULT '{}'::jsonb
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."invoice_e_endpoints"($1) $function$;
+  AS $function$ select "better_supabase"."create_prescription"($1, $2, $3) $function$;
 
-CREATE OR REPLACE FUNCTION api.list_e_invoice_deliveries (
-  tenant    uuid,
-  direction text DEFAULT NULL::text,
-  state     text DEFAULT NULL::text,
-  invoice   uuid DEFAULT NULL::uuid
+CREATE OR REPLACE FUNCTION api.get_prescription (
+  prescription_id uuid
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."list_e_invoice_deliveries"($1, $2, $3, $4) $function$;
+  AS $function$ select "better_supabase"."get_prescription"($1) $function$;
 
-CREATE OR REPLACE FUNCTION api.record_e_invoice_delivery (
-  tenant        uuid,
-  direction     text,
-  channel       text,
-  message_id    text,
-  format        text DEFAULT NULL::text,
-  state         text DEFAULT NULL::text,
-  invoice       uuid DEFAULT NULL::uuid,
-  reason        text DEFAULT NULL::text,
-  document_hash text DEFAULT NULL::text
+CREATE OR REPLACE FUNCTION api.list_prescriptions (
+  tenant  uuid,
+  filters jsonb DEFAULT '{}'::jsonb
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."record_e_invoice_delivery"($1, $2, $3, $4, $5, $6, $7, $8, $9) $function$;
+  AS $function$ select "better_supabase"."list_prescriptions"($1, $2) $function$;
 
-CREATE OR REPLACE FUNCTION api.set_e_invoice_delivery_state (
-  delivery uuid,
-  state    text,
-  reason   text DEFAULT NULL::text,
-  invoice  uuid DEFAULT NULL::uuid
+CREATE OR REPLACE FUNCTION api.record_prescription_delivery (
+  prescription_id uuid,
+  gateway         text,
+  reference       text DEFAULT NULL::text,
+  error           text DEFAULT NULL::text
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."set_e_invoice_delivery_state"($1, $2, $3, $4) $function$;
+  AS $function$ select "better_supabase"."record_prescription_delivery"($1, $2, $3, $4) $function$;
 
-CREATE OR REPLACE FUNCTION api.set_invoice_e_endpoint (
-  tenant      uuid,
-  party_kind  text,
-  party_id    text,
-  scheme      text DEFAULT NULL::text,
-  endpoint_id text DEFAULT NULL::text
+CREATE OR REPLACE FUNCTION api.record_prescription_dispense (
+  prescription_id uuid,
+  dispensed_at    timestamp with time zone DEFAULT NULL::timestamp WITH time zone
 )
   RETURNS jsonb
   LANGUAGE sql
   SET search_path TO ''
-  AS $function$ select "better_supabase"."set_invoice_e_endpoint"($1, $2, $3, $4, $5) $function$;
+  AS $function$ select "better_supabase"."record_prescription_dispense"($1, $2) $function$;
+
+CREATE OR REPLACE FUNCTION api.sign_prescription (
+  prescription_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."sign_prescription"($1) $function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.cancel_prescription (
+  prescription_id uuid,
+  reason          text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."prescriptions";
+  v_reason text := nullif(trim(cancel_prescription.reason), '');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."prescriptions" x where x."id" = cancel_prescription.prescription_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.manage'), false))) and not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) and v_row."prescriber_id" is not distinct from auth.uid()) then
+    raise exception 'only the prescriber or a manager cancels a prescription' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+  end if;
+  if v_row."status" in ('dispensed', 'cancelled') then
+    raise exception 'a dispensed or cancelled prescription cannot be cancelled' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end if;
+  if v_reason is null and v_row."status" <> 'draft' then
+    raise exception 'cancelling a signed or sent prescription needs a reason' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end if;
+  if length(coalesce(v_reason, '')) > 1000 then
+    raise exception 'a reason is up to 1000 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end if;
+  update "better_supabase"."prescriptions" x set "status" = 'cancelled', "cancelled_at" = now(), "cancel_reason" = v_reason, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('prescription.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
+  perform better_supabase.audit_event(
+    event_type => 'prescription.cancelled',
+    category => 'data',
+    target_type => 'prescription',
+    record_id => v_row."id"::text,
+    target_label => v_row."status",
+    summary => 'prescription cancelled',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.create_prescription (
+  tenant   uuid,
+  order_id uuid,
+  attrs    jsonb DEFAULT '{}'::jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+#variable_conflict use_variable
+declare
+  v_attrs jsonb := coalesce(create_prescription.attrs, '{}'::jsonb);
+  v_order "better_supabase"."medication_orders";
+  v_row "better_supabase"."prescriptions";
+  v_prescriber uuid := auth.uid();
+  v_name text := nullif(trim(v_attrs ->> 'prescriberName'), '');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_prescription.tenant is not null and coalesce(better_supabase.can('tenant', create_prescription.tenant, 'e_prescribing.write'), false))) then
+    raise exception 'not allowed to draft prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+  end if;
+  begin
+    v_prescriber := coalesce(v_prescriber, nullif(v_attrs ->> 'prescriberId', '')::uuid);
+  exception when invalid_text_representation then
+    raise exception 'prescriberId is a uuid' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end;
+  if v_prescriber is null then
+    raise exception 'a prescription needs a prescriber' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end if;
+  if v_name is not null and length(v_name) > 300 then
+    raise exception 'a prescriber name is up to 300 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end if;
+  select * into v_order from "better_supabase"."medication_orders" x where x."tenant_id" = create_prescription.tenant and x."id" = create_prescription.order_id;
+  if not found then
+    raise exception 'the order is not one of the organization' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+  end if;
+  if v_order."status" <> 'active' then
+    raise exception 'only an active medication order can be prescribed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end if;
+  begin
+    insert into "better_supabase"."prescriptions" ("tenant_id", "order_id", "subject_type", "subject_id", "prescriber_id", "prescriber_name")
+    values (create_prescription.tenant, v_order."id", v_order."subject_type", v_order."subject_id", v_prescriber, v_name)
+    returning * into v_row;
+  exception when unique_violation then
+    raise exception 'this order already has a prescription that is not cancelled' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end;
+  perform "better_supabase".emit_event('prescription.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
+  perform better_supabase.audit_event(
+    event_type => 'prescription.created',
+    category => 'data',
+    target_type => 'prescription',
+    record_id => v_row."id"::text,
+    target_label => v_row."status",
+    summary => 'prescription drafted',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
   RETURNS TABLE (
@@ -324,6 +416,7 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('user', 'better_supabase.till_counts', '"better_supabase"."till_counts"', 'counted_by', true, '{}'::text[], true),
     ('user', 'better_supabase.till_deposits', '"better_supabase"."till_deposits"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'decided_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'prescriber_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -572,8 +665,6 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.invoice_line_sources', '"better_supabase"."invoice_line_sources"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invoice_approval_levels', '"better_supabase"."invoice_approval_levels"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invoice_approvals', '"better_supabase"."invoice_approvals"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.invoice_e_endpoints', '"better_supabase"."invoice_e_endpoints"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.invoice_e_deliveries', '"better_supabase"."invoice_e_deliveries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.sla_policies', '"better_supabase"."sla_policies"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.sla_clocks', '"better_supabase"."sla_clocks"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.goals', '"better_supabase"."goals"', 'tenant_id', true, '{}'::text[], true),
@@ -775,15 +866,14 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.till_counts', '"better_supabase"."till_counts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.till_deposits', '"better_supabase"."till_deposits"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_rules', '"better_supabase"."care_rules"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.find_e_endpoint_party (
-  tenant      uuid,
-  scheme      text,
-  endpoint_id text
+CREATE OR REPLACE FUNCTION better_supabase.get_prescription (
+  prescription_id uuid
 )
   RETURNS jsonb
   LANGUAGE plpgsql
@@ -791,55 +881,21 @@ CREATE OR REPLACE FUNCTION better_supabase.find_e_endpoint_party (
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
-begin
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', find_e_endpoint_party.tenant, 'invoices.read'), false)) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  return (
-    select jsonb_build_object('partyKind', e."party_kind", 'partyId', e."party_id")
-    from "better_supabase"."invoice_e_endpoints" e
-    where e."tenant_id" = find_e_endpoint_party.tenant
-      and e."scheme" = find_e_endpoint_party.scheme
-      and lower(e."endpoint_id") = lower(find_e_endpoint_party.endpoint_id)
-    order by case e."party_kind" when 'company' then 0 else 1 end, e."created_at"
-    limit 1
-  );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.invoice_e_endpoints (
-  invoice uuid
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
+#variable_conflict use_variable
 declare
-  v_row "better_supabase"."invoices";
-  v_seller jsonb;
-  v_buyer jsonb;
+  v_row "better_supabase"."prescriptions";
 begin
-  select * into v_row from "better_supabase"."invoices" x where x."id" = invoice_e_endpoints.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
-  if v_row."id" is null then
-    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."prescriptions" x where x."id" = get_prescription.prescription_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
   end if;
-  select coalesce(
-    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."invoice_e_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'legal_entity' and e."party_id" = v_row.legal_entity_id::text),
-    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."invoice_e_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'organization' and e."party_id" = v_row."tenant_id"::text)
-  ) into v_seller;
-  select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") into v_buyer from "better_supabase"."invoice_e_endpoints" e
-  where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'company' and e."party_id" = v_row."company_id"::text;
-  return jsonb_build_object('seller', v_seller, 'buyer', v_buyer);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.list_e_invoice_deliveries (
-  tenant    uuid,
-  direction text DEFAULT NULL::text,
-  state     text DEFAULT NULL::text,
-  invoice   uuid DEFAULT NULL::uuid
+CREATE OR REPLACE FUNCTION better_supabase.list_prescriptions (
+  tenant  uuid,
+  filters jsonb DEFAULT '{}'::jsonb
 )
   RETURNS jsonb
   LANGUAGE plpgsql
@@ -847,21 +903,29 @@ CREATE OR REPLACE FUNCTION better_supabase.list_e_invoice_deliveries (
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_prescriptions.filters, '{}'::jsonb);
 begin
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_e_invoice_deliveries.tenant, 'invoices.read'), false)) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_prescriptions.tenant is not null and coalesce(better_supabase.can('tenant', list_prescriptions.tenant, 'e_prescribing.read'), false))) then
+    raise exception 'not allowed to read prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+  end if;
+  if v_filters ->> 'status' is not null and v_filters ->> 'status' not in ('draft', 'signed', 'sent', 'dispensed', 'cancelled') then
+    raise exception 'status is draft, signed, sent, dispensed or cancelled' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'invoiceId', x."invoice_id", 'direction', x."direction", 'format', x."format", 'channel', x."channel", 'messageId', x."message_id", 'state', x."state", 'reason', x."reason", 'documentHash', x."document_hash", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc)
+    select jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'orderId', q."order_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'prescriberId', q."prescriber_id", 'prescriberName', q."prescriber_name", 'status', q."status", 'order', q."snapshot", 'signedBy', q."signed_by", 'signedAt', q."signed_at", 'gateway', q."gateway", 'gatewayReference', q."gateway_reference", 'sentAt', q."sent_at", 'deliveryError', q."delivery_error", 'dispensedAt', q."dispensed_at", 'cancelledAt', q."cancelled_at", 'cancelReason', q."cancel_reason", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."created_at" desc, q."id")
     from (
-      select * from "better_supabase"."invoice_e_deliveries" y
-      where y."tenant_id" = list_e_invoice_deliveries.tenant
-        and (list_e_invoice_deliveries.direction is null or y."direction" = list_e_invoice_deliveries.direction)
-        and (list_e_invoice_deliveries.state is null or y."state" = list_e_invoice_deliveries.state)
-        and (list_e_invoice_deliveries.invoice is null or y."invoice_id" = list_e_invoice_deliveries.invoice)
-      order by y."created_at" desc
-      limit 500
-    ) x
+      select y.* from "better_supabase"."prescriptions" y
+      where y."tenant_id" = list_prescriptions.tenant
+        and (v_filters ->> 'orderId' is null or y."order_id" = (v_filters ->> 'orderId')::uuid)
+        and (v_filters ->> 'subjectType' is null or y."subject_type" = v_filters ->> 'subjectType')
+        and (v_filters ->> 'subjectId' is null or y."subject_id" = v_filters ->> 'subjectId')
+        and (v_filters ->> 'status' is null or y."status" = v_filters ->> 'status')
+        and (v_filters ->> 'prescriberId' is null or y."prescriber_id" = (v_filters ->> 'prescriberId')::uuid)
+      order by y."created_at" desc, y."id"
+      limit least(greatest(coalesce((v_filters ->> 'limit')::int, 50), 1), 200) offset greatest(coalesce((v_filters ->> 'offset')::int, 0), 0)
+    ) q
   ), '[]'::jsonb);
 end;
 $function$;
@@ -1014,6 +1078,10 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'drive.create' then 'drive.create'
     when 'drive.manage' then 'drive.manage'
     when 'drive.read' then 'drive.read'
+    when 'e-prescribing.manage' then 'e_prescribing.manage'
+    when 'e-prescribing.read' then 'e_prescribing.read'
+    when 'e-prescribing.sign' then 'e_prescribing.sign'
+    when 'e-prescribing.write' then 'e_prescribing.write'
     when 'employees.read' then 'employees.read'
     when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
@@ -1072,7 +1140,6 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'invoices.overrideMatch' then 'invoices.override_match'
     when 'invoices.purchase' then 'invoices.purchase'
     when 'invoices.read' then 'invoices.read'
-    when 'invoices.send' then 'invoices.send'
     when 'invoices.write' then 'invoices.write'
     when 'knowledge.manage' then 'knowledge.manage'
     when 'knowledge.read' then 'knowledge.read'
@@ -1251,364 +1318,1038 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
   end
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.record_e_invoice_delivery (
-  tenant        uuid,
-  direction     text,
-  channel       text,
-  message_id    text,
-  format        text DEFAULT NULL::text,
-  state         text DEFAULT NULL::text,
-  invoice       uuid DEFAULT NULL::uuid,
-  reason        text DEFAULT NULL::text,
-  document_hash text DEFAULT NULL::text
+CREATE OR REPLACE FUNCTION better_supabase.prescription_order_snapshot (
+  tenant   uuid,
+  order_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+  select jsonb_build_object(
+    'orderId', x."id", 'medicationId', x."medication_id", 'medicationName', mx."name",
+    'codeSystem', mx."code_system", 'code', mx."code", 'dose', x."dose", 'doseUnit', x."dose_unit",
+    'route', x."route", 'schedule', x."schedule", 'asNeeded', x."as_needed",
+    'asNeededReason', x."as_needed_reason", 'maxPerDay', x."max_per_day",
+    'startsOn', x."starts_on", 'endsOn', x."ends_on")
+  from "better_supabase"."medication_orders" x join "better_supabase"."medications" mx on mx."tenant_id" = x."tenant_id" and mx."id" = x."medication_id"
+  where x."tenant_id" = prescription_order_snapshot.tenant and x."id" = prescription_order_snapshot.order_id;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.record_prescription_delivery (
+  prescription_id uuid,
+  gateway         text,
+  reference       text DEFAULT NULL::text,
+  error           text DEFAULT NULL::text
 )
   RETURNS jsonb
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
-#variable_conflict use_column
+#variable_conflict use_variable
 declare
-  v_row "better_supabase"."invoices";
-  v_delivery "better_supabase"."invoice_e_deliveries";
-  v_state text;
-  v_created boolean := true;
+  v_row "better_supabase"."prescriptions";
+  v_gateway text := nullif(trim(record_prescription_delivery.gateway), '');
+  v_reference text := nullif(trim(record_prescription_delivery.reference), '');
+  v_error text := nullif(trim(record_prescription_delivery.error), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', record_e_invoice_delivery.tenant, 'invoices.send'), false)) then
-    raise exception 'not allowed to send invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  select * into v_row from "better_supabase"."prescriptions" x where x."id" = record_prescription_delivery.prescription_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
   end if;
-  if record_e_invoice_delivery.direction not in ('outbound', 'inbound') then
-    raise exception 'direction is outbound or inbound' using errcode = '22023', hint = 'EINVOICE_DELIVERY_INVALID';
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) then
+    raise exception 'not allowed to send prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
   end if;
-  v_state := coalesce(record_e_invoice_delivery.state, case
-    when record_e_invoice_delivery.direction = 'outbound' then 'pending'
-    when record_e_invoice_delivery.invoice is null then 'unmatched'
-    else 'received' end);
-  if v_state not in ('pending', 'delivered', 'rejected', 'received', 'unmatched')
-    or (record_e_invoice_delivery.direction = 'outbound' and v_state in ('received', 'unmatched'))
-    or (record_e_invoice_delivery.direction = 'inbound' and v_state in ('pending', 'delivered', 'rejected'))
-    or (v_state in ('pending', 'delivered', 'rejected') and record_e_invoice_delivery.invoice is null)
-    or nullif(trim(record_e_invoice_delivery.channel), '') is null
-    or nullif(trim(record_e_invoice_delivery.message_id), '') is null then
-    raise exception 'a delivery needs a channel and a message id, and a state that fits its direction (an outbound one an invoice)' using errcode = '22023', hint = 'EINVOICE_DELIVERY_INVALID';
+  if v_gateway is null or length(v_gateway) > 100 then
+    raise exception 'gateway is 1 to 100 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
   end if;
-  if record_e_invoice_delivery.invoice is not null then
-    select * into v_row from "better_supabase"."invoices" x
-    where x."id" = record_e_invoice_delivery.invoice and x."tenant_id" = record_e_invoice_delivery.tenant;
-    if v_row."id" is null then
-      raise exception 'no such invoice in this organization' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
-    end if;
+  if length(coalesce(v_reference, '')) > 200 or length(coalesce(v_error, '')) > 1000 then
+    raise exception 'a reference is up to 200 characters and an error up to 1000' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
   end if;
-  insert into "better_supabase"."invoice_e_deliveries" ("tenant_id", "invoice_id", "direction", "format", "channel", "message_id", "state", "reason", "document_hash")
-  values (record_e_invoice_delivery.tenant, record_e_invoice_delivery.invoice, record_e_invoice_delivery.direction, nullif(trim(record_e_invoice_delivery.format), ''), record_e_invoice_delivery.channel, record_e_invoice_delivery.message_id, v_state, nullif(trim(record_e_invoice_delivery.reason), ''), record_e_invoice_delivery.document_hash)
-  on conflict ("tenant_id", "channel", "message_id") do nothing
-  returning * into v_delivery;
-  if v_delivery."id" is null then
-    v_created := false;
-    select * into v_delivery from "better_supabase"."invoice_e_deliveries" x
-    where x."tenant_id" = record_e_invoice_delivery.tenant and x."channel" = record_e_invoice_delivery.channel and x."message_id" = record_e_invoice_delivery.message_id;
-  elsif v_row."id" is not null then
-    if v_state = 'received' then
-      perform "better_supabase".emit_event('invoice.e_invoice_received', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  if v_row."status" <> 'signed' then
+    raise exception 'only a signed prescription can be sent' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end if;
+  if v_error is not null then
+    update "better_supabase"."prescriptions" x set "gateway" = v_gateway, "delivery_error" = v_error, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    perform "better_supabase".emit_event('prescription.delivery_failed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
   perform better_supabase.audit_event(
-    event_type => 'invoice.e_invoice_received',
-    category => 'billing',
-    target_type => 'invoice',
+    event_type => 'prescription.delivery_failed',
+    category => 'data',
+    target_type => 'prescription',
     record_id => v_row."id"::text,
-    target_label => v_row."identifier",
-    summary => 'invoice e_invoice_received',
-    tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason")
+    target_label => v_row."status",
+    summary => 'prescription delivery failed',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
   );
-    else
-      perform "better_supabase".emit_event('invoice.e_invoice_sent', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  else
+    update "better_supabase"."prescriptions" x set "status" = 'sent', "gateway" = v_gateway, "gateway_reference" = v_reference,
+      "sent_at" = now(), "delivery_error" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    perform "better_supabase".emit_event('prescription.sent', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
   perform better_supabase.audit_event(
-    event_type => 'invoice.e_invoice_sent',
-    category => 'billing',
-    target_type => 'invoice',
+    event_type => 'prescription.sent',
+    category => 'data',
+    target_type => 'prescription',
     record_id => v_row."id"::text,
-    target_label => v_row."identifier",
-    summary => 'invoice e_invoice_sent',
-    tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason")
+    target_label => v_row."status",
+    summary => 'prescription sent',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
   );
-    end if;
   end if;
-  return jsonb_build_object('created', v_created, 'delivery', jsonb_build_object('id', v_delivery."id", 'organizationId', v_delivery."tenant_id", 'invoiceId', v_delivery."invoice_id", 'direction', v_delivery."direction", 'format', v_delivery."format", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'state', v_delivery."state", 'reason', v_delivery."reason", 'documentHash', v_delivery."document_hash", 'createdAt', v_delivery."created_at", 'updatedAt', v_delivery."updated_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.set_e_invoice_delivery_state (
-  delivery uuid,
-  state    text,
-  reason   text DEFAULT NULL::text,
-  invoice  uuid DEFAULT NULL::uuid
+CREATE OR REPLACE FUNCTION better_supabase.record_prescription_dispense (
+  prescription_id uuid,
+  dispensed_at    timestamp with time zone DEFAULT NULL::timestamp WITH time zone
 )
   RETURNS jsonb
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
+#variable_conflict use_variable
 declare
-  v_delivery "better_supabase"."invoice_e_deliveries";
-  v_row "better_supabase"."invoices";
-  v_target uuid;
+  v_row "better_supabase"."prescriptions";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_delivery from "better_supabase"."invoice_e_deliveries" x
-  where x."id" = set_e_invoice_delivery_state.delivery and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.send'), false)) for update;
-  if v_delivery."id" is null then
-    raise exception 'no such delivery you can update' using errcode = 'P0002', hint = 'EINVOICE_DELIVERY_NOT_FOUND';
+  select * into v_row from "better_supabase"."prescriptions" x where x."id" = record_prescription_dispense.prescription_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
   end if;
-  if not (
-    (v_delivery."state" = 'pending' and set_e_invoice_delivery_state.state in ('delivered', 'rejected'))
-    or (v_delivery."state" = 'unmatched' and set_e_invoice_delivery_state.state in ('received', 'unmatched'))
-  ) then
-    raise exception 'a pending delivery becomes delivered or rejected, an unmatched one received or unmatched' using errcode = '55000', hint = 'EINVOICE_DELIVERY_STATE';
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) then
+    raise exception 'not allowed to record dispensing' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
   end if;
-  v_target := coalesce(set_e_invoice_delivery_state.invoice, v_delivery."invoice_id");
-  if set_e_invoice_delivery_state.state = 'received' and v_target is null then
-    raise exception 'a received delivery names the invoice it became' using errcode = '22023', hint = 'EINVOICE_DELIVERY_INVALID';
+  if v_row."status" <> 'sent' then
+    raise exception 'only a sent prescription can be dispensed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
   end if;
-  if v_target is not null then
-    select * into v_row from "better_supabase"."invoices" x
-    where x."id" = v_target and x."tenant_id" = v_delivery."tenant_id";
-    if v_row."id" is null then
-      raise exception 'no such invoice in this organization' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
-    end if;
-  end if;
-  update "better_supabase"."invoice_e_deliveries" x set
-    "state" = set_e_invoice_delivery_state.state,
-    "reason" = nullif(trim(set_e_invoice_delivery_state.reason), ''),
-    "invoice_id" = v_target,
-    "updated_at" = now()
-  where x."id" = v_delivery."id"
-  returning * into v_delivery;
-  if v_row."id" is not null and v_delivery."state" <> 'unmatched' then
-    if v_delivery."state" = 'delivered' then
-      perform "better_supabase".emit_event('invoice.e_invoice_delivered', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  perform better_supabase.audit_event(
-    event_type => 'invoice.e_invoice_delivered',
-    category => 'billing',
-    target_type => 'invoice',
-    record_id => v_row."id"::text,
-    target_label => v_row."identifier",
-    summary => 'invoice e_invoice_delivered',
-    tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason")
-  );
-    elsif v_delivery."state" = 'rejected' then
-      perform "better_supabase".emit_event('invoice.e_invoice_rejected', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  perform better_supabase.audit_event(
-    event_type => 'invoice.e_invoice_rejected',
-    category => 'billing',
-    target_type => 'invoice',
-    record_id => v_row."id"::text,
-    target_label => v_row."identifier",
-    summary => 'invoice e_invoice_rejected',
-    tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason")
-  );
-    else
-      perform "better_supabase".emit_event('invoice.e_invoice_received', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  perform better_supabase.audit_event(
-    event_type => 'invoice.e_invoice_received',
-    category => 'billing',
-    target_type => 'invoice',
-    record_id => v_row."id"::text,
-    target_label => v_row."identifier",
-    summary => 'invoice e_invoice_received',
-    tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'status', v_delivery."state", 'reason', v_delivery."reason")
-  );
-    end if;
-  end if;
-  return jsonb_build_object('id', v_delivery."id", 'organizationId', v_delivery."tenant_id", 'invoiceId', v_delivery."invoice_id", 'direction', v_delivery."direction", 'format', v_delivery."format", 'channel', v_delivery."channel", 'messageId', v_delivery."message_id", 'state', v_delivery."state", 'reason', v_delivery."reason", 'documentHash', v_delivery."document_hash", 'createdAt', v_delivery."created_at", 'updatedAt', v_delivery."updated_at");
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.set_invoice_e_endpoint (
-  tenant      uuid,
-  party_kind  text,
-  party_id    text,
-  scheme      text DEFAULT NULL::text,
-  endpoint_id text DEFAULT NULL::text
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."invoice_e_endpoints";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', set_invoice_e_endpoint.tenant, 'invoices.manage'), false)) then
-    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  if set_invoice_e_endpoint.party_kind not in ('organization', 'legal_entity', 'company')
-    or nullif(trim(set_invoice_e_endpoint.party_id), '') is null
-    or length(set_invoice_e_endpoint.party_id) > 150 then
-    raise exception 'party_kind is organization, legal_entity or company, and party_id is a non-empty text of at most 150 characters' using errcode = '22023', hint = 'EINVOICE_ENDPOINT_INVALID';
-  end if;
-  if set_invoice_e_endpoint.scheme is null and set_invoice_e_endpoint.endpoint_id is null then
-    delete from "better_supabase"."invoice_e_endpoints" x
-    where x."tenant_id" = set_invoice_e_endpoint.tenant
-      and x."party_kind" = set_invoice_e_endpoint.party_kind
-      and x."party_id" = set_invoice_e_endpoint.party_id;
-    return null;
-  end if;
-  if set_invoice_e_endpoint.scheme !~ '^[0-9]{4}$'
-    or nullif(trim(set_invoice_e_endpoint.endpoint_id), '') is null
-    or length(set_invoice_e_endpoint.endpoint_id) > 200 then
-    raise exception 'an endpoint is a four-digit EAS scheme and a non-empty id of at most 200 characters' using errcode = '22023', hint = 'EINVOICE_ENDPOINT_INVALID';
-  end if;
-  insert into "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id", "scheme", "endpoint_id")
-  values (set_invoice_e_endpoint.tenant, set_invoice_e_endpoint.party_kind, set_invoice_e_endpoint.party_id, set_invoice_e_endpoint.scheme, trim(set_invoice_e_endpoint.endpoint_id))
-  on conflict ("tenant_id", "party_kind", "party_id") do update
-    set "scheme" = excluded."scheme", "endpoint_id" = excluded."endpoint_id", "updated_at" = now()
+  update "better_supabase"."prescriptions" x set "status" = 'dispensed', "dispensed_at" = coalesce(record_prescription_dispense.dispensed_at, now()), "updated_at" = now()
+  where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('scheme', v_row."scheme", 'id', v_row."endpoint_id");
+  perform "better_supabase".emit_event('prescription.dispensed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
+  perform better_supabase.audit_event(
+    event_type => 'prescription.dispensed',
+    category => 'data',
+    target_type => 'prescription',
+    record_id => v_row."id"::text,
+    target_label => v_row."status",
+    summary => 'prescription dispensed',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $function$;
 
-ALTER TABLE "better_supabase"."invoice_e_deliveries"
-  ADD CONSTRAINT "invoice_e_deliveries_invoice_id_fkey" FOREIGN KEY (invoice_id) REFERENCES better_supabase.invoices(id) ON DELETE SET NULL;
+CREATE OR REPLACE FUNCTION better_supabase.request_subject_export (
+  subject_type text,
+  subject_id   text,
+  format       text DEFAULT 'ndjson'::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."data_exports";
+  v_tenant uuid;
+  v_record jsonb;
+  v_name text;
+  v_reveal text;
+  v_reveal_schema text;
+  v_proc text;
+  v_arg text;
+  v_sealed text[];
+  v_plain jsonb;
+  v_rows jsonb;
+  v_fields jsonb;
+  v_parts jsonb := '{}'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+  end if;
+  if request_subject_export.format is null or request_subject_export.format not in ('ndjson', 'csv') then
+    raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
+  end if;
+  case request_subject_export.subject_type
+    when 'message' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."messages" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.messages';
+      v_reveal := 'messages_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'conversation' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."conversations" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.conversations';
+      v_reveal := 'conversations_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'channel' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."channels" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.channels';
+      v_reveal := 'channels_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'company' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."companies" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.companies';
+      v_reveal := 'companies_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'person' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."people" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.people';
+      v_reveal := 'people_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'deal' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."deals" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.deals';
+      v_reveal := 'deals_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'course' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."courses" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.courses';
+      v_reveal := 'courses_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'post' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."posts" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.posts';
+      v_reveal := 'posts_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'activity' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."activities" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.activities';
+      v_reveal := 'activities_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'quote' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."quotes" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.quotes';
+      v_reveal := 'quotes_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_item' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_items" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_items';
+      v_reveal := 'work_items_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'employee' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."employees" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.employees';
+      v_reveal := 'employees_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'invoice' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."invoices" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.invoices';
+      v_reveal := 'invoices_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'ledger_account' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."ledger_accounts" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.ledger_accounts';
+      v_reveal := 'ledger_accounts_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'product' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."products" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.products';
+      v_reveal := 'products_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'product_variant' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."product_variants" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.product_variants';
+      v_reveal := 'product_variants_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'rfq' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."rfqs" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.rfqs';
+      v_reveal := 'rfqs_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'till' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."tills" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.tills';
+      v_reveal := 'tills_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'order' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."orders" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.orders';
+      v_reveal := 'orders_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'calendar_event' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."calendar_events" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.calendar_events';
+      v_reveal := 'calendar_events_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'booking' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."bookings" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.bookings';
+      v_reveal := 'bookings_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'asset' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."assets" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.assets';
+      v_reveal := 'assets_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'asset_location' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."asset_locations" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.asset_locations';
+      v_reveal := 'asset_locations_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'lease' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."leases" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.leases';
+      v_reveal := 'leases_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'expense_report' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."expense_reports" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.expense_reports';
+      v_reveal := 'expense_reports_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'expense_line' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."expense_lines" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.expense_lines';
+      v_reveal := 'expense_lines_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'donation_fund' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."donation_funds" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.donation_funds';
+      v_reveal := 'donation_funds_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_order' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_orders" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_orders';
+      v_reveal := 'work_orders_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'shipment' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."shipments" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.shipments';
+      v_reveal := 'shipments_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'contract' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."contracts" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.contracts';
+      v_reveal := 'contracts_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'control' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."controls" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.controls';
+      v_reveal := 'controls_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'compliance_policy' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."compliance_policies" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.compliance_policies';
+      v_reveal := 'compliance_policies_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'qualification_type' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."qualification_types" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.qualification_types';
+      v_reveal := 'qualification_types_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'risk' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."risks" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.risks';
+      v_reveal := 'risks_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'case' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."cases" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.cases';
+      v_reveal := 'cases_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'inspection' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspections" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspections';
+      v_reveal := 'inspections_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'inspection_program' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspection_programs" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspection_programs';
+      v_reveal := 'inspection_programs_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'inspection_finding' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."inspection_findings" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.inspection_findings';
+      v_reveal := 'inspection_findings_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'form' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."forms" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.forms';
+      v_reveal := 'forms_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'meeting' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."meetings" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.meetings';
+      v_reveal := 'meetings_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'meeting_decision' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."meeting_decisions" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.meeting_decisions';
+      v_reveal := 'meeting_decisions_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'maintenance_plan' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."maintenance_plans" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.maintenance_plans';
+      v_reveal := 'maintenance_plans_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'dam_usage_right' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."dam_usage_rights" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.dam_usage_rights';
+      v_reveal := 'dam_usage_rights_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'lims_sample' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."lims_samples" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.lims_samples';
+      v_reveal := 'lims_samples_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'tax_code' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."tax_codes" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.tax_codes';
+      v_reveal := 'tax_codes_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'production_order' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."production_orders" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.production_orders';
+      v_reveal := 'production_orders_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_center' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_centers" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_centers';
+      v_reveal := 'work_centers_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'bank_account' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."bank_accounts" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.bank_accounts';
+      v_reveal := 'bank_accounts_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'care_plan' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."care_plans" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.care_plans';
+      v_reveal := 'care_plans_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'incident' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."incidents" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.incidents';
+      v_reveal := 'incidents_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'content_entry' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."content_entries" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.content_entries';
+      v_reveal := 'content_entries_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'document' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."documents" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.documents';
+      v_reveal := 'documents_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'customer' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."customers" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.customers';
+      v_reveal := 'customers_reveal';
+      v_reveal_schema := 'public';
+    when 'drive_node' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."drive_nodes" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.drive_nodes';
+      v_reveal := 'drive_nodes_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'application' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."applications" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.applications';
+      v_reveal := 'applications_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'change_request' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."change_requests" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.change_requests';
+      v_reveal := 'change_requests_reveal';
+      v_reveal_schema := 'public';
+    when 'project' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."projects" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.projects';
+      v_reveal := 'projects_reveal';
+      v_reveal_schema := 'public';
+    when 'task' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "public"."tasks" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.tasks';
+      v_reveal := 'tasks_reveal';
+      v_reveal_schema := 'public';
+    else
+      raise exception 'subject_type is not a record type in config.subjects' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
+  end case;
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
+    raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+  end if;
+  select * into v_row from "better_supabase"."data_exports" x
+  where x."subject" = 'record' and x."subject_type" = request_subject_export.subject_type
+    and x."subject_id" = request_subject_export.subject_id and x."requested_by" = auth.uid()
+    and x."status" in ('pending', 'running');
+  if v_row."id" is not null then
+    return to_jsonb(v_row);
+  end if;
+  -- Only the owner's reveal function, so one another role created never runs
+  -- with this function's rights.
+  select pg_catalog.format('%I.%I', n.nspname, p.proname), pg_catalog.format_type(p.proargtypes[0], null),
+    array(select a.name from unnest(p.proargnames, p.proargmodes::text[]) with ordinality a(name, mode, n)
+      where a.mode = 't' order by a.n offset 1)
+  into v_proc, v_arg, v_sealed
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = v_reveal_schema and p.proname = v_reveal and p.pronargs = 1
+    and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
+  limit 1;
+  -- The stored ciphertext never leaves: a caller the reveal returns no row
+  -- for gets the record without its encrypted columns.
+  if v_proc is not null then
+    execute format('select to_jsonb(r.*) from %s(array[$1]::%s) r', v_proc, v_arg) into v_plain
+    using request_subject_export.subject_id;
+    v_record := (v_record - coalesce(v_sealed, '{}'::text[])) || coalesce(v_plain, '{}'::jsonb);
+  end if;
+  v_parts := jsonb_build_object(v_name, jsonb_build_array(v_record));
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."notification_events" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.notification_events', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."notification_subscriptions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.notification_subscriptions', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."guest_grants" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.guest_grants', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."attachments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.attachments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."enrollments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.enrollments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."workflow_runs" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.workflow_runs', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."workflow_start_requests" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.workflow_start_requests', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."knowledge_documents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.knowledge_documents', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."memories" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.memories', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."taggings" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.taggings', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."status_history" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.status_history', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."status_stages" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.status_stages', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."subject_lifecycles" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.subject_lifecycles', v_rows);
+  end if;
+  if v_tenant is not null then
+    v_fields := coalesce("better_supabase"."read_field_values"(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
+    select coalesce(jsonb_agg(((to_jsonb(t.*)) || jsonb_build_object('value_text', f.value ->> 'text')) order by t.ctid), '[]'::jsonb) into v_rows
+    from "better_supabase"."field_values" t
+    join jsonb_array_elements(v_fields) f on f.value ->> 'id' = t."id"::text
+    where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+    if jsonb_array_length(v_rows) > 0 then
+      v_parts := v_parts || jsonb_build_object('better_supabase.field_values', v_rows);
+    end if;
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*) - array['token_hash', 'password_hash']::text[]) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."share_links" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.share_links', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."recurrence_rules" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.recurrence_rules', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."reminders" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.reminders', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."import_records" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.import_records', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."subject_members" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.subject_members', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."calendar_events" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.calendar_events', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."versions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.versions', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."trash_items" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.trash_items', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."reactions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.reactions', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."reaction_scores" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.reaction_scores', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."approval_requests" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.approval_requests', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."access_requests" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.access_requests', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."documents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.documents', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."form_submissions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.form_submissions', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."signature_requests" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.signature_requests', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."time_entries" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.time_entries', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."template_applications" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.template_applications', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."pipeline_stage_history" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.pipeline_stage_history', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."engagement_subjects" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.engagement_subjects', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."sla_clocks" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.sla_clocks', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."moderation_items" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.moderation_items', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."automation_evaluations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.automation_evaluations', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."scores" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.scores', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."passes" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.passes', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."time_rates" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.time_rates', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."work_orders" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.work_orders', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."shipments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.shipments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."conversations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.conversations', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."message_record_mentions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.message_record_mentions', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."channels" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.channels', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."timeline_entries" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.timeline_entries', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."mail_thread_subjects" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.mail_thread_subjects', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."assignments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.assignments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."field_changes" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.field_changes', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgement_assignments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgement_assignments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgements" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgements', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgement_notices" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgement_notices', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."consents" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.consents', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."observations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.observations', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."medication_orders" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.medication_orders', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."care_plans" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.care_plans', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."funding_awards" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.funding_awards', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."care_alerts" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.care_alerts', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."prescriptions" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.prescriptions', v_rows);
+  end if;
+  insert into "better_supabase"."data_exports" ("subject", "organization_id", "subject_type", "subject_id", "format")
+  values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
+  returning * into v_row;
+  insert into "better_supabase"."data_export_contents" ("export_id", "parts") values (v_row."id", v_parts);
+  perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
+    event_type => 'data_export.requested',
+    category => 'data',
+    target_type => 'data_export',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
+  );
+  return to_jsonb(v_row);
+end;
+$function$;
 
-CREATE INDEX invoice_e_deliveries_invoice_idx ON better_supabase.invoice_e_deliveries USING btree (invoice_id, tenant_id);
+CREATE OR REPLACE FUNCTION better_supabase.sign_prescription (
+  prescription_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."prescriptions";
+  v_order "better_supabase"."medication_orders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."prescriptions" x where x."id" = sign_prescription.prescription_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.sign'), false))) then
+    raise exception 'not allowed to sign prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+  end if;
+  if v_row."prescriber_id" is distinct from auth.uid() or auth.uid() is null then
+    raise exception 'only the prescriber signs a prescription' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft can be signed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end if;
+  select * into v_order from "better_supabase"."medication_orders" x where x."tenant_id" = v_row."tenant_id" and x."id" = v_row."order_id";
+  if not found or v_order."status" <> 'active' or (v_order."ends_on" is not null and v_order."ends_on" < (now() at time zone 'UTC')::date) then
+    raise exception 'the order is no longer active' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_prescription_sign"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  update "better_supabase"."prescriptions" x set "status" = 'signed', "signed_by" = auth.uid(), "signed_at" = now(),
+    "snapshot" = "better_supabase"."prescription_order_snapshot"(v_row."tenant_id", v_row."order_id"), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('prescription.signed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'prescriptions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/e-prescribing');
+  perform better_supabase.audit_event(
+    event_type => 'prescription.signed',
+    category => 'data',
+    target_type => 'prescription',
+    record_id => v_row."id"::text,
+    target_label => v_row."status",
+    summary => 'prescription signed',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status")
+  );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_prescription_sign"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$function$;
 
-CREATE UNIQUE INDEX invoice_e_deliveries_message_key ON better_supabase.invoice_e_deliveries USING btree (tenant_id, channel, message_id);
+ALTER TABLE "better_supabase"."prescriptions"
+  ADD CONSTRAINT "prescriptions_tenant_id_order_id_fkey" FOREIGN KEY (tenant_id, order_id) REFERENCES better_supabase.medication_orders(tenant_id, id);
 
-CREATE INDEX invoice_e_deliveries_state_idx ON better_supabase.invoice_e_deliveries USING btree (tenant_id, direction, state);
+CREATE UNIQUE INDEX prescriptions_live_order_key ON better_supabase.prescriptions USING btree (tenant_id, order_id)
+  WHERE (status <> 'cancelled'::text);
 
-CREATE INDEX invoice_e_endpoints_lookup_idx ON better_supabase.invoice_e_endpoints USING btree (tenant_id, scheme, endpoint_id);
+CREATE INDEX prescriptions_status_idx ON better_supabase.prescriptions USING btree (tenant_id, status);
 
-CREATE UNIQUE INDEX invoice_e_endpoints_party_key ON better_supabase.invoice_e_endpoints USING btree (tenant_id, party_kind, party_id);
+CREATE INDEX prescriptions_subject_idx ON better_supabase.prescriptions USING btree (tenant_id, subject_type, subject_id);
 
-CREATE POLICY "bsb_tenant_scope_delete" ON "better_supabase"."invoice_e_deliveries"
+CREATE POLICY "bsb_tenant_scope_delete" ON "better_supabase"."prescriptions"
   AS RESTRICTIVE
   FOR DELETE
   TO PUBLIC
   USING ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
 
-CREATE POLICY "bsb_tenant_scope_insert" ON "better_supabase"."invoice_e_deliveries"
+CREATE POLICY "bsb_tenant_scope_insert" ON "better_supabase"."prescriptions"
   AS RESTRICTIVE
   FOR INSERT
   TO PUBLIC
   WITH CHECK ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
 
-CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."invoice_e_deliveries"
+CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."prescriptions"
   AS RESTRICTIVE
   FOR SELECT
   TO PUBLIC
   USING
-    (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR (tenant_id IN ( SELECT better_supabase.tenant_ids_with('invoices.read'::text)
-    AS tenant_ids_with))));
+    (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR (tenant_id IN ( SELECT
+    better_supabase.tenant_ids_with('e_prescribing.read'::text) AS tenant_ids_with))));
 
-CREATE POLICY "bsb_tenant_scope_update" ON "better_supabase"."invoice_e_deliveries"
+CREATE POLICY "bsb_tenant_scope_update" ON "better_supabase"."prescriptions"
   AS RESTRICTIVE
   FOR UPDATE
   TO PUBLIC
   USING ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)))
   WITH CHECK ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
 
-CREATE POLICY "invoice_e_deliveries_read" ON "better_supabase"."invoice_e_deliveries"
+CREATE POLICY "prescriptions_read" ON "better_supabase"."prescriptions"
   FOR SELECT
   TO "authenticated"
-  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('invoices.read'::text) AS tenant_ids_with)));
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('e_prescribing.read'::text) AS tenant_ids_with)));
 
-CREATE POLICY "bsb_tenant_scope_delete" ON "better_supabase"."invoice_e_endpoints"
-  AS RESTRICTIVE
-  FOR DELETE
-  TO PUBLIC
-  USING ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
+REVOKE ALL ON FUNCTION "api"."cancel_prescription"(uuid, text) FROM PUBLIC;
 
-CREATE POLICY "bsb_tenant_scope_insert" ON "better_supabase"."invoice_e_endpoints"
-  AS RESTRICTIVE
-  FOR INSERT
-  TO PUBLIC
-  WITH CHECK ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
+GRANT EXECUTE ON FUNCTION "api"."cancel_prescription"(uuid, text) TO "authenticated", "service_role";
 
-CREATE POLICY "bsb_tenant_scope_select" ON "better_supabase"."invoice_e_endpoints"
-  AS RESTRICTIVE
-  FOR SELECT
-  TO PUBLIC
-  USING
-    (((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)) OR (tenant_id IN ( SELECT better_supabase.tenant_ids_with('invoices.read'::text)
-    AS tenant_ids_with))));
+REVOKE ALL ON FUNCTION "api"."create_prescription"(uuid, uuid, jsonb) FROM PUBLIC;
 
-CREATE POLICY "bsb_tenant_scope_update" ON "better_supabase"."invoice_e_endpoints"
-  AS RESTRICTIVE
-  FOR UPDATE
-  TO PUBLIC
-  USING ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)))
-  WITH CHECK ((tenant_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
+GRANT EXECUTE ON FUNCTION "api"."create_prescription"(uuid, uuid, jsonb) TO "authenticated", "service_role";
 
-CREATE POLICY "invoice_e_endpoints_read" ON "better_supabase"."invoice_e_endpoints"
-  FOR SELECT
-  TO "authenticated"
-  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('invoices.read'::text) AS tenant_ids_with)));
+REVOKE ALL ON FUNCTION "api"."get_prescription"(uuid) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."find_e_endpoint_party"(uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "api"."get_prescription"(uuid) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."find_e_endpoint_party"(uuid, text, text) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "api"."list_prescriptions"(uuid, jsonb) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."invoice_e_endpoints"(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "api"."list_prescriptions"(uuid, jsonb) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."invoice_e_endpoints"(uuid) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "api"."record_prescription_delivery"(uuid, text, text, text) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."list_e_invoice_deliveries"(uuid, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "api"."record_prescription_delivery"(uuid, text, text, text) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."list_e_invoice_deliveries"(uuid, text, text, uuid) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "api"."record_prescription_dispense"(uuid, timestamp WITH time zone) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."record_e_invoice_delivery"(uuid, text, text, text, text, text, uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "api"."record_prescription_dispense"(uuid, timestamp WITH time zone) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."record_e_invoice_delivery"(uuid, text, text, text, text, text, uuid, text, text) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "api"."sign_prescription"(uuid) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."set_e_invoice_delivery_state"(uuid, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "api"."sign_prescription"(uuid) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."set_e_invoice_delivery_state"(uuid, text, text, uuid) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "better_supabase"."cancel_prescription"(uuid, text) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "api"."set_invoice_e_endpoint"(uuid, text, text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "better_supabase"."cancel_prescription"(uuid, text) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "api"."set_invoice_e_endpoint"(uuid, text, text, text, text) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "better_supabase"."create_prescription"(uuid, uuid, jsonb) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "better_supabase"."find_e_endpoint_party"(uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "better_supabase"."create_prescription"(uuid, uuid, jsonb) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."find_e_endpoint_party"(uuid, text, text) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "better_supabase"."get_prescription"(uuid) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "better_supabase"."invoice_e_endpoints"(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "better_supabase"."get_prescription"(uuid) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."invoice_e_endpoints"(uuid) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "better_supabase"."list_prescriptions"(uuid, jsonb) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "better_supabase"."list_e_invoice_deliveries"(uuid, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "better_supabase"."list_prescriptions"(uuid, jsonb) TO "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_e_invoice_deliveries"(uuid, text, text, uuid) TO "authenticated", "service_role";
+REVOKE ALL ON FUNCTION "better_supabase"."prescription_order_snapshot"(uuid, uuid) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "better_supabase"."record_e_invoice_delivery"(uuid, text, text, text, text, text, uuid, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."record_prescription_delivery"(uuid, text, text, text) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."record_e_invoice_delivery"(uuid, text, text, text, text, text, uuid, text, text) TO "authenticated", "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."record_prescription_delivery"(uuid, text, text, text) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."set_e_invoice_delivery_state"(uuid, text, text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."record_prescription_dispense"(uuid, timestamp WITH time zone) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."set_e_invoice_delivery_state"(uuid, text, text, uuid) TO "authenticated", "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."record_prescription_dispense"(uuid, timestamp WITH time zone) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."set_invoice_e_endpoint"(uuid, text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."sign_prescription"(uuid) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."set_invoice_e_endpoint"(uuid, text, text, text, text) TO "authenticated", "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."sign_prescription"(uuid) TO "authenticated", "service_role";
 
-GRANT SELECT ON TABLE "better_supabase"."invoice_e_deliveries" TO "authenticated";
+GRANT SELECT ON TABLE "better_supabase"."prescriptions" TO "authenticated";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."invoice_e_deliveries" TO "service_role";
-
-GRANT SELECT ON TABLE "better_supabase"."invoice_e_endpoints" TO "authenticated";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."invoice_e_endpoints" TO "service_role";
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."prescriptions" TO "service_role";

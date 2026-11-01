@@ -321,6 +321,8 @@ may be your own enum or domain.
   - `better_supabase.drive_drive_grants`: `id`, `tenant_id`, `drive_id`, `role`, `created_at`; typed: `role`
   - `better_supabase.drive_connections`: `id`, `tenant_id`, `user_id`, `provider`, `name`, `status`, `created_at`; typed: `provider`, `status`
   - `better_supabase.drive_node_texts`: `node_id`, `tenant_id`, `attachment_id`, `content`
+- `e-prescribing`
+  - `better_supabase.prescriptions`: `id`, `tenant_id`, `order_id`, `subject_type`, `subject_id`, `prescriber_id`, `prescriber_name`, `status`, `snapshot`, `signed_by`, `signed_at`, `gateway`, `gateway_reference`, `sent_at`, `delivery_error`, `dispensed_at`, `cancelled_at`, `cancel_reason`, `created_at`, `updated_at`
 - `employees`
   - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`

@@ -62,6 +62,7 @@ import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
 import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
+import { E_PRESCRIBING } from "./modules/e-prescribing.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENRICHMENT } from "./modules/enrichment.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
@@ -434,6 +435,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(E_PRESCRIBING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -4688,6 +4688,7 @@
   "./fhir": {
     "values": [
       "FHIR_MEDICATION_SYSTEMS",
+      "FHIR_PRESCRIPTION_SYSTEM",
       "fromFhirMedicationRequest",
       "fromFhirObservation",
       "toFhirBundle",
@@ -4698,6 +4699,7 @@
       "toFhirMedicationRequest",
       "toFhirObservation",
       "toFhirPatient",
+      "toFhirPrescription",
       "toFhirRelatedPerson"
     ],
     "types": [
@@ -8842,6 +8844,7 @@
       "testNotificationChannel",
       "testPaymentProvider",
       "testPlugin",
+      "testPrescriptionGateway",
       "testQueueProvider",
       "testRecordBinding",
       "testShippingProvider",
@@ -8941,6 +8944,7 @@
       "TestNotificationChannelOptions",
       "TestPaymentProviderOptions",
       "TestPluginOptions",
+      "TestPrescriptionGatewayOptions",
       "TestQueueProviderOptions",
       "TestRecordBindingOptions",
       "TestShippingProviderOptions",
@@ -9820,6 +9824,33 @@
       "ClinicalDecisionSupportClient",
       "ClinicalDecisionSupportEvents",
       "ClinicalDecisionSupportOptions"
+    ]
+  },
+  "./blocks/e-prescribing": {
+    "values": [
+      "createEPrescribing",
+      "ePrescribingBlock",
+      "ePrescribingEvents",
+      "extendBlock",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransportMiddleware",
+      "EPrescribingClient",
+      "EPrescribingEvents",
+      "EPrescribingOptions",
+      "PrescribedOrder",
+      "Prescription",
+      "PrescriptionCancellation",
+      "PrescriptionDelivery",
+      "PrescriptionEventData",
+      "PrescriptionGateway",
+      "PrescriptionListOptions",
+      "PrescriptionReceipt",
+      "PrescriptionRequest",
+      "PrescriptionStatus"
     ]
   },
   "./blocks/tills": {

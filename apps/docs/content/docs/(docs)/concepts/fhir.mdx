@@ -30,17 +30,18 @@ asks for.
 Each exporter takes a row as the block returns it and gives one resource. It
 reads only the fields it maps, so a `Pick` of the row is enough.
 
-| Function                                                | Returns                                                                                      |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `toFhirPatient(person)`                                 | A `Patient` with name, telecom, gender, birth date and identifiers; `active` unless archived |
-| `toFhirRelatedPerson(representative, patientId)`        | A `RelatedPerson` with its role as a v3 RoleCode or v2 0131 code, and its valid period       |
-| `toFhirCarePlan(plan)`                                  | A `CarePlan` from `db.carePlans.get`, its problems and goals as contained resources          |
-| `toFhirGoal(goal, subjectId)`                           | A standalone `Goal`, addressing `Condition/<problemId>`                                      |
-| `toFhirObservation(observation, { definition })`        | An `Observation` with its code, value, components and reference range                        |
-| `toFhirMedicationRequest(order)`                        | A `MedicationRequest` with its medication code, dosage and timing                            |
-| `toFhirMedicationAdministration(administration, order)` | A `MedicationAdministration` for one given, skipped or refused dose                          |
-| `toFhirConsent(consent)`                                | A `Consent`: a permit provision for a grant and a deny provision for a refusal               |
-| `toFhirBundle(resources, { type })`                     | A `collection`, `searchset`, `transaction` or `batch` Bundle                                 |
+| Function                                                | Returns                                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `toFhirPatient(person)`                                 | A `Patient` with name, telecom, gender, birth date and identifiers; `active` unless archived      |
+| `toFhirRelatedPerson(representative, patientId)`        | A `RelatedPerson` with its role as a v3 RoleCode or v2 0131 code, and its valid period            |
+| `toFhirCarePlan(plan)`                                  | A `CarePlan` from `db.carePlans.get`, its problems and goals as contained resources               |
+| `toFhirGoal(goal, subjectId)`                           | A standalone `Goal`, addressing `Condition/<problemId>`                                           |
+| `toFhirObservation(observation, { definition })`        | An `Observation` with its code, value, components and reference range                             |
+| `toFhirMedicationRequest(order)`                        | A `MedicationRequest` with its medication code, dosage and timing                                 |
+| `toFhirPrescription(prescription)`                      | The same `MedicationRequest` for a signed prescription, with its identifier, status and requester |
+| `toFhirMedicationAdministration(administration, order)` | A `MedicationAdministration` for one given, skipped or refused dose                               |
+| `toFhirConsent(consent)`                                | A `Consent`: a permit provision for a grant and a deny provision for a refusal                    |
+| `toFhirBundle(resources, { type })`                     | A `collection`, `searchset`, `transaction` or `batch` Bundle                                      |
 
 The subject of a resource is `Patient/<subjectId>` unless you pass
 `subject`. Users, such as the performer of an observation or the prescriber

@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:223bad9cc141c6d8508b00ed4707524d2b2c64a6abd4f3ca8d334c646f0b5d0e
+-- @bsb-hash sha256:fe01c30d3c893a66501da9b7bb4b42218d6895b03a31d8f8951580dc1454f872
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -84,6 +84,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_awards"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."funding_awards" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_deliveries"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."funding_deliveries" set "source_type" = 'compliance_policy' where "source_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_alerts"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_alerts" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 -- Policies assigned to the member role reach every member.
 do $$

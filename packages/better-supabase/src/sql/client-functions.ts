@@ -137,6 +137,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inspections:
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
+  "e-prescribing":
+    "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":
     "care_decision_context decide_care_alert delete_care_rule evaluate_care_rules list_care_alerts list_care_rules record_care_alerts save_care_rule",
   tills:

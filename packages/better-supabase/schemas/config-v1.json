@@ -1675,6 +1675,7 @@
               "donations",
               "drive",
               "drive-files",
+              "e-prescribing",
               "employees",
               "enrichment",
               "enrollments",
@@ -1857,6 +1858,7 @@
                   "donations",
                   "drive",
                   "drive-files",
+                  "e-prescribing",
                   "employees",
                   "enrichment",
                   "enrollments",
@@ -2137,6 +2139,9 @@
             },
             "drive-files": {
               "$ref": "#/$defs/blocks/drive-files"
+            },
+            "e-prescribing": {
+              "$ref": "#/$defs/blocks/e-prescribing"
             },
             "employees": {
               "$ref": "#/$defs/blocks/employees"
@@ -5242,6 +5247,17 @@
         }
       },
       "drive-files": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "e-prescribing": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

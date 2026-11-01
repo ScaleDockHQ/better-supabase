@@ -19,6 +19,7 @@ import {
   TableIcon,
   ShieldCheckIcon,
   ShieldHalfIcon,
+  FileSignatureIcon,
   ShieldAlertIcon,
   LandmarkIcon,
   ClipboardPlusIcon,
@@ -153,6 +154,7 @@ const ICONS = {
   observations: HeartPulseIcon,
   medications: PillIcon,
   careAlerts: ShieldAlertIcon,
+  prescriptions: FileSignatureIcon,
   carePlans: ClipboardPlusIcon,
   funding: HandCoinsIcon,
   notifications: BellIcon,
@@ -407,6 +409,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "careAlerts": {
         return t("Care alerts");
+      }
+
+      case "prescriptions": {
+        return t("Prescriptions");
       }
 
       case "carePlans": {

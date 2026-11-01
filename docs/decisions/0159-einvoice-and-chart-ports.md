@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The e-invoice ports were merged into `better-supabase/e-invoicing` and a delivery log was added by ADR 0178, which supersedes ADR 0175.
+Accepted. The e-invoice ports were merged into `better-supabase/e-invoicing` and a delivery log was added by ADR 0180, which supersedes ADR 0175.
 
 ## Context
 
