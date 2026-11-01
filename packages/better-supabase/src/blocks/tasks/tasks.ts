@@ -9,6 +9,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { CustomFields } from "../custom-fields/custom-fields.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -272,10 +273,17 @@ export interface Iteration {
 }
 
 export interface Tasks<F extends object = Record<never, never>> {
+  /**
+   * `custom` sets custom field values on the new item, by definition id, after
+   * it is created (the `customFields` port; hint `TASKS_CUSTOM_FIELDS_MISSING`
+   * without it). When a value is refused the item is removed again and the
+   * error returned.
+   */
   create(input: {
     organizationId: string;
     input: WorkItemInput<F>;
     assigneeIds?: readonly string[] | undefined;
+    custom?: Readonly<Record<string, string>> | undefined;
   }): AsyncResult<WorkItem<F>>;
   /** Extra column changes are validated with the `fields` schema first. */
   update(
@@ -389,6 +397,11 @@ export interface TasksOptions<
   readonly hooks?: NoInfer<BlockHooks<Tasks<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The `custom-fields` port, which `create({ custom })` sets values through.
+   * `createBlocks` passes it.
+   */
+  readonly customFields?: Pick<CustomFields, "setValue">;
 }
 
 /** The fields `update` writes without the `fields` schema. */
@@ -687,8 +700,19 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       );
 
   const client: Tasks<F> = {
-    create: ({ organizationId, input, assigneeIds }) => {
+    create: ({ organizationId, input, assigneeIds, custom }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
+      const entries = Object.entries(custom ?? {});
+
+      if (entries.length > 0 && options.customFields === undefined) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_input",
+            "createTasks needs the customFields port to set custom values",
+            { hint: "TASKS_CUSTOM_FIELDS_MISSING" },
+          ),
+        );
+      }
 
       return fields
         .args(extra)
@@ -708,7 +732,25 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             },
             itemOf,
           ).andThen(fields.row),
-        );
+        )
+        .andThen(async (created) => {
+          for (const [definitionId, value] of entries) {
+            // SAFETY: the check above returned when entries exist without the port.
+            const set = await options.customFields!.setValue({
+              subject: { type: "task", id: created.id },
+              definitionId,
+              value,
+            });
+
+            if (!set.ok) {
+              await hooked.remove(created.id);
+
+              return set;
+            }
+          }
+
+          return ok(created);
+        });
     },
     update: ({ changes, ...updateOptions }) =>
       AsyncResult.from(async () => {

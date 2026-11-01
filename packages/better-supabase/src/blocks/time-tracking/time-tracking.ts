@@ -225,6 +225,25 @@ export interface TimeTracking<F extends object = Record<never, never>> {
   resume(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Records a finished entry, on `input.subject` when set. */
   log(input: LogTimeInput<F>): AsyncResult<TimeEntry<F>>;
+  /**
+   * `log` on a record: `subject` is required, so a form on a record cannot
+   * forget it.
+   */
+  logOn(
+    input: Omit<LogTimeInput<F>, "subject"> & { subject: RecordRef },
+  ): AsyncResult<TimeEntry<F>>;
+  /**
+   * Moves the caller's time to `subject`: stops every timer that runs (with
+   * `options.timers: "many"` start leaves them running) and starts one on
+   * `subject`. Resolves with what stopped and the new entry. When a stop fails,
+   * nothing is started.
+   */
+  switchTo(
+    input: Omit<TimeEntryFields<F>, "subject"> & { subject: RecordRef },
+  ): AsyncResult<{
+    readonly stopped: readonly TimeEntry<F>[];
+    readonly started: TimeEntry<F>;
+  }>;
   update(input: {
     entryId: string;
     patch: TimeEntryPatch<F>;
@@ -244,6 +263,16 @@ export interface TimeTracking<F extends object = Record<never, never>> {
     note?: string | undefined;
     employeeId?: string | undefined;
   }): AsyncResult<Timesheet>;
+  /**
+   * `submit`, then reads the week again: the locked week with its entries and
+   * totals, and the timesheet whose `approvalId` names the approval request the
+   * submission opened (with `options.approvals` on).
+   */
+  submitAndRequest(input: {
+    week: Temporal.PlainDate;
+    note?: string | undefined;
+    employeeId?: string | undefined;
+  }): AsyncResult<TimesheetDetail<F>>;
   /** Unlocks an approved week; needs `time_tracking.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /**
@@ -494,6 +523,27 @@ export function createTimeTracking<
           ),
       );
     },
+    logOn: (input) => hooked.log(input),
+    switchTo: (input) =>
+      hooked.runningAll().andThen(async (running) => {
+        const stopped: TimeEntry<F>[] = [];
+
+        for (const entry of running) {
+          const done = await hooked.stop(entry.id);
+
+          if (!done.ok) {
+            return done;
+          }
+
+          stopped.push(done.data);
+        }
+
+        return hooked.start(input).map((started) => ({ stopped, started }));
+      }),
+    submitAndRequest: ({ week, note, employeeId }) =>
+      hooked
+        .submit({ week, note, employeeId })
+        .andThen(() => hooked.timesheet({ week, employeeId })),
     update: ({ entryId, patch }) => {
       const invalid = rateError(patch.rate);
 
@@ -625,8 +675,11 @@ export function createTimeTracking<
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: TimeTracking<F> = withBlockHooks(client, options.hooks, {
     block: "time-tracking",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

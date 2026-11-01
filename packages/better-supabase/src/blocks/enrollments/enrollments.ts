@@ -240,6 +240,13 @@ export interface Enrollments {
   reset(input: { enrollmentId: string; step: string }): AsyncResult<Enrollment>;
   /** Cancels an active enrollment; its completed steps stay. */
   cancel(enrollmentId: string): AsyncResult<Enrollment>;
+  /**
+   * Holds an active enrollment, setting `pausedAt`; its steps stay as they are.
+   * Needs the `paused_at` column and a program the app owns.
+   */
+  pause(enrollmentId: string): AsyncResult<Enrollment>;
+  /** Clears `pausedAt` on a paused enrollment. */
+  resume(enrollmentId: string): AsyncResult<Enrollment>;
   /** Resets every completed step, so the enrollment runs from the start. */
   restart(enrollmentId: string): AsyncResult<Enrollment>;
   /**
@@ -551,6 +558,18 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         "cancel_enrollment",
         { enrollment_id: enrollmentId },
         one("cancel_enrollment"),
+      ),
+    pause: (enrollmentId) =>
+      call(
+        "pause_enrollment",
+        { enrollment_id: enrollmentId },
+        one("pause_enrollment"),
+      ),
+    resume: (enrollmentId) =>
+      call(
+        "resume_enrollment",
+        { enrollment_id: enrollmentId },
+        one("resume_enrollment"),
       ),
     restart: (enrollmentId) =>
       AsyncResult.from(async () => {

@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createTasks } from "../../../src/blocks/tasks/index.ts";
 import { money } from "../../../src/commerce/money.ts";
+import { dbError } from "../../../src/core/errors.ts";
+import { AsyncResult } from "../../../src/core/result.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -583,5 +585,60 @@ describe("project budgets", () => {
       project: "p1",
       attrs: { budgetHours: null, budgetAmount: null, budgetCurrency: null },
     });
+  });
+});
+
+describe("tasks.create with custom values", () => {
+  const custom = { d1: "red", d2: "5" };
+
+  it("sets each value on the new task through the port", async () => {
+    const t = transport({ create_task: () => ROW });
+    const setValue = vi.fn(() => AsyncResult.ok({} as never));
+
+    await createTasks({ transport: t, customFields: { setValue } })
+      .create({ organizationId: "o", input: { title: "x" }, custom })
+      .orThrow();
+
+    expect(setValue.mock.calls).toEqual([
+      [
+        {
+          subject: { type: "task", id: "w1" },
+          definitionId: "d1",
+          value: "red",
+        },
+      ],
+      [{ subject: { type: "task", id: "w1" }, definitionId: "d2", value: "5" }],
+    ]);
+  });
+
+  it("removes the task when a value is refused", async () => {
+    const t = transport({ create_task: () => ROW, delete_task: () => true });
+
+    const setValue = vi.fn(() =>
+      AsyncResult.err(dbError("invalid_value", "no")),
+    );
+
+    const result = await createTasks({
+      transport: t,
+      customFields: { setValue },
+    }).create({ organizationId: "o", input: { title: "x" }, custom });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls.map((each) => each[0])).toEqual([
+      "create_task",
+      "delete_task",
+    ]);
+  });
+
+  it("needs the port when custom values are given", async () => {
+    const result = await createTasks({ transport: transport({}) }).create({
+      organizationId: "o",
+      input: { title: "x" },
+      custom,
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "TASKS_CUSTOM_FIELDS_MISSING",
+    );
   });
 });

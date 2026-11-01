@@ -19,7 +19,7 @@ import {
   extraFieldsArg,
   withFields,
 } from "../../core/block-fields.ts";
-import { sha256Hex } from "../../core/block-helpers.ts";
+import { sha256Hex, sleep } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
@@ -337,6 +337,20 @@ export interface Approvals<F extends object = Record<never, never>> {
     userId: string;
     comment?: string | undefined;
   }): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Files a request, then polls it every `intervalMs` (default 1000) until it
+   * leaves `pending` and resolves with its detail: approved, rejected,
+   * cancelled or expired. Fails with a `timeout` error (hint
+   * `APPROVAL_WAIT_TIMEOUT`) after `timeoutMs` (default 30000), leaving the
+   * request pending, and stops early when `signal` aborts.
+   */
+  requestAndWait(input: {
+    subject: RecordRef;
+    input: ApprovalRequestInput & Partial<F>;
+    timeoutMs?: number | undefined;
+    intervalMs?: number | undefined;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<ApprovalRequestDetail & F>;
   /** The requester or a manager closes a pending request. */
   cancel(id: string): AsyncResult<ApprovalRequest & F>;
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
@@ -869,6 +883,34 @@ export function createApprovals<
         { policy_id: id },
         (value) => value === true,
       ),
+    requestAndWait: ({
+      subject,
+      input,
+      timeoutMs = 30_000,
+      intervalMs = 1000,
+      signal,
+    }) =>
+      hooked.request({ subject, input }).andThen(async (filed) => {
+        const deadline = Date.now() + timeoutMs;
+
+        for (;;) {
+          const current = await hooked.get(filed.id);
+
+          if (!current.ok || current.data.status !== "pending") {
+            return current;
+          }
+
+          if (signal?.aborted || Date.now() + intervalMs > deadline) {
+            return err(
+              dbError("timeout", `Request ${filed.id} is still pending`, {
+                hint: "APPROVAL_WAIT_TIMEOUT",
+              }),
+            );
+          }
+
+          await sleep(intervalMs, signal);
+        }
+      }),
     decideForSubject: ({ subject, action, decision, comment }) =>
       hooked.list({ subject, status: "pending" }).andThen(async (requests) => {
         const found = requests.find((each) => each.action === action);

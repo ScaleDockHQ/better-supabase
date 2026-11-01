@@ -318,6 +318,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "reset_enrollment_step", args: ["uuid", "text"], returns: "jsonb" },
     { name: "cancel_enrollment", args: ["uuid"], returns: "jsonb" },
+    { name: "pause_enrollment", args: ["uuid"], returns: "jsonb" },
+    { name: "resume_enrollment", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

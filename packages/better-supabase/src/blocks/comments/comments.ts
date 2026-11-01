@@ -59,16 +59,16 @@ export interface CommentsOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * The user ids (or mention groups) a comment mentions when the call passes no
-   * `mentionIds`, such as the mention nodes of a rich-text `document`. Default
-   * `mentionsIn(body)`.
-   */
-  /**
    * The `attachments` port: the attachments block over the same transport and
    * storage, which `createWithFiles` uploads through. `createBlocks` passes
    * it.
    */
   readonly attachments?: Pick<Attachments, "uploadFile" | "remove">;
+  /**
+   * The user ids (or mention groups) a comment mentions when the call passes no
+   * `mentionIds`, such as the mention nodes of a rich-text `document`. Default
+   * `mentionsIn(body)`.
+   */
   readonly mentionsOf?: (comment: {
     readonly body: string;
     readonly document: unknown;

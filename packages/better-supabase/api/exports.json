@@ -4942,6 +4942,8 @@
       "RpcClient",
       "ScheduledInboxMessage",
       "ScheduledMessageInput",
+      "SetupInboxInput",
+      "SetupInboxResult",
       "StartConversationInput",
       "StoredInboundEvent",
       "TemplateInput"
