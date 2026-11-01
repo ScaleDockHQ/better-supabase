@@ -635,7 +635,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@3 managed
--- @bsb-hash sha256:f109ee4ef9889030d4df015844d4141e8b01029ecee0157ed0eecc8fb538acf1
+-- @bsb-hash sha256:fc8ad82ce78e52525dff666f7996dc6cc052d834daf1719e9d4b2b7248f61e05
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1309,6 +1309,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.activities', target_type => 'activity', event_prefix => 'activity', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1325,7 +1332,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:6a062c54993a4c299f75da9978eeba06cc9d58c7ed05f3105aed8283ec1418d8
+-- @bsb-hash sha256:d7ceead1aab5aa4ce67151cefe10a5f49ce513c8c7af0d70a62b19634b8b8785
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1421,9 +1428,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_deliveries"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."funding_deliveries" set "source_type" = 'activity' where "source_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_alerts"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_alerts" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.activities', target_type => 'activity', event_prefix => 'activity', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('activities', 3, 'managed')

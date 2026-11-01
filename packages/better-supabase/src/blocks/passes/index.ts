@@ -17,6 +17,7 @@ export {
   type PassMethod,
   type PassOccupancy,
   type PassRejection,
+  type PassScanOutcome,
   type PassScan,
   type PassStatus,
   type PassTokenClaims,

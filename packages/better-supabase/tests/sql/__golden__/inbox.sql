@@ -2485,7 +2485,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:acf934464db2e523972e87ce647312061bd2b1be1399bbb77847e7700783d83b
+-- @bsb-hash sha256:aa540e5c62004b23c6935a48b8faf6951cad463081df04ec0e168ee4d22c5ee2
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5088,6 +5088,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.inboxes', target_type => 'inbox', event_prefix => 'inbox', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5104,7 +5111,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:2142f2af3b39ccc38a89f474e86a7b1f3b7155827a63a608ebc9f8fe9f6fad17
+-- @bsb-hash sha256:233c4fb839ec00b493664bc3bf83563a0dde8cacce46cc74f4b23b6e8f4a3520
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5113,9 +5120,6 @@ grant select on better_supabase.blocks to service_role;
 insert into "better_supabase"."automation_defaults" ("key", "block", "subject_type", "trigger", "name", "description", "actions", "enabled")
 values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conversation.opened', 'Open a task for each new conversation', 'Creates a task from the conversation''s subject and preview, assigned to the conversation''s assignee and linked created_from the conversation.', '[{"kind":"tasks.from_conversation","config":{"targetType":"task"}}]'::jsonb, true)
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.inboxes', target_type => 'inbox', event_prefix => 'inbox', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('inbox', 8, 'managed')

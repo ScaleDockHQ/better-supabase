@@ -4082,7 +4082,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:f98a0b5258e69e9321cf644f4a8ad98212c43f025d38abef175683365013ca24
+-- @bsb-hash sha256:d27453062b9dc9a673d4fcdae2ac6a7f2a603e9cf7445aae8d6d61911521df93
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8386,6 +8386,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."discount_rules" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.products', target_type => 'product', event_prefix => 'product', deferred => true);
+  perform better_supabase.audit('better_supabase.product_variants', target_type => 'product_variant', event_prefix => 'product_variant', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -8402,15 +8410,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
--- @bsb-hash sha256:073fa2f24c3f7340b5b6b5290b272640b6b4f640a65f2e34c1788e26fc6dc969
+-- @bsb-hash sha256:2033a9a55f3f1254315d7e49a0457c27bea8dd7841443521168e86d6f1d378c9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.products', target_type => 'product', event_prefix => 'product', deferred => true);
-select better_supabase.audit('better_supabase.product_variants', target_type => 'product_variant', event_prefix => 'product_variant', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('catalog', 6, 'managed')

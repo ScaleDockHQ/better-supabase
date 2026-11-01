@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:4e543c2b5e8ca1c1938ea6ddef8dbd910001c32592acd59dc1f4d0fe4dd78713
+-- @bsb-hash sha256:414e5e87f369a3458f41d1955b26cf12f2b1ac282a3b420c4c12999b43cb3436
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1987,6 +1987,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_tax_li
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.quotes', target_type => 'quote', event_prefix => 'quote', deferred => true);
+end;
+$$;
 
 -- blocks.quotes.api: entry points for the Data API.
 create schema if not exists "api";

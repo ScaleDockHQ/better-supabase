@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:c37aafe7bdbf6985cd1a49d974d3fc87687323fcb2ca7ed389b404d92a820fdf
+-- @bsb-hash sha256:85a77331679163a60469d60029cde514f5bec3bb0c65737f08e0802ed28fb1f8
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1188,6 +1188,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_s
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.enrollment_programs', target_type => 'enrollment_program', event_prefix => 'enrollment_program', deferred => true);
+  perform better_supabase.audit('better_supabase.enrollments', target_type => 'enrollment', event_prefix => 'enrollment', deferred => true);
+end;
+$$;
 
 -- blocks.enrollments.api: entry points for the Data API.
 create schema if not exists "api";

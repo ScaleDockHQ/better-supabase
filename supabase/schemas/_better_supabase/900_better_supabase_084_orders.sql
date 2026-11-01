@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:e5ec299387d50fa6cd1d6238bfcfda9483ad94c3f4b9c93cfc49a0c2b2cfd649
+-- @bsb-hash sha256:a4a8052ca7dc5d12abe2ac3962af7c3be85279abfcf44859dc546273e15c135a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3291,6 +3291,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_refund
 create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
+  perform better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
+end;
+$$;
 
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";

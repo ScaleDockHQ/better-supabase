@@ -740,7 +740,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:bfbcfa0202f5bac390bac976e68a7e9e4879f31de6cea17f0abed90c3c055289
+-- @bsb-hash sha256:55aa20529b7fdd9cd6635a95405139fd3631abb82efae10bcb7b5ed39390afb0
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1509,6 +1509,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."posts" as restrictiv
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.post_boards', target_type => 'post_board', event_prefix => 'post_board', deferred => true);
+  perform better_supabase.audit('better_supabase.posts', target_type => 'post', event_prefix => 'post', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1525,15 +1533,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block-data posts
--- @bsb-hash sha256:e93aba4eb51441ffda738822604d46c3140f5a7ceff1b471e867cd3e2706bbb5
+-- @bsb-hash sha256:cf3d9eb13597345e8c143e55724f0dfbbb72694518788ae9544aa9820b826e8d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.post_boards', target_type => 'post_board', event_prefix => 'post_board', deferred => true);
-select better_supabase.audit('better_supabase.posts', target_type => 'post', event_prefix => 'post', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('posts', 1, 'managed')

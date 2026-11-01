@@ -42,7 +42,7 @@ export const link = (
 });
 
 /** The relation kind a conversion records, and its inverse. */
-export const CONVERSION_KIND = "created_from";
+const CONVERSION_KIND = "created_from";
 
 /** What `createdFromLink` needs: the new row and the row it came from. */
 export interface CreatedFrom {

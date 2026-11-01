@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:6748b5d32a90cfe64061ada731b14c2e746928c984f2a414337abbbe8e550410
+-- @bsb-hash sha256:8bc2e6f80f88a9c1a680488b73602bf94b5523820e70a80ce29b4de0302d41c2
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1921,6 +1921,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemption
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.promotions', target_type => 'promotion', event_prefix => 'promotion', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1937,14 +1944,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block-data promotions
--- @bsb-hash sha256:f9da48589401e931c35cba5a3ad4fd01a3f55cb0b9cf9b2827b098a886b072dc
+-- @bsb-hash sha256:6613b495bfa7fde131886986f78b3cfc77e334ad1345649f8c2f1453ac6f9b29
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.promotions', target_type => 'promotion', event_prefix => 'promotion', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('promotions', 1, 'managed')

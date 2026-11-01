@@ -240,7 +240,11 @@ export interface Consents {
    * otherwise fails with a `forbidden` error whose `permission` is
    * `consent:<purposeKey>`.
    */
-  require(input: { subject: RecordRef; purposeKey: string }): AsyncResult<true>;
+  // A property, not a method signature: the WinterTC check flags `require(` as a CommonJS call.
+  require: (input: {
+    subject: RecordRef;
+    purposeKey: string;
+  }) => AsyncResult<true>;
   /**
    * Records a signal as consent evidence. A Sec-GPC signal (`value: "1"`)
    * records a refused consent for each of `purposeKeys`, an opt-out. A TCF v2

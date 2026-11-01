@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2d5d919aa35be2c7f5ef16c48cc334300165ea1931a59b06e6b541c4bc7ff8f5
+-- @bsb-hash sha256:04ff79dced5ee67c256314e2811ad67bc7500e47d0c49c26e8650c902af7d7f2
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1333,6 +1333,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_deprec
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.assets', target_type => 'asset', event_prefix => 'asset', deferred => true);
+  perform better_supabase.audit('better_supabase.asset_locations', target_type => 'asset_location', event_prefix => 'asset_location', deferred => true);
+end;
+$$;
 
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";

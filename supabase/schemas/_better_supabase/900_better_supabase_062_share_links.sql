@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:ad1d424e0f667c854daaf9ba4bf0304c53b93f9cfe5da5eaf877f509cd1dc226
+-- @bsb-hash sha256:de058360d6602a48fec9f29dba5bbab9b401353fbb55733d9fd6d8b3171a21e4
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,6 +544,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."share_links"
 create policy bsb_tenant_scope_delete on "better_supabase"."share_links" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.share_links', target_type => 'share_link', event_prefix => 'share_link', deferred => true);
+end;
+$$;
 
 -- blocks.share-links.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1104,7 +1104,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:d55a74e81d11f94223028a2747b4ec2e968895dc9eeaf28e91841dc8abb260ba
+-- @bsb-hash sha256:0c91a2c116c1005f4fedf56489b86f51ed06dbe2a5364db78f21273e45a9e028
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2177,6 +2177,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.subject_collections', target_type => 'subject_collection', event_prefix => 'subject_collection', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2193,14 +2200,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:765d624d8e44a064e5e0d10f8394dd0cf06113378bcc26d37a60e1e77ca5f8d1
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.subject_collections', target_type => 'subject_collection', event_prefix => 'subject_collection', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('collections', 2, 'managed')

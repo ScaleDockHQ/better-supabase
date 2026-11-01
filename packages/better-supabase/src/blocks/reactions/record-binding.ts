@@ -12,7 +12,7 @@ export interface ReactionToggleInput {
 }
 
 /** The input schema of the reactions binding's `toggle`. */
-export const reactionToggleInput: EntitySchema<ReactionToggleInput> =
+const reactionToggleInput: EntitySchema<ReactionToggleInput> =
   entitySchema<ReactionToggleInput>({
     title: "ReactionToggleInput",
     fields: { emoji: { kind: "string", minLength: 1 } },

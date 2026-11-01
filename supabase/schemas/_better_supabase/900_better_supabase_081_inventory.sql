@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:70c094c88194417d07d3f67d899ce9640dd246efc1f0dd5447edfa381b2b27c8
+-- @bsb-hash sha256:5b5833503d0e7e4b9bb481c7075032ce93661ed62e945328410a753a44932537
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3593,6 +3593,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_count_
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.inventory_locations', target_type => 'inventory_location', event_prefix => 'inventory_location', deferred => true);
+  perform better_supabase.audit('better_supabase.purchase_orders', target_type => 'purchase_order', event_prefix => 'purchase_order', deferred => true);
+  perform better_supabase.audit('better_supabase.purchase_requisitions', target_type => 'purchase_requisition', event_prefix => 'purchase_requisition', deferred => true);
+  perform better_supabase.audit('better_supabase.inventory_receipts', target_type => 'inventory_receipt', event_prefix => 'inventory_receipt', deferred => true);
+end;
+$$;
 
 -- blocks.inventory.api: entry points for the Data API.
 create schema if not exists "api";

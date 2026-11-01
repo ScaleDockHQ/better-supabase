@@ -1,6 +1,6 @@
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:8f46f82a367a3fcf0ecfc73a4b8f44c02a5aac8185803f8f7293963c8ee30b9d
+-- @bsb-hash sha256:3c6f04801cf08c30d890d326a8eda0dc3d84896c617fb4393a298beb8adb0d89
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -528,6 +528,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prescription
 create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.prescriptions', target_type => 'prescription', event_prefix => 'prescription', deferred => true);
+end;
+$$;
 
 -- blocks.e-prescribing.api: entry points for the Data API.
 create schema if not exists "api";

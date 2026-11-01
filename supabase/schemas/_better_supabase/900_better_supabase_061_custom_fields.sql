@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:b7bb481006687f36c62e806c3ef0ecadac508cbe8a5cc2c50e91678a2727c0c3
+-- @bsb-hash sha256:93439d600a53bcd207adee46b1fd5298969ffd7972f254804a05f2d656c19057
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -665,6 +665,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.field_definitions', target_type => 'field_definition', event_prefix => 'field_definition', deferred => true);
+end;
+$$;
 
 -- blocks.custom-fields.api: entry points for the Data API.
 create schema if not exists "api";

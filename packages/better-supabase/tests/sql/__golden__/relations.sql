@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:d359e01ab6b77807d89151d863c7985deddc130b179a1de731dc4065a3878dad
+-- @bsb-hash sha256:c33e10452af4b10e5caa7af997c702ed1278159fc545293f1daf4b8be41e7899
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1062,6 +1062,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.relations', target_type => 'relation', event_prefix => 'relation', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1078,14 +1085,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
--- @bsb-hash sha256:53185b4dab3db1d1eb9dec6040f33ce7e2ab13789640b8919e52bd7863a2327f
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.relations', target_type => 'relation', event_prefix => 'relation', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('relations', 1, 'managed')

@@ -30,7 +30,10 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
+import {
+  neighborsForIndex,
+  rankBetweenResult,
+} from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { blockCall, isRecord, recordOf, recordsOf, textOf } from "../shared.ts";
 import { preferenceOf, viewOf } from "./rows.ts";
@@ -103,6 +106,17 @@ export interface SavedViews<F extends object = Record<never, never>> {
   }): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
   reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
+  /**
+   * Puts a view at position `toIndex` (0 is first) in the list's views the
+   * caller sees and resolves to its new key. It reads `list` and calls
+   * `reorder` with the neighbours there.
+   */
+  move(input: {
+    id: string;
+    organizationId: string;
+    list: string;
+    toIndex: number;
+  }): AsyncResult<string>;
   /**
    * Makes a view the default of its slot (the user's, the team's or the
    * tenant's).
@@ -354,6 +368,14 @@ export function createSavedViews<
       call("list_views", { tenant: organizationId, list }, (value) =>
         recordsOf(value, "list_views").map(viewOf),
       ).andThen((views) => readAllFields(fields, views)),
+    move: ({ id, organizationId, list, toIndex }) =>
+      hooked.list({ organizationId, list }).andThen((views) => {
+        const neighbors = neighborsForIndex(views, id, toIndex);
+
+        return neighbors.ok
+          ? hooked.reorder({ id, neighbors: neighbors.data })
+          : AsyncResult.err(neighbors.error);
+      }),
     reorder: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
@@ -395,10 +417,13 @@ export function createSavedViews<
       call("delete_view", { view_id: id }, (value) => value === true),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: SavedViews<F> = withBlockHooks(client, options.hooks, {
     block: "saved-views",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
 
 /** The fields of a view `defaultView` reads; `SavedView` fits. */

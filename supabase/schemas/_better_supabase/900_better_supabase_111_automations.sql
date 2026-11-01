@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:dfdfea8ab3b5c98d70c40679d5776f9b76cbe29187acd4d6eafadecbcc73b7c3
+-- @bsb-hash sha256:adb80700f402fe039ca17f9d3483e3d4a5605977b3ddc22b4e6e8397982796a2
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1365,6 +1365,13 @@ revoke execute on function "better_supabase"."run_rules"(uuid, text, text, text,
 grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.automations', target_type => 'automation', event_prefix => 'automation', deferred => true);
+end;
+$$;
 
 -- blocks.automations.api: entry points for the Data API.
 create schema if not exists "api";

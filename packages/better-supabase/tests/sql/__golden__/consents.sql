@@ -1097,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@2 managed
--- @bsb-hash sha256:5b7f811e44a1e32710afe5d51b24a9f4b77e6822cc6cb4a57660c93a105f8718
+-- @bsb-hash sha256:f83a77b38675b8000950a2f575b491ed17887849549a080454285a3876bf06a5
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2362,6 +2362,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.consents', target_type => 'consent', event_prefix => 'consent', deferred => true);
+  perform better_supabase.audit('better_supabase.consent_purposes', target_type => 'consent_purpose', event_prefix => 'consent_purpose', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2378,15 +2386,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:89194290dafe3620519d4e89fe96ce6b5f308a1bdd12e61479cdaa8bb4417595
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.consents', target_type => 'consent', event_prefix => 'consent', deferred => true);
-select better_supabase.audit('better_supabase.consent_purposes', target_type => 'consent_purpose', event_prefix => 'consent_purpose', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('consents', 2, 'managed')

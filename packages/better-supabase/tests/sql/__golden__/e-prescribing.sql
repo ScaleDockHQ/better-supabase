@@ -500,7 +500,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:256b9a14273b42862cc847ed3e95ef5720114f298501a8bcaecce98da6fb595a
+-- @bsb-hash sha256:86e759ef7deb9e462c6ea6c42610a916858f5054909b850ac8139fbb927f04a2
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1029,6 +1029,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.prescriptions', target_type => 'prescription', event_prefix => 'prescription', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1045,14 +1052,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
--- @bsb-hash sha256:bef76d645dc97e2cb4cd8effb4ace78ad5b1ef3e81e0ba6bc88fb029b95ac98b
+-- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.prescriptions', target_type => 'prescription', event_prefix => 'prescription', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('e-prescribing', 1, 'managed')

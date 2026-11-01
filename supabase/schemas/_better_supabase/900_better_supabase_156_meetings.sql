@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:c931a6d81840c6fd6ac8008a2271ffe82f517aaad47871c3459e0bc4a9ee7a83
+-- @bsb-hash sha256:3bfa1d306598916582b5190021ffe0f4c578f1d5c772562c617581c6a3e70b42
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1456,6 +1456,17 @@ drop trigger if exists "bsb_search_meeting_index" on "better_supabase"."meetings
 create trigger "bsb_search_meeting_index"
   after insert or delete or update of "id", "tenant_id", "title", "location", "summary" on "better_supabase"."meetings"
   for each row execute function "better_supabase"."search_index_row"('meeting', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.meetings', target_type => 'meeting', event_prefix => 'meeting', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_attendees', target_type => 'meeting_attendee', event_prefix => 'meeting_attendee', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_agenda_items', target_type => 'meeting_agenda_item', event_prefix => 'meeting_agenda_item', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_decisions', target_type => 'meeting_decision', event_prefix => 'meeting_decision', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_action_items', target_type => 'meeting_action_item', event_prefix => 'meeting_action_item', deferred => true);
+end;
+$$;
 
 -- blocks.meetings.api: entry points for the Data API.
 create schema if not exists "api";

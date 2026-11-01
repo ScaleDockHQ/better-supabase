@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:bf1e7c9820e8f1f9c643f93e5465f30fb185205bd31cf72e4d46f11f0eb79275
+-- @bsb-hash sha256:e18e37dc161633b989400c6e3478b79596812a3ccc3365572610131cdc1bb51b
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2163,6 +2163,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.mail_threads', target_type => 'mail_thread', event_prefix => 'mail_thread', deferred => true);
+  perform better_supabase.audit('better_supabase.mail_accounts', target_type => 'mail_account', event_prefix => 'mail_account', deferred => true);
+  perform better_supabase.audit('better_supabase.mail_messages', target_type => 'mail_message', event_prefix => 'mail_message', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2179,16 +2188,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block-data mail-sync
--- @bsb-hash sha256:d6a123587cb645382f05a5bcf1646a69732f74274975711e06de8fdf256fc03f
+-- @bsb-hash sha256:a455c51c4d5ee70107696c80dad74fd5dee24dfb085ce0167490dd90eb1ef9c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.mail_threads', target_type => 'mail_thread', event_prefix => 'mail_thread', deferred => true);
-select better_supabase.audit('better_supabase.mail_accounts', target_type => 'mail_account', event_prefix => 'mail_account', deferred => true);
-select better_supabase.audit('better_supabase.mail_messages', target_type => 'mail_message', event_prefix => 'mail_message', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('mail-sync', 2, 'managed')

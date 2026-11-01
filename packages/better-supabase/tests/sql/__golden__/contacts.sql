@@ -1630,7 +1630,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@2 managed
--- @bsb-hash sha256:f9513a0c8eeac211e4fa88c4f227aafa04cfe42bcb4ebd737a4ff7ef374081fd
+-- @bsb-hash sha256:dffaa68b75cc4818d9e91f4e5befa000ef4a970bdea0775f9154866e81388cf2
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3386,6 +3386,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
+  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3402,15 +3410,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:c5f2eb5e5df84c0f9c5ec31500d003e5348e8859fca006ee0be39d557d583f3f
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
-select better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('contacts', 2, 'managed')

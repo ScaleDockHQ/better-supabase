@@ -381,7 +381,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:8e601d8c055f5acd21b29b82ce07e1fa8bff895e2ebe4fa46172492854802ea6
+-- @bsb-hash sha256:2058757d30335f6e44d5e20717db25d4ae72f1b374ac1adb35d2b1a8dad0d415
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -731,6 +731,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.enrichments', target_type => 'enrichment', event_prefix => 'enrichment', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -747,14 +754,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block-data enrichment
--- @bsb-hash sha256:f576c7f34149a7dc8fc0b89e38b14b8a7f7f0f165eabf7b901696dc419879773
+-- @bsb-hash sha256:dcb04aea5c6dba2694f8efab01af3f4faf3ae190eaf85c4f2685d756fb3f5cb1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.enrichments', target_type => 'enrichment', event_prefix => 'enrichment', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('enrichment', 1, 'managed')

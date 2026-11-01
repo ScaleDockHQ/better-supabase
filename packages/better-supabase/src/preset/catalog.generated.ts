@@ -14968,7 +14968,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "commentsBlock",
         "subpath": "better-supabase/blocks/comments"
       },
-      "consumes": {},
+      "consumes": {
+        "attachments": "optional"
+      },
       "provides": [],
       "composedBy": [
         "collaboration"
@@ -16321,6 +16323,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PassScan"
+        },
+        {
+          "name": "PassScanOutcome"
         },
         {
           "name": "PassSectionInput"
@@ -31369,6 +31374,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
+          "name": "ReactionActors"
+        },
+        {
           "name": "ReactionCount"
         },
         {
@@ -32361,6 +32369,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "TemplateOccurrence"
         },
         {
+          "name": "TemplatePreview"
+        },
+        {
           "name": "TemplateRecurPayload"
         },
         {
@@ -32405,6 +32416,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TemplateType"
+        },
+        {
+          "name": "TemplateVariable"
         },
         {
           "name": "TemplateVersion"

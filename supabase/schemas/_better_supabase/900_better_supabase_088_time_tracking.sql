@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:ebd2fbcde416daf03e55b7666dd3f569a737a3922edf801643e5ce45cb95c052
+-- @bsb-hash sha256:2314d97dc8d343c4a0384eb17b9aabd0da33ebe9abecdeb73bbd653dcbd85606
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1149,6 +1149,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.time_entries', target_type => 'time_entry', event_prefix => 'time_entry', deferred => true);
+  perform better_supabase.audit('better_supabase.timesheets', target_type => 'timesheet', event_prefix => 'timesheet', deferred => true);
+end;
+$$;
 
 -- blocks.time-tracking.api: entry points for the Data API.
 create schema if not exists "api";

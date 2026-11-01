@@ -600,7 +600,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:343a4e56a67c6049ba600bc58d3d1f8d1af90252f30dc04cba439d67857e2409
+-- @bsb-hash sha256:957f6c56a586664d7184904b96d7c2d8b8d1d4661d72f20facdc646ebecc7d6e
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,6 +1242,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.checkout_sessions', target_type => 'checkout_session', event_prefix => 'checkout_session', deferred => true);
+  perform better_supabase.audit('better_supabase.agent_mandates', target_type => 'agent_mandate', event_prefix => 'agent_mandate', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1258,15 +1266,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
--- @bsb-hash sha256:a9e443bc0e04173aaa90f9d6c7b709c640e030af9d8c153794d194f8f795baa2
+-- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.checkout_sessions', target_type => 'checkout_session', event_prefix => 'checkout_session', deferred => true);
-select better_supabase.audit('better_supabase.agent_mandates', target_type => 'agent_mandate', event_prefix => 'agent_mandate', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('agent-checkout', 1, 'managed')

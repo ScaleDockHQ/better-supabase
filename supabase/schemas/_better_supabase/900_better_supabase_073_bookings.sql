@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:4c76a0342333527728a3bddc0034f07e1151a530925d458fb94ff213c176f014
+-- @bsb-hash sha256:75a79d0951e5a305ff657b4729a03e39a68b994219667fcbf8d983677eaaa516
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1578,6 +1578,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bookings";
 create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.bookings', target_type => 'booking', event_prefix => 'booking', deferred => true);
+end;
+$$;
 
 -- blocks.bookings.api: entry points for the Data API.
 create schema if not exists "api";

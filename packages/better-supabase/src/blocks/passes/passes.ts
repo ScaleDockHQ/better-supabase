@@ -13,7 +13,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { bookingOf } from "../bookings/rows.ts";
 import {
@@ -134,6 +134,17 @@ export interface PassScan extends PassCheckIn {
   readonly pass: Pass;
 }
 
+/**
+ * What `scan` answers: the scan the database logged, or a refusal for a token
+ * that never reached it (no `pass` and no log entry).
+ */
+export type PassScanOutcome =
+  | PassScan
+  | {
+      readonly admitted: false;
+      readonly reason: Extract<PassRejection, "invalid" | "expired">;
+    };
+
 /** How full a resource is now, for a door display. */
 export interface PassOccupancy {
   readonly resourceId: string;
@@ -230,6 +241,16 @@ export interface Passes {
    */
   checkIn(input: { token: string } & PassCheckInOptions): AsyncResult<PassScan>;
   /** Checks a holder in by pass id, for staff at the door. */
+  /**
+   * Checks in a scanned token and never fails for a bad one: an unreadable,
+   * forged or expired token comes back as `{ admitted: false, reason }`
+   * (`invalid` or `expired`), the same shape a refused scan has, so a door
+   * display handles one case. Errors are the ones `checkIn` also returns for a
+   * missing `jwks` or a database failure.
+   */
+  scan(
+    input: { token: string } & PassCheckInOptions,
+  ): AsyncResult<PassScanOutcome>;
   checkInManually(
     input: { passId: string } & PassManualCheckInOptions,
   ): AsyncResult<PassScan>;
@@ -612,6 +633,26 @@ export function createPasses(options: PassesOptions): Passes {
           : AsyncResult.err(read.error);
       });
     },
+    scan: (input) =>
+      AsyncResult.from(async () => {
+        const scanned = await hooked.checkIn(input);
+
+        if (scanned.ok) {
+          return scanned;
+        }
+
+        // SAFETY: `DbError.hint` is an optional string; the cast only narrows the read.
+        const { hint } = scanned.error as { hint?: string };
+
+        if (hint === "PASS_TOKEN_INVALID" || hint === "PASS_TOKEN_EXPIRED") {
+          return ok<PassScanOutcome>({
+            admitted: false,
+            reason: hint === "PASS_TOKEN_EXPIRED" ? "expired" : "invalid",
+          });
+        }
+
+        return scanned;
+      }),
     checkInManually: ({ passId, ...scan }) =>
       checkInCall(passId, null, "manual", scan.gate, scan.resourceId),
     checkIns: ({ passId, ...list }) =>
@@ -665,8 +706,11 @@ export function createPasses(options: PassesOptions): Passes {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Passes = withBlockHooks(client, options.hooks, {
     block: "passes",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

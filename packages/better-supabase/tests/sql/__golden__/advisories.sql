@@ -1334,7 +1334,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:a1cfd7dff32fe73762a2ea3024c70950d3594564899b2cabf4fa4f5eec934719
+-- @bsb-hash sha256:f0a9f625c277cbd0088fafb3eca6cfc0523d85295611c5a111a32359d60a6fc0
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2737,6 +2737,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.advisories', target_type => 'advisory', event_prefix => 'advisory', deferred => true);
+  perform better_supabase.audit('better_supabase.advisory_products', target_type => 'advisory_product', event_prefix => 'advisory_product', deferred => true);
+  perform better_supabase.audit('better_supabase.advisory_product_versions', target_type => 'advisory_product_version', event_prefix => 'advisory_product_version', deferred => true);
+  perform better_supabase.audit('better_supabase.sbom_components', target_type => 'sbom_component', event_prefix => 'sbom_component', deferred => true);
+  perform better_supabase.audit('better_supabase.vulnerabilities', target_type => 'vulnerability', event_prefix => 'vulnerability', deferred => true);
+  perform better_supabase.audit('better_supabase.vex_statements', target_type => 'vex_statement', event_prefix => 'vex_statement', deferred => true);
+  perform better_supabase.audit('better_supabase.advisory_vulnerabilities', target_type => 'advisory_vulnerability', event_prefix => 'advisory_vulnerability', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2753,20 +2766,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
--- @bsb-hash sha256:ee22cf97be6db574ec5a231dbc05af5b2042ac9afa4329d4e49dd72d6ea7eac0
+-- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.advisories', target_type => 'advisory', event_prefix => 'advisory', deferred => true);
-select better_supabase.audit('better_supabase.advisory_products', target_type => 'advisory_product', event_prefix => 'advisory_product', deferred => true);
-select better_supabase.audit('better_supabase.advisory_product_versions', target_type => 'advisory_product_version', event_prefix => 'advisory_product_version', deferred => true);
-select better_supabase.audit('better_supabase.sbom_components', target_type => 'sbom_component', event_prefix => 'sbom_component', deferred => true);
-select better_supabase.audit('better_supabase.vulnerabilities', target_type => 'vulnerability', event_prefix => 'vulnerability', deferred => true);
-select better_supabase.audit('better_supabase.vex_statements', target_type => 'vex_statement', event_prefix => 'vex_statement', deferred => true);
-select better_supabase.audit('better_supabase.advisory_vulnerabilities', target_type => 'advisory_vulnerability', event_prefix => 'advisory_vulnerability', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('advisories', 1, 'managed')

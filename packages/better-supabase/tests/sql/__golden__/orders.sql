@@ -2657,7 +2657,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:d285c3e8584ef5b6a543bfd6156477fed56c4e4e1823816d60b0c032afdc5e26
+-- @bsb-hash sha256:6c7ed7b59382c2fe9e8ed9d7e5dd2fc8adfc23e591942c982679ea0e7204e2ff
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5510,6 +5510,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
+  perform better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5526,15 +5534,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:ce6086bafab8841889667391c2a5c3588293525647143c140ef883866a88e31b
+-- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
-select better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('orders', 4, 'managed')

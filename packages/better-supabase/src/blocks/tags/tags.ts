@@ -13,7 +13,10 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
+import {
+  neighborsForIndex,
+  rankBetweenResult,
+} from "../../core/rank-result.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -111,6 +114,16 @@ export interface Tags<F extends object = Record<never, never>> {
    * to its new key.
    */
   reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
+  /**
+   * Puts a tag at position `toIndex` (0 is first) among the tags of `kind`
+   * (every kind without it) and resolves to its new key. It reads the list and
+   * calls `reorder` with the neighbours there.
+   */
+  move(input: {
+    id: string;
+    toIndex: number;
+    kind?: string | undefined;
+  }): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
   /** Puts a tag on `record`. */
   attach(input: { record: RecordRef; tagId: string }): AsyncResult<boolean>;
@@ -221,6 +234,14 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
       return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
     },
+    move: ({ id, toIndex, kind }) =>
+      hooked.list(kind === undefined ? {} : { kind }).andThen((tags) => {
+        const neighbors = neighborsForIndex(tags, id, toIndex);
+
+        return neighbors.ok
+          ? hooked.reorder({ id, neighbors: neighbors.data })
+          : AsyncResult.err(neighbors.error);
+      }),
     delete: (id) =>
       call("delete_tag", { tag_id: id }, (value) => value === true),
     attach: ({ record, tagId }) =>

@@ -3549,7 +3549,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:1cc82a05499d6127caee98e9f3c3f32a333df3241fa015bc6b2ea4c00f70ee74
+-- @bsb-hash sha256:2604949bc5fe08fae58498c3a5a521be78e777e19ae674e5db40cfb323792fab
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7143,6 +7143,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.inventory_locations', target_type => 'inventory_location', event_prefix => 'inventory_location', deferred => true);
+  perform better_supabase.audit('better_supabase.purchase_orders', target_type => 'purchase_order', event_prefix => 'purchase_order', deferred => true);
+  perform better_supabase.audit('better_supabase.purchase_requisitions', target_type => 'purchase_requisition', event_prefix => 'purchase_requisition', deferred => true);
+  perform better_supabase.audit('better_supabase.inventory_receipts', target_type => 'inventory_receipt', event_prefix => 'inventory_receipt', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -7159,17 +7169,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:1d4193290ceda01d5b5dab87bf27e89240258af98cd13f4882776575fa53e886
+-- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.inventory_locations', target_type => 'inventory_location', event_prefix => 'inventory_location', deferred => true);
-select better_supabase.audit('better_supabase.purchase_orders', target_type => 'purchase_order', event_prefix => 'purchase_order', deferred => true);
-select better_supabase.audit('better_supabase.purchase_requisitions', target_type => 'purchase_requisition', event_prefix => 'purchase_requisition', deferred => true);
-select better_supabase.audit('better_supabase.inventory_receipts', target_type => 'inventory_receipt', event_prefix => 'inventory_receipt', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('inventory', 5, 'managed')

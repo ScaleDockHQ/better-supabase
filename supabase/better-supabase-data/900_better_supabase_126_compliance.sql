@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:5ba33d6c7a72a32bf16638b54ea3f0d43f38d3320a1dc0e38f97cca4bd5afaa1
+-- @bsb-hash sha256:d5367e35080a26e414cd77f30e3a1724405a76a933625b15e6e85782a5cdfc5a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -111,12 +111,6 @@ begin
     );
 end;
 $$;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.controls', target_type => 'control', event_prefix => 'control', deferred => true);
-select better_supabase.audit('better_supabase.control_frameworks', target_type => 'control_framework', event_prefix => 'control_framework', deferred => true);
-select better_supabase.audit('better_supabase.evidence_tasks', target_type => 'evidence_task', event_prefix => 'evidence_task', deferred => true);
-select better_supabase.audit('better_supabase.compliance_policies', target_type => 'compliance_policy', event_prefix => 'compliance_policy', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 4, 'managed')

@@ -1159,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:11f18b9a409e93cf9c5259ed4a672cd6e44db0adc45610e2644e6469c1fb756a
+-- @bsb-hash sha256:ef649198f06041d244a32d48f892c12668659567e105eae02a7896decf160c8a
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2437,6 +2437,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.forms', target_type => 'form', event_prefix => 'form', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2453,14 +2460,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block-data forms
--- @bsb-hash sha256:8e99a94610f4c467685597591c474373e790f006e3cfe57ff10fea1f360011e9
+-- @bsb-hash sha256:ba046d701cddbc2f816944c4e89a65d5c3aa2d200a4356ce41ce71820acfd8f0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.forms', target_type => 'form', event_prefix => 'form', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('forms', 2, 'managed')

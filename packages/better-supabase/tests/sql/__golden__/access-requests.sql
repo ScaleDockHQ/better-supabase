@@ -422,7 +422,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:deeac8fd0d5b7837b09abed8dbca22a0ee4afa3140ae387023ebf58d398d41a0
+-- @bsb-hash sha256:cdffcb907511684499f1e675a733eb4849dc9dcd59587571564f664db0d5e32c
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1200,6 +1200,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.access_requests', target_type => 'access_request', event_prefix => 'access_request', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1216,14 +1223,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block-data access-requests
--- @bsb-hash sha256:36b60c1acda18eb860ae84fe89060b9312bad9bf644a1a7e514bd2b2f536527a
+-- @bsb-hash sha256:5ecfb15306bd8d51b0820b8afc96355b2183538887699d447a1077c7e0e498cf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.access_requests', target_type => 'access_request', event_prefix => 'access_request', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('access-requests', 1, 'managed')

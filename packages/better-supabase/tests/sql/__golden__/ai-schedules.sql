@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ee327010daca185e0a66e2c0647419a36f7d44ee614c588ceb302402acb6e958
+-- @bsb-hash sha256:fb801db355c4e8054142a8095371104d43054da80efbd7117a16c593dcb8d95b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -886,6 +886,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as res
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_scheduled_tasks', target_type => 'ai_scheduled_task', event_prefix => 'ai_scheduled_task', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -902,14 +909,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block-data ai-schedules
--- @bsb-hash sha256:37751e76a56127dce1317f0c78477e81a04fdbe666b931bb31963b30dc43d93b
+-- @bsb-hash sha256:43de88ba0dbb65c1156d816eb749533bf1807cd81b507d4dcf3059b78c44d38f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.ai_scheduled_tasks', target_type => 'ai_scheduled_task', event_prefix => 'ai_scheduled_task', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('ai-schedules', 2, 'managed')

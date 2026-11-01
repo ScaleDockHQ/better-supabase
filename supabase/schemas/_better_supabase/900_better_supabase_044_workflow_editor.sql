@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:7be248564df764a9e22ff6e0d14f8132b17ec27b2aff3dde533a65d1210a96fe
+-- @bsb-hash sha256:f7622ba3509a3366971a67ee585efdf385d4256c3fdadb7903db48416ab85a85
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2290,6 +2290,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_cre
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_credentials" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.workflow_definitions', target_type => 'workflow_definition', event_prefix => 'workflow_definition', deferred => true);
+end;
+$$;
 
 -- blocks.workflow-editor.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:414a5cea6bd31e9fb1fd3c9771609cda92b654540c4703f652140de7340a241c
+-- @bsb-hash sha256:3f92efa7fe7965235ab8e0ddfd3f287ee327970366aaa1d90134dd63d636c84d
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -965,6 +965,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contract_obl
 create policy bsb_tenant_scope_delete on "better_supabase"."contract_obligations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.contracts', target_type => 'contract', event_prefix => 'contract', deferred => true);
+  perform better_supabase.audit('better_supabase.contract_obligations', target_type => 'contract_obligation', event_prefix => 'contract_obligation', deferred => true);
+end;
+$$;
 
 -- blocks.contracts.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1164,7 +1164,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:cb91fb62dc78313abc2b12bc287f7b2e5a388d76cee6f9638bf0d16c53c13026
+-- @bsb-hash sha256:e3872fca5bbf01b446298b17745968ac951687b8c427b5ad852933e324c25b13
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2327,6 +2327,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deal_lines" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.deals', target_type => 'deal', event_prefix => 'deal', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2343,14 +2350,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block-data deals
--- @bsb-hash sha256:49c83bad4d4b53c4051e1d5ebc7fefa63bd25abd0c9109519f21f622fd4aed58
+-- @bsb-hash sha256:bc42cb9cecbcea4c32998adc94b1f530ec22c47381cf471722c5a14acedbe624
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.deals', target_type => 'deal', event_prefix => 'deal', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('deals', 1, 'managed')

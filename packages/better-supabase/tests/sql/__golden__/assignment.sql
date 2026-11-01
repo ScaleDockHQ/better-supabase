@@ -528,7 +528,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:702945f2ca53c373e3d41cae2548d1679fa91331a029fa677d32a33d50de90b9
+-- @bsb-hash sha256:ed3b0f03d74c881f80cb1ae76aa32c567f5b28a20957840b30275bb187ea9950
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1025,6 +1025,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.assignment_queues', target_type => 'assignment_queue', event_prefix => 'assignment_queue', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1041,14 +1048,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block-data assignment
--- @bsb-hash sha256:e27546a194847219d3e323c0023bfffc4069ddb575dc1b5742bd6ed7fcdad0e9
+-- @bsb-hash sha256:336c65d0cac5c9c18ec22385c79dea4ed6a56ebaee602d9ffd157ca812e472aa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.assignment_queues', target_type => 'assignment_queue', event_prefix => 'assignment_queue', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('assignment', 1, 'managed')

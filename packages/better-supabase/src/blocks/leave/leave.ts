@@ -308,6 +308,15 @@ export interface LeaveAccrual {
 }
 
 export interface Leave<F extends object = Record<never, never>> {
+  /**
+   * The working days from `from` to `to`, inclusive, by the module's
+   * `options.workingDays`: the number `request` charges a full-day request.
+   * Half days are not counted.
+   */
+  workingDays(input: {
+    from: Temporal.PlainDate;
+    to: Temporal.PlainDate;
+  }): AsyncResult<number>;
   /** Needs `leave.manage`; updates the type with the same key. */
   saveType(input: {
     organizationId: string;
@@ -598,6 +607,18 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
   );
 
   const client: Leave<F> = {
+    workingDays: ({ from, to }) =>
+      call(
+        "leave_working_days",
+        { starts_on: from.toString(), ends_on: to.toString() },
+        (value) => {
+          if (typeof value !== "number") {
+            throw new TypeError("leave_working_days returned no number");
+          }
+
+          return value;
+        },
+      ),
     saveType: ({ organizationId, input }) =>
       call(
         "save_leave_type",

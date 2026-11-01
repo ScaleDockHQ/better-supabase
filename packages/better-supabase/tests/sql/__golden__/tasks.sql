@@ -1020,7 +1020,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@4 managed
--- @bsb-hash sha256:85522a164cf39ff19333730284e694d9ae2ab99d247bd8ff073995ce10f87928
+-- @bsb-hash sha256:39f193bb779d86a7655e4f9a1fedc6c40e7436cb3866e10745b7d1b8933558a7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2180,6 +2180,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.tasks', target_type => 'task', event_prefix => 'task', deferred => true);
+  perform better_supabase.audit('better_supabase.projects', target_type => 'project', event_prefix => 'project', deferred => true);
+  perform better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
+  perform better_supabase.audit('better_supabase.task_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2196,7 +2206,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:b15b89e47d8dc4e334d465cc61e3c664670ff927cf2221d65f8b50459d4dd0aa
+-- @bsb-hash sha256:2b1099f2ef58b04e76c0d56df570c880c4267665424c1da37c2798fc73a13ed0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2296,12 +2306,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
 from "better_supabase"."projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.tasks', target_type => 'task', event_prefix => 'task', deferred => true);
-select better_supabase.audit('better_supabase.projects', target_type => 'project', event_prefix => 'project', deferred => true);
-select better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
-select better_supabase.audit('better_supabase.task_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
 
 -- Realtime for the module's entities (subject.realtime)
 select better_supabase.track_realtime('better_supabase.tasks', tenant_column => 'tenant_id');

@@ -1648,7 +1648,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:0d72848336a81fa783bc7f11c4918fa5b1bba8e593603db222dfa36005c88562
+-- @bsb-hash sha256:d624bc1fab764c6a96c4074f2a1eb6b7d978c5650be3819d41a06b6310441458
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3411,6 +3411,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.drive_nodes', target_type => 'drive_node', event_prefix => 'drive_node', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3427,14 +3434,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:23c2a6ccc1ffbc453bc0c6ede3924ce3127c7a0b62cd6d32fb6b49a0aec25820
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.drive_nodes', target_type => 'drive_node', event_prefix => 'drive_node', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('drive', 2, 'managed')

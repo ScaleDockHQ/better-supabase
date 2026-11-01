@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:e1f67ed3f3792a85b3704bd71de576ed8b893f89089a4be6b761191b62a2c2c2
+-- @bsb-hash sha256:601bc2cbec44bcf18cac28fc30e678b94d5d08629341fe618c65b76be432b29c
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1042,6 +1042,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferenc
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.saved_views', target_type => 'saved_view', event_prefix => 'saved_view', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1058,14 +1065,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
--- @bsb-hash sha256:c639383e1b9b626c15f7a804f8cc28af59cb77e44b9c7b76a005e21811dd8620
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.saved_views', target_type => 'saved_view', event_prefix => 'saved_view', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('saved-views', 2, 'managed')

@@ -1193,7 +1193,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:3843ac12fbc20f6ada35e191d0d6701db6f0b1127b2dbcaa68f85f09b8ab6f5e
+-- @bsb-hash sha256:70f828991f0ad68e0f1f486aedb0d08533dcf2ac90a41522b5b38d171b975000
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2358,6 +2358,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embed
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.memories', target_type => 'memory', event_prefix => 'memory', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2374,14 +2381,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:8fa217c66b59ec0ddeaadbd7b7660889e297fd1a5bbe3c8940422f04d358c450
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.memories', target_type => 'memory', event_prefix => 'memory', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('memory', 5, 'managed')

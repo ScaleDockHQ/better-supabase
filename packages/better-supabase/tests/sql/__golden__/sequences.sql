@@ -953,7 +953,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:7d425460f3452a5f58781275f04f1c464ef2045bbc320b06cdec1aa5fe36e3d2
+-- @bsb-hash sha256:c77bafe1cb2481b135052b00b29572ba52c394ede739d9292b548f3fb0728ee1
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1978,6 +1978,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.sequences', target_type => 'sequence', event_prefix => 'sequence', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1994,14 +2001,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:0e7477ca878df5210bfd1b528e079ee325e6f14489c8545afd57d5ccd6de3db7
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.sequences', target_type => 'sequence', event_prefix => 'sequence', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('sequences', 2, 'managed')

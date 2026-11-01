@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:9f6064189a8311803bfed8748076a9b4fcc67f7032810749f95a269d2c8b4754
+-- @bsb-hash sha256:ac3e82d5d2d887b2694839df9617c2dbfcff632ad914aabbdc33aa37fdcc15b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -194,9 +194,6 @@ from (values
   ('workflow.published', 'workflow_definition.published')
 ) as m(old_type, next_type)
 where t."trigger" = m.old_type;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.automations', target_type => 'automation', event_prefix => 'automation', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
