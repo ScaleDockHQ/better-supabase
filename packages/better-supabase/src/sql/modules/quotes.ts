@@ -18,6 +18,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -71,6 +72,9 @@ const EVENTS: BlockSqlEvents<QuotesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link("fromDeal", "conversion", "quote", "deals", "deal", "quote_from_deal"),
+  ],
   entities: {
     quote: {
       table: "quotes",

@@ -188,3 +188,6 @@ export const SAAS: readonly string[] = [
   "onboarding",
   "outbox",
 ];
+
+/** `SAAS` and `relations`, which the presets with declared conversions install. */
+export const SAAS_LINKED: readonly string[] = [...SAAS, "relations"];

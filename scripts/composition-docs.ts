@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import type { PresetCatalog } from "../packages/better-supabase/src/preset/catalog-types.ts";
 
+import { SQL_MODULES } from "../packages/better-supabase/src/sql/index.ts";
+
 const BLOCKS_DOCS: string = join(
   import.meta.dirname,
   "../apps/docs/content/docs/(blocks)/blocks",
@@ -28,14 +30,28 @@ const AUTOMATIONS_START =
 const AUTOMATIONS_END = "{/* default-automations:end */}";
 
 const code = (names: readonly string[]): string =>
-  names.length === 0 ? "none" : names.map((name) => `\`${name}\``).join(", ");
+  names.length === 0
+    ? "none"
+    : names
+        .map((name) =>
+          name === "*" ? "every installed module" : `\`${name}\``,
+        )
+        .join(", ");
 
-/** The requires and works-with table, one row per block. */
-export function moduleMatrix(catalog: PresetCatalog): string {
-  const rows = catalog.blocks.map(
-    (block) =>
-      `| \`${block.name}\` | ${code(block.requires)} | ${code(block.integrates)} |`,
-  );
+/** The requires and works-with table, one row per SQL module. */
+export function moduleMatrix(): string {
+  const rows = Object.values(SQL_MODULES).map((module) => {
+    const required = new Set(module.requires);
+
+    const works = [
+      ...new Set([
+        ...(module.integrates ?? []),
+        ...Object.keys(module.contributes ?? {}),
+      ]),
+    ].filter((name) => !required.has(name));
+
+    return `| \`${module.name}\` | ${code(module.requires)} | ${code(works)} |`;
+  });
 
   return [
     MATRIX_START,
@@ -94,11 +110,8 @@ function replaceSection(
  * The matrix page with its generated section replaced, or `undefined` without
  * markers.
  */
-export function withModuleMatrix(
-  page: string,
-  catalog: PresetCatalog,
-): string | undefined {
-  return replaceSection(page, MATRIX_START, MATRIX_END, moduleMatrix(catalog));
+export function withModuleMatrix(page: string): string | undefined {
+  return replaceSection(page, MATRIX_START, MATRIX_END, moduleMatrix());
 }
 
 /**

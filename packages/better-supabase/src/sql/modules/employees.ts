@@ -10,6 +10,7 @@ import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -69,6 +70,16 @@ const EMPLOYEE_STATUSES = [
 const EMPLOYMENT_TYPES = ["employee", "contractor", "intern", "temporary"];
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link(
+      "fromApplication",
+      "conversion",
+      "employee",
+      "hiring",
+      "application",
+      "employee_from_application",
+    ),
+  ],
   entities: {
     employee: {
       table: "employees",

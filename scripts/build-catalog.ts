@@ -698,6 +698,12 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
     block = { ...block, contributes };
   }
 
+  const links = module.names?.links ?? [];
+
+  if (links.length > 0) {
+    block = { ...block, links };
+  }
+
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
   }
@@ -862,8 +868,8 @@ if (import.meta.main) {
       const matrix = readFileSync(MATRIX_PAGE, "utf-8");
 
       if (
-        withModuleMatrix(matrix, presetCatalog) !== matrix ||
-        !matrix.includes(moduleMatrix(presetCatalog))
+        withModuleMatrix(matrix) !== matrix ||
+        !matrix.includes(moduleMatrix())
       ) {
         console.error(
           "build-catalog: the module matrix on blocks/index.mdx is stale; run `pnpm catalog`.",
@@ -900,12 +906,16 @@ if (import.meta.main) {
 
       writeFileSync(OWN_SCHEMAS_PAGE, page);
 
-      for (const [file, build] of [
-        [MATRIX_PAGE, withModuleMatrix],
-        [AUTOMATIONS_PAGE, withDefaultAutomations],
+      for (const [file, updated] of [
+        [MATRIX_PAGE, withModuleMatrix(readFileSync(MATRIX_PAGE, "utf-8"))],
+        [
+          AUTOMATIONS_PAGE,
+          withDefaultAutomations(
+            readFileSync(AUTOMATIONS_PAGE, "utf-8"),
+            presetCatalog,
+          ),
+        ],
       ] as const) {
-        const updated = build(readFileSync(file, "utf-8"), presetCatalog);
-
         if (updated === undefined) {
           throw new Error(`build-catalog: ${file} lost its generated markers.`);
         }

@@ -11,6 +11,7 @@ import type { OrdersNames } from "./orders-shared.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { BILLING_PARTIES, COST_SOURCES } from "../line-items-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
@@ -91,6 +92,16 @@ const EVENTS: BlockSqlEvents<OrdersEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link(
+      "fromQuote",
+      "conversion",
+      "order",
+      "quotes",
+      "quote",
+      "order_from_quote",
+    ),
+  ],
   migrations: tableMoves("orders", 3),
   entities: {
     order: {

@@ -904,6 +904,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "links": [
+        {
+          "key": "fromConversation",
+          "kind": "conversion",
+          "source": "inbox",
+          "target": {
+            "block": "tasks",
+            "entity": "task"
+          },
+          "via": "tasks.from_conversation"
+        },
+        {
+          "key": "contact",
+          "kind": "reference",
+          "source": "inbox",
+          "target": {
+            "block": "contacts",
+            "entity": "person"
+          }
+        }
+      ],
       "tenantNameClashes": [
         "team"
       ],
@@ -2844,6 +2865,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "links": [
+        {
+          "key": "fromQuote",
+          "kind": "conversion",
+          "source": "order",
+          "target": {
+            "block": "quotes",
+            "entity": "quote"
+          },
+          "via": "order_from_quote"
+        }
+      ],
       "extraColumns": "orders",
       "entities": {
         "specs": {
@@ -3139,6 +3172,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "approvals"
+      ],
+      "links": [
+        {
+          "key": "task",
+          "kind": "reference",
+          "source": "time_entry",
+          "target": {
+            "block": "tasks",
+            "entity": "task"
+          }
+        }
       ],
       "extraColumns": "entries",
       "entities": {
@@ -3580,6 +3624,26 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "pipelines"
       ],
+      "links": [
+        {
+          "key": "contact",
+          "kind": "reference",
+          "source": "deal",
+          "target": {
+            "block": "contacts",
+            "entity": "person"
+          }
+        },
+        {
+          "key": "company",
+          "kind": "reference",
+          "source": "deal",
+          "target": {
+            "block": "contacts",
+            "entity": "company"
+          }
+        }
+      ],
       "extraColumns": "deals",
       "entities": {
         "specs": {
@@ -3859,6 +3923,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "links": [
+        {
+          "key": "fromDeal",
+          "kind": "conversion",
+          "source": "quote",
+          "target": {
+            "block": "deals",
+            "entity": "deal"
+          },
+          "via": "quote_from_deal"
+        }
+      ],
       "extraColumns": "quotes",
       "entities": {
         "specs": {
@@ -3971,6 +4047,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "accounting",
         "imports"
+      ],
+      "links": [
+        {
+          "key": "fromQuote",
+          "kind": "conversion",
+          "source": "invoice",
+          "target": {
+            "block": "quotes",
+            "entity": "quote"
+          },
+          "via": "invoice_from_quote"
+        },
+        {
+          "key": "fromOrder",
+          "kind": "conversion",
+          "source": "invoice",
+          "target": {
+            "block": "orders",
+            "entity": "order"
+          }
+        }
       ],
       "extraColumns": "invoices",
       "entities": {
@@ -4297,6 +4394,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "employees",
       "scopes": [
         "tenant"
+      ],
+      "links": [
+        {
+          "key": "fromApplication",
+          "kind": "conversion",
+          "source": "employee",
+          "target": {
+            "block": "hiring",
+            "entity": "application"
+          },
+          "via": "employee_from_application"
+        }
       ],
       "tenantNameClashes": [
         "team"
@@ -5397,6 +5506,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "accounting",
         "approvals"
+      ],
+      "links": [
+        {
+          "key": "project",
+          "kind": "reference",
+          "source": "expense_line",
+          "target": {
+            "block": "tasks",
+            "entity": "project"
+          }
+        }
       ],
       "extraColumns": "reports",
       "entities": {
@@ -8287,6 +8407,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "subjects"
       ],
+      "links": [
+        {
+          "key": "task",
+          "kind": "relation",
+          "source": "case",
+          "target": {
+            "block": "tasks",
+            "entity": "task"
+          },
+          "via": "created_from"
+        }
+      ],
       "extraColumns": "cases",
       "entities": {
         "specs": {
@@ -10078,6 +10210,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "warehouse",
       "scopes": [
         "tenant"
+      ],
+      "links": [
+        {
+          "key": "task",
+          "kind": "relation",
+          "source": "pick_list",
+          "target": {
+            "block": "tasks",
+            "entity": "task"
+          },
+          "via": "created_from"
+        }
       ],
       "entities": {
         "specs": {

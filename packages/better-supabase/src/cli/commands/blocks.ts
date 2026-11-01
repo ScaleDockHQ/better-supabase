@@ -173,6 +173,15 @@ function compositionLines(name: string): string[] {
     ["Ports in:", consumes],
     ["Ports out:", manifest?.provides ?? []],
     ["Contributes:", module?.contributes ?? []],
+    [
+      "Links:",
+      (
+        PRESET_CATALOG.blocks.find((each) => each.name === name)?.links ?? []
+      ).map(
+        (link) =>
+          `${link.kind} ${link.source} -> ${link.target.block}.${link.target.entity}`,
+      ),
+    ],
     ["Fires:", fires],
     ["Listens:", listens],
   ];

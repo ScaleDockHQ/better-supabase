@@ -13,6 +13,7 @@ import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
+import type { BlockSqlLink } from "./links.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
@@ -192,6 +193,8 @@ export interface BlockSqlNames {
    * renames, so a declared move needs no hand-written upgrade step.
    */
   readonly migrations?: readonly BlockSqlNameMigration[];
+  /** The links this module declares to other blocks' entities (ADR 0177). */
+  readonly links?: readonly BlockSqlLink[];
 }
 
 /**
@@ -1480,10 +1483,4 @@ ${indent}end if;`;
   return context;
 }
 
-/** The contract's argument list with `{id}` resolved, as Postgres prints it. */
-export function contractSignature(
-  fn: BlockSqlContractFunction,
-  idType: string,
-): string {
-  return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");
-}
+export { contractSignature } from "./contract-signature.ts";

@@ -1,4 +1,5 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
+import type { BlockSqlLink } from "../sql/links.ts";
 import type {
   PresetCatalog,
   PresetCatalogBlock,
@@ -6,6 +7,7 @@ import type {
 } from "./catalog-types.ts";
 import type { Preset, PresetFieldKey } from "./fields.ts";
 
+import { linkNeedsRelations } from "../sql/links.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 
 /** One block in a resolved preset, with why it is there. */
@@ -19,6 +21,15 @@ export interface ResolvedPresetBlock {
   readonly requiredBy: readonly string[];
   /** "selected", or "required by comments and tags". */
   readonly reason: string;
+}
+
+/** A declared link between two blocks that are both in the set. */
+export interface PresetLink {
+  /** The block that declares the link. */
+  readonly from: string;
+  readonly to: string;
+  readonly key: string;
+  readonly kind: BlockSqlLink["kind"];
 }
 
 /** A soft integration between two blocks that are both in the set. */
@@ -42,6 +53,8 @@ export interface ResolvedPreset {
   readonly blocks: readonly ResolvedPresetBlock[];
   /** The soft integrations active between blocks in the set. */
   readonly integrations: readonly PresetIntegration[];
+  /** The declared links active between blocks in the set. */
+  readonly links: readonly PresetLink[];
   readonly conflicts: readonly PresetConflict[];
   /** The manifests that cover `blocks`, for `lib/blocks.ts`. */
   readonly manifests: readonly PresetCatalogManifest[];
@@ -233,7 +246,35 @@ export function resolvePreset(
     });
   }
 
+  // A declared conversion or relation between two installed blocks needs the
+  // relations block to record it, so it is added like a required block.
+  const linkNeeds = new Map<string, string[]>();
+
+  for (const block of catalog.blocks) {
+    if (!installed.has(block.name)) {
+      continue;
+    }
+
+    for (const link of block.links ?? []) {
+      if (linkNeedsRelations(link) && installed.has(link.target.block)) {
+        linkNeeds.set("relations", [
+          ...new Set([...(linkNeeds.get("relations") ?? []), block.name]),
+        ]);
+      }
+    }
+  }
+
+  if (linkNeeds.has("relations") && !installed.has("relations")) {
+    for (const each of closureOf("relations", preset, byName)) {
+      installed.add(each);
+    }
+  }
+
   const members = catalog.blocks.filter((block) => installed.has(block.name));
+
+  for (const [dependency, by] of linkNeeds) {
+    requiredBy.set(dependency, [...(requiredBy.get(dependency) ?? []), ...by]);
+  }
 
   for (const block of members) {
     for (const dependency of requiresOf(block, preset)) {
@@ -264,6 +305,17 @@ export function resolvePreset(
       .map((to) => ({ from: block.name, to })),
   );
 
+  const links = members.flatMap((block) =>
+    (block.links ?? [])
+      .filter((link) => installed.has(link.target.block))
+      .map((link): PresetLink => ({
+        from: block.name,
+        to: link.target.block,
+        key: link.key,
+        kind: link.kind,
+      })),
+  );
+
   const manifestNames = new Set(members.map((block) => block.manifest));
 
   const manifests = catalog.manifests.filter((manifest) =>
@@ -287,5 +339,5 @@ export function resolvePreset(
     }
   }
 
-  return { preset, blocks, integrations, conflicts, manifests };
+  return { preset, blocks, integrations, links, conflicts, manifests };
 }

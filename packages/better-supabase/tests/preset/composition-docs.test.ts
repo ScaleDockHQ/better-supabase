@@ -11,9 +11,7 @@ import { PRESET_CATALOG } from "../../src/preset/catalog.generated.ts";
 
 describe("the docs tables generated from the catalog", () => {
   it("keeps the module matrix current", () => {
-    expect(readFileSync(MATRIX_PAGE, "utf-8")).toContain(
-      moduleMatrix(PRESET_CATALOG),
-    );
+    expect(readFileSync(MATRIX_PAGE, "utf-8")).toContain(moduleMatrix());
   });
 
   it("keeps the default automations table current", () => {

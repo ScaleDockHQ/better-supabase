@@ -1526,6 +1526,15 @@ tell which ones it fills.
 
 ## Auth config
 
+### BS353
+
+**Warning: declared link needs the relations block.** A block declares a
+conversion or relation link to another block, such as an order created from a
+quote, and both blocks are installed, but [`relations`](/docs/blocks/relations)
+is not. The conversion still runs through the source row's `origin_type` and
+`origin_id` columns, but no `created_from` or `converted_to` link is written,
+so lineage reads find nothing. Run `better-supabase add relations`.
+
 ### BS401
 
 **Warning: refresh token reuse interval is 0.** With refresh token rotation,

@@ -15,6 +15,7 @@ import {
   lineTableSpec,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -48,6 +49,10 @@ const EVENTS: BlockSqlEvents<DealsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link("contact", "reference", "deal", "contacts", "person"),
+    link("company", "reference", "deal", "contacts", "company"),
+  ],
   entities: {
     deal: {
       table: "deals",
