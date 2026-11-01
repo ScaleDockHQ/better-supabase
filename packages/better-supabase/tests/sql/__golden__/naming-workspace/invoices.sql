@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:c46b22f043c0145bb9a5e2e1d34dbc6b3f37c9744386790affaf296d06b5d40d
+-- @bsb-hash sha256:7a108bb78fc935d9a12d554d0c5bd8a7b14e8e294d97f1820733ed1133f1332b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,6 +123,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_deliveries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_deliveries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_deliveries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_deliveries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_deliveries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -354,6 +362,31 @@ grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
 drop policy if exists invoice_allocations_read on "better_supabase"."invoice_allocations";
 create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+
+-- The e-invoices an invoice was sent as: the channel, the format and the
+-- reference the channel gave back. The same reference is kept once per invoice
+-- and channel, so a retried record changes nothing.
+create table if not exists "better_supabase"."invoice_deliveries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 100),
+  "format" text not null check (length("format") between 1 and 100),
+  "external_ref" text not null check (length("external_ref") between 1 and 500),
+  "filename" text check (length("filename") <= 255),
+  "sent_by" uuid,
+  "sent_at" timestamptz not null default now()
+);
+create unique index if not exists invoice_deliveries_ref_key on "better_supabase"."invoice_deliveries" ("invoice_id", "channel", "external_ref");
+create index if not exists invoice_deliveries_tenant_idx on "better_supabase"."invoice_deliveries" ("tenant_id", "sent_at" desc);
+alter table "better_supabase"."invoice_deliveries" enable row level security;
+revoke all on "better_supabase"."invoice_deliveries" from public, anon, authenticated;
+grant select on "better_supabase"."invoice_deliveries" to authenticated;
+grant all on "better_supabase"."invoice_deliveries" to service_role;
+drop policy if exists invoice_deliveries_read on "better_supabase"."invoice_deliveries";
+create policy invoice_deliveries_read on "better_supabase"."invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -2913,6 +2946,72 @@ $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Keeps the reference a channel returned for an e-invoice. A draft or void
+-- invoice is refused; the same channel and reference return the first row.
+create or replace function "better_supabase"."record_invoice_delivery"(invoice uuid, channel text, format text, external_ref text, filename text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_invoice "better_supabase"."invoices";
+  v_row "better_supabase"."invoice_deliveries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_invoice from "better_supabase"."invoices" x where x."id" = record_invoice_delivery.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false));
+  if v_invoice."id" is null then
+    raise exception 'no such invoice you can send' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_invoice."status" in ('draft', 'void') then
+    raise exception 'a draft or void invoice can''t be sent as an e-invoice' using errcode = '55000', hint = 'EINVOICE_NOT_ISSUED';
+  end if;
+  if length(coalesce(trim(record_invoice_delivery.channel), '')) not between 1 and 100
+    or length(coalesce(trim(record_invoice_delivery.format), '')) not between 1 and 100
+    or length(coalesce(trim(record_invoice_delivery.external_ref), '')) not between 1 and 500 then
+    raise exception 'a delivery has a channel, a format and the channel''s reference' using errcode = '22023', hint = 'EINVOICE_DELIVERY_INVALID';
+  end if;
+  insert into "better_supabase"."invoice_deliveries" ("tenant_id", "invoice_id", "channel", "format", "external_ref", "filename", "sent_by")
+  values (v_invoice."tenant_id", v_invoice."id", trim(record_invoice_delivery.channel), trim(record_invoice_delivery.format), trim(record_invoice_delivery.external_ref), nullif(trim(record_invoice_delivery.filename), ''), auth.uid())
+  on conflict ("invoice_id", "channel", "external_ref") do nothing
+  returning * into v_row;
+  if v_row."id" is null then
+    select * into v_row from "better_supabase"."invoice_deliveries" y
+      where y."invoice_id" = v_invoice."id" and y."channel" = trim(record_invoice_delivery.channel)
+        and y."external_ref" = trim(record_invoice_delivery.external_ref);
+  end if;
+  return jsonb_build_object('id', v_row."id", 'invoiceId', v_row."invoice_id", 'channel', v_row."channel", 'format', v_row."format", 'externalRef', v_row."external_ref", 'filename', v_row."filename", 'sentAt', v_row."sent_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_invoice_delivery"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_delivery"(uuid, text, text, text, text) to authenticated, service_role;
+
+-- The e-invoices an invoice was sent as, newest first.
+create or replace function "better_supabase"."list_invoice_deliveries"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_invoice "better_supabase"."invoices";
+begin
+  select * into v_invoice from "better_supabase"."invoices" x where x."id" = list_invoice_deliveries.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
+  if v_invoice."id" is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'channel', y."channel", 'format', y."format", 'externalRef', y."external_ref", 'filename', y."filename", 'sentAt', y."sent_at") order by y."sent_at" desc, y."id")
+    from "better_supabase"."invoice_deliveries" y where y."invoice_id" = v_invoice."id"), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_deliveries"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_deliveries"(uuid) to authenticated, service_role;
+
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
 -- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
@@ -3324,6 +3423,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations"
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_deliveries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_deliveries";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_deliveries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_deliveries";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_deliveries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_deliveries";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_deliveries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_deliveries";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";

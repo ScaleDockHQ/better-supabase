@@ -541,13 +541,20 @@ const sent = await sendEInvoice({
   invoice: await invoices.issue(draft.id).orThrow(),
   format: myPeppolFormat,
   channel: myAccessPoint,
+  invoices,
 }).orThrow();
 
-// Keep it: `channel.status?.(sent.externalRef, ...)` asks the network later.
-await saveReference(sent.invoiceId, sent.externalRef);
+// `sent.externalRef` is kept on the invoice; `channel.status?.(...)` asks the
+// network about it later.
+const deliveries = await invoices.eInvoiceDeliveries(sent.invoiceId).orThrow();
 ```
 
-The call records nothing, so the app stores the `externalRef`.
+The call keeps the channel's `externalRef` in `invoice_deliveries` through
+`invoices.recordEInvoice`, one row per invoice, channel and reference, so a
+retried record changes nothing. When the channel accepted the document but
+keeping the reference failed, the error message names the `externalRef`; call
+`invoices.recordEInvoice(invoiceId, { channel, format, externalRef })` with it
+instead of sending again.
 
 ## In the books
 
