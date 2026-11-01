@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PresetCatalog } from "../../src/preset/catalog-types.ts";
 import type { Preset } from "../../src/preset/fields.ts";
 
+import { blockClients } from "../../src/cli/commands/add.ts";
 import { PRESET_CATALOG } from "../../src/preset/catalog.generated.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import { removeComposite, resolvePreset } from "../../src/preset/resolve.ts";
@@ -76,5 +77,30 @@ describe("composite blocks", () => {
     expect(() =>
       removeComposite(preset(["comments"]), "comments", {}, catalog),
     ).toThrow(/not a composite/u);
+  });
+
+  it("wires a composite's client in lib/blocks.ts next to its parts", () => {
+    const withClient: PresetCatalog = {
+      ...catalog,
+      manifests: catalog.manifests.map((manifest) =>
+        manifest.name === "talk"
+          ? {
+              ...manifest,
+              client: {
+                export: "talkBlock",
+                subpath: "better-supabase/blocks/talk",
+              },
+            }
+          : manifest,
+      ),
+    };
+
+    const clients = blockClients(
+      resolvePreset(preset(["talk"]), withClient).manifests,
+    );
+
+    expect(clients.map((client) => client.key)).toEqual(
+      expect.arrayContaining(["talk", "comments", "tags"]),
+    );
   });
 });

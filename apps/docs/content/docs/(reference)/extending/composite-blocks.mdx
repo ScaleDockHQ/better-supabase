@@ -40,6 +40,28 @@ export const discussionBlock = defineBlock({
 `createBlocks` builds each part once, in the composite's creator and for the
 app, and throws when a part is not in the block set.
 
+Build the set with the parts next to the composite. The composite's client and
+the part clients come from the same instances:
+
+```ts
+import { createBlocks } from "better-supabase/blocks";
+
+export const blocks = createBlocks(
+  { transport },
+  { comments: commentsBlock, tags: tagsBlock, discussion: discussionBlock },
+);
+
+blocks.discussion.comments; // the same client as blocks.comments
+```
+
+## Generated files
+
+`better-supabase gen` writes an entry for the composite in `blockConfig` once
+every part is installed, next to its parts' entries, so `defineBlocks` and
+`block.using(...)` see it. The entry carries no tables or functions of its own;
+a composite with glue SQL gets the entry of its glue module instead. `add`
+wires the composite's client in `lib/blocks.ts` together with its parts.
+
 ## Defaults
 
 `defaults` sets options on a part until the app sets them. The app's own

@@ -6,6 +6,10 @@ import type {
   GeneratorBlock,
   ResolvedConfig,
 } from "../../config/index.ts";
+import type {
+  PresetCatalog,
+  PresetCatalogManifest,
+} from "../../preset/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
 import {
@@ -198,6 +202,7 @@ export function blockConfigEntries(
     ResolvedConfig,
     "blocks" | "blockNames" | "instances" | "sql" | "subjects"
   >,
+  catalog: PresetCatalog = PRESET_CATALOG,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = resolveBlocks(config.blockNames, {
     modules: config.blocks,
@@ -206,9 +211,17 @@ export function blockConfigEntries(
 
   const entries: [string, GeneratedBlock][] = [];
 
-  for (const manifest of PRESET_CATALOG.manifests) {
+  for (const manifest of catalog.manifests) {
     const modules = manifest.sql.filter((module) => installed.includes(module));
     const [main] = modules;
+
+    if (
+      main === undefined &&
+      compositeInstalled(manifest, catalog, installed)
+    ) {
+      entries.push([manifest.name, compositeEntry(config, manifest, catalog)]);
+      continue;
+    }
 
     const others = Object.values(config.instances).filter(
       (instance) => instance.block === main,
@@ -259,6 +272,56 @@ export function blockConfigEntries(
  * One instance's generated config: the schema of its main module, the client
  * options of `modules` and its naming.
  */
+/**
+ * Whether a composite without a glue module of its own is installed: it
+ * composes at least one part and every part is, recursively (ADR 0177).
+ */
+function compositeInstalled(
+  manifest: PresetCatalogManifest,
+  catalog: PresetCatalog,
+  installed: readonly string[],
+): boolean {
+  const parts = manifest.composes;
+
+  if (parts === undefined || parts.length === 0 || manifest.sql.length > 0) {
+    return false;
+  }
+
+  return parts.every((part) => {
+    const partManifest = catalog.manifests.find((each) => each.name === part);
+
+    if (partManifest === undefined) {
+      return false;
+    }
+
+    return partManifest.composes === undefined
+      ? partManifest.sql.length > 0 &&
+          partManifest.sql.every((module) => installed.includes(module))
+      : compositeInstalled(partManifest, catalog, installed);
+  });
+}
+
+/**
+ * The generated entry of a composite without glue SQL: the schema of its first
+ * part (or `sql.schema`) and no options, so the composite shows up in
+ * `blockConfig` and `defineBlocks` builds it over its parts.
+ */
+function compositeEntry(
+  config: Pick<ResolvedConfig, "blocks">,
+  manifest: PresetCatalogManifest,
+  catalog: PresetCatalog,
+): GeneratedBlock {
+  const [first] = manifest.composes ?? [];
+
+  const firstModule = catalog.manifests.find((each) => each.name === first)
+    ?.sql[0];
+
+  return {
+    schema: resolveBlock(config.blocks[firstModule ?? ""]).schema,
+    options: {},
+  };
+}
+
 function generatedEntry(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
   modules: readonly string[],
@@ -465,8 +528,10 @@ export function generatorBlocks(
     "blocks" | "blockNames" | "instances" | "sql" | "subjects"
   >,
 ): GeneratorBlock[] {
+  // A composite's entry carries no tables of its own; its parts' do.
   const own = Object.entries(blockConfigEntries(config)).filter(
-    ([, entry]) => entry.block === undefined,
+    ([name, entry]) =>
+      entry.block === undefined && MANIFESTS.get(name)?.composes === undefined,
   );
 
   return own.map(([name, entry]) => {

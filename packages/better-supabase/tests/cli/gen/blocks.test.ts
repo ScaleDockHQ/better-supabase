@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { PresetCatalog } from "../../../src/preset/catalog-types.ts";
+
 import {
   blockConfigEntries,
   blockConfigPath,
@@ -9,6 +11,7 @@ import {
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { resolveConfig } from "../../../src/config/resolve.ts";
 import { zod } from "../../../src/generators/zod.ts";
+import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 describe("blocks.generated.ts", () => {
@@ -685,5 +688,44 @@ describe("schemaExtensions", () => {
       "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
     );
     expect(bare).not.toContain("trashExtension");
+  });
+
+  describe("composite blocks", () => {
+    const catalog: PresetCatalog = {
+      ...PRESET_CATALOG,
+      manifests: [
+        ...PRESET_CATALOG.manifests,
+        {
+          name: "talk",
+          sql: [],
+          category: "collaboration",
+          client: null,
+          consumes: {},
+          provides: [],
+          composes: ["comments", "tags"],
+        },
+      ],
+    };
+
+    const withParts = resolveConfig(
+      { blocks: { memberships: {}, permissions: {}, comments: {}, tags: {} } },
+      "/project",
+    );
+
+    it("writes an entry for a composite without glue SQL once its parts are installed", () => {
+      expect(blockConfigEntries(withParts, catalog)["talk"]).toEqual({
+        schema: "better_supabase",
+        options: {},
+      });
+    });
+
+    it("leaves the composite out while a part is missing", () => {
+      const missing = resolveConfig(
+        { blocks: { memberships: {}, permissions: {}, comments: {} } },
+        "/project",
+      );
+
+      expect(blockConfigEntries(missing, catalog)["talk"]).toBeUndefined();
+    });
   });
 });
