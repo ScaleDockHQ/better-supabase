@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:f81f47c7ee9af9a9eb6ceabba5930919e494545f7fb6443e8b2a935295c1be90
@@ -1317,7 +1317,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -1331,7 +1331,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:a1cfd7dff32fe73762a2ea3024c70950d3594564899b2cabf4fa4f5eec934719
@@ -2750,7 +2750,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -2764,7 +2764,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:1a1a7c88c13053a5f5bb7111a1c230cf82ba8b8ef02b674323f7277024dcfe76
@@ -4088,7 +4088,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -4102,7 +4102,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:0e946986b00fb6e75ddeb7c8a5c54721611056f504423823c8683460229ab860
@@ -5614,7 +5614,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -5628,7 +5628,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:81ec593e0f444fe422975bbc6761fcb24325904221b01790b9490309c5f86c8c
@@ -6924,7 +6924,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -6938,7 +6938,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:9966c794626a764e2b27e6f5498a60ed4b657092bbec59d7e3c5cf362dd405a7
@@ -8257,7 +8257,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705

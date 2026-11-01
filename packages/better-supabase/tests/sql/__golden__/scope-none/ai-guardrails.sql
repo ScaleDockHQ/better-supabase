@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_173_ai_guardrails.sql
+-- ==== schema supabase/schemas/900_better_supabase_175_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:c1d3d335881f03946fd580709a8f4954a57ed17a69f645f9f05829170d6c8b20
@@ -181,7 +181,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_173_ai_guardrails.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_175_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2

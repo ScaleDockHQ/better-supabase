@@ -3962,7 +3962,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase": "invoices.purchase",
           "overrideMatch": "invoices.override_match",
           "collect": "invoices.collect",
-          "approve": "invoices.approve"
+          "approve": "invoices.approve",
+          "send": "invoices.send"
         }
       }
     },
@@ -5998,7 +5999,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "outbox",
         "audit",
-        "tasks"
+        "tasks",
+        "reminders"
       ],
       "manifest": "incidents",
       "scopes": [
@@ -10591,6 +10593,257 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "advisories",
+      "title": "Security advisories",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "relations",
+        "incidents",
+        "risks",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "advisories",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "advisory": {
+            "table": "advisories",
+            "singular": "advisory",
+            "plural": "advisories",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "trackingId",
+                  "summary"
+                ]
+              }
+            }
+          },
+          "advisory_product": {
+            "table": "products",
+            "singular": "advisory_product",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "advisory_product_version": {
+            "table": "versions",
+            "singular": "advisory_product_version"
+          },
+          "sbom_component": {
+            "table": "components",
+            "singular": "sbom_component"
+          },
+          "vulnerability": {
+            "table": "vulnerabilities",
+            "singular": "vulnerability",
+            "plural": "vulnerabilities",
+            "subject": {
+              "title": "vulnId",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "vulnId",
+                "body": [
+                  "summary"
+                ]
+              }
+            }
+          },
+          "vex_statement": {
+            "table": "vex",
+            "singular": "vex_statement"
+          },
+          "advisory_vulnerability": {
+            "table": "links",
+            "singular": "advisory_vulnerability"
+          }
+        },
+        "tables": {
+          "advisories": {
+            "name": "advisories",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "trackingId": "tracking_id",
+              "title": "title",
+              "summary": "summary",
+              "product": "product_id",
+              "severity": "severity",
+              "status": "status",
+              "revision": "revision",
+              "initialReleaseAt": "initial_release_at",
+              "currentReleaseAt": "current_release_at",
+              "revisionHistory": "revision_history",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "products": {
+            "name": "advisory_products",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "vendor": "vendor",
+              "description": "description",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "versions": {
+            "name": "advisory_product_versions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "product": "product_id",
+              "version": "version",
+              "releasedAt": "released_at",
+              "endOfSupportAt": "end_of_support_at",
+              "sbomSerial": "sbom_serial",
+              "sbomSpec": "sbom_spec",
+              "sbomComponents": "sbom_component_count",
+              "sbomImportedAt": "sbom_imported_at",
+              "createdAt": "created_at"
+            }
+          },
+          "components": {
+            "name": "sbom_components",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "version": "version_id",
+              "bomRef": "bom_ref",
+              "kind": "component_type",
+              "name": "name",
+              "componentVersion": "component_version",
+              "purl": "purl",
+              "packagePurl": "package_purl",
+              "cpe": "cpe",
+              "supplier": "supplier",
+              "licenses": "licenses",
+              "hashes": "hashes"
+            }
+          },
+          "vulnerabilities": {
+            "name": "vulnerabilities",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "vulnId": "vuln_id",
+              "aliases": "aliases",
+              "summary": "summary",
+              "details": "details",
+              "cvssVector": "cvss_vector",
+              "cvssVersion": "cvss_version",
+              "cvssScore": "cvss_score",
+              "severity": "severity",
+              "epssScore": "epss_score",
+              "epssPercentile": "epss_percentile",
+              "epssDate": "epss_date",
+              "kev": "kev",
+              "kevAddedOn": "kev_added_on",
+              "kevDueOn": "kev_due_on",
+              "kevRansomware": "kev_ransomware",
+              "affectedPurls": "affected_purls",
+              "referenceLinks": "reference_links",
+              "publishedAt": "published_at",
+              "modifiedAt": "modified_at",
+              "enrichedAt": "enriched_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "vex": {
+            "name": "vex_statements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "product": "product_id",
+              "version": "version_id",
+              "vulnerability": "vulnerability_id",
+              "status": "status",
+              "justification": "justification",
+              "impactStatement": "impact_statement",
+              "actionStatement": "action_statement",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "links": {
+            "name": "advisory_vulnerabilities",
+            "columns": {
+              "tenant": "tenant_id",
+              "advisory": "advisory_id",
+              "vulnerability": "vulnerability_id",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "advisories.read",
+          "write": "advisories.write",
+          "publish": "advisories.publish"
+        }
+      }
+    },
+    {
+      "name": "prompts",
+      "title": "Prompts",
+      "category": "ai",
+      "requires": [],
+      "integrates": [],
+      "manifest": "prompts"
+    },
+    {
+      "name": "ai-evals",
+      "title": "AI evals",
+      "category": "ai",
+      "requires": [],
+      "integrates": [
+        "ai-chat"
+      ],
+      "manifest": "ai-evals"
+    },
+    {
+      "name": "ai-guardrails",
+      "title": "AI guardrails",
+      "category": "ai",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "ai-guardrails"
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -11287,6 +11540,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "ai-evals",
+      "sql": [
+        "ai-evals"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "aiEvalsBlock",
+        "subpath": "better-supabase/blocks/ai-evals"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
       "name": "ai-files",
       "sql": [
         "ai-files"
@@ -11320,6 +11586,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "NewAiDocument"
         }
       ]
+    },
+    {
+      "name": "ai-guardrails",
+      "sql": [
+        "ai-guardrails"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "aiGuardrailsBlock",
+        "subpath": "better-supabase/blocks/ai-guardrails"
+      },
+      "consumes": {},
+      "provides": [],
+      "events": {
+        "type": "AiGuardrailsEvents",
+        "types": [
+          "guardrail.blocked"
+        ]
+      }
     },
     {
       "name": "ai-keys",
@@ -13650,7 +13935,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "organization.deletion_cancelled",
           "organization.purged",
           "legal_hold.placed",
-          "legal_hold.released"
+          "legal_hold.released",
+          "data_subject_request.received",
+          "data_subject_request.verified",
+          "data_subject_request.extended",
+          "data_subject_request.fulfilled",
+          "data_subject_request.refused"
         ]
       }
     },
@@ -14461,7 +14751,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "moderation_report.created",
           "moderation_item.decided",
           "moderation_ban.created",
-          "moderation_ban.lifted"
+          "moderation_ban.lifted",
+          "moderation_notice.received",
+          "moderation_notice.decided",
+          "moderation_statement.issued",
+          "moderation_appeal.filed",
+          "moderation_appeal.decided"
         ]
       }
     },
@@ -17070,6 +17365,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ControlFramework"
         },
         {
+          "name": "ControlFrameworkImportedEventData"
+        },
+        {
           "name": "ControlFrameworkInput"
         },
         {
@@ -17442,7 +17740,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "control.updated",
           "control.evidence_added",
           "evidence_task.missed",
-          "compliance_policy.published"
+          "compliance_policy.published",
+          "control_framework.imported"
         ]
       }
     },
@@ -17544,6 +17843,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "IncidentFilingSubmittedEventData"
+        },
+        {
           "name": "IncidentImpact"
         },
         {
@@ -17558,6 +17860,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "IncidentOpenedEventData"
+        },
+        {
+          "name": "IncidentProfileUpdatedEventData"
         },
         {
           "name": "IncidentResolvedEventData"
@@ -17987,6 +18292,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident.updated",
           "incident.resolved",
           "incident_postmortem.published",
+          "incident_profile.updated",
+          "incident_filing.submitted",
           "status_component.changed"
         ]
       }
@@ -22917,6 +23224,109 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "advisories",
+      "sql": [
+        "advisories"
+      ],
+      "category": "work",
+      "client": {
+        "export": "advisoriesBlock",
+        "subpath": "better-supabase/blocks/advisories"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Advisories"
+        },
+        {
+          "name": "AdvisoriesEvents"
+        },
+        {
+          "name": "AdvisoriesOptions"
+        },
+        {
+          "name": "Advisory"
+        },
+        {
+          "name": "AdvisoryDetail"
+        },
+        {
+          "name": "AdvisoryProduct"
+        },
+        {
+          "name": "AdvisoryRevision"
+        },
+        {
+          "name": "AdvisoryStatus"
+        },
+        {
+          "name": "OpenVexStatement"
+        },
+        {
+          "name": "PublicVulnerabilityFeedOptions"
+        },
+        {
+          "name": "PublishedAdvisory"
+        },
+        {
+          "name": "PublishedAdvisorySummary"
+        },
+        {
+          "name": "PublishedVulnerability"
+        },
+        {
+          "name": "SbomComponent"
+        },
+        {
+          "name": "StoredSbomComponent"
+        },
+        {
+          "name": "StoredVexStatement"
+        },
+        {
+          "name": "TrackedVulnerability"
+        },
+        {
+          "name": "VulnerabilityFeed"
+        }
+      ],
+      "events": {
+        "type": "AdvisoriesEvents",
+        "types": [
+          "advisory_product.created",
+          "advisory_product.updated",
+          "advisory_product_version.created",
+          "sbom_component.imported",
+          "vulnerability.created",
+          "vulnerability.enriched",
+          "vulnerability.exploited",
+          "vex_statement.saved",
+          "advisory.created",
+          "advisory.updated",
+          "advisory.published"
+        ]
+      },
+      "providers": [
+        {
+          "option": "feed",
+          "type": "VulnerabilityFeed",
+          "from": "better-supabase/blocks/advisories",
+          "required": false,
+          "description": "Reads OSV, EPSS and the CISA KEV catalog. Defaults to the public endpoints over fetch.",
+          "example": "publicVulnerabilityFeed()"
+        }
+      ],
+      "schedules": [
+        {
+          "name": "enrich",
+          "cron": "0 * * * *",
+          "runs": "enrichDue()",
+          "description": "Fills new and stale vulnerabilities from OSV, EPSS and the CISA KEV catalog."
+        }
+      ]
+    },
+    {
       "name": "manufacturing",
       "sql": [
         "manufacturing"
@@ -24780,10 +25190,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ConsentPurposeInput"
         },
         {
+          "name": "ConsentReceipt"
+        },
+        {
+          "name": "ConsentReceiptIssuedEventData"
+        },
+        {
           "name": "Consents"
         },
         {
           "name": "ConsentsEvents"
+        },
+        {
+          "name": "ConsentSignal"
+        },
+        {
+          "name": "ConsentSignalInput"
+        },
+        {
+          "name": "ConsentSignalKind"
+        },
+        {
+          "name": "ConsentSignalRecordedEventData"
         },
         {
           "name": "ConsentsOptions"
@@ -24918,7 +25346,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "consent.withdrawn",
           "consent.expired",
           "consent_purpose.created",
-          "consent_purpose.updated"
+          "consent_purpose.updated",
+          "consent_signal.recorded",
+          "consent_receipt.issued"
         ]
       },
       "schedules": [
@@ -26946,22 +27376,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "EInvoiceChannel"
-        },
-        {
-          "name": "EInvoiceContext"
-        },
-        {
           "name": "EInvoiceDelivery"
         },
         {
-          "name": "EInvoiceDocument"
+          "name": "EInvoiceDeliveryRecord"
         },
         {
-          "name": "EInvoiceFormat"
+          "name": "EInvoiceDeliveryState"
         },
         {
-          "name": "EInvoiceStatus"
+          "name": "EInvoiceEndpoints"
+        },
+        {
+          "name": "EInvoicePartyKind"
+        },
+        {
+          "name": "EInvoiceReceipt"
+        },
+        {
+          "name": "EInvoiceSync"
         },
         {
           "name": "Invoice",
@@ -26998,12 +27431,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCollections"
         },
         {
-          "name": "InvoiceDelivery"
-        },
-        {
-          "name": "InvoiceDeliveryInput"
-        },
-        {
           "name": "InvoiceDirection"
         },
         {
@@ -27028,7 +27455,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceDunningRunItem"
         },
         {
-          "name": "InvoiceEInvoices"
+          "name": "InvoiceEDelivery"
         },
         {
           "name": "InvoiceInput",
@@ -27088,6 +27515,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceWarning"
         },
         {
+          "name": "ReceiveEInvoicesOptions"
+        },
+        {
           "name": "SendEInvoiceOptions"
         },
         {
@@ -27118,7 +27548,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.allocated",
           "invoice.unallocated",
           "invoice.discount_applied",
-          "invoice.approved"
+          "invoice.approved",
+          "invoice.e_invoice_sent",
+          "invoice.e_invoice_delivered",
+          "invoice.e_invoice_rejected",
+          "invoice.e_invoice_received"
         ]
       },
       "schedules": [
@@ -27139,6 +27573,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "idempotencyBlock",
         "subpath": "better-supabase/blocks/queue"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "prompts",
+      "sql": [
+        "prompts"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "promptsBlock",
+        "subpath": "better-supabase/blocks/prompts"
       },
       "consumes": {},
       "provides": []

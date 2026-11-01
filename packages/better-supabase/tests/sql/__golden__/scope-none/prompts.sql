@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_171_prompts.sql
+-- ==== schema supabase/schemas/900_better_supabase_173_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:f04920e103f2eb828b3301c207c9c5852f34930ff31084d9b08150039254b20e
@@ -178,7 +178,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_171_prompts.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_173_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e

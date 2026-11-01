@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_172_ai_evals.sql
+-- ==== schema supabase/schemas/900_better_supabase_174_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:eed7c87200ccfc4f09d751a098a3862183fdd52523a9ad3beefd26c6f5f63b26
@@ -472,7 +472,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_172_ai_evals.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_174_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08

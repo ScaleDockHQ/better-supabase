@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_171_advisories.sql
+-- ==== schema supabase/schemas/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:bba5d355db41b59f96a0731cf7a1ef732638c74e24fb38d0ac5935fc7fba5976
@@ -1317,7 +1317,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_171_advisories.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_172_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705

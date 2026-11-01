@@ -2587,7 +2587,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:fd7fe9dede542ae57324902356238c3d9f30de9ebd295473c3d5e3e4bcff8411
+-- @bsb-hash sha256:8970d9d86c8557c0f5206c547c247a3ecbc0ca9400f6b7e73f639e05116f4cdf
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2695,6 +2695,7 @@ alter table "better_supabase"."agent_mandates" add column if not exists "consume
 alter table "better_supabase"."agent_mandates" add column if not exists "created_by" uuid default auth.uid();
 alter table "better_supabase"."agent_mandates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_agent_mandates_tenant_id_key" on "better_supabase"."agent_mandates" ("tenant_id", "id");
+create unique index if not exists "bsb_agent_mandates_tenant_credential_hash_key" on "better_supabase"."agent_mandates" ("tenant_id", "credential_hash");
 create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 grant select on "better_supabase"."agent_mandates" to authenticated;

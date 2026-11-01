@@ -1626,6 +1626,8 @@
               "accounting",
               "acknowledgements",
               "activities",
+              "advisories",
+              "agent-checkout",
               "agents",
               "ai-cache",
               "ai-chat",
@@ -1812,6 +1814,8 @@
                   "accounting",
                   "acknowledgements",
                   "activities",
+                  "advisories",
+                  "agent-checkout",
                   "agents",
                   "ai-cache",
                   "ai-chat",
@@ -1998,6 +2002,12 @@
             },
             "activities": {
               "$ref": "#/$defs/blocks/activities"
+            },
+            "advisories": {
+              "$ref": "#/$defs/blocks/advisories"
+            },
+            "agent-checkout": {
+              "$ref": "#/$defs/blocks/agent-checkout"
             },
             "agents": {
               "$ref": "#/$defs/blocks/agents"
@@ -3833,6 +3843,28 @@
                 "default": ["note", "report"]
               }
             }
+          }
+        }
+      },
+      "advisories": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "agent-checkout": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
