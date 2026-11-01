@@ -208,6 +208,55 @@ describe("createMaintenance", () => {
     ).rejects.toThrow(/./);
   });
 
+  it("sends calendar rule plans and qualifications", async () => {
+    const t = fieldsTransport({
+      create_maintenance_plan: () => ({
+        ...PLAN,
+        kind: "rrule",
+        rrule: "FREQ=WEEKLY;BYDAY=MO",
+        dtstart: AT,
+        tz: "Europe/Amsterdam",
+        requiredQualifications: ["welder"],
+      }),
+      record_calibration: () => ({ ...CALIBRATION, qualifications: ["cal"] }),
+    });
+
+    const maintenance = createMaintenance({ transport: t, tenant: "org-1" });
+
+    const plan = await maintenance
+      .createPlan({
+        title: "Weekly check",
+        kind: "rrule",
+        rrule: "FREQ=WEEKLY;BYDAY=MO",
+        dtstart: temporal().Instant.from(AT),
+        tz: "Europe/Amsterdam",
+        requiredQualifications: ["welder"],
+      })
+      .orThrow();
+
+    const calibration = await maintenance
+      .recordCalibration({
+        instrument: "Scale",
+        performedAt: temporal().Instant.from(AT),
+        dueAt: temporal().Instant.from(AT),
+        result: "pass",
+        qualifications: ["cal"],
+      })
+      .orThrow();
+
+    expect(plan.rrule).toBe("FREQ=WEEKLY;BYDAY=MO");
+    expect(plan.requiredQualifications).toEqual(["welder"]);
+    expect(calibration.qualifications).toEqual(["cal"]);
+    expect(
+      validate(maintenancePlanInputSchema, {
+        title: "Weekly",
+        kind: "rrule",
+        rrule: "FREQ=DAILY",
+        dtstart: temporal().Instant.from(AT),
+      }).issues,
+    ).toBeUndefined();
+  });
+
   it("has a manifest and input schemas with the SQL bounds", () => {
     expect(maintenanceBlock.name).toBe("maintenance");
     expect(

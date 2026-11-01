@@ -289,9 +289,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0172: Meetings take custom fields through `extraColumns`.
 - 0173: Clinical decision support raises dose range, duplicate therapy and interaction alerts from built-in rules and a versioned `ClinicalDecisionSupport` port.
 - 0174: Payroll runs count only the time entries of weeks with an approved timesheet.
-- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159; superseded by 0177).
+- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159; superseded by 0178).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
-- 0177: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
+- 0177: Maintenance plans take RFC 5545 calendar rules and required qualifications, checked on technician assignment and calibration.
+- 0178: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
 
 ## Pre-release pins
 

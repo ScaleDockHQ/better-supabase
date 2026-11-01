@@ -9790,6 +9790,11 @@ msgid "Meter"
 msgstr "Meterstand"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.Coy6SH"
+msgid "Calendar"
+msgstr "Kalender"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.C2iTEH"
 msgid "Paused"
 msgstr "Gepauzeerd"
@@ -9835,9 +9840,9 @@ msgid "Maintenance plans"
 msgstr "Onderhoudsplannen"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.HKgDIs"
-msgid "Plans fall due by time or by meter and open dispatch work orders."
-msgstr "Plannen vervallen op tijd of meterstand en openen werkorders in de planning."
+msgctxt "maintenance.eVoywZ"
+msgid "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
+msgstr "Plannen vervallen op tijd, meterstand of een kalenderregel en openen werkorders in de planning."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.32UjFX"
@@ -9860,9 +9865,9 @@ msgid "No maintenance plans yet"
 msgstr "Nog geen onderhoudsplannen"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.O4uDKc"
-msgid "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
-msgstr "Maak een plan op tijd of meterstand, met de onderdelen die het nodig heeft. Werkorders openen zodra het aan de beurt is."
+msgctxt "maintenance.MPVU48"
+msgid "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
+msgstr "Maak een plan op tijd, meterstand of kalenderregel, met de onderdelen die het nodig heeft. Werkorders openen zodra het aan de beurt is."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.PTnz1l"

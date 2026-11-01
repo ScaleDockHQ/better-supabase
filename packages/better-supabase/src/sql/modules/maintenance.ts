@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
+import { ruleStarts } from "./calendar-availability.ts";
 import { maintenanceFunctions } from "./maintenance-functions.ts";
 import { maintenanceSql } from "./maintenance-sql.ts";
 import {
@@ -93,6 +94,10 @@ const NAMES: BlockSqlNames = {
         lastDoneValue: "last_done_value",
         nextDueAt: "next_due_at",
         workOrder: "work_order_id",
+        rrule: "rrule",
+        dtstart: "dtstart",
+        tz: "tz",
+        requiredQualifications: "required_qualifications",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -153,6 +158,7 @@ const NAMES: BlockSqlNames = {
         result: "result",
         reference: "reference",
         performedBy: "performed_by",
+        qualifications: "qualifications",
       },
     },
   },
@@ -235,14 +241,23 @@ create table if not exists ${plans} (
   ${p("nextDueAt")} timestamptz,
   -- The open work order, so a plan never has two at once.
   ${p("workOrder")} uuid,
+  -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
+  -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
+  -- occurrence from dtstart, read in the time zone tz.
+  ${p("rrule")} text check (${p("rrule")} is null or length(${p("rrule")}) between 1 and 500),
+  ${p("dtstart")} timestamptz,
+  ${p("tz")} text not null default 'UTC',
+  -- Qualification type keys the technician of the work order must hold.
+  ${p("requiredQualifications")} text[] not null default '{}',
   ${p("createdBy")} uuid,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
   unique (${p("tenant")}, ${p("id")}),
   foreign key (${p("tenant")}, ${p("meter")}) references ${meters} (${m("tenant")}, ${m("id")}),
   check (
-    (${p("kind")} = 'time' and ${p("everyDays")} is not null and ${p("meter")} is null and ${p("everyValue")} is null)
-    or (${p("kind")} = 'meter' and ${p("everyDays")} is null and ${p("meter")} is not null and ${p("everyValue")} is not null)
+    (${p("kind")} = 'time' and ${p("everyDays")} is not null and ${p("meter")} is null and ${p("everyValue")} is null and ${p("rrule")} is null)
+    or (${p("kind")} = 'meter' and ${p("everyDays")} is null and ${p("meter")} is not null and ${p("everyValue")} is not null and ${p("rrule")} is null)
+    or (${p("kind")} = 'rrule' and ${p("everyDays")} is null and ${p("meter")} is null and ${p("everyValue")} is null and ${p("rrule")} is not null and ${p("dtstart")} is not null)
   )
 );${appKey("plans", "tenant_id", `${p("tenant")}, ${p("id")}`)}
 create index if not exists ${name("plans", "tenant_idx")} on ${plans} (${p("tenant")}, ${p("status")}, ${p("nextDueAt")});
@@ -276,6 +291,8 @@ create table if not exists ${calibrations} (
   ${c("result")} text not null check (${c("result")} in (${list(MAINTENANCE_CALIBRATION_RESULTS)})),
   ${c("reference")} text check (${c("reference")} is null or length(${c("reference")}) <= 200),
   ${c("performedBy")} uuid,
+  -- Qualification type keys the person who calibrated held and the work needs.
+  ${c("qualifications")} text[] not null default '{}',
   check (${c("dueAt")} is null or ${c("dueAt")} >= ${c("performedAt")})
 );
 create index if not exists ${name("calibrations", "asset_idx")} on ${calibrations} (${c("tenant")}, ${c("asset")}, ${c("performedAt")} desc);
@@ -301,6 +318,7 @@ function build(ctx: BlockSqlContext): string {
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 ${tables(ctx)}
+${ruleStarts(ctx, "maintenance_rule_starts")}
 ${maintenanceFunctions(ctx)}`;
 }
 
@@ -348,9 +366,9 @@ export const MAINTENANCE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Maintenance",
   description:
-    "Preventive maintenance plans that fall due by time or by a meter, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts.",
+    "Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.",
   requires: ["memberships", "permissions", "subjects", "dispatch"],
-  integrates: ["assets", "inventory", "outbox", "audit"],
+  integrates: ["assets", "inventory", "outbox", "audit", "qualifications"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

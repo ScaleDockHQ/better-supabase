@@ -9266,7 +9266,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "assets",
         "inventory",
         "outbox",
-        "audit"
+        "audit",
+        "qualifications"
       ],
       "manifest": "maintenance",
       "scopes": [
@@ -9321,6 +9322,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "lastDoneValue": "last_done_value",
               "nextDueAt": "next_due_at",
               "workOrder": "work_order_id",
+              "rrule": "rrule",
+              "dtstart": "dtstart",
+              "tz": "tz",
+              "requiredQualifications": "required_qualifications",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -9372,7 +9377,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dueAt": "due_at",
               "result": "result",
               "reference": "reference",
-              "performedBy": "performed_by"
+              "performedBy": "performed_by",
+              "qualifications": "qualifications"
             }
           }
         },
@@ -20771,7 +20777,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "enum",
                 "values": [
                   "time",
-                  "meter"
+                  "meter",
+                  "rrule"
                 ]
               },
               "everyDays": {
@@ -20788,6 +20795,28 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "description": "A meter plan falls due this many units after the last one."
+              },
+              "rrule": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 500,
+                "description": "An rrule plan's RFC 5545 rule, for example `FREQ=MONTHLY;BYDAY=1MO`."
+              },
+              "dtstart": {
+                "kind": "instant",
+                "optional": true,
+                "description": "An rrule plan's first occurrence."
+              },
+              "tz": {
+                "kind": "string",
+                "optional": true,
+                "description": "The IANA time zone of the rule. Default UTC."
+              },
+              "requiredQualifications": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "description": "Qualification type keys the technician of the work order must hold."
               },
               "assetId": {
                 "kind": "uuid",
@@ -20825,7 +20854,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "enum": [
                     "time",
-                    "meter"
+                    "meter",
+                    "rrule"
                   ]
                 },
                 "everyDays": {
@@ -20840,6 +20870,27 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "everyValue": {
                   "type": "string",
                   "description": "A meter plan falls due this many units after the last one."
+                },
+                "rrule": {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "An rrule plan's RFC 5545 rule, for example `FREQ=MONTHLY;BYDAY=1MO`."
+                },
+                "dtstart": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "An rrule plan's first occurrence."
+                },
+                "tz": {
+                  "type": "string",
+                  "description": "The IANA time zone of the rule. Default UTC."
+                },
+                "requiredQualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Qualification type keys the technician of the work order must hold."
                 },
                 "assetId": {
                   "type": [
@@ -20905,6 +20956,12 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true,
                 "maxLength": 200
+              },
+              "qualifications": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "description": "Qualification type keys the signed-in person must hold on performedAt."
               }
             },
             "jsonSchema": {
@@ -20947,6 +21004,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "null"
                   ],
                   "maxLength": 200
+                },
+                "qualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Qualification type keys the signed-in person must hold on performedAt."
                 }
               },
               "required": [
