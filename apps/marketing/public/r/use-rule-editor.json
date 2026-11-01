@@ -4,7 +4,7 @@
   "title": "useRuleEditor",
   "description": "The editor state of one rule in the active organization: its condition tree, validation, dirty state and save, for React DOM and React Native.",
   "dependencies": [
-    "better-supabase@^0.46.0"
+    "better-supabase@^0.47.0"
   ],
   "registryDependencies": [
     "@better-supabase/use-automations"
