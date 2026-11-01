@@ -26,6 +26,7 @@ import {
   recordWorkflowRunSql,
   WORKFLOW_RUN_STATUSES,
 } from "./workflows-record.ts";
+import { semaphoreSql } from "./workflows-semaphore.ts";
 
 const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
@@ -77,6 +78,12 @@ const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
+  hooks: [
+    "before_workflow_schedule_create",
+    "after_workflow_schedule_create",
+    "before_workflow_start_request",
+    "after_workflow_start_request",
+  ],
   tables: {
     runs: {
       name: "workflow_runs",
@@ -591,6 +598,11 @@ begin
   if not (${SERVICE_CALLER} or (${arg("tenant")} is not null and ${can(arg("tenant"), "admin")})) then
     ${fail("WORKFLOW_FORBIDDEN", "You may not schedule workflows here")}
   end if;
+  ${ctx.hook("before_workflow_schedule_create", [
+    ["text", arg("name")],
+    ["text", arg("workflow")],
+    [id, arg("tenant")],
+  ])}
   insert into ${s} as x (${cs("tenant")}, ${cs("name")}, ${cs("workflow")}, ${cs("input")}, ${cs("cron")}, ${cs("timezone")}, ${cs("nextRunAt")}, ${cs("createdBy")})
   values (${arg("tenant")}, ${arg("name")}, ${arg("workflow")}, coalesce(${arg("payload")} -> 'input', '[]'::jsonb), ${arg("cron")}, coalesce(${arg("timezone")}, 'UTC'), ${arg("next_run")}, (select auth.uid()))
   on conflict ${ownSchedules ? "on constraint workflow_schedules_tenant_name_key" : `(${cs("tenant")}, ${cs("name")})`} do update set
@@ -601,6 +613,7 @@ begin
     ${cs("nextRunAt")} = excluded.${cs("nextRunAt")},
     ${cs("lockedUntil")} = null
   returning * into v_row;
+  ${ctx.hook("after_workflow_schedule_create", [["uuid", `v_row.${cs("id")}`]])}
   return ${scheduleJson("v_row")};
 end;
 $$;
@@ -694,47 +707,7 @@ end;
 $$;
 ${serviceGrant(`${fn("advance_workflow_schedule")}(uuid, timestamptz, timestamptz)`)}
 
--- Takes one of max slots of key for holder until it releases or ttl passes.
--- true when holder holds a slot (again, for a holder that already held one).
-create or replace function ${fn("acquire_workflow_semaphore")}(key text, holder text, max integer, ttl interval default '5 minutes')
-returns boolean
-language plpgsql
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_held integer;
-begin
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_semaphore'), pg_catalog.hashtext(key));
-  delete from ${m} x where x.${cm("key")} = key and x.${cm("expiresAt")} < now();
-  update ${m} x set ${cm("expiresAt")} = now() + coalesce(ttl, interval '5 minutes')
-  where x.${cm("key")} = key and x.${cm("holder")} = holder;
-  if found then
-    return true;
-  end if;
-  select count(*) into v_held from ${m} x where x.${cm("key")} = key;
-  if v_held >= greatest(coalesce(max, 1), 1) then
-    return false;
-  end if;
-  insert into ${m} (${cm("key")}, ${cm("holder")}, ${cm("expiresAt")})
-  values (key, holder, now() + coalesce(ttl, interval '5 minutes'));
-  return true;
-end;
-$$;
-${serviceGrant(`${fn("acquire_workflow_semaphore")}(text, text, integer, interval)`)}
-
-create or replace function ${fn("release_workflow_semaphore")}(key text, holder text)
-returns boolean
-language plpgsql
-set search_path = ''
-as $$
-#variable_conflict use_variable
-begin
-  delete from ${m} x where x.${cm("key")} = key and x.${cm("holder")} = holder;
-  return found;
-end;
-$$;
-${serviceGrant(`${fn("release_workflow_semaphore")}(text, text)`)}
+${semaphoreSql(ctx)}
 
 -- Whether a start request with key is active: waiting, leased, or started
 -- with a run that hasn't finished (a run no engine reports counts for a day).
@@ -789,6 +762,11 @@ begin${
     ${fail("WORKFLOW_SUBJECT_UNSUPPORTED", "this workflow runs table has no subject columns", "22023")}
   end if;`
   }
+  ${ctx.hook("before_workflow_start_request", [
+    ["text", "request_workflow_start.key"],
+    ["text", "request_workflow_start.workflow"],
+    [id, "request_workflow_start.tenant"],
+  ])}
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     ${fn("workflow_admission_active")}(key) > 0
@@ -804,6 +782,7 @@ begin${
   insert into ${q} (${cq("key")}, ${cq("workflow")}, ${cq("input")}, ${cq("tenant")}, ${cq("actor")}, ${cq("concurrency")}, ${cq("notBefore")}${queued ? `, ${cq("subjectType")}, ${cq("subjectId")}` : ""})
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0')${queued ? ", subject_type, subject_id" : ""})
   returning ${cq("id")} into v_id;
+  ${ctx.hook("after_workflow_start_request", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;

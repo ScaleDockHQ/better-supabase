@@ -568,6 +568,10 @@ begin
   else
     ${forbidden("not allowed to open a conversation in this inbox")}
   end if;
+  ${ctx.hook("before_inbox_conversation_start", [
+    ["uuid", "start_conversation.inbox"],
+    ["jsonb", "start_conversation.input"],
+  ])}
   v_contact := ${people.resolve}(v_inbox.${ib("tenant")}, v_contact_input);
   ${contactUser}
   ${openCore(`v_inbox.${ib("tenant")}`)}
@@ -595,6 +599,7 @@ begin
       case when v_staff then 'outbound' else 'inbound' end
     );
   end if;
+  ${ctx.hook("after_inbox_conversation_start", [["uuid", `v_conv.${cv("id")}`]])}
   return ${conversationJson}(v_conv.${cv("id")});
 end;
 $$;
@@ -637,11 +642,16 @@ begin
   else
     ${forbidden("not allowed to write in this conversation")}
   end if;
+  ${ctx.hook("before_inbox_message_send", [
+    ["uuid", "send_inbox_message.conversation"],
+    ["jsonb", "send_inbox_message.input"],
+  ])}
   v_id := ${fn("inbox_add_message")}(v_conv.${cv("id")}, coalesce(input, '{}'::jsonb) - 'author_type', v_author_type, (select auth.uid()), v_direction);
   if v_author_type = 'agent' and v_kind = 'message' and v_conv.${cv("botMode")} = 'bot' then
     update ${T("conversations")} set ${cv("botMode")} = 'human' where ${cv("id")} = v_conv.${cv("id")} returning * into v_conv;
     ${log("handoff", "jsonb_build_object('from', 'bot', 'to', 'human', 'reason', 'agent_reply')")}
   end if;
+  ${ctx.hook("after_inbox_message_send", [["uuid", "v_id"]])}
   return ${messagesJson}(array[v_id]) -> 0;
 end;
 $$;
@@ -763,6 +773,11 @@ begin
     ${fail("INBOX_ASSIGNEE_INVALID", "the assignee cannot read this inbox", "22023")}
   end if;
   v_before := v_conv.${cv("assignee")};
+  ${ctx.hook("before_inbox_conversation_assign", [
+    ["uuid", `v_conv.${cv("id")}`],
+    ["uuid", "assign_conversation.assignee"],
+    ["uuid", "assign_conversation.team"],
+  ])}
   update ${T("conversations")} set
     ${cv("assignee")} = assign_conversation.assignee,
     ${cv("team")} = coalesce(assign_conversation.team, ${cv("team")})
@@ -788,6 +803,7 @@ begin
       null;
     end if;
   end if;
+  ${ctx.hook("after_inbox_conversation_assign", [["uuid", `v_conv.${cv("id")}`]])}
   return ${conversationJson}(v_conv.${cv("id")});
 end;
 $$;
@@ -811,6 +827,10 @@ begin
     ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs a snoozed_until in the future", "22023")}
   end if;
   v_before := v_conv.${cv("status")};
+  ${ctx.hook("before_inbox_conversation_status_change", [
+    ["uuid", `v_conv.${cv("id")}`],
+    ["text", "set_conversation_status.status"],
+  ])}
   update ${T("conversations")} set
     ${cv("status")} = ${q.cast("conversations", "status", "set_conversation_status.status")},
     ${cv("snoozedUntil")} = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end${
@@ -832,6 +852,7 @@ begin
       ${conversationEvent("inbox_conversation.reopened", "")}
     end if;
   end if;
+  ${ctx.hook("after_inbox_conversation_status_change", [["uuid", `v_conv.${cv("id")}`]])}
   return ${conversationJson}(v_conv.${cv("id")});
 end;
 $$;

@@ -32,6 +32,12 @@ import { appUniqueIndex } from "./over-app.ts";
 import { myWorkTenant } from "./subjects.ts";
 
 const NAMES: BlockSqlNames = {
+  hooks: [
+    "before_comment_create",
+    "after_comment_create",
+    "before_comment_assign",
+    "after_comment_assign",
+  ],
   options: ["follow", "mentionGroups", "notify"],
   tables: {
     tasks: {
@@ -251,6 +257,10 @@ begin
   if found then
     return v_task;
   end if;
+  ${ctx.hook("before_comment_assign", [
+    ["uuid", "assign_comment.message"],
+    ["uuid", "assign_comment.assignee"],
+  ])}
   v_task := (${create}(
     v_msg.${ms("tenant")},
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
@@ -261,6 +271,7 @@ begin
   ) ->> 'id')::uuid;
   insert into ${ctx.table("tasks")} (${k("message")}, ${k("tenant")}, ${k("task")})
   values (v_msg.${ms("id")}, v_msg.${ms("tenant")}, v_task);
+  ${ctx.hook("after_comment_assign", [["uuid", "v_task"]])}
   return v_task;
 end;
 $$;
@@ -420,6 +431,12 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin${subjectTypeGuard(ctx, "create_comment.subject_type", "COMMENT_SUBJECT_UNSUPPORTED", "  ")}
+  ${ctx.hook("before_comment_create", [
+    [id, "create_comment.tenant"],
+    ["text", "create_comment.subject_type"],
+    ["text", "create_comment.subject_id"],
+    ["text", "create_comment.body"],
+  ])}
   v_conv := (${m.fn("open_conversation")}(
     create_comment.tenant,
     'subject',
@@ -438,6 +455,7 @@ begin${subjectTypeGuard(ctx, "create_comment.subject_type", "COMMENT_SUBJECT_UNS
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );${sent === "" ? "" : `\n  perform ${fn("comment_sent")}((v_msg ->> 'id')::uuid);`}
+  ${ctx.hook("after_comment_create", [["uuid", "(v_msg ->> 'id')::uuid"]])}
   return ${fn("comments_json")}(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;

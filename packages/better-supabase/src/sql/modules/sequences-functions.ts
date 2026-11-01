@@ -365,6 +365,10 @@ begin
     ${q.invalid("an active sequence needs at least one step")}
   end if;
   ${mailboxCheck}
+  ${ctx.hook("before_sequence_save", [
+    [ctx.idType, "save_sequence.tenant"],
+    ["jsonb", "save_sequence.sequence"],
+  ])}
   if v_old.${s("id")} is null then
     insert into ${q.sequences} (${s("tenant")}, ${s("key")}, ${s("name")}, ${description}${s("status")}, ${s("exitOnReply")}, ${s("account")}, ${s("steps")}, ${s("version")}, ${s("createdBy")})
     values (save_sequence.tenant, v_key, v_name, ${q.has("sequences", "description") ? "v_description, " : ""}${status}, v_exit, v_account, v_steps, 1, auth.uid())
@@ -390,6 +394,7 @@ begin
     end if;
   end if;
   ${createdOrUpdated(`v_old.${s("id")} is null`, (verb) => record(`sequence.${verb}`, `${verb} a sequence`))}
+  ${ctx.hook("after_sequence_save", [["uuid", `v_row.${s("id")}`]])}
   return ${q.sequenceJson("v_row")} || jsonb_build_object('counts', ${counts(`v_row.${s("id")}`)});
 end;
 $$;
@@ -573,6 +578,11 @@ begin
     ${q.invalid("the recipient needs an email address for the sequence's email steps")}
   end if;
   ${mailbox}
+  ${ctx.hook("before_sequence_enroll", [
+    ["uuid", "enroll_in_sequence.sequence_id"],
+    ["text", "enroll_in_sequence.subject_type"],
+    ["text", "enroll_in_sequence.subject_id"],
+  ])}
   select * into v_row from ${q.enrollments} x
   where x.${e("tenant")} = v_sequence.${s("tenant")} and x.${e("program")} = ${q.program(`v_sequence.${s("id")}`)}
     and x.${e("subjectType")} = enroll_in_sequence.subject_type and x.${e("subjectId")} = enroll_in_sequence.subject_id
@@ -593,6 +603,7 @@ begin
     ${r("thread")} = null, ${r("variables")} = v_variables, ${r("attempts")} = 0, ${r("lastError")} = null, ${e("updatedAt")} = now()
   where x.${e("id")} = v_id;
   perform ${fn("sequence_place")}(v_id);
+  ${ctx.hook("after_sequence_enroll", [["uuid", "v_id"]])}
   return ${fn("sequence_member_json")}(v_id);
 end;
 $$;

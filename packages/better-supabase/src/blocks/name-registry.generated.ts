@@ -313,7 +313,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "install_default_rules" | "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "reset_default_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
     readonly actions: "read" | "edit" | "publish" | "admin";
-    readonly hooks: never;
+    readonly hooks: "before_automation_save" | "after_automation_save" | "before_automation_remove" | "after_automation_remove";
     readonly entities: {
       readonly "automation": "id" | "organization_id" | "subject_type" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stop_processing" | "rank" | "version" | "created_by" | "updated_by" | "created_at" | "updated_at" | "default_key";
     };
@@ -561,7 +561,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "comment_conversation" | "comment_counts" | "comment_message_readable" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments" | "list_file_comments";
     readonly actions: "read" | "create" | "moderate";
-    readonly hooks: never;
+    readonly hooks: "before_comment_create" | "after_comment_create" | "before_comment_assign" | "after_comment_assign";
     readonly entities: {};
     readonly primary: never;
     readonly formerKeys: never;
@@ -910,7 +910,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "list_enrollments" | "open_enrollment_steps" | "reset_enrollment_step" | "save_enrollment_program" | "set_enrollment_dates";
     readonly actions: "read" | "enroll" | "manage";
-    readonly hooks: never;
+    readonly hooks: "before_enrollment_create" | "after_enrollment_create" | "before_enrollment_cancel" | "after_enrollment_cancel";
     readonly entities: {
       readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
       readonly "enrollment": "id" | "tenant_id" | "program" | "program_version" | "subject_type" | "subject_id" | "user_id" | "steps" | "completed_steps" | "status" | "enrolled_by" | "enrolled_at" | "starts_at" | "ends_at" | "completed_at" | "cancelled_at" | "paused_at" | "cancel_reason" | "updated_at";
@@ -1154,7 +1154,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
-    readonly hooks: never;
+    readonly hooks: "before_inbox_conversation_start" | "after_inbox_conversation_start" | "before_inbox_message_send" | "after_inbox_message_send" | "before_inbox_conversation_assign" | "after_inbox_conversation_assign" | "before_inbox_conversation_status_change" | "after_inbox_conversation_status_change";
     readonly entities: {
       readonly "inbox": "id" | "tenant_id" | "name" | "channel" | "channel_address" | "installation_id" | "bot_mode" | "settings" | "created_at" | "updated_at" | "archived_at";
     };
@@ -2095,7 +2095,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
     readonly actions: "read" | "enroll" | "manage";
-    readonly hooks: never;
+    readonly hooks: "before_sequence_save" | "after_sequence_save" | "before_sequence_enroll" | "after_sequence_enroll";
     readonly entities: {
       readonly "sequence": "id" | "tenant_id" | "key" | "name" | "description" | "status" | "exit_on_reply" | "mail_account_id" | "steps" | "version" | "created_by" | "created_at" | "updated_at";
     };
@@ -2601,7 +2601,7 @@ export interface BlockNameRegistry {
     };
     readonly functions: "acquire_workflow_semaphore" | "advance_workflow_schedule" | "claim_due_workflow_schedules" | "claim_workflow_start_requests" | "create_workflow_schedule" | "mark_workflow_start_request" | "pause_workflow_schedule" | "purge_workflow_runs" | "record_workflow_run" | "release_workflow_semaphore" | "remove_workflow_schedule" | "request_workflow_cancel" | "request_workflow_start" | "workflow_admission_active" | "workflow_run_get" | "workflow_runs_changed" | "workflow_runs_list" | "workflow_schedules_list";
     readonly actions: "read" | "run" | "admin";
-    readonly hooks: never;
+    readonly hooks: "before_workflow_schedule_create" | "after_workflow_schedule_create" | "before_workflow_start_request" | "after_workflow_start_request";
     readonly entities: {};
     readonly primary: never;
     readonly formerKeys: never;

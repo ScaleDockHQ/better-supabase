@@ -58,6 +58,12 @@ const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  hooks: [
+    "before_enrollment_create",
+    "after_enrollment_create",
+    "before_enrollment_cancel",
+    "after_enrollment_cancel",
+  ],
   entities: {
     enrollment_program: {
       table: "programs",

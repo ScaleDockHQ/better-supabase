@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:00696e06bc0dcfcaa0095f2a927659a084ab75e6f4a4517b2764c6ec7270b4fc
+-- @bsb-hash sha256:89b96a90e2e66d5b35b21b9d41cc569b14798c3d1b76f9df72715582571aa09b
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -692,6 +692,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -713,6 +721,14 @@ begin
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "better_supabase"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -861,12 +877,28 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "better_supabase"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_row."id");
 end;
 $$;
@@ -1089,7 +1121,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a210baf5950e27472f9b8219ed48d9a653e30132d4515b108eb5915090f00e79
+-- @bsb-hash sha256:1b65bdcc2f2711739514fc17265956e8e90142a18b8460e2cefb3e082465bc34
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1873,6 +1905,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -1897,6 +1937,14 @@ begin
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "better_supabase"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -2045,6 +2093,14 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "better_supabase"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
@@ -2054,6 +2110,14 @@ begin
     perform "better_supabase".emit_event('enrollment.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'program', v_row."program", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status", 'step', null::text, 'completedSteps', v_row."completed_steps", 'totalSteps', cardinality(v_row."steps"), 'reason', null::text), 'enrollments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
   end if;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_row."id");
 end;
 $$;
@@ -2280,7 +2344,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:26708f1cd9ffa545889398d6b0384030c90a3e527ceba4f68af7541010051d90
+-- @bsb-hash sha256:2a7beb74cb1452554b9fd222fccf42c76eb905bd4c928c759efdaf89a86b403f
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2976,6 +3040,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "app_private"."enrollments" x
   where x."tenant_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -2997,6 +3069,14 @@ begin
     v_id := "app_private"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "app_private"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "app_private"."enrollment_json"(v_id);
 end;
 $$;
@@ -3145,12 +3225,28 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "app_private"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "app_private"."enrollment_json"(v_row."id");
 end;
 $$;
@@ -3373,7 +3469,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:98770f7f2543a461ef882431e5de2c8dfef5fb6c6c516898018b940bb1a519a0
+-- @bsb-hash sha256:417442622f6e4fdaa6e5e8c41cecb2e6acaecdbbe301ba4f41828b8d21d3a863
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4064,6 +4160,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -4085,6 +4189,14 @@ begin
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "better_supabase"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -4233,12 +4345,28 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "better_supabase"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_row."id");
 end;
 $$;
@@ -4582,7 +4710,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a1b8b45829a414ec31cbfa40347b45994969983172c3fba4dd3d205cae817a21
+-- @bsb-hash sha256:69e8bb4e5d7ba3a2519f06b447a3a02a79209413b643e11daec0bd99009606ed
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5278,6 +5406,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -5299,6 +5435,14 @@ begin
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "better_supabase"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -5447,12 +5591,28 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "better_supabase"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_row."id");
 end;
 $$;
@@ -5675,7 +5835,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:e52b1555c495c13df34110fca80369966fe0500d57f4a1b28c8a41f6202dbdfb
+-- @bsb-hash sha256:5dc2d334bc99261d285aad85ea3821af13589cb94fa4c14b0cc367536e0045b3
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6366,6 +6526,14 @@ begin
     raise exception 'a user subject needs a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_steps := array(select t.value ->> 'id' from jsonb_array_elements(v_program."steps") with ordinality as t(value, ord) order by t.ord);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using enroll.tenant, enroll.program, enroll.subject_type, enroll.subject_id;
+    end if;
+  end;
   select * into v_row from "better_supabase"."enrollments" x
   where x."org_id" = enroll.tenant and x."program" = enroll.program
     and x."subject_type" = enroll.subject_type and x."subject_id" = enroll.subject_id
@@ -6387,6 +6555,14 @@ begin
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
   perform "better_supabase"."enrollment_schedule"(v_id);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -6535,12 +6711,28 @@ begin
   if v_row."status" = 'completed' then
     raise exception 'a completed enrollment can''t be cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   if v_row."status" = 'active' then
     update "better_supabase"."enrollments" x
     set "status" = 'cancelled', "cancelled_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_enrollment_cancel"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using cancel_enrollment.enrollment_id;
+    end if;
+  end;
   return "better_supabase"."enrollment_json"(v_row."id");
 end;
 $$;

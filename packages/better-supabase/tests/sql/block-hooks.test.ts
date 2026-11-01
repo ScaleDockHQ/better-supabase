@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { moduleBody } from "../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../src/sql/render.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
 import { entryOf } from "../fixtures/block-entry.ts";
 
@@ -316,6 +316,53 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_care_plan_evaluation_create",
     "after_care_plan_evaluation_create",
   ],
+  comments: [
+    "before_comment_create",
+    "after_comment_create",
+    "before_comment_assign",
+    "after_comment_assign",
+  ],
+  messaging: [
+    "before_message_send",
+    "after_message_send",
+    "before_message_edit",
+    "after_message_edit",
+  ],
+  inbox: [
+    "before_inbox_conversation_start",
+    "after_inbox_conversation_start",
+    "before_inbox_message_send",
+    "after_inbox_message_send",
+    "before_inbox_conversation_assign",
+    "after_inbox_conversation_assign",
+    "before_inbox_conversation_status_change",
+    "after_inbox_conversation_status_change",
+  ],
+  ledger: ["before_ledger_transaction_post", "after_ledger_transaction_post"],
+  workflows: [
+    "before_workflow_schedule_create",
+    "after_workflow_schedule_create",
+    "before_workflow_start_request",
+    "after_workflow_start_request",
+  ],
+  enrollments: [
+    "before_enrollment_create",
+    "after_enrollment_create",
+    "before_enrollment_cancel",
+    "after_enrollment_cancel",
+  ],
+  automations: [
+    "before_automation_save",
+    "after_automation_save",
+    "before_automation_remove",
+    "after_automation_remove",
+  ],
+  sequences: [
+    "before_sequence_save",
+    "after_sequence_save",
+    "before_sequence_enroll",
+    "after_sequence_enroll",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */
@@ -328,6 +375,11 @@ const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
   pipelines: { on: { deal: { categories: { open: "open", won: "success" } } } },
 };
 
+/** Modules whose hooks only render next to another module. */
+const WITH: Readonly<Record<string, readonly string[]>> = {
+  comments: ["tasks"],
+};
+
 /** The `config.subjects` entries the entries above name. */
 const SUBJECTS = { deal: { table: "public.deals" } };
 
@@ -338,14 +390,21 @@ describe.each(Object.entries(REQUIRED))(
   (module, hooks) => {
     const declared = SQL_MODULES[module]?.names?.hooks ?? [];
 
-    const sql = moduleBody(module, {
+    const layout = {
       modules:
         OPTIONS[module] === undefined
           ? {}
           : { [module]: entryOf(OPTIONS[module]) },
       subjects: SUBJECTS,
       accessProvider: moduleProvider,
-    });
+    };
+
+    const sql =
+      WITH[module] === undefined
+        ? moduleBody(module, layout)
+        : renderBlocks([module, ...WITH[module]], layout)
+            .map((file) => file.contents)
+            .join("\n");
 
     it.each(hooks)("declares and calls %s", (hook) => {
       expect(declared).toContain(hook);

@@ -109,6 +109,16 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
+  hooks: [
+    "before_inbox_conversation_start",
+    "after_inbox_conversation_start",
+    "before_inbox_message_send",
+    "after_inbox_message_send",
+    "before_inbox_conversation_assign",
+    "after_inbox_conversation_assign",
+    "before_inbox_conversation_status_change",
+    "after_inbox_conversation_status_change",
+  ],
   options: [
     "topic",
     "bucket",
