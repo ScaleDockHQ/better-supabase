@@ -52,7 +52,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   billing:
     "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
   bookings:
-    "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_bookings save_booking_resource save_booking_service set_booking_availability",
+    "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings save_booking_resource save_booking_service set_booking_availability",
   bulk: "bulk_apply bulk_run bulk_step start_bulk",
   calendar:
     "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
@@ -123,7 +123,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   guests:
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
   hiring:
-    "application_detail apply_to_job close_application save_job schedule_interview submit_scorecard",
+    "application_detail apply_to_job close_application list_applications list_jobs save_job schedule_interview submit_scorecard",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
   identities:

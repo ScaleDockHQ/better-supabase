@@ -161,23 +161,6 @@ export async function loadTimesheet(
 
 const Id = v.pipe(v.string(), v.uuid());
 
-const JobRow = v.object({
-  id: Id,
-  title: v.string(),
-  status: v.picklist(["draft", "open", "closed"]),
-  location: v.nullish(v.string()),
-});
-
-const ApplicationRow = v.object({
-  id: Id,
-  job_id: Id,
-  stage_id: v.nullish(Id),
-  state: v.string(),
-  candidate_type: v.string(),
-  candidate_id: v.string(),
-  candidate_name: v.nullish(v.string()),
-});
-
 const StageRow = v.object({
   id: Id,
   name: v.string(),
@@ -221,10 +204,7 @@ export interface HiringBoardData {
 
 /**
  * The openings, the stages of the application pipeline and the candidates in
- * them. The hiring block has no list function yet, so this reads
- * `api.list_jobs` and `api.list_applications`; until they exist the read fails
- * and the board shows Retry. Candidates are customers, the one subject type the
- * app registers.
+ * them. Candidates are customers, the one subject type the app registers.
  */
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
@@ -235,15 +215,8 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     return null;
   }
 
-  const [jobs, applications, pipelines, customers] = await Promise.all([
-    db.$api("list_jobs", { tenant }, { returns: v.array(JobRow) }).orThrow(),
-    db
-      .$api(
-        "list_applications",
-        { tenant },
-        { returns: v.array(ApplicationRow) },
-      )
-      .orThrow(),
+  const [jobs, pipelines, customers] = await Promise.all([
+    db.hiring.jobs({ organizationId: tenant }).orThrow(),
     db
       .$api(
         "list_pipelines",
@@ -255,6 +228,16 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),
   ]);
+
+  const applications = (
+    await Promise.all(
+      jobs.map((job) => db.hiring.applications({ jobId: job.id }).orThrow()),
+    )
+  ).flat();
+
+  const names = new Map(
+    customers.map((customer) => [customer.id, customer.name]),
+  );
 
   const pipeline = pipelines[0];
 
@@ -273,13 +256,14 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
         category: stage.category,
       })),
     cards: applications.flatMap((application) =>
-      application.stage_id
+      application.stageId
         ? [
             {
               id: application.id,
-              jobId: application.job_id,
-              stageId: application.stage_id,
-              name: application.candidate_name ?? application.candidate_id,
+              jobId: application.jobId,
+              stageId: application.stageId,
+              name:
+                names.get(application.candidate.id) ?? application.candidate.id,
             },
           ]
         : [],

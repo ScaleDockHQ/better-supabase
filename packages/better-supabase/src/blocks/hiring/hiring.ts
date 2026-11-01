@@ -8,7 +8,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -175,6 +175,36 @@ export interface Hiring<F extends object = Record<never, never>> {
     };
   }): AsyncResult<Interview>;
   detail(applicationId: string): AsyncResult<ApplicationDetail>;
+  /** The organization's jobs, newest first; `status` keeps one status. */
+  jobs(input: {
+    organizationId: string;
+    status?: JobStatus | undefined;
+  }): AsyncResult<Job<F>[]>;
+  /** A job's applications in board order; `state` keeps one state. */
+  applications(input: {
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<Application[]>;
+  /**
+   * A job's applications grouped by stage, in board order. A stage's name and
+   * order come from the pipelines block; this groups by `stageId` only.
+   */
+  pipeline(input: {
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<JobPipelineStage[]>;
+  /**
+   * Closes the job: `saveJob` with `status: "closed"`, which stamps `closedAt`
+   * and emits `job_opening.closed`. Closing a closed job changes nothing.
+   */
+  close(input: { organizationId: string; jobId: string }): AsyncResult<Job<F>>;
+}
+
+/** One stage's applications in `Hiring.pipeline`. */
+export interface JobPipelineStage {
+  /** `undefined` for applications that have no stage yet. */
+  readonly stageId: string | undefined;
+  readonly applications: readonly Application[];
 }
 
 export interface HiringOptions<
@@ -301,6 +331,12 @@ export function createHiring<
       applicationOf,
     );
 
+  const readJob = (saved: Job): AsyncResult<Job<F>> =>
+    AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
+      ...saved,
+      fields: value,
+    }));
+
   const client: Hiring<F> = {
     saveJob: ({ organizationId, job }) => {
       const { id, fields: extra, ...attrs } = job;
@@ -317,12 +353,7 @@ export function createHiring<
             jobOf,
           ),
         )
-        .andThen((saved) =>
-          AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
-            ...saved,
-            fields: value,
-          })),
-        );
+        .andThen(readJob);
     },
     apply: ({ jobId, candidate, ...apply }) =>
       call(
@@ -385,10 +416,55 @@ export function createHiring<
               : Number(row["averageRating"]),
         });
       }),
+    jobs: ({ organizationId, status }) =>
+      call(
+        "list_jobs",
+        { tenant: organizationId, status: status ?? null },
+        (value) => recordsOf(value, "jobs").map(jobOf),
+      ).andThen(async (jobs) => {
+        const read: Job<F>[] = [];
+
+        for (const job of jobs) {
+          const result = await readJob(job);
+
+          if (!result.ok) {
+            return result;
+          }
+
+          read.push(result.data);
+        }
+
+        return ok(read);
+      }),
+    applications: ({ jobId, state }) =>
+      call("list_applications", { job: jobId, state: state ?? null }, (value) =>
+        recordsOf(value, "applications").map(applicationOf),
+      ),
+    pipeline: ({ jobId, state }) =>
+      hooked.applications({ jobId, state }).map((applications) => {
+        const stages = new Map<string | undefined, Application[]>();
+
+        for (const application of applications) {
+          const group = stages.get(application.stageId) ?? [];
+
+          group.push(application);
+          stages.set(application.stageId, group);
+        }
+
+        return [...stages].map(([stageId, grouped]) => ({
+          stageId,
+          applications: grouped,
+        }));
+      }),
+    close: ({ organizationId, jobId }) =>
+      hooked.saveJob({ organizationId, job: { id: jobId, status: "closed" } }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Hiring<F> = withBlockHooks(client, options.hooks, {
     block: "hiring",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

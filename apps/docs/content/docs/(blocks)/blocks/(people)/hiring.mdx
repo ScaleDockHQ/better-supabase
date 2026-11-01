@@ -104,6 +104,12 @@ await hiring
 
 `hire(id)`, `reject(id, reason)` and `withdraw(id)` move the application to its job pipeline's first stage of that category. Hiring stamps `hiredAt` and records `application.hired` with the candidate: call [`employees.fromApplication`](/docs/blocks/employees#from-a-hired-application) from that event, which makes the employee once and links it with a `created_from` [relation](/docs/blocks/relations), or create your own from an `after_application_hire` hook in the same transaction.
 
+## Lists and the pipeline
+
+`jobs({ organizationId, status })` returns the organization's jobs, newest first, and `status` keeps one of `draft`, `open` and `closed`. `applications({ jobId, state })` returns a job's applications in board order. `pipeline({ jobId, state })` groups them by stage in the same order; it groups by `stageId` only, so read stage names and order from the [pipelines](/docs/blocks/pipelines) block. Applications that have no stage yet come back in a group whose `stageId` is `undefined`.
+
+`close({ organizationId, jobId })` saves the job with `status: "closed"`, which stamps `closedAt` and records `job_opening.closed`. Closing a closed job changes nothing.
+
 ## Interviews and scorecards
 
 `scheduleInterview` records an interview with its interviewers, who can then read it. `score(id, { rating, recommendation, notes })` saves the caller's scorecard at the application's current stage: a rating from 1 to 4 and a recommendation from `strong_no` to `strong_yes`. Scoring again at the same stage replaces it. `detail(id)` returns the application with its scorecards, its interviews and the average rating.

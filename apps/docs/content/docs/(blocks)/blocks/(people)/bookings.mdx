@@ -101,6 +101,8 @@ a daylight saving change. `addException` closes a range (a holiday, a
 dentist appointment) or, with `available: true`, opens one outside the weekly
 hours. Durations take a `Temporal.Duration` or an ISO 8601 string.
 
+`resources({ organizationId })` and `services({ organizationId })` list them by name, so a booking page can offer a choice without reading the tables. Inactive ones come back only with `includeInactive: true`. A service carries its `duration`, buffers and `resourceKinds`.
+
 ## Slots
 
 `available_slots(service, range_start, range_end, tz)` is a SQL function, and

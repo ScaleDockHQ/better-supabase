@@ -23,9 +23,11 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { compact } from "../sales-shared.ts";
 import {
   blockCall,
   intervalOf,
+  optionalText,
   recordOf,
   recordsOf,
   requiredInstant,
@@ -185,6 +187,29 @@ export interface PublicBookingService {
   }[];
 }
 
+/** A resource as `Bookings.resources` lists it. */
+export interface BookingResource {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly capacity: number;
+  readonly tz: string;
+  readonly active: boolean;
+  readonly calendarId?: string;
+  readonly hostUserId?: string;
+}
+
+/** A service as `Bookings.services` lists it. */
+export interface BookingService {
+  readonly id: string;
+  readonly name: string;
+  readonly duration: Temporal.Duration;
+  readonly bufferBefore: Temporal.Duration;
+  readonly bufferAfter: Temporal.Duration;
+  readonly resourceKinds: readonly string[];
+  readonly active: boolean;
+}
+
 /** The payload a hold enqueues on `bookings.expire-holds`. */
 export interface BookingExpirePayload {
   readonly bookingId?: string;
@@ -206,6 +231,22 @@ export interface Bookings<F extends object = Record<never, never>> {
     exception: BookingExceptionInput;
   }): AsyncResult<{ readonly id: string }>;
   deleteException(id: string): AsyncResult<boolean>;
+  /**
+   * The organization's resources by name; inactive ones only with
+   * `includeInactive`.
+   */
+  resources(input: {
+    organizationId: string;
+    includeInactive?: boolean | undefined;
+  }): AsyncResult<BookingResource[]>;
+  /**
+   * The organization's services by name; inactive ones only with
+   * `includeInactive`.
+   */
+  services(input: {
+    organizationId: string;
+    includeInactive?: boolean | undefined;
+  }): AsyncResult<BookingService[]>;
   saveService(input: {
     organizationId: string;
     input: BookingServiceInput;
@@ -515,6 +556,41 @@ export function createBookings<
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
     expireHolds,
+    resources: ({ organizationId, includeInactive }) =>
+      call(
+        "list_booking_resources",
+        { tenant: organizationId, include_inactive: includeInactive ?? false },
+        (value) =>
+          recordsOf(value, "resources").map((row) =>
+            compact<BookingResource>({
+              id: textOf(row["id"]),
+              name: textOf(row["name"]),
+              kind: textOf(row["kind"]),
+              capacity: Number(row["capacity"]),
+              tz: textOf(row["tz"]),
+              active: row["active"] === true,
+              calendarId: optionalText(row["calendarId"]),
+              hostUserId: optionalText(row["hostUserId"]),
+            }),
+          ),
+      ),
+    services: ({ organizationId, includeInactive }) =>
+      call(
+        "list_booking_services",
+        { tenant: organizationId, include_inactive: includeInactive ?? false },
+        (value) =>
+          recordsOf(value, "services").map((row) => ({
+            id: textOf(row["id"]),
+            name: textOf(row["name"]),
+            duration: intervalOf(row["duration"]),
+            bufferBefore: intervalOf(row["bufferBefore"]),
+            bufferAfter: intervalOf(row["bufferAfter"]),
+            resourceKinds: Array.isArray(row["resourceKinds"])
+              ? row["resourceKinds"].map(String)
+              : [],
+            active: row["active"] === true,
+          })),
+      ),
     bookSeries: ({
       serviceId,
       resourceId,

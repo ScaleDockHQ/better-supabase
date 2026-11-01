@@ -378,7 +378,7 @@ export interface BlockNameRegistry {
       readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason" | "series";
       readonly "series": "id" | "tenant" | "service" | "resource" | "rule" | "startsAt" | "tz" | "customerName" | "customerEmail" | "customerUser" | "status" | "endsAt" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_booking_exception" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "hold_booking" | "list_bookings" | "place_booking" | "save_booking_resource" | "save_booking_service" | "set_booking_availability";
+    readonly functions: "add_booking_exception" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "hold_booking" | "list_booking_resources" | "list_booking_services" | "list_bookings" | "place_booking" | "save_booking_resource" | "save_booking_service" | "set_booking_availability";
     readonly actions: "manage" | "create" | "read";
     readonly hooks: "before_booking_reserve" | "after_booking_reserve" | "after_booking_confirm" | "after_booking_cancel";
     readonly entities: {
@@ -1078,7 +1078,7 @@ export interface BlockNameRegistry {
       readonly "interviewers": "tenant" | "interview" | "user";
       readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
-    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "save_job" | "schedule_interview" | "submit_scorecard";
+    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "list_applications" | "list_jobs" | "save_job" | "schedule_interview" | "submit_scorecard";
     readonly actions: "read" | "write" | "manage" | "create" | "jobsCreate" | "jobsUpdate" | "score";
     readonly hooks: "before_application_hire" | "after_application_hire";
     readonly entities: {
