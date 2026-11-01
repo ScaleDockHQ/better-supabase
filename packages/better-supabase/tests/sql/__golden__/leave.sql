@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:e614bddd32cfae40659ab3d37db0df03008fd979852c8d2689d9043b184ad014
+-- @bsb-hash sha256:125bb9f51b2eafc00b7ae723a17e166b5d171d9b4fa41aac2e8e0d9559fda540
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -967,6 +967,37 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
+
 
 -- Seeds the rows every organization starts with for leave. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
@@ -1079,7 +1110,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:85ed1c60b4e45ad6632bc650d6c07d67d71ee2f8ce83aef49153bbff30ba8930
+-- @bsb-hash sha256:9092fc70d6dbc0c41684ee09af7300352497abc070b8ede774a07a33aa8bd4e8
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2208,6 +2239,37 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
+
 
 -- Seeds the rows every organization starts with for leave. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
@@ -2328,7 +2390,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f7c56724aa33fa8be2acef1b9f28ca043edc8f9573c9736c206dd259fdf0b260
+-- @bsb-hash sha256:f8d0b3574a59bc7920c49ac6d22936645e69d0bc8bc04aa59bcec823160ea2cf
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3299,6 +3361,37 @@ $$;
 revoke execute on function "app_private"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "app_private"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
+create or replace function "app_private"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "app_private"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "app_private"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "app_private"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "app_private"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "app_private"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "app_private"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "app_private"."leave_close_range"(uuid, date, date) to service_role;
+
 
 -- Seeds the rows every organization starts with for leave. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
@@ -3411,7 +3504,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c2ee06796ab0d88f59d8d6f2eab6a4edbdacf79ca600f974792eef2aab13ccfb
+-- @bsb-hash sha256:fd93aead73da0a4e578fa9f7fa5dced1ee43d9a3a657866c81ec023b85d32265
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4377,6 +4470,37 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
+
 
 -- Seeds the rows every organization starts with for leave. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
@@ -4462,6 +4586,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as r
 -- blocks.leave.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."leave_range_close_blockers"(uuid, date, date);
+drop function if exists "api"."leave_close_range"(uuid, date, date);
 
 drop function if exists "api"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
 drop function if exists "api"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
@@ -4650,7 +4778,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:24634b5832d1d2bb978c984b7f93fd7c37e19c8060d67d759b9b32e67762b32d
+-- @bsb-hash sha256:dfc05e2a85624c6e346ea3810ecf907237f84432aa641dc5e2113fa9bd905fc7
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5611,6 +5739,37 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
+
 
 -- Seeds the rows every organization starts with for leave. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
@@ -5723,7 +5882,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:b72af1e92ca484c91a1b55d99074ec1d8c48050442f377b20604226615105c97
+-- @bsb-hash sha256:76d2d41c1d116b538d42d8fd3b0589340847e9a05bbebe6dc16c74be671817b2
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6688,6 +6847,37 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."org_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
 
 
 -- Seeds the rows every organization starts with for leave. Safe to run

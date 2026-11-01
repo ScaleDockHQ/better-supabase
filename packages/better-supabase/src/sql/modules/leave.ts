@@ -50,8 +50,13 @@ import {
   leaveOwner,
   leaveParts,
 } from "./leave-owner.ts";
-import { leaveSeeds } from "./leave-seeds.ts";
-import { INTEGRATES, INTERNAL, periodFunctions } from "./leave-periods.ts";
+import {
+  INTEGRATES,
+  INTERNAL,
+  leaveSeeds,
+  leaveDependencies,
+  periodFunctions,
+} from "./leave-periods.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -1049,18 +1054,7 @@ export const LEAVE: BlockSqlDefinition = {
   description:
     'Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app\'s own table of signed amounts instead of the ledger.',
   requires: [...REQUIRES],
-  dependencies: (layout) =>
-    REQUIRES.filter(
-      (name) =>
-        !(
-          name === "approvals" &&
-          layout.modules?.["leave"]?.options?.["approvals"] === false
-        ) &&
-        !(
-          name === "ledger" &&
-          typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
-        ),
-    ),
+  dependencies: (layout) => leaveDependencies(REQUIRES, layout),
   integrates: INTEGRATES,
   target: "schema",
   modes: ["managed", "custom"],

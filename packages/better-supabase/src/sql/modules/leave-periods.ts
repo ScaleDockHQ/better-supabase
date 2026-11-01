@@ -68,3 +68,30 @@ $$;
 ${serviceGrant(`${fn("leave_close_range")}(${idType}, date, date)`)}
 `;
 }
+
+export { leaveSeeds } from "./leave-seeds.ts";
+
+// Leave needs approvals unless the app turns them off, and the ledger unless
+// balances live in the app's own table.
+export function leaveDependencies(
+  requires: readonly string[],
+  layout: {
+    modules?: Record<
+      string,
+      | { options?: Record<string, unknown>; tables?: Record<string, unknown> }
+      | undefined
+    >;
+  },
+): string[] {
+  return requires.filter(
+    (name) =>
+      !(
+        name === "approvals" &&
+        layout.modules?.["leave"]?.options?.["approvals"] === false
+      ) &&
+      !(
+        name === "ledger" &&
+        typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
+      ),
+  );
+}

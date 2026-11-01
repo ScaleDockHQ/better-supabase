@@ -745,6 +745,8 @@ may be your own enum or domain.
   - `better_supabase.usage_events`: `organization_id`, `meter`, `idempotency_key`, `quantity`, `recorded_at`
   - `better_supabase.usage_history`: `id`, `organization_id`, `meter`, `quantity`, `actor_id`, `recorded_at`
   - `better_supabase.usage_distinct`: `organization_id`, `meter`, `period_start`, `subject`
+  - `better_supabase.usage_meter_prices`: `meter`, `currency`, `unit_amount`, `included`
+  - `better_supabase.usage_billed_periods`: `organization_id`, `period_start`, `period_end`, `invoice_id`, `billed_at`
   - `better_supabase.usage_quotas`: `id`, `organization_id`, `plan`, `meter`, `limit`, `period`; typed: `period`
 - `vercel-marketplace`
   - `better_supabase.marketplace_installations`: `id`, `configuration_id`, `tenant`, `access_token_secret_id`, `status`; typed: `status`
