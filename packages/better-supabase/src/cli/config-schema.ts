@@ -963,6 +963,12 @@ const DesignSchema = v.strictObject({
   positions: v.optional(
     v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
   ),
+  seeds: v.optional(
+    v.strictObject({
+      variants: v.optional(v.record(v.string(), v.string())),
+      locale: v.optional(v.string()),
+    }),
+  ),
 });
 
 const ConfigSchema = v.strictObject({

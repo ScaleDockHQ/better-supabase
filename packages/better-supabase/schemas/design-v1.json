@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://unpkg.com/better-supabase/schemas/design-v1.json",
   "title": "better-supabase design",
-  "description": "A design from app.bettersupabase.com/create: app tables, extra columns on block tables and canvas positions, up to format 8. This schema checks the shape; designSchema and parseDesign in better-supabase/preset also check names, defaults and limits.",
+  "description": "A design from app.bettersupabase.com/create: app tables, extra columns on block tables and canvas positions, up to format 9. This schema checks the shape; designSchema and parseDesign in better-supabase/preset also check names, defaults and limits.",
   "type": "object",
   "properties": {
     "version": {
@@ -512,6 +512,21 @@
         "minItems": 2,
         "maxItems": 2
       }
+    },
+    "seeds": {
+      "type": "object",
+      "properties": {
+        "variants": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "locale": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

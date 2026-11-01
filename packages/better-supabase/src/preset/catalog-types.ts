@@ -47,6 +47,11 @@ export interface PresetCatalogBlock {
   readonly links?: readonly BlockSqlLink[];
   /** The composed reads the block ships (ADR 0177). */
   readonly reads?: readonly BlockSqlRead[];
+  /**
+   * The declared defaults the block seeds, with the variants it offers (ADR
+   * 0196).
+   */
+  readonly seeds?: { readonly variants: readonly string[] };
 }
 
 /** An automation a block ships as a default `automation_defaults` row. */

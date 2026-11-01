@@ -64,5 +64,20 @@ export function writeDesign(
     }
   }
 
+  for (const [key, value] of [
+    ["variants", design.seeds?.variants],
+    ["locale", design.seeds?.locale],
+  ] as const) {
+    if (value === undefined) {
+      continue;
+    }
+
+    const problem = apply(["database", "seed", "defaults", key], value);
+
+    if (problem !== undefined) {
+      return { ok: false, reason: problem };
+    }
+  }
+
   return { ok: true, text };
 }
