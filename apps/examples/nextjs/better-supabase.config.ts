@@ -546,6 +546,8 @@ export default defineConfig({
     // Care plans keep each customer's problems, goals and actions; a
     // restrictive measure waits for an approval before it starts.
     "care-plans": {},
+    // Dose range, duplicate therapy and interaction alerts over medication orders.
+    "clinical-decision-support": {},
     incidents: {},
     reminders: {},
     "drive-files": {},

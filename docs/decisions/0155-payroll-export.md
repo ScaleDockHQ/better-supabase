@@ -42,12 +42,12 @@ tables, `payroll_runs` and `payroll_lines`. Every table is adoptable (ADR 0098).
   could not lock a period in the same transaction.
 - Require approved timesheets. `time-tracking` has no single approval shape that
   every owner mode shares, so the docs tell the app to lock weeks first.
-  (ADR 0173 reverses this: `time_week_approved` reads the shape in every mode.)
+  (ADR 0174 reverses this: `time_week_approved` reads the shape in every mode.)
 
 ## Consequences
 
 - A format package implements one function and gets locking, checksums and the
   overlap guard for free.
-- Time entries are filtered by timesheet approval since ADR 0173.
+- Time entries are filtered by timesheet approval since ADR 0174.
 - The format port is a public extension interface; a breaking change needs
   `apiVersion: 2`.

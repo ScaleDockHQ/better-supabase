@@ -1,4 +1,4 @@
-# 0174: Sent e-invoices keep the channel's reference in `invoice_deliveries`
+# 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`
 
 - Status: accepted
 - Date: 2026-11-01

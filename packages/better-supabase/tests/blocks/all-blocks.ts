@@ -27,6 +27,7 @@ import type { carePlansBlock } from "../../src/blocks/care-plans/manifest.ts";
 import type { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import type { catalogBlock } from "../../src/blocks/catalog/manifest.ts";
 import type { channelsBlock } from "../../src/blocks/channels/manifest.ts";
+import type { clinicalDecisionSupportBlock } from "../../src/blocks/clinical-decision-support/manifest.ts";
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { complianceBlock } from "../../src/blocks/compliance/manifest.ts";
@@ -253,6 +254,7 @@ export type AllBlocks = {
   readonly warehouse: typeof warehouseBlock;
   readonly rfqs: typeof rfqsBlock;
   readonly tills: typeof tillsBlock;
+  readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

@@ -1,0 +1,170 @@
+---
+title: Clinical decision support
+description: Dose range, duplicate therapy and interaction rules over a record's medication orders, alerts that members acknowledge or override with a reason, and a versioned port for external engines.
+---
+
+`clinical-decision-support` checks a record's active medication orders
+against rules and raises alerts. The block ships three rule kinds an
+organization edits itself: a dose range (minimum dose, maximum dose and a
+maximum per day), duplicate therapy (the same medication twice, or two
+medications of one therapy group) and an interaction between two medications.
+Members acknowledge an alert or override it with a reason. An engine from a
+drug database or a service plugs in through the `ClinicalDecisionSupport`
+port and raises the alerts the built-in rules don't, such as allergies.
+
+```bash
+better-supabase add clinical-decision-support
+```
+
+```ts
+import { createClinicalDecisionSupport } from "better-supabase/blocks/clinical-decision-support";
+```
+
+The module requires `memberships`, `permissions`, `subjects` and
+[`medications`](/docs/blocks/medications). With
+[`observations`](/docs/blocks/observations),
+[`consents`](/docs/blocks/consents) and
+[`care-plans`](/docs/blocks/care-plans) installed, the context an engine gets
+includes the latest observation of each kind, the granted consents and the
+active care plan. With `outbox` the module records its events, and every
+alert and decision is audited under the `data` category.
+
+## Tables
+
+| Table         | Holds                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `care_rules`  | A rule: `kind`, the `medication_ids` it names, dose bounds, `severity`, an optional `message` and `active`   |
+| `care_alerts` | An alert on a record: `kind`, `severity`, `source`, `message`, `fingerprint` and `status`, with the decision |
+
+A live alert is unique per record, source and fingerprint, so evaluating twice
+updates the alert instead of adding another. An alert that a later evaluation
+no longer raises becomes `resolved`.
+
+| Permission                         | Allows                                         |
+| ---------------------------------- | ---------------------------------------------- |
+| `clinical_decision_support.read`   | reading rules, alerts and the engine context   |
+| `clinical_decision_support.write`  | evaluating a record and deciding on its alerts |
+| `clinical_decision_support.manage` | adding, changing and deleting rules            |
+
+Admins have all three; members get none, so grant them to the roles that
+prescribe and give medication.
+
+## Rules
+
+```ts
+await db.clinicalDecisionSupport
+  .saveRule({
+    kind: "dose_range",
+    medicationIds: [paracetamol.id],
+    maxDose: 1000,
+    maxPerDay: 4000,
+    severity: "critical",
+  })
+  .orThrow();
+
+await db.clinicalDecisionSupport
+  .saveRule({ kind: "interaction", medicationIds: [warfarin.id, ibuprofen.id] })
+  .orThrow();
+```
+
+A dose range names one medication and needs at least one bound. An
+interaction names two. Duplicate therapy names two or more medications that
+count as one therapy group; without a rule, the same medication ordered twice
+is already a duplicate. `message` replaces the built-in text of the alert.
+
+## Evaluate
+
+```ts
+const alerts = await db.clinicalDecisionSupport
+  .evaluate({ type: "client", id: clientId })
+  .orThrow();
+```
+
+`evaluate` runs the rules over the record's active orders, then each
+configured engine, and returns the open alerts with the serious ones first.
+Call it after prescribing or changing an order. `alerts` lists them later,
+and `context` returns what an engine would get.
+
+## Decide
+
+```ts
+await db.clinicalDecisionSupport
+  .decide(alert.id, "overridden", { reason: "Benefit outweighs the risk" })
+  .orThrow();
+```
+
+An alert is `open`, then `acknowledged` or `overridden`. An override, and
+any decision on a critical alert, needs a `reason`. Evaluating again keeps the
+decision as long as the finding stays the same.
+
+## External engines
+
+```ts
+import type { ClinicalDecisionSupport } from "better-supabase/blocks/clinical-decision-support";
+
+const interactions: ClinicalDecisionSupport = {
+  key: "my-drug-database",
+  async evaluate(context, { signal }) {
+    const found = await lookup(context.medications, { signal });
+    return found.map((hit) => ({
+      kind: "interaction",
+      severity: hit.severe ? "critical" : "warning",
+      message: hit.text,
+      fingerprint: hit.id,
+      orderIds: hit.orderIds,
+    }));
+  },
+};
+
+const cds = createClinicalDecisionSupport({
+  transport,
+  engines: [interactions],
+});
+```
+
+The port is versioned with `apiVersion: 1` (omit it for 1). The block bundles
+no engine and no drug database. An engine's `key` becomes the `source` of its
+alerts, and `built-in` is reserved. The alerts an engine stops returning are
+resolved, so return every alert that still holds. An engine that throws makes
+`evaluate` an error with hint `CARE_ENGINE_FAILED`; the alerts of the
+engines before it are stored.
+
+Test an engine with `testClinicalDecisionSupport` from
+`better-supabase/testing`.
+
+## Events
+
+| Event                                                            | Data                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `care_alert.raised`, `care_alert.decided`, `care_alert.resolved` | `organizationId`, `id`, `subjectType`, `subjectId`, `kind`, `severity`, `source`, `status` |
+| `care_rule.created`, `care_rule.updated`, `care_rule.deleted`    | `organizationId`, `id`, `kind`, `severity`                                                 |
+
+## Hooks
+
+`before_care_alert_decide` and `after_care_alert_decide` run around a
+decision. A `before` hook can refuse it.
+
+## Errors
+
+| Hint                         | Cause                                                    |
+| ---------------------------- | -------------------------------------------------------- |
+| `CARE_ALERT_FORBIDDEN`       | the caller lacks the permission the call needs           |
+| `CARE_ALERT_INVALID`         | a bad rule, alert or decision, or a missing reason       |
+| `CARE_ALERT_NOT_FOUND`       | no alert with that id                                    |
+| `CARE_ALERT_STATUS`          | the alert is resolved already                            |
+| `CARE_ALERT_SUBJECT_INVALID` | the record isn't registered or isn't in the organization |
+| `CARE_RULE_NOT_FOUND`        | no rule with that id                                     |
+| `CARE_ENGINE_FAILED`         | an external engine threw                                 |
+
+## Without the client
+
+`db.clinicalDecisionSupport` is this client. Code that does not go through
+`bsb.db()` builds it with a transport:
+
+```ts
+const cds = createClinicalDecisionSupport({
+  transport,
+  tenant: organizationId,
+});
+const open = await cds.alerts({ status: "open" }).orThrow();
+```
