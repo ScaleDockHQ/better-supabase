@@ -3,7 +3,7 @@
 -- exported and then locked. The member can't create or read runs, and the
 -- Globex owner (…a3) sees none of it. Run with `supabase test db`.
 begin;
-select plan(17);
+select plan(18);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -25,7 +25,14 @@ values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2',
    '2027-03-03T08:00:00Z', '2027-03-03T09:30:00Z'),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2',
-   '2027-04-02T08:00:00Z', '2027-04-02T10:00:00Z');
+   '2027-04-02T08:00:00Z', '2027-04-02T10:00:00Z'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2',
+   '2027-03-10T08:00:00Z', '2027-03-10T12:00:00Z');
+
+-- Only the week of 2027-03-01 is approved; the entry of 2027-03-10 is not.
+insert into better_supabase.timesheets (tenant_id, user_id, week, submitted_at, approved_at)
+values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2',
+  '2027-03-01', now(), now());
 
 select set_config(
   'request.jwt.claims',
@@ -48,7 +55,13 @@ select is(
   (select quantity from better_supabase.payroll_lines
    where run_id = (select id from ids where name = 'march') and kind = 'worked'),
   3.50::numeric,
-  'the worked hours of the period add up, and other months stay out'
+  'only the hours of approved weeks add up, and other months stay out'
+);
+select is(
+  (select count(*) from better_supabase.payroll_lines
+   where run_id = (select id from ids where name = 'march') and kind = 'worked'),
+  1::bigint,
+  'a week without an approved timesheet adds no line'
 );
 select throws_ok(
   $$select better_supabase.create_payroll_run('00000000-0000-4000-8000-000000000001', '{"from": "2027-03-31", "to": "2027-03-01"}'::jsonb)$$,

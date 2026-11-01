@@ -55,7 +55,7 @@ A line names the member (`user_id`), the employee (`employee_id`) or both, and k
 
 `create` makes a draft run and collects its lines. `refresh` collects them again for a draft run, which is how late corrections reach it. The collection is deterministic: the same entries give the same lines.
 
-- Time tracking counts finished time entries that start in the period (in `timeZone`), in hours. The block does not look at timesheet approval, so lock the weeks through [time tracking](/docs/blocks/time-tracking) first, then create the run.
+- Time tracking counts finished time entries that start in the period (in `timeZone`), in hours, but only the entries of weeks whose timesheet is approved in [time tracking](/docs/blocks/time-tracking). A week that is open, submitted or rejected adds no line; approve it, then refresh the draft run.
 - Leave counts requests that are approved and not cancelled, by their start date, in the unit of the leave type.
 - Shifts count assigned assignments of published, not canceled shifts that start in the period, minus the shift's break, in hours.
 

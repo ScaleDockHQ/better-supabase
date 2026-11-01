@@ -48,7 +48,14 @@ describe.skipIf(!live)("payroll-export module in Postgres", () => {
     await s.rows(
       `insert into better_supabase.time_entries (tenant_id, user_id, started_at, ended_at)
        values ($1, $2, '2027-03-02T08:00:00Z', '2027-03-02T10:00:00Z'),
-              ($1, $2, '2027-03-03T08:00:00Z', '2027-03-03T09:30:00Z')`,
+              ($1, $2, '2027-03-03T08:00:00Z', '2027-03-03T09:30:00Z'),
+              ($1, $2, '2027-03-10T08:00:00Z', '2027-03-10T12:00:00Z')`,
+      [tenant, member.id],
+    );
+    // Only the week of 2027-03-01 is approved, so the entry of 2027-03-10 stays out.
+    await s.rows(
+      `insert into better_supabase.timesheets (tenant_id, user_id, week, submitted_at, approved_at)
+       values ($1, $2, '2027-03-01', now(), now())`,
       [tenant, member.id],
     );
     await s.as(owner);
