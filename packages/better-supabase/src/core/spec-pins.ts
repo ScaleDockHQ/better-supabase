@@ -71,6 +71,23 @@ export const SPEC_PINS: {
   /** FHIR R4 release whose base resources `better-supabase/fhir` maps to. */
   readonly fhirR4: "4.0.1";
   /**
+   * CycloneDX 1.4 to 1.7 JSON BOMs the advisories block imports; this is the
+   * newest.
+   */
+  readonly cyclonedx: "1.7";
+  /** OASIS CSAF release `renderCsaf` and the `/.well-known/csaf` handler write. */
+  readonly csaf: "2.0";
+  /** OpenVEX release `renderOpenVex` writes. */
+  readonly openvex: "0.2.0";
+  /** OSV schema release the public vulnerability feed reads. */
+  readonly osv: "1.9.0";
+  /** CVSS release `parseCvss` scores. */
+  readonly cvss: "3.1";
+  /** CVSS release `parseCvss` validates and parses without scoring. */
+  readonly cvss4: "4.0";
+  /** EPSS model release behind the scores the public feed reads. */
+  readonly epss: "v5";
+  /**
    * OASIS UBL release whose Invoice and CreditNote
    * `better-supabase/e-invoicing` writes and reads.
    */
@@ -248,6 +265,13 @@ export const SPEC_PINS: {
   mt940: "SR2025",
   iso11649: "2009",
   fhirR4: "4.0.1",
+  cyclonedx: "1.7",
+  csaf: "2.0",
+  openvex: "0.2.0",
+  osv: "1.9.0",
+  cvss: "3.1",
+  cvss4: "4.0",
+  epss: "v5",
   ubl: "2.1",
   en16931: "EN 16931-1:2017",
   peppolBisBilling: "3.0",

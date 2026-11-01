@@ -14,6 +14,7 @@ import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCOUNTING } from "./modules/accounting.ts";
 import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
 import { ENGAGEMENTS } from "./modules/activities.ts";
+import { ADVISORIES } from "./modules/advisories.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
 import { AI_CHAT } from "./modules/ai-chat.ts";
@@ -439,6 +440,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(E_PRESCRIBING),
+      built(ADVISORIES),
       built(PROMPTS),
       built(AI_EVALS),
       built(AI_GUARDRAILS),

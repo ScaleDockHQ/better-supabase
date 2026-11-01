@@ -3,6 +3,7 @@ import type {
   Transcriber,
   TranscriberInput,
 } from "../blocks/activities/recordings.ts";
+import type { VulnerabilityFeed } from "../blocks/advisories/feed.ts";
 import type {
   AiTask,
   AiTaskRun,
@@ -906,4 +907,111 @@ export function testPrescriptionGateway(
   }
 
   return conform(`PrescriptionGateway "${gateway.key}"`, checks);
+}
+
+export interface TestVulnerabilityFeedOptions {
+  /** A CVE id the feed knows in all three sources, such as `CVE-2021-44228`. */
+  readonly cveId: string;
+  /** An id OSV has no record of. Defaults to one that no database assigns. */
+  readonly unknownId?: string;
+}
+
+/**
+ * Proves a `VulnerabilityFeed` for the advisories block targets API 1, has a
+ * name the block accepts, returns OSV records with the fields the block stores
+ * (and nothing for an unknown id), scores EPSS between 0 and 1 for a known CVE
+ * and none for an empty list, and returns CISA KEV entries keyed by CVE id with
+ * a `YYYY-MM-DD` date. It calls the real sources.
+ */
+export function testVulnerabilityFeed(
+  feed: VulnerabilityFeed,
+  options: TestVulnerabilityFeedOptions,
+): Promise<ConformanceReport> {
+  const { cveId } = options;
+  const unknownId = options.unknownId ?? "BSB-TEST-0000-0000";
+  const day = /^\d{4}-\d{2}-\d{2}$/u;
+
+  const checks: Check[] = [
+    hasApiVersion(feed),
+    [
+      "has a name the block accepts",
+      () => {
+        expect(
+          /^[a-z][a-z0-9_-]{0,62}$/u.test(feed.name),
+          `name "${feed.name}" must be lowercase letters, digits, "-" or "_"`,
+        );
+      },
+    ],
+    [
+      "returns an OSV record with its id, aliases and affected packages",
+      async () => {
+        const found = await feed.osv(cveId);
+
+        expect(found.ok, `osv(${cveId}) failed`);
+        const record = found.data;
+
+        expect(record !== undefined, `osv(${cveId}) found no record`);
+        expect(record.id.trim() !== "", "the record has no id");
+        expect(Array.isArray(record.aliases), "aliases must be a list");
+        expect(
+          record.affectedPurls.every((purl) => purl.startsWith("pkg:")),
+          "affectedPurls must be package URLs",
+        );
+      },
+    ],
+    [
+      "answers undefined for an id it does not know",
+      async () => {
+        const found = await feed.osv(unknownId);
+
+        expect(found.ok, `osv(${unknownId}) failed`);
+        expect(found.data === undefined, `osv(${unknownId}) must find nothing`);
+      },
+    ],
+    [
+      "scores a known CVE between 0 and 1 and an empty list as nothing",
+      async () => {
+        const empty = await feed.epss([]);
+
+        expect(empty.ok, "epss([]) failed");
+        expect(
+          Object.keys(empty.data).length === 0,
+          "epss([]) must return no scores",
+        );
+
+        const scores = await feed.epss([cveId]);
+
+        expect(scores.ok, `epss(${cveId}) failed`);
+
+        const score = scores.data[cveId];
+
+        expect(score !== undefined, `epss(${cveId}) has no score`);
+        expect(
+          score.score >= 0 &&
+            score.score <= 1 &&
+            score.percentile >= 0 &&
+            score.percentile <= 1 &&
+            day.test(score.date),
+          "a score and a percentile are between 0 and 1, and the date is YYYY-MM-DD",
+        );
+      },
+    ],
+    [
+      "returns the KEV catalog by CVE id",
+      async () => {
+        const catalog = await feed.kev();
+
+        expect(catalog.ok, "kev() failed");
+
+        for (const [id, entry] of Object.entries(catalog.data)) {
+          expect(
+            entry.cveId === id && day.test(entry.dateAdded),
+            `entry ${id} must carry its CVE id and a YYYY-MM-DD dateAdded`,
+          );
+        }
+      },
+    ],
+  ];
+
+  return conform(`VulnerabilityFeed "${feed.name}"`, checks);
 }

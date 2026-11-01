@@ -216,6 +216,7 @@ export {
   testPrescriptionGateway,
   testTextExtractor,
   testTranscriber,
+  testVulnerabilityFeed,
 } from "./injectables.ts";
 
 export type {
@@ -230,6 +231,7 @@ export type {
   TestMedicationCatalogOptions,
   TestNoteTakerOptions,
   TestPrescriptionGatewayOptions,
+  TestVulnerabilityFeedOptions,
   TestTextExtractorOptions,
   TestTranscriberOptions,
 } from "./injectables.ts";

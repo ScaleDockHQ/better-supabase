@@ -388,6 +388,7 @@ export interface BlockOptionsRegistry {
   readonly tills: Record<never, never>;
   readonly "clinical-decision-support": Record<never, never>;
   readonly "e-prescribing": Record<never, never>;
+  readonly advisories: Record<never, never>;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -584,6 +585,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   tills: NO_OPTIONS,
   "clinical-decision-support": NO_OPTIONS,
   "e-prescribing": NO_OPTIONS,
+  advisories: NO_OPTIONS,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,
   messaging: messagingSqlOptions,

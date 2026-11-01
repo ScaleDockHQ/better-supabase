@@ -135,6 +135,4 @@ rfqs
 tills
 clinical-decision-support
 e-prescribing
-prompts
-ai-evals
-ai-guardrails
+advisories

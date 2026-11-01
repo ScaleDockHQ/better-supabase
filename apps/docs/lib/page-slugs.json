@@ -29,6 +29,7 @@
   "blocks/access-requests",
   "blocks/accounting",
   "blocks/acknowledgements",
+  "blocks/advisories",
   "blocks/activities",
   "blocks/agents",
   "blocks/ai-cache",

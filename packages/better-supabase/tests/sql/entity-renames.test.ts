@@ -134,6 +134,11 @@ describe("blocks.<name>.entities in the SQL", () => {
     ],
     "clinical-decision-support": ["'careAlertId'"],
     "e-prescribing": ["'prescriptionId'"],
+    advisories: [
+      "'vulnerabilityId'",
+      "'vulnerabilityIds'",
+      "'vulnerabilities'",
+    ],
   };
 
   const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {

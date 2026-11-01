@@ -41,6 +41,8 @@ const NO_FIELDS: readonly string[] = [
   // Assignments and read receipts point at the app's record, which carries
   // the app's data.
   "acknowledgements",
+  // Tenant-owned catalog rows; vulnerabilities and advisories are not app data.
+  "advisories",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Datasets, items, runs and results are fixed records the block writes.

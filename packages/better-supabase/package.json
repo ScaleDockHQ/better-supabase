@@ -1145,6 +1145,11 @@
       "types": "./dist/blocks/e-prescribing/index.d.ts",
       "default": "./dist/blocks/e-prescribing/index.js"
     },
+    "./blocks/advisories": {
+      "@better-supabase/source": "./src/blocks/advisories/index.ts",
+      "types": "./dist/blocks/advisories/index.d.ts",
+      "default": "./dist/blocks/advisories/index.js"
+    },
     "./blocks/tills": {
       "@better-supabase/source": "./src/blocks/tills/index.ts",
       "types": "./dist/blocks/tills/index.d.ts",
@@ -2150,6 +2155,10 @@
       "./blocks/e-prescribing": {
         "types": "./dist/blocks/e-prescribing/index.d.ts",
         "default": "./dist/blocks/e-prescribing/index.js"
+      },
+      "./blocks/advisories": {
+        "types": "./dist/blocks/advisories/index.d.ts",
+        "default": "./dist/blocks/advisories/index.js"
       },
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",

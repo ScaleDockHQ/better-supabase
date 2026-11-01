@@ -120,6 +120,7 @@ const entries = [
   "blocks/tills/index",
   "blocks/clinical-decision-support/index",
   "blocks/e-prescribing/index",
+  "blocks/advisories/index",
   "blocks/maintenance/index",
   "blocks/appraisals/index",
   "blocks/warehouse/index",

@@ -143,6 +143,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inspections:
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
+  advisories:
+    "create_product_version get_advisory get_published_advisory import_sbom list_advisories list_advisory_products list_product_versions list_published_advisories list_sbom_components list_vex_statements list_vulnerabilities publish_advisory record_vulnerability_enrichment save_advisory save_advisory_product save_vex_statement save_vulnerability version_exposure vulnerabilities_due",
   "e-prescribing":
     "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":

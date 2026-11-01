@@ -301,6 +301,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0185: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
 - 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
 - 0187: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
+- 0188: Advisories tracks products, SBOMs and vulnerabilities (OSV, EPSS and KEV through a versioned feed port) and publishes OpenVEX and CSAF; CVSS 4.0 is parsed, not scored, and exposure matches packages, not version ranges.
 
 ## Pre-release pins
 

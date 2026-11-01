@@ -352,6 +352,7 @@ export const BLOCK_ICONS = {
   tills: CoinsIcon,
   "clinical-decision-support": ShieldAlertIcon,
   "e-prescribing": FileSignatureIcon,
+  advisories: ShieldAlertIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,
