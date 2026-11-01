@@ -273,3 +273,46 @@ describe("createSubjects myWork", () => {
     expect(fake.calls[0]?.args).toEqual({ tenant: null, page_size: 50 });
   });
 });
+
+describe("record helpers", () => {
+  const answer = (fn: string, args: Readonly<Record<string, unknown>>) => {
+    if (fn === "can_subject") {
+      return Promise.resolve(args["action"] !== "delete");
+    }
+
+    return Promise.resolve({
+      type: args["subject_type"],
+      id: args["subject_id"],
+      title: "Acme",
+      counts: { comments: 2 },
+      unread: {},
+    });
+  };
+
+  it("checks actions and reads the header with them for one record", async () => {
+    const seen: string[] = [];
+
+    const subjects = createSubjects({
+      transport: { call: (_schema, fn, args) => answer(fn, args) },
+      hooks: { summary: { before: () => void seen.push("summary") } },
+    });
+
+    const record = subjects.record({ type: "customer", id: "1" });
+
+    expect(await record.can(["read", "delete"]).orThrow()).toEqual({
+      read: true,
+      delete: false,
+    });
+
+    expect(await record.view({ sections: ["comments"] }).orThrow()).toEqual({
+      type: "customer",
+      id: "1",
+      title: "Acme",
+      counts: { comments: 2 },
+      unread: {},
+      can: { read: true, write: true, delete: false },
+    });
+
+    expect(seen).toEqual(["summary"]);
+  });
+});

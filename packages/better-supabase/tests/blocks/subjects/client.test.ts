@@ -27,7 +27,15 @@ const members = {} as Subjects["members"];
 // SAFETY: as above.
 const reads = {} as Subjects["reads"];
 
+// SAFETY: batchSubjects passes these through without calling them.
+const record = {} as Subjects["record"];
+const can = (() => resolved({})) as Subjects["can"];
+const view = (() => resolved(undefined)) as Subjects["view"];
+
 const resolver = () => ({
+  can,
+  view,
+  record,
   summary: vi.fn(summary),
   myWork: vi.fn(myWork),
   members,
@@ -64,6 +72,9 @@ describe("batchSubjects", () => {
 
   it("passes an error to every caller of the batch", async () => {
     const batched = batchSubjects({
+      can,
+      view,
+      record,
       summary,
       myWork,
       members,
@@ -81,6 +92,9 @@ describe("batchSubjects", () => {
 
   it("leaves out a subject the source didn't return", async () => {
     const batched = batchSubjects({
+      can,
+      view,
+      record,
       summary,
       myWork,
       members,

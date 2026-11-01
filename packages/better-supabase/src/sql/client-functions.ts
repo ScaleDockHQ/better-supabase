@@ -258,7 +258,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   streams:
     "purge_streams stream_append stream_cancel stream_close stream_open stream_read stream_status",
   subjects:
-    "add_subject_member can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
+    "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
   tasks:
     "archive_task create_task delete_task delete_task_checklist_item get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",

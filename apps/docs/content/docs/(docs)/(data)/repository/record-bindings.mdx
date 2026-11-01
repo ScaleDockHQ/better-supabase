@@ -230,6 +230,16 @@ summary?.unread.attachments; // true
 `record_summary` runs as the caller, so the counts are the rows the caller
 can read.
 
+`subjects.can({ subject, actions })` asks `can_subject` for each action and returns `{ read: true, delete: false }`. `subjects.view({ subject, sections, actions })` returns the summary and those answers together (`undefined` when the caller can't read the record). `subjects.record(subject)` binds both to one record, so a page that works on a single record writes `const record = subjects.record({ type: "customer", id })` and then `record.view({ sections: ["comments"] })`.
+
+```ts
+const view = await subjects
+  .record({ type: "customer", id })
+  .view({ sections: ["comments", "attachments"], actions: ["write", "delete"] })
+  .orThrow();
+view?.can.delete; // false
+```
+
 ## Keep it current
 
 `createRecordController` loads the bindings, and the summary when you pass

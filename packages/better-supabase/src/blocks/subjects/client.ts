@@ -38,6 +38,9 @@ export function batchSubjects(source: Subjects): Subjects {
   return {
     summary: ({ subject, sections, ...options }) =>
       source.summary({ subject, sections, ...options }),
+    can: (input) => source.can(input),
+    view: (input) => source.view(input),
+    record: (subject) => source.record(subject),
     myWork: (options) => source.myWork(options),
     members: source.members,
     reads: source.reads,

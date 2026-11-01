@@ -79,6 +79,27 @@ export interface MyWorkOptions {
 }
 
 /** The subjects block's registry as typed calls. */
+/** What `view` returns: the summary and the caller's actions on the record. */
+export interface RecordView extends RecordSummary {
+  readonly can: Readonly<Record<string, boolean>>;
+}
+
+/** A record bound to the subjects client. */
+export interface BoundRecord {
+  readonly subject: RecordRef;
+  can(
+    actions: readonly string[],
+  ): AsyncResult<Readonly<Record<string, boolean>>>;
+  view(
+    input: {
+      sections: readonly string[];
+      actions?: readonly string[] | undefined;
+    } & RecordSummaryOptions,
+  ): AsyncResult<RecordView | undefined>;
+}
+
+const DEFAULT_ACTIONS: readonly string[] = ["read", "write", "delete"];
+
 export interface Subjects {
   /**
    * Titles and paths for many subjects in one call, keyed by `subjectKey`
@@ -99,6 +120,33 @@ export interface Subjects {
       sections: readonly string[];
     } & RecordSummaryOptions,
   ): AsyncResult<RecordSummary | undefined>;
+  /**
+   * Which of `actions` (`read`, `write`, `delete`, or an action your
+   * `subjects.<type>` config names) the caller may take on the record, decided
+   * by `can_subject` in one call per action. An unknown subject answers `false`
+   * for every action.
+   */
+  can(input: {
+    subject: RecordRef;
+    actions: readonly string[];
+  }): AsyncResult<Readonly<Record<string, boolean>>>;
+  /**
+   * The record header and the caller's actions together: `summary` for
+   * `sections`, and `can` for `actions` (default `["read", "write",
+   * "delete"]`). `undefined` when the caller can't read the record.
+   */
+  view(
+    input: {
+      subject: RecordRef;
+      sections: readonly string[];
+      actions?: readonly string[] | undefined;
+    } & RecordSummaryOptions,
+  ): AsyncResult<RecordView | undefined>;
+  /**
+   * `can` and `view` bound to one record, for code that works on a single
+   * record. `bsb.record(type, id)` reads as `subjects.record({ type, id })`.
+   */
+  record(subject: RecordRef): BoundRecord;
   /**
    * What waits on the caller across the installed blocks, newest first: open
    * work items assigned to them, approvals they can decide, their reminders
@@ -275,6 +323,58 @@ export function createSubjects(options: SubjectsOptions): Subjects {
         },
         summaryOf,
       ),
+    can: ({ subject, actions }) =>
+      AsyncResult.from(async () => {
+        const answers = await Promise.all(
+          actions.map(async (action) => {
+            const answer = await call(
+              "can_subject",
+              { subject_type: subject.type, subject_id: subject.id, action },
+              (value) => value === true,
+            );
+
+            return answer.ok ? ok([action, answer.data] as const) : answer;
+          }),
+        );
+
+        const entries: (readonly [string, boolean])[] = [];
+
+        for (const answer of answers) {
+          if (!answer.ok) {
+            return answer;
+          }
+
+          entries.push(answer.data);
+        }
+
+        return ok(Object.fromEntries(entries));
+      }),
+    view: ({ subject, sections, actions = DEFAULT_ACTIONS, ...rest }) =>
+      AsyncResult.from(async () => {
+        const [header, allowed] = await Promise.all([
+          hooked.summary({ subject, sections, ...rest }),
+          hooked.can({ subject, actions }),
+        ]);
+
+        if (!header.ok) {
+          return header;
+        }
+
+        if (!allowed.ok) {
+          return allowed;
+        }
+
+        return ok(
+          header.data === undefined
+            ? undefined
+            : { ...header.data, can: allowed.data },
+        );
+      }),
+    record: (subject) => ({
+      subject,
+      can: (actions) => hooked.can({ subject, actions }),
+      view: (input) => hooked.view({ subject, ...input }),
+    }),
     myWork: (workOptions = {}) =>
       call(
         "my_work",
@@ -288,8 +388,11 @@ export function createSubjects(options: SubjectsOptions): Subjects {
     reads: subjectReads(call),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Subjects = withBlockHooks(client, options.hooks, {
     block: "subjects",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
