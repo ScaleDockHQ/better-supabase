@@ -93,11 +93,31 @@ A reply is an event only the app knows about: call `record(subject, "responded")
 
 Run `check()` every minute from a [job](/docs/blocks/queue) with the service role. It records `sla.warned` once a running clock passes its warning share and `sla.breached` once it passes its due time, and, with the [notifications](/docs/blocks/notifications) module installed, notifies the record's watchers at high priority. Escalate from those events with a [workflow](/docs/blocks/workflows), such as reassigning a breached ticket. A clock met after its due time records `sla.completed` with `late: true`.
 
+## Escalation ladder
+
+A policy can carry a ladder of steps. Each step fires once per clock when the stated share of the clock's time has passed, and `check()` evaluates the ladder with the warnings and breaches. Shares above 100 fire after the breach.
+
+```ts
+await sla.savePolicy({
+  subjectType: "ticket",
+  name: "Default",
+  resolutionMinutes: 480,
+  escalations: [
+    { at: 50, action: "notify" },
+    { at: 100, action: "reassign", target: managerId },
+    { at: 150, action: "page" },
+  ],
+});
+```
+
+`notify` notifies the record's watchers, `reassign` writes `target` into the owner column of the record, and `page` records the event at urgent priority for a sink to page someone. The owner column comes from the type's binding: `on: { ticket: { status: "status", owner: "owner_id" } }`. Without `owner`, a `reassign` step is recorded with the result `skipped`. Every fired step is a row in `sla_escalations` and an `sla.escalated` event, and a step never fires twice for the same clock. A malformed ladder fails with `SLA_ESCALATION_INVALID`.
+
 ## Events
 
-| Event                                         | Data                                                                               |
-| --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `sla.warned`, `sla.breached`, `sla.completed` | `organizationId`, `clockId`, `subjectType`, `subjectId`, `metric`, `dueAt`, `late` |
+| Event                                         | Data                                                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `sla.warned`, `sla.breached`, `sla.completed` | `organizationId`, `clockId`, `subjectType`, `subjectId`, `metric`, `dueAt`, `late`                      |
+| `sla.escalated`                               | the clock fields and `atPercent`, `action`, `target`, `result` (`sent`, `done`, `unchanged`, `skipped`) |
 
 ## Wire it to ReUI
 
@@ -105,15 +125,16 @@ The ReUI Support Escalations board shows each ticket's SLA timer and turns it to
 
 ## Errors
 
-| Hint                   | Cause                                                     |
-| ---------------------- | --------------------------------------------------------- |
-| `SLA_FORBIDDEN`        | the caller lacks `sla.manage`, or can't read the record   |
-| `SLA_POLICY_TAKEN`     | another active policy covers the type and priority        |
-| `SLA_POLICY_INVALID`   | a policy needs a name, a record type and positive minutes |
-| `SLA_POLICY_NOT_FOUND` | no such policy                                            |
-| `SLA_SUBJECT_INVALID`  | the record isn't in `config.subjects`                     |
-| `SLA_EVENT_INVALID`    | not one of the events                                     |
-| `SLA_HOURS_INVALID`    | the business hours never open                             |
+| Hint                     | Cause                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `SLA_FORBIDDEN`          | the caller lacks `sla.manage`, or can't read the record                        |
+| `SLA_POLICY_TAKEN`       | another active policy covers the type and priority                             |
+| `SLA_POLICY_INVALID`     | a policy needs a name, a record type and positive minutes                      |
+| `SLA_POLICY_NOT_FOUND`   | no such policy                                                                 |
+| `SLA_SUBJECT_INVALID`    | the record isn't in `config.subjects`                                          |
+| `SLA_EVENT_INVALID`      | not one of the events                                                          |
+| `SLA_HOURS_INVALID`      | the business hours never open                                                  |
+| `SLA_ESCALATION_INVALID` | a ladder step needs `at` from 1 to 500, an action, and a target for `reassign` |
 
 ## Your own columns
 

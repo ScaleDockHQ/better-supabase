@@ -570,6 +570,8 @@ may be your own enum or domain.
 - `payroll-export`
   - `better_supabase.payroll_runs`: `id`, `tenant_id`, `period_from`, `period_to`, `label`, `status`, `format`, `checksum`, `exported_at`, `exported_by`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.payroll_lines`: `id`, `tenant_id`, `run_id`, `user_id`, `employee_id`, `employee_name`, `kind`, `code`, `paid`, `unit`, `quantity`, `source_count`, `created_at`
+- `periods`
+  - `better_supabase.periods`: `id`, `tenant_id`, `kind`, `starts_on`, `ends_on`, `status`, `closed_at`, `closed_by`, `created_at`
 - `permissions`
   - `better_supabase.roles`: `id`, `key`
   - `better_supabase.permissions`: `id`, `key`
@@ -682,6 +684,7 @@ may be your own enum or domain.
   - `better_supabase.signing_keys`: `id`, `owner_type`, `owner_id`, `kid`, `alg`, `public_jwk`, `vault_secret_id`, `state`, `publish_until`; typed: `alg`, `state`
 - `sla`
   - `better_supabase.sla_policies`: `id`, `tenant_id`, `subject_type`, `name`, `priority`, `first_response_minutes`, `next_response_minutes`, `resolution_minutes`
+  - `better_supabase.sla_escalations`: `id`, `tenant_id`, `clock_id`, `at_percent`, `action`, `target`, `result`, `fired_at`
   - `better_supabase.sla_clocks`: `id`, `tenant_id`, `subject_type`, `subject_id`, `policy_id`, `metric`, `started_at`, `due_at`, `paused_at`, `paused_seconds`, `warned_at`, `breached_at`, `met_at`; typed: `metric`
 - `sso`
   - `better_supabase.sso_domains`: `id`, `organization_id`, `domain`, `verification_token`, `verified_at`, `auto_join_role`, `enforce_sso`; typed: `auto_join_role`

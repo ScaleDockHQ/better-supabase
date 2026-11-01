@@ -81,6 +81,7 @@ const PURE_BARRELS = [
   "blocks/lims",
   "blocks/rfqs",
   "blocks/tills",
+  "blocks/periods",
   "blocks/clinical-decision-support",
   "blocks/maintenance",
   "blocks/appraisals",

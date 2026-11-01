@@ -32,7 +32,7 @@ export interface BlockNameRegistry {
       readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
+    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_close_range" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_range_close_blockers" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
@@ -1329,7 +1329,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "user" | "employee" | "type" | "startsOn" | "endsOn" | "partial" | "startPart" | "endPart" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type" | "split_leave_request" | "update_leave_request";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type" | "split_leave_request" | "update_leave_request";
     readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential" | "reapprove";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
@@ -1726,6 +1726,19 @@ export interface BlockNameRegistry {
       readonly "payroll_line": "id" | "tenant_id" | "run_id" | "user_id" | "employee_id" | "employee_name" | "kind" | "code" | "paid" | "unit" | "quantity" | "source_count" | "created_at";
     };
     readonly primary: "payroll_run";
+    readonly formerKeys: never;
+  };
+  readonly "periods": {
+    readonly tables: {
+      readonly "periods": "id" | "tenant" | "kind" | "startsOn" | "endsOn" | "status" | "closedAt" | "closedBy" | "createdAt";
+    };
+    readonly functions: "close_period" | "create_period" | "list_periods" | "lock_period" | "period_close_blockers" | "period_for" | "period_is_open" | "reopen_period";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "period": "id" | "tenant_id" | "kind" | "starts_on" | "ends_on" | "status" | "closed_at" | "closed_by" | "created_at";
+    };
+    readonly primary: "period";
     readonly formerKeys: never;
   };
   readonly "permissions": {
@@ -2218,14 +2231,15 @@ export interface BlockNameRegistry {
   };
   readonly "sla": {
     readonly tables: {
-      readonly "policies": "id" | "tenant" | "subjectType" | "name" | "priority" | "firstResponse" | "nextResponse" | "resolution" | "warnPercent" | "businessHours" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "policies": "id" | "tenant" | "subjectType" | "name" | "priority" | "firstResponse" | "nextResponse" | "resolution" | "warnPercent" | "businessHours" | "escalations" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "escalations": "id" | "tenant" | "clock" | "atPercent" | "action" | "target" | "result" | "firedAt";
       readonly "clocks": "id" | "tenant" | "subjectType" | "subjectId" | "policy" | "metric" | "startedAt" | "dueAt" | "pausedAt" | "pausedSeconds" | "warnedAt" | "breachedAt" | "metAt" | "createdAt";
     };
     readonly functions: "check_sla_clocks" | "record_sla_event" | "save_sla_policy" | "sla_clocks_of" | "sla_due_at" | "start_sla_clocks";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "sla_policy": "id" | "tenant_id" | "subject_type" | "name" | "priority" | "first_response_minutes" | "next_response_minutes" | "resolution_minutes" | "warn_at_percent" | "business_hours" | "archived_at" | "created_at" | "updated_at";
+      readonly "sla_policy": "id" | "tenant_id" | "subject_type" | "name" | "priority" | "first_response_minutes" | "next_response_minutes" | "resolution_minutes" | "warn_at_percent" | "business_hours" | "escalations" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "sla_policy";
     readonly formerKeys: "policy";

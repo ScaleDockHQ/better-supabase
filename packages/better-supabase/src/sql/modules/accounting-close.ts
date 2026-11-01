@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, raise, userGrant } from "../shared.ts";
+import { fail, raise, serviceGrant, userGrant } from "../shared.ts";
 import { accountingJson, requireSettings } from "./accounting-setup.ts";
 import { accountingSql } from "./accounting-shared.ts";
 
@@ -147,6 +147,45 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
   return `
 ${closeBlockers(ctx)}
 ${userGrant(`${fn("accounting_period_close_blockers")}(uuid)`)}
+
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function ${fn("accounting_range_close_blockers")}(tenant ${idType}, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(${fn("accounting_period_close_blockers")}(x.${p("id")}), '{}'::text[])
+  from ${periods} x
+  where x.${p("tenant")} = accounting_range_close_blockers.tenant
+    and x.${p("startsOn")} = accounting_range_close_blockers.starts_on
+    and x.${p("endsOn")} = accounting_range_close_blockers.ends_on
+$$;
+${serviceGrant(`${fn("accounting_range_close_blockers")}(${idType}, date, date)`)}
+
+create or replace function ${fn("accounting_close_range")}(tenant ${idType}, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x.${p("id")} into v_id from ${periods} x
+  where x.${p("tenant")} = accounting_close_range.tenant
+    and x.${p("startsOn")} = accounting_close_range.starts_on
+    and x.${p("endsOn")} = accounting_close_range.ends_on;
+  if found then
+    perform ${fn("close_accounting_period")}(v_id);
+  end if;
+end;
+$$;
+${serviceGrant(`${fn("accounting_close_range")}(${idType}, date, date)`)}
 
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.

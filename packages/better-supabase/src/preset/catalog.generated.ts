@@ -4471,6 +4471,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "resolution": "resolution_minutes",
               "warnPercent": "warn_at_percent",
               "businessHours": "business_hours",
+              "escalations": "escalations",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -4974,6 +4975,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "share-links",
         "teams",
+        "periods",
         "approvals"
       ],
       "manifest": "leave",
@@ -4981,6 +4983,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "periods",
         "share-links",
         "approvals"
       ],
@@ -7967,6 +7970,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "data-lifecycle",
         "banking",
+        "periods",
         "imports"
       ],
       "manifest": "accounting",
@@ -7974,7 +7978,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
-        "imports"
+        "imports",
+        "periods"
       ],
       "extraColumns": "entries",
       "entities": {
@@ -11018,6 +11023,53 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "clinical_decision_support.read",
           "write": "clinical_decision_support.write",
           "manage": "clinical_decision_support.manage"
+        }
+      }
+    },
+    {
+      "name": "periods",
+      "title": "Periods",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "periods",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "period": {
+            "table": "periods",
+            "singular": "period",
+            "primary": true
+          }
+        },
+        "tables": {
+          "periods": {
+            "name": "periods",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "periods.read",
+          "write": "periods.write",
+          "manage": "periods.manage"
         }
       }
     },
@@ -23432,6 +23484,54 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "periods",
+      "sql": [
+        "periods"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "periodsBlock",
+        "subpath": "better-supabase/blocks/periods"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreatePeriodInput"
+        },
+        {
+          "name": "Period"
+        },
+        {
+          "name": "PeriodEventData"
+        },
+        {
+          "name": "PeriodListOptions"
+        },
+        {
+          "name": "Periods"
+        },
+        {
+          "name": "PeriodsEvents"
+        },
+        {
+          "name": "PeriodsOptions"
+        },
+        {
+          "name": "PeriodStatus"
+        }
+      ],
+      "events": {
+        "type": "PeriodsEvents",
+        "types": [
+          "period.created",
+          "period.locked",
+          "period.closed",
+          "period.reopened"
+        ]
+      }
+    },
+    {
       "name": "clinical-decision-support",
       "sql": [
         "clinical-decision-support"
@@ -31058,7 +31158,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "sla.warned",
           "sla.breached",
-          "sla.completed"
+          "sla.completed",
+          "sla.escalated"
         ]
       },
       "schedules": [

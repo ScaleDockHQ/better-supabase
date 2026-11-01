@@ -1,0 +1,95 @@
+---
+title: Periods
+description: Dated periods per kind with a status, a lookup by date and a close protocol that accounting fiscal periods and leave years take part in.
+---
+
+`periods` keeps dated ranges of one kind, such as a fiscal month or a leave
+year, with a status of `open`, `locked` or `closed`. Closing a period asks every
+block that owns the kind what is still open, and runs each block's closing step
+in the same transaction.
+
+```bash
+better-supabase add periods
+```
+
+```ts
+import { createPeriods } from "better-supabase/blocks/periods";
+```
+
+The module requires `memberships` and `permissions`. `outbox` records the events
+and `audit` audits every change. Without another block the table holds your own
+kinds and a close has nothing to check. With [accounting](/docs/blocks/accounting)
+the `fiscal_period` kind reuses accounting's close blockers and its
+`close_accounting_period`. With [leave](/docs/blocks/leave) the `leave_year`
+kind is a calendar year, blocked by pending requests, and closing it runs
+`close_leave_year`.
+
+## Table and permissions
+
+| Table     | Holds                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `periods` | A kind, the first and last day, a status, and when and by whom a closed period was closed |
+
+| Permission       | Allows                              | Default roles |
+| ---------------- | ----------------------------------- | ------------- |
+| `periods.read`   | looking periods up and listing them | owner, admin  |
+| `periods.write`  | creating periods                    | owner, admin  |
+| `periods.manage` | locking, closing and reopening      | owner, admin  |
+
+A kind has one range per start date, and ranges of the same kind in one
+organization cannot overlap.
+
+## Finding a period
+
+`periodFor` returns the period of a kind that holds a date, or `undefined`. A
+kind that a block gave a calendar cadence (`leave_year` is `year`) is created the
+first time a date inside it is asked for.
+
+```ts
+const periods = createPeriods({ transport, tenant: organizationId });
+
+const year = await periods
+  .periodFor("leave_year", Temporal.PlainDate.from("2026-06-15"))
+  .orThrow();
+// 2026-01-01 to 2026-12-31, open
+
+const open = await periods
+  .isOpen("leave_year", Temporal.PlainDate.from("2026-06-15"))
+  .orThrow();
+```
+
+`isOpen` is also a SQL function, `period_is_open`, so a block or your own
+function can refuse a write dated in a locked or closed period.
+
+## Closing
+
+`lock` stops writes without closing. `close` first collects the blockers of the
+kind. A blocked close fails with the `PERIOD_CLOSE_BLOCKED` hint and the
+blockers in the error detail. Otherwise each block's closing step runs and the
+period becomes `closed`, all in one transaction. Closing a closed period returns
+it unchanged, and `reopen` opens a locked or closed period again without undoing
+the closing steps.
+
+```ts
+const blockers = await periods.closeBlockers(year.id).orThrow();
+
+if (blockers.length === 0) {
+  await periods.close(year.id).orThrow();
+}
+```
+
+## Adding a kind
+
+A block adds a kind through `contributes.periods` in its SQL definition. It names
+a function that returns the blockers and one that runs when the period closes,
+both taking `(tenant, starts_on, ends_on)`. See `PeriodContribution` for the
+shape.
+
+## Events
+
+| Event             | Carries                                                        |
+| ----------------- | -------------------------------------------------------------- |
+| `period.created`  | `organizationId`, `id`, `kind`, `startsOn`, `endsOn`, `status` |
+| `period.locked`   | the same                                                       |
+| `period.closed`   | the same                                                       |
+| `period.reopened` | the same, and the `reason`                                     |

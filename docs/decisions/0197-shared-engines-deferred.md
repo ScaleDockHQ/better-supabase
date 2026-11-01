@@ -66,51 +66,45 @@ golden file of its own, which is a larger change than a typed chain:
 `projects.utilization` counts the whole week in TypeScript from
 `timeTracking.list`. A SQL rollup would scale better for large teams and should
 replace it when a metrics rollup for time entries exists.
-||||||| 53705a3ce
 
+## Periods engine (feat/engine-periods)
 
-## Deferred: Postgres features (phase 8)
+The `periods` block ships with this change: the `periods` table, `period_for`,
+`period_is_open`, `lock_period`, `close_period`, `reopen_period` and the close
+protocol where a block contributes `blockers` and `onClose` functions through
+`contributes.periods`. Accounting contributes `fiscal_period` and leave
+contributes `leave_year`. The existing `close_accounting_period` and
+`close_leave_year` keep their names.
 
-Shipped, all opt-in with a default of off so existing databases render the same
-SQL: the `@bsb search` tag and the `searchColumn` option (contacts, deals,
-tasks, invoices, drive texts), the `noOverlap` exclusion constraints (leases,
-calendar events, passes), `partitioned` for `field_changes`, and the BS360
-doctor check. They follow ADR 0198.
+### Deferred
 
-Deferred, with the reason:
+- Payroll runs, usage billing windows and forecast snapshots do not contribute a
+  kind yet. Each needs a range to row mapping of its own, and none of them has a
+  second consumer to shape it. They add a kind with `contributes.periods`.
+- `finance.closeMonth` and `leave.rolloverYear` did not exist, so nothing
+  converts to a wrapper. Closing a fiscal period or a leave year stays on
+  `closeAccountingPeriod` and `closeYear`, and `periods.close` calls the same SQL.
+- Blocks do not check `period_is_open` before they write. Accounting still
+  refuses posts into closed fiscal periods by its own status, and leave has no
+  write guard for a closed year. Adding the guard per block is the follow-up.
 
-- Feeding `search_documents` from the `search_tsv` column: the search block
-  indexes through its own trigger and ranking, so merging the two needs a
-  design of its own.
-- Partitioning `pipeline_stage_history` and the timeline activity table: both
-  rely on a unique constraint without the time column (the one open row per
-  record, and the unique event with `on conflict`), which a partitioned table
-  can't keep.
-- SLA event partitioning and maintenance window exclusions: neither has a
-  table to attach to yet.
-- `outbox.backend: "pgmq"` with a native DLQ, and statement-level triggers with
-  transition tables for the outbox and metrics rollups: both change the
-  delivery contract of the outbox and need their own change with an
-  integration test against the stack.
-||||||| 53705a3ce
+## Lifecycle engine (feat/engine-periods)
 
+Shipped: the SLA escalation ladder. `sla_policies.escalations` holds steps of `at` (share of the
+clock's time), `action` (`notify`, `reassign`, `page`) and a `target`. `check_sla_clocks` fires
+each step once per clock, records it in `sla_escalations` and emits `sla.escalated`. A binding's
+`owner` column is what `reassign` writes.
 
-## Deferred: money engine (feat/engine-money)
+### Deferred
 
-Shipped: usage to invoice. `usage.billPeriod` and `usage.setPrice` (SQL
-`bill_usage_period` and `set_usage_price` in the `usage` module) rate
-`usage_history` by a per-meter price table into a draft invoice, once per tenant and period.
-
-Not shipped, each needing its own change because it touches several blocks, a public API and
-migrations that must be reviewed together:
-
-- Native subscription rows in `billing` with `prorate_change()` posting to `ledger`. The `billing`
-  block adopts the app's Stripe-synced `subscriptions` table today, so native rows need an
-  ownership decision first.
-- `saas.billPeriod`. The `saas` composite has no `usage` or `invoices` part, so the helper stays
-  on the `usage` client until the composite lists them.
-- Notification digest (`notification_preferences`, `digest_run`) through the `mailer` port.
-- The consent gate (`requires_consent`) and `consents.purposes` contributions.
-- Revenue recognition schedules and `post_recognition(period_end)`, which wait for the period
-  engine.
-- The `commissions` and `referrals` blocks.
+- The `@bsb lifecycle` table tag for status, transitions and history. The existing `lifecycle`
+  table feature is about retention, so the tag needs its own name and parser work in
+  `src/cli/gen/table-tags.ts` and `src/sql/table-features.ts`.
+- A `late` flag on state machine contributions. The `bsb_transition_<name>` trigger can't be
+  created from the state machine's build on tables of later modules (contracts 125, dispatch
+  123), so contracts and dispatch can't contribute machines until the trigger is created from
+  the contributing module.
+- Cases, inbox, tasks and orders transitions. Cases set their status from another trigger, and
+  the `UPDATE OF` transition trigger doesn't fire for it.
+- SLA clock start and stop per state from the tag. Bindings (`on.<type>.pause` and `resolve`)
+  keep doing this.
