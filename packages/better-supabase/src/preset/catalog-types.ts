@@ -39,6 +39,22 @@ export interface PresetCatalogBlock {
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */
   readonly manifest: string;
+  /** The generic blocks it adds contributions to (`BlockSql.contributes`). */
+  readonly contributes?: readonly string[];
+}
+
+/** An automation a block ships as a default `rule_defaults` row. */
+export interface PresetCatalogAutomation {
+  readonly key: string;
+  readonly name: string;
+  /** The event type that starts it, with the default names. */
+  readonly trigger: string;
+  readonly subjectType: string;
+  /** The action kinds it runs. */
+  readonly actions: readonly string[];
+  /** False when it ships turned off. */
+  readonly enabled: boolean;
+  readonly requires: readonly string[];
 }
 
 /** A block's entities as the catalog carries them. */
@@ -101,6 +117,8 @@ export interface PresetCatalogManifest {
   readonly actions?: readonly ActionDescriptor[];
   /** The timers it runs on the queue's `block_ticks`. */
   readonly schedules?: readonly BlockSchedule[];
+  /** The automations it ships as default rows. */
+  readonly automations?: readonly PresetCatalogAutomation[];
 }
 
 /** One entity's input schemas, in the block's default names. */

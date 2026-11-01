@@ -44,3 +44,21 @@ export interface BlockPorts {
 }
 
 export type PortName = keyof BlockPorts;
+
+/**
+ * Every port name, in `BlockPorts` order. The record type makes a port added to
+ * `BlockPorts` without an entry here fail to compile.
+ */
+const PORT_KEYS: { readonly [K in PortName]: true } = {
+  notifier: true,
+  files: true,
+  attachments: true,
+  workflows: true,
+  mailer: true,
+  recordAccess: true,
+  sink: true,
+};
+
+export const PORT_NAMES: readonly PortName[] = /* @__PURE__ */ (() =>
+  // SAFETY: PORT_KEYS has exactly the keys of BlockPorts, checked by its type.
+  Object.keys(PORT_KEYS) as PortName[])();

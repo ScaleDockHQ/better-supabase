@@ -139,6 +139,49 @@ export function listBlocks(category: string | undefined): CommandResult {
   };
 }
 
+/**
+ * The composition sections of `blocks view`: ports, contributions and
+ * automations.
+ */
+function compositionLines(name: string): string[] {
+  const module = PRESET_CATALOG.blocks.find((each) => each.name === name);
+
+  const manifest = PRESET_CATALOG.manifests.find(
+    (each) => each.name === (module?.manifest ?? name),
+  );
+
+  const consumes = Object.entries(manifest?.consumes ?? {}).map(
+    ([port, need]) => `${port} (${need})`,
+  );
+
+  const fires = (manifest?.automations ?? []).map(
+    (each) =>
+      `${each.trigger} -> ${each.actions.join(", ")}${each.enabled ? "" : " (off by default)"}`,
+  );
+
+  const events = new Set(manifest?.events?.types);
+
+  const listens = PRESET_CATALOG.manifests.flatMap((other) =>
+    other.name === manifest?.name
+      ? []
+      : (other.automations ?? [])
+          .filter((each) => events.has(each.trigger))
+          .map((each) => `${each.trigger} (${each.key})`),
+  );
+
+  const rows: [string, readonly string[]][] = [
+    ["Ports in:", consumes],
+    ["Ports out:", manifest?.provides ?? []],
+    ["Contributes:", module?.contributes ?? []],
+    ["Fires:", fires],
+    ["Listens:", listens],
+  ];
+
+  return rows.flatMap(([label, items]) =>
+    items.length === 0 ? [] : [`${label.padEnd(12)}${items.join("; ")}`],
+  );
+}
+
 export function viewBlock(name: string | undefined): CommandResult {
   if (name === undefined) {
     throw new CliError("input_required", "Name a block.", {
@@ -173,6 +216,7 @@ export function viewBlock(name: string | undefined): CommandResult {
     `Works with: ${entry.integrates.join(", ") || "nothing"}`,
     `Modes:      ${entry.modes.join(", ")}`,
     ...(entry.client === null ? [] : [`Client:     ${entry.client}`]),
+    ...compositionLines(entry.name),
     "",
     `Install: better-supabase add ${entry.name}`,
     ...glue.map(

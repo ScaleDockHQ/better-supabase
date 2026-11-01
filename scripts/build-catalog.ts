@@ -42,6 +42,7 @@ import type { BlockSql } from "../packages/better-supabase/src/sql/index.ts";
 import type { BlockSqlLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
+import { PORT_NAMES } from "../packages/better-supabase/src/blocks/ports.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
   entityNames,
@@ -576,16 +577,20 @@ function presetManifest(
     }),
   );
 
-  return { ...withEvents, ...wiring };
-}
+  const automations = block.automations.map((each) => ({
+    key: each.key,
+    name: each.name,
+    trigger: each.trigger,
+    subjectType: each.subjectType,
+    actions: each.actions.map((action) => action.kind),
+    enabled: each.enabled ?? true,
+    requires: each.requires ?? [],
+  }));
 
-const PORT_NAMES: readonly PortName[] = [
-  "notifier",
-  "files",
-  "attachments",
-  "workflows",
-  "sink",
-];
+  const wired = { ...withEvents, ...wiring };
+
+  return automations.length === 0 ? wired : { ...wired, automations };
+}
 
 const isPortName = (name: string): name is PortName =>
   PORT_NAMES.some((port) => port === name);
@@ -677,6 +682,12 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
 
   if (module.scopes !== undefined) {
     block = { ...block, scopes: module.scopes };
+  }
+
+  const contributes = Object.keys(module.contributes ?? {});
+
+  if (contributes.length > 0) {
+    block = { ...block, contributes };
   }
 
   if (clashes.length > 0) {
