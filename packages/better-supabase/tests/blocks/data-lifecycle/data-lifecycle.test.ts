@@ -1070,4 +1070,47 @@ describe("createOrganizationPurger", () => {
     await empty.job({}, undefined as never, new AbortController().signal);
     expect(await empty.purgeDue().orThrow()).toEqual([]);
   });
+
+  it("exportNow fails with a hint when the export fails or is not ready in time", async () => {
+    const failed = createDataLifecycle({
+      transport: fakeTransport({
+        request_data_export: exportRow({ status: "pending", files: [] }),
+        list_data_exports: [exportRow({ status: "failed", error: "boom" })],
+      }).transport,
+    });
+
+    const failure = await failed.exportNow({ intervalMs: 1 });
+
+    expect(!failure.ok && failure.error).toMatchObject({
+      hint: "DATA_EXPORT_FAILED",
+    });
+
+    const slow = createDataLifecycle({
+      transport: fakeTransport({
+        request_data_export: exportRow({ status: "pending", files: [] }),
+        list_data_exports: [exportRow({ status: "running", files: [] })],
+      }).transport,
+    });
+
+    const timeout = await slow.exportNow({ timeoutMs: 5, intervalMs: 10 });
+
+    expect(!timeout.ok && timeout.error).toMatchObject({
+      hint: "DATA_EXPORT_NOT_READY",
+    });
+  });
+
+  it("exportNow returns the signed URLs of a ready export", async () => {
+    const lifecycle = createDataLifecycle({
+      transport: fakeTransport({
+        request_data_export: exportRow({ status: "pending", files: [] }),
+        list_data_exports: [exportRow()],
+        get_data_export: exportRow(),
+      }).transport,
+      storage: fakeStorage().storage,
+    });
+
+    const download = await lifecycle.exportNow().orThrow();
+
+    expect(download.files).toHaveLength(2);
+  });
 });

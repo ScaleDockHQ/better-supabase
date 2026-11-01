@@ -304,3 +304,7 @@ await onboarding.reset({
   organizationId,
 });
 ```
+
+## Completing a step from one event
+
+A step with `completeOn: "invoice.sent"` completes when the outbox records that event. It is the same as `events: ["invoice.sent"]`, and the two can be combined. The event type uses the same rules as `events`.

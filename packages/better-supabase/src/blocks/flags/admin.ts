@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   FlagCondition,
+  FlagContext,
   FlagDefinition,
   FlagRolloutSchedule,
   FlagRule,
@@ -24,7 +25,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
-import { conditionOf, flagDefinitionsOf } from "./flags.ts";
+import { conditionOf, evaluateFlag, flagDefinitionsOf } from "./flags.ts";
 
 export interface FlagsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -160,6 +161,21 @@ export interface Flags<F extends object = Record<never, never>> {
     target: FlagOverrideTarget;
     variant: string | null;
   }): AsyncResult<boolean>;
+  /**
+   * Whether the boolean flag `key` is on for `context` (its tenant, user, roles
+   * and plans), evaluated like `flag_evaluation()`. An unknown flag is off. It
+   * reads `list`, so a caller who may not list flags gets that error.
+   */
+  isEnabled(input: {
+    key: string;
+    context?: FlagContext | undefined;
+  }): AsyncResult<boolean>;
+  /**
+   * The organizations that have `key` turned on through a tenant override, for
+   * a staff view of who gets a flag early. A tenant that gets the flag through
+   * a rule or the rollout is not listed.
+   */
+  tenantsWith(input: { key: string }): AsyncResult<readonly string[]>;
 }
 
 const rowOf = (
@@ -336,10 +352,40 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => value === true,
       ),
+    isEnabled: ({ key, context }) =>
+      hooked.list().andThen(async (flags) => {
+        const flag = flags.find((each) => each.key === key);
+
+        if (flag?.type !== "boolean") {
+          return ok(false);
+        }
+
+        const evaluation = await evaluateFlag(flag, context ?? {});
+
+        return ok(evaluation.value === true);
+      }),
+    tenantsWith: ({ key }) =>
+      hooked.list().map((flags) => {
+        const flag = flags.find((each) => each.key === key);
+
+        return [
+          ...new Set(
+            (flag?.overrides ?? []).flatMap((override) =>
+              override.organizationId !== undefined &&
+              flag?.variants[override.variant] === true
+                ? [override.organizationId]
+                : [],
+            ),
+          ),
+        ];
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Flags<F> = withBlockHooks(client, options.hooks, {
     block: "flags",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

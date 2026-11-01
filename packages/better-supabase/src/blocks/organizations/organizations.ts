@@ -208,6 +208,11 @@ export interface OrganizationsOptions<
   R extends string = string,
 > extends BlockTemporalOptions {
   /**
+   * The role `owner` looks for; `blocks.organizations.options.ownerRole`.
+   * Default `owner`.
+   */
+  readonly ownerRole?: string;
+  /**
    * A Standard Schema for the organization's extra columns
    * (`options.attributes` and `options.extraColumns`), keyed by database name.
    * It types and parses them on `mine()`, and validates them on `create` and
@@ -349,6 +354,18 @@ export interface Organizations<
   /** Organizations the caller belongs to. */
   mine(): AsyncResult<readonly (OrganizationMembership & F)[]>;
   members(organizationId: string): AsyncResult<readonly OrganizationMember[]>;
+  /**
+   * The member who holds `options.ownerRole` (default `owner`), the first when
+   * several do; `undefined` when none does. It reads `members`.
+   */
+  owner(organizationId: string): AsyncResult<OrganizationMember | undefined>;
+  /**
+   * Every member's roles by user id: `roles` with several roles per member,
+   * otherwise the one `role`. It reads `members`.
+   */
+  memberRoles(
+    organizationId: string,
+  ): AsyncResult<Readonly<Record<string, readonly string[]>>>;
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
@@ -546,12 +563,43 @@ export function createOrganizations<
 >(
   options: OrganizationsOptions<S, SI, R>,
 ): Organizations<FieldsOf<S>, FieldsOf<SI>, R> {
-  const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>, R>(options);
+  const base = organizationsClient<FieldsOf<S>, FieldsOf<SI>, R>(options);
+  const ownerRole = options.ownerRole ?? "owner";
 
-  return withBlockHooks(client, options.hooks, {
-    block: "organizations",
-    ...(options.events ? { logger: options.events.logger } : {}),
-  });
+  const client: Organizations<FieldsOf<S>, FieldsOf<SI>, R> = {
+    ...base,
+    owner: (organizationId) =>
+      hooked
+        .members(organizationId)
+        .map((members) =>
+          members.find((member) =>
+            (member.roles ?? [member.role]).includes(ownerRole),
+          ),
+        ),
+    memberRoles: (organizationId) =>
+      hooked
+        .members(organizationId)
+        .map((members) =>
+          Object.fromEntries(
+            members.map((member) => [
+              member.userId,
+              member.roles ?? [member.role],
+            ]),
+          ),
+        ),
+  };
+
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Organizations<FieldsOf<S>, FieldsOf<SI>, R> = withBlockHooks(
+    client,
+    options.hooks,
+    {
+      block: "organizations",
+      ...(options.events ? { logger: options.events.logger } : {}),
+    },
+  );
+
+  return hooked;
 }
 
 function organizationsClient<
@@ -564,7 +612,7 @@ function organizationsClient<
     StandardSchemaV1 | undefined,
     R
   >,
-): Organizations<F, I, R> {
+): Omit<Organizations<F, I, R>, "owner" | "memberRoles"> {
   applyTemporal(options);
 
   const fields: BlockFields<F> = blockFields(

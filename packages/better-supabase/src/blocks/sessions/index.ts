@@ -16,4 +16,11 @@ export {
   type RawOAuthClient,
 } from "./client.ts";
 
+export {
+  createSessions,
+  type Sessions,
+  type SessionsOptions,
+  type UserSession,
+} from "./sessions.ts";
+
 export { sessionsBlock } from "./manifest.ts";

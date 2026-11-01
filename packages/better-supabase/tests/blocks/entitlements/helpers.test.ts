@@ -58,6 +58,26 @@ describe("entitlements helpers", () => {
   });
 });
 
+describe("entitlements.seatsLeft", () => {
+  const seats = (value: unknown) =>
+    createEntitlements({ transport: transport(() => value) });
+
+  it("subtracts the seats used from the plan's number, never below 0", async () => {
+    expect(
+      await seats(10).seatsLeft({ organizationId: "o", used: 4 }).orThrow(),
+    ).toBe(6);
+    expect(
+      await seats(3).seatsLeft({ organizationId: "o", used: 5 }).orThrow(),
+    ).toBe(0);
+  });
+
+  it("is undefined when the plan sets no number", async () => {
+    expect(
+      await seats(null).seatsLeft({ organizationId: "o", used: 4 }).orThrow(),
+    ).toBeUndefined();
+  });
+});
+
 const status = (remaining: number | null) => ({
   meter: "m",
   used: 0,

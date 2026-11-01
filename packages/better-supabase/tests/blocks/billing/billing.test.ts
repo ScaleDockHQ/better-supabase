@@ -1829,4 +1829,31 @@ describe("createBilling with connectEvents", () => {
         .event,
     ).toBe("billing.checkout_completed");
   });
+
+  it("startTrial opens a subscription Checkout with the trial days", async () => {
+    const t = setup((fn) => (fn === "billing_customer" ? "cus_1" : null));
+    const billing = createBilling({ ...t, schema: "app" });
+
+    await billing
+      .startTrial({
+        organizationId: "org",
+        options: {
+          price: "price_1",
+          successUrl: "https://a/ok",
+          days: 14,
+          params: { subscription_data: { description: "Trial" } },
+        },
+      })
+      .orThrow();
+
+    const [, { params }] = t.stripeCalls.find(
+      ([name]) => name === "checkout.create",
+    ) as [string, { params: Record<string, unknown> }];
+
+    expect(params["mode"]).toBe("subscription");
+    expect(params["subscription_data"]).toMatchObject({
+      description: "Trial",
+      trial_period_days: 14,
+    });
+  });
 });

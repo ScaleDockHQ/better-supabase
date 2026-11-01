@@ -239,6 +239,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
     "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
+  sessions: "end_my_session list_my_sessions",
   settings:
     "get_organization_settings get_platform_settings get_user_settings reset_organization_setting reset_platform_setting reset_user_setting set_organization_setting set_platform_setting set_user_setting",
   "share-links":

@@ -266,6 +266,7 @@ import { automationsBlock as automationsBlockInstance } from "better-supabase/bl
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-supabase/blocks/service-accounts";
+import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
 import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
@@ -1320,6 +1321,7 @@ export const blocks = {
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   "service-accounts": serviceAccountsBlockInstance,
+  sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
   "signing-keys": signingKeysBlockInstance,

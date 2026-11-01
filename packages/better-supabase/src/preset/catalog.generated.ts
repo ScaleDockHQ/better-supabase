@@ -30534,7 +30534,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "sessions"
       ],
       "category": "identity",
-      "client": null,
+      "client": {
+        "export": "sessionsBlock",
+        "subpath": "better-supabase/blocks/sessions"
+      },
       "consumes": {},
       "provides": []
     },
@@ -31383,6 +31386,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "WebhookEndpoints"
+        },
+        {
+          "name": "WebhookEndpointWithSecret"
         }
       ],
       "events": {

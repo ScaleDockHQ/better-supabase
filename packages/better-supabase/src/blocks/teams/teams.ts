@@ -5,12 +5,13 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -103,6 +104,25 @@ export interface Teams<F extends object = Record<never, never>> {
   addMember(input: { teamId: string; userId: string }): AsyncResult<boolean>;
   removeMember(input: { teamId: string; userId: string }): AsyncResult<boolean>;
   list(organizationId: string): AsyncResult<readonly Team<F>[]>;
+  /**
+   * Makes `userIds` the team's members: it adds the missing ones and removes
+   * the others, and returns what changed. It reads `list` to find the current
+   * members, then calls `addMember` and `removeMember`, so their hooks see each
+   * step. A failure stops the loop; run it again to finish.
+   */
+  setMembers(input: {
+    organizationId: string;
+    teamId: string;
+    userIds: readonly string[];
+  }): AsyncResult<{
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+  }>;
+  /** `archive` when `archived` is true, otherwise `restore`. */
+  setArchived(input: {
+    teamId: string;
+    archived: boolean;
+  }): AsyncResult<boolean>;
 }
 
 function teamOf(value: unknown): Team {
@@ -207,10 +227,52 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_teams", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_teams").map(teamOf),
       ).andThen(fields.rows),
+    setMembers: ({ organizationId, teamId, userIds }) =>
+      AsyncResult.from(async () => {
+        const teams = await hooked.list(organizationId);
+
+        if (!teams.ok) {
+          return teams;
+        }
+
+        const team = teams.data.find((each) => each.id === teamId);
+
+        if (team === undefined) {
+          return err(dbError("not_found", "No team in this organization"));
+        }
+
+        const wanted = new Set(userIds);
+        const current = new Set(team.memberIds);
+        const added = [...wanted].filter((id) => !current.has(id));
+        const removed = [...current].filter((id) => !wanted.has(id));
+
+        for (const userId of added) {
+          const result = await hooked.addMember({ teamId, userId });
+
+          if (!result.ok) {
+            return result;
+          }
+        }
+
+        for (const userId of removed) {
+          const result = await hooked.removeMember({ teamId, userId });
+
+          if (!result.ok) {
+            return result;
+          }
+        }
+
+        return ok({ added, removed });
+      }),
+    setArchived: ({ teamId, archived }) =>
+      archived ? hooked.archive(teamId) : hooked.restore(teamId),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Teams<F> = withBlockHooks(client, options.hooks, {
     block: "teams",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

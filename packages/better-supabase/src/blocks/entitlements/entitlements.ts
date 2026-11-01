@@ -92,6 +92,17 @@ export interface Entitlements {
    * answer "upgrade your plan" with `.orThrow()` or a plain return.
    */
   require(input: { organizationId: string; key: string }): AsyncResult<true>;
+  /**
+   * The seats the tenant's plan leaves: its numeric `key` entitlement (default
+   * `seats`) minus `used`, never below 0. `undefined` when the plan sets no
+   * number, which means no limit. Pass the member count as `used`; it is
+   * `organizations.members(...)` length, or a billing seat count.
+   */
+  seatsLeft(input: {
+    organizationId: string;
+    used: number;
+    key?: string | undefined;
+  }): AsyncResult<number | undefined>;
   /** `has` for each key, in one result keyed by feature. */
   all(input: {
     organizationId: string;
@@ -131,6 +142,14 @@ export function createEntitlements(options: EntitlementsOptions): Entitlements {
                 ),
           ),
         ),
+    seatsLeft: ({ organizationId, used, key = "seats" }) =>
+      hooked.value({ organizationId, key }).map((limit) => {
+        const total = typeof limit === "number" ? limit : Number(limit);
+
+        return limit === undefined || !Number.isFinite(total)
+          ? undefined
+          : Math.max(0, total - used);
+      }),
     all: ({ organizationId, keys }) =>
       AsyncResult.from(async () => {
         const entries: [string, boolean][] = [];

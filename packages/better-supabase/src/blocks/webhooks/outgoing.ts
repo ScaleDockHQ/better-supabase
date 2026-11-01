@@ -7,11 +7,14 @@ import type { WebhookEncoder } from "./encoders.ts";
 import type { WebhooksEvents } from "./events.ts";
 import type { WebhookResponse, WebhookTransport } from "./http.ts";
 import type {
+  CreateWebhookEndpointInput,
   DeliverWebhooksOptions,
   DeliverWebhooksResult,
   Outcome,
   PublishInput,
   WebhookDelivery,
+  WebhookEndpoint,
+  WebhookEndpointWithSecret,
   Webhooks,
   WebhooksOptions,
   WebhookSubscriber,
@@ -770,8 +773,39 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
             batchResultsOf(value, events.length, "count", Number, mappers),
         );
 
+  const { createEndpoint: createEndpointRow, ...endpoints } = endpointMethods(
+    db,
+    defaultFormat,
+  );
+
+  const createEndpointWithSecret = (
+    input: CreateWebhookEndpointInput,
+  ): AsyncResult<WebhookEndpoint | WebhookEndpointWithSecret> => {
+    const { withSecret, ...row } = input;
+    const created = createEndpointRow(row);
+
+    if (withSecret !== true) {
+      return created;
+    }
+
+    return created.andThen(async (endpoint) => {
+      const secret = await hooked.rotateSecret({ endpointId: endpoint.id });
+
+      if (!secret.ok) {
+        await hooked.deleteEndpoint(endpoint.id);
+
+        return secret;
+      }
+
+      return ok({ ...endpoint, secret: secret.data });
+    });
+  };
+
   const client: Webhooks = {
-    ...endpointMethods(db, defaultFormat),
+    ...endpoints,
+    // SAFETY: `withSecret: true` selects the overload that carries the secret,
+    // and `createEndpointWithSecret` adds it exactly then.
+    createEndpoint: createEndpointWithSecret as Webhooks["createEndpoint"],
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
     publish: (event) => db("publish_webhook_event", publishArgs(event), Number),
@@ -871,8 +905,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Webhooks = withBlockHooks(client, options.hooks, {
     block: "webhooks",
     ...(options.events ? { logger: options.events.logger } : {}),
   });
+
+  return hooked;
 }

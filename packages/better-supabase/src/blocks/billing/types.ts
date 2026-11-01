@@ -289,6 +289,16 @@ export interface Billing {
     options: CheckoutOptions;
   }): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
   /**
+   * A subscription Checkout with a free trial of `days` days: `checkout` with
+   * `subscription_data.trial_period_days` set (other `subscription_data` in
+   * `params` stay). Stripe starts the subscription as `trialing`; the same
+   * webhooks follow.
+   */
+  startTrial(input: {
+    organizationId: string;
+    options: Omit<CheckoutOptions, "mode"> & { readonly days: number };
+  }): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
+  /**
    * A customer portal session, for the tenant's account with
    * `customerAccounts`; `not_found` before the tenant has a customer or an
    * account.

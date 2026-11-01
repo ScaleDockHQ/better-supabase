@@ -445,3 +445,13 @@ export const GET = async () => {
 for the session again. The token itself only changes on refresh, which the
 proxy does when it expires. Send the event to its own endpoint: the Stripe
 Sync Engine keeps its webhook for syncing the tables.
+
+## Seats left
+
+`seatsLeft({ organizationId, used, key })` returns the plan's numeric `key` entitlement (default `seats`) minus `used`, never below 0. It returns `undefined` when the plan sets no number, which means no limit. Pass the member count as `used`.
+
+```ts
+const left = await entitlements
+  .seatsLeft({ organizationId, used: members.length })
+  .orThrow();
+```

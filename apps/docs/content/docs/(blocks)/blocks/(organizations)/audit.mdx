@@ -709,3 +709,7 @@ const audit = createAudit<{ ticket_id: string | null; priority: number }>({
 const page = await audit.list({ organizationId }).orThrow();
 // page.entries[0].columns: { ticket_id: "...", priority: 2 }
 ```
+
+## One request's entries
+
+`correlated({ correlationId, organizationId?, limit? })` returns every entry the caller can read that shares the correlation id, oldest first, so one request or job reads as one story. It pages through `list` (200 entries per page, up to `limit`, default 1000), so your `list` hooks see each page.

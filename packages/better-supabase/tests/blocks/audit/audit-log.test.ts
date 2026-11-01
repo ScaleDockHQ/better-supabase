@@ -386,4 +386,25 @@ describe("createAudit", () => {
       }),
     ).toMatchObject({ ok: false, error: { hint: "AUDIT_EXPORT_FAILED" } });
   });
+
+  it("correlated pages oldest first through the cursor until the limit", async () => {
+    const full = Array.from({ length: 200 }, (_, i) =>
+      entry("1", { id: String(i) }),
+    );
+
+    const { transport, calls } = fake([full, [entry("1", { id: "x" })]]);
+
+    const entries = await createAudit({ transport })
+      .correlated({ correlationId: "req-1", limit: 250 })
+      .orThrow();
+
+    expect(entries).toHaveLength(201);
+    expect(calls[0]![1]).toMatchObject({
+      for_correlation_ids: ["req-1"],
+      ascending: true,
+      max_items: 200,
+    });
+    expect(calls[1]![1]).toMatchObject({ max_items: 50 });
+    expect(calls[1]![1]["cursor_id"]).toBe("199");
+  });
 });

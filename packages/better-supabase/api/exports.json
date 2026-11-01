@@ -2878,6 +2878,8 @@
       "wrapTransport"
     ],
     "types": [
+      "AvatarUpload",
+      "AvatarUploader",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -3455,6 +3457,7 @@
       "WebhookEndpoint",
       "WebhookEndpointFields",
       "WebhookEndpoints",
+      "WebhookEndpointWithSecret",
       "WebhookInput",
       "WebhookRequest",
       "WebhookResponse",
@@ -3646,6 +3649,7 @@
     "values": [
       "createOAuthConsentController",
       "createOAuthGrantsController",
+      "createSessions",
       "sessionsBlock"
     ],
     "types": [
@@ -3661,7 +3665,10 @@
       "OAuthGrantsController",
       "OAuthGrantsControllerOptions",
       "OAuthGrantsSnapshot",
-      "RawOAuthClient"
+      "RawOAuthClient",
+      "Sessions",
+      "SessionsOptions",
+      "UserSession"
     ]
   },
   "./blocks/settings": {

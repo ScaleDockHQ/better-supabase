@@ -14,3 +14,16 @@ better-supabase add sessions
 ```
 
 The [Sessions guide](/docs/auth/sessions) has the setup and the full reference.
+
+## The client
+
+`createSessions({ transport })` lists and ends the caller's own sessions without raw `$api` calls. It is also `db.$blocks.sessions` in a Server Action.
+
+```ts
+const sessions = await db.$blocks.sessions.listMine().orThrow();
+
+await db.$blocks.sessions.end({ sessionId }).orThrow();
+await db.$blocks.sessions.endOthers().orThrow();
+```
+
+`listMine` returns the unexpired sessions, most recently active first, with `current` on the one behind the token. `end` returns `false` when the caller has no such session. `endOthers` ends every session except the current one through `end`, so your `end` hooks see each one, and returns the ids it ended.

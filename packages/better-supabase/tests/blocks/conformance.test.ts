@@ -27,7 +27,6 @@ const NO_CREATOR: readonly string[] = [
   // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
   // the SQL tables have no client of their own.
   "mfa",
-  "sessions",
 ];
 
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */

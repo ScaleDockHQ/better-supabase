@@ -674,3 +674,7 @@ export const billing = createBilling({
   sessions: { sql: postgres.admin, invalidate: (id) => bsb.evictSession(id) },
 });
 ```
+
+## Starting a trial
+
+`startTrial({ organizationId, options })` opens a subscription Checkout with a free trial of `options.days` days. It is `checkout` with `subscription_data.trial_period_days` set; other `subscription_data` in `options.params` stay. Stripe starts the subscription as `trialing`, and the same webhooks follow.

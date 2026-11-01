@@ -1037,11 +1037,33 @@ export function createBilling(options: BillingOptions): Billing {
         }
       },
     }),
+    startTrial: ({ organizationId, options: trial }) => {
+      const { days, ...checkout } = trial;
+
+      const subscriptionData = {
+        ...(isRecord(checkout.params?.["subscription_data"])
+          ? checkout.params["subscription_data"]
+          : {}),
+        trial_period_days: days,
+      };
+
+      return hooked.checkout({
+        organizationId,
+        options: {
+          ...checkout,
+          mode: "subscription",
+          params: { ...checkout.params, subscription_data: subscriptionData },
+        },
+      });
+    },
     handleStripeEvent,
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Billing = withBlockHooks(client, options.hooks, {
     block: "billing",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

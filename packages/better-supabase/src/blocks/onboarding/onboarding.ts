@@ -23,6 +23,11 @@ export interface ChecklistStep<Id extends string = string> {
   /** Where the step is done in the app, for a "Start" link. */
   readonly href?: string;
   readonly events?: readonly string[];
+  /**
+   * One outbox event type that completes the step, such as `invoice.sent`. It
+   * is `events: [type]` and may be combined with `events`.
+   */
+  readonly completeOn?: string;
 }
 
 export interface ChecklistSpec<

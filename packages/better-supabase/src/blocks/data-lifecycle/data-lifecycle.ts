@@ -16,6 +16,7 @@ import {
   optionalText,
   recordOf,
   recordsOf,
+  sleep,
   stringsOf,
   textOf,
   toInstant,
@@ -140,6 +141,19 @@ export interface DataLifecycle {
   exports(organizationId?: string): AsyncResult<readonly DataExport[]>;
   /** Signed URLs for a ready export's files. */
   download(exportId: string): AsyncResult<DataExportDownload>;
+  /**
+   * Requests an export, waits until it is ready and returns its signed URLs: a
+   * "download my data" button in one call. It polls `exports` every
+   * `intervalMs` (default 1000) for at most `timeoutMs` (default 30000), and
+   * fails with `invalid_request` and the hint `DATA_EXPORT_FAILED` or
+   * `DATA_EXPORT_NOT_READY`. The export keeps running after a timeout; fetch it
+   * later with `exports` and `download`.
+   */
+  exportNow(options?: {
+    readonly organizationId?: string;
+    readonly timeoutMs?: number;
+    readonly intervalMs?: number;
+  }): AsyncResult<DataExportDownload>;
   /**
    * Disables the tenant and schedules its purge after `grace` (an interval such
    * as `30 days` or a `Temporal.Duration`; default the module's `grace`
@@ -354,10 +368,57 @@ export function createDataLifecycle(
         { tenant: organizationId },
         optionalDeletion,
       ),
+    exportNow: ({ timeoutMs = 30_000, intervalMs = 1000, ...target } = {}) =>
+      AsyncResult.from(async () => {
+        const requested = await hooked.requestExport(target);
+
+        if (!requested.ok) {
+          return requested;
+        }
+
+        const deadline = Date.now() + timeoutMs;
+
+        for (;;) {
+          const listed = await hooked.exports(target.organizationId);
+
+          if (!listed.ok) {
+            return listed;
+          }
+
+          const current = listed.data.find(
+            (each) => each.id === requested.data.id,
+          );
+
+          if (current?.status === "ready") {
+            return hooked.download(current.id);
+          }
+
+          if (current?.status === "failed") {
+            return err(
+              dbError("invalid_request", "The export failed", {
+                hint: "DATA_EXPORT_FAILED",
+              }),
+            );
+          }
+
+          if (Date.now() + intervalMs > deadline) {
+            return err(
+              dbError("invalid_request", "The export is not ready yet", {
+                hint: "DATA_EXPORT_NOT_READY",
+              }),
+            );
+          }
+
+          await sleep(intervalMs);
+        }
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: DataLifecycle = withBlockHooks(client, options.hooks, {
     block: "data-lifecycle",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

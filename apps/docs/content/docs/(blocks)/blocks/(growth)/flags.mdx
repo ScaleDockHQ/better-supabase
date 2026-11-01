@@ -419,3 +419,9 @@ await admin.override(
 await admin.override("new_editor", { userId }, null); // removes it
 const flags = await admin.list().orThrow();
 ```
+
+## Staff helpers
+
+`isEnabled({ key, context })` answers whether a boolean flag is on for a context (tenant, user, roles and plans), evaluated like `flag_evaluation()`. An unknown flag is off. It reads `list`, so it needs the same permission.
+
+`tenantsWith({ key })` lists the organizations that have the flag on through a tenant override, for a staff view of who gets it early. A tenant that gets the flag through a rule or the rollout is not listed.

@@ -1,6 +1,8 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type {
+  CreateWebhookEndpointInput,
   WebhookEndpoint,
   WebhookEndpointFields,
   WebhookEndpoints,
@@ -90,12 +92,23 @@ function fieldsOf(input: WebhookEndpointFields): Record<string, unknown> {
 export function endpointMethods(
   db: BlockCall,
   defaultFormat: string,
-): WebhookEndpoints {
+): Omit<WebhookEndpoints, "createEndpoint"> & {
+  /** Adds the endpoint row only; `createWebhooks` adds the secret. */
+  readonly createEndpoint: (
+    input: CreateWebhookEndpointInput,
+  ) => AsyncResult<WebhookEndpoint>;
+} {
   const one = (value: unknown) => endpointOf(value, defaultFormat);
 
   return {
-    createEndpoint: ({ tenant, ...input }) =>
+    createEndpoint: ({ tenant, withSecret: _withSecret, ...input }) =>
       db("create_webhook_endpoint", { tenant, fields: fieldsOf(input) }, one),
+    setEnabled: ({ endpointId, enabled }) =>
+      db(
+        "update_webhook_endpoint",
+        { endpoint: endpointId, fields: fieldsOf({ enabled }) },
+        one,
+      ),
     updateEndpoint: ({ endpointId, changes }) =>
       db(
         "update_webhook_endpoint",
