@@ -330,6 +330,8 @@ create table if not exists ${rules} (
 );${appKey("rules", `${r("tenant")}, ${r("id")}`)}
 create index if not exists ${name("rules", "lookup_idx")} on ${rules} (${r("tenant")}, ${r("location")}, ${r("variant")}, ${r("priority")}) where ${r("active")};
 create index if not exists ${name("rules", "bin_idx")} on ${rules} (${r("bin")});
+create index if not exists ${name("rules", "location_idx")} on ${rules} (${r("location")});
+create index if not exists ${name("rules", "variant_idx")} on ${rules} (${r("variant")});
 ${lockTable(rules, { read: true })}
 ${readPolicy("rules", r("tenant"))}
 

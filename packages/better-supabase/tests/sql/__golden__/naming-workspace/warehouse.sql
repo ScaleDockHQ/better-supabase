@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:570ed46e56bc149cd2076f4371279c63c0b1a4775e3374e24ebb9c572b691590
+-- @bsb-hash sha256:dec095e5504a79d02af4f997b4ebd1dc643f93d35652d41132489a307f34df2a
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,6 +244,8 @@ create table if not exists "better_supabase"."putaway_rules" (
 );
 create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
 create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
 alter table "better_supabase"."putaway_rules" enable row level security;
 revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
 grant select on "better_supabase"."putaway_rules" to authenticated;

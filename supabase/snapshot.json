@@ -315043,6 +315043,17 @@
             "predicate": null
           },
           {
+            "name": "putaway_rules_location_idx",
+            "columns": [
+              "location_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "putaway_rules_lookup_idx",
             "columns": [
               "tenant_id",
@@ -315074,6 +315085,17 @@
               "id"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "putaway_rules_variant_idx",
+            "columns": [
+              "variant_id"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
