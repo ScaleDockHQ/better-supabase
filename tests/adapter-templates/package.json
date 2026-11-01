@@ -1,0 +1,20 @@
+{
+  "name": "@better-supabase/adapter-templates",
+  "private": true,
+  "description": "A tested reference adapter skeleton for each better-supabase port, to copy into your own package.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

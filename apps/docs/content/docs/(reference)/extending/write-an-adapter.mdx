@@ -1,0 +1,73 @@
+---
+title: Write an adapter
+description: Start an adapter package for a better-supabase port from a tested reference skeleton, and run the conformance checks before you publish it.
+---
+
+better-supabase bundles no bank feed, no national prescription format and no
+e-invoice network. Each of those is a versioned port (`apiVersion: 1`) that
+your own package implements, so the library stays free of provider SDKs and
+adapters release on their own schedule.
+
+`tests/adapter-templates` in the repository holds one tested skeleton per port.
+Each skeleton is a small file you copy into a new package and replace the
+provider calls in. Its tests run against a fake `fetch`, so they need no
+provider account. Where `better-supabase/testing` has a conformance block, the
+test runs it.
+
+| Port                                                                                            | Template                           | Conformance block                      |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------- |
+| `BankFeed` ([banking](/docs/blocks/banking))                                                    | `src/bank-feed.ts`                 | Contract checks in the template's test |
+| `RouteOptimizer` ([dispatch](/docs/blocks/dispatch))                                            | `src/route-optimizer.ts`           | Contract checks in the template's test |
+| `ShippingProvider` ([shipments](/docs/blocks/shipments))                                        | `src/shipping-provider.ts`         | `testShippingProvider`                 |
+| `PayrollExportFormat` ([payroll export](/docs/blocks/payroll-export))                           | `src/payroll-format.ts`            | Contract checks in the template's test |
+| `EInvoiceFormat`, `EInvoiceChannel` ([invoices](/docs/blocks/invoices))                         | `src/e-invoice.ts`                 | Contract checks in the template's test |
+| `AccountingChartFormat` ([accounting](/docs/blocks/accounting))                                 | `src/chart-format.ts`              | Contract checks in the template's test |
+| `ClinicalDecisionSupport` ([clinical decision support](/docs/blocks/clinical-decision-support)) | `src/clinical-decision-support.ts` | `testClinicalDecisionSupport`          |
+| `PrescriptionGateway` ([e-prescribing](/docs/blocks/e-prescribing))                             | `src/prescription-gateway.ts`      | `testPrescriptionGateway`              |
+
+## Start a package
+
+1. Create the package with `better-supabase` as a peer dependency and
+   `temporal-polyfill` only if your port uses `Temporal` values.
+2. Copy `src/http.ts` and the template for your port. The helper maps an HTTP
+   status to a `DbError` kind (`401` to `unauthorized`, `404` to `not_found`,
+   `409` to `conflict`, `429` to `rate_limited`).
+3. Replace the paths and field names with your provider's, keeping the
+   exported adapter's `apiVersion: 1`.
+4. Copy the template's test and `tests/fake-fetch.ts`, and add the cases your
+   provider has: its error bodies, its paging and its idempotency rules.
+5. Run the conformance block against a provider test account before the first
+   release.
+
+## What every adapter keeps
+
+- **Version.** Set `apiVersion: 1`. A breaking change to a port ships a new
+  `apiVersion`, so an adapter written against 1 keeps working.
+- **Errors.** Ports that return a `Result` (`BankFeed`, `ShippingProvider`)
+  return a `DbError` for a failed call and never throw. Ports whose method
+  returns a plain value (`RouteOptimizer`, `EInvoiceChannel`,
+  `PrescriptionGateway`, `ClinicalDecisionSupport`) throw, and the block turns
+  the throw into an error `Result` with its own hint, for example
+  `PRESCRIPTION_DELIVERY_FAILED`.
+- **Idempotency.** Pass an idempotency key to the provider for every call that
+  creates something (a label, a document, a prescription). The block retries
+  after a failure.
+- **Stable identifiers.** A bank transaction keeps its `externalId` and an
+  alert keeps its `fingerprint` between calls, because the block uses them to
+  skip a repeat or keep a member's decision.
+- **Pure renderers.** `PayrollExportFormat.render` and
+  `AccountingChartFormat.parse` give the same output for the same input. The
+  payroll block hashes the file and locks the run behind that hash.
+- **Nothing bundled.** Keep credentials and provider SDKs in the adapter
+  package, never in the library or the app's shared code.
+
+## Ship it
+
+Publish the package under your own name, list the port's
+better-supabase range as a peer dependency, and say which `apiVersion` it
+targets in its README. Open an issue in the better-supabase repository to have
+it listed on the [roadmap](/docs/roadmap#adapter-packages) once it exists.
+
+See [conformance blocks](/docs/extending/conformance) for the blocks that
+exist, and [stability](/docs/extending/stability) for how a port version
+changes.
