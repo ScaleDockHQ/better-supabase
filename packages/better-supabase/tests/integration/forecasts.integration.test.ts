@@ -101,7 +101,11 @@ describe.skipIf(!live)("forecasts", () => {
       await s.as(rep);
       await deals.win({ dealId: big.id, note: "Signed" }).orThrow();
       await deals
-        .update([{ dealId: small.id, field: "amount", value: eur(750_000n) }])
+        .update({
+          changes: [
+            { dealId: small.id, field: "amount", value: eur(750_000n) },
+          ],
+        })
         .orThrow();
 
       await s.as(owner);

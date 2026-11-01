@@ -39,6 +39,7 @@ import {
   textOf,
   bigintOf,
 } from "../shared.ts";
+import { strictChanges } from "../strict-changes.ts";
 
 /** How a rep calls a deal for the period. `undefined` is "not called". */
 export type ForecastCategory = "commit" | "best_case" | "pipeline" | "omit";
@@ -245,8 +246,15 @@ export interface Deals<F extends object = Record<never, never>> {
     input: DealInput<F>;
     contacts?: readonly DealContact[] | undefined;
   }): AsyncResult<Deal<F>>;
-  /** Applies cell edits; a refused change leaves the others applied. */
-  update(changes: readonly DealChange[]): AsyncResult<DealChangeResult>;
+  /**
+   * Applies cell edits; a refused change leaves the others applied. With
+   * `strict`, the first refused change comes back as the error, with its hint
+   * as the code, instead of a `rejected` entry.
+   */
+  update(input: {
+    changes: readonly DealChange[];
+    strict?: boolean | undefined;
+  }): AsyncResult<DealChangeResult>;
   /** Moves the deal to its pipeline's won stage. `note` is the closing note. */
   win(input: {
     dealId: string;
@@ -580,7 +588,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
         )
         .andThen(parsed);
     },
-    update: (changes) =>
+    update: ({ changes, strict }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (
@@ -636,7 +644,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
               ),
             };
           },
-        ),
+        ).andThen((result) => strictChanges(result, strict)),
       ),
     win: ({ dealId, note }) =>
       call(

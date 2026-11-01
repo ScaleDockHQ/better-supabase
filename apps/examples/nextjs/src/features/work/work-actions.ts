@@ -3,7 +3,7 @@
 import type { WorkItemChange } from "better-supabase/blocks/tasks";
 import type { ListQueryInput } from "better-supabase/list";
 
-import { dbError, err, ok } from "better-supabase";
+import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
@@ -34,23 +34,9 @@ const OptionalId = v.nullish(Id);
 
 /** Applies one batch of item changes; a rejected change becomes the error. */
 async function applyChanges(db: AppDb, changes: readonly WorkItemChange[]) {
-  const result = await db.$blocks.tasks.update({ changes });
+  const result = await db.$blocks.tasks.update({ changes, strict: true });
 
-  if (!result.ok) {
-    return result;
-  }
-
-  const [rejected] = result.data.rejected;
-
-  if (rejected) {
-    return err(
-      rejected.hint === undefined
-        ? dbError("raised", rejected.reason)
-        : dbError("raised", rejected.reason, { hint: rejected.hint }),
-    );
-  }
-
-  return ok(result.data.accepted.length);
+  return result.ok ? ok(result.data.accepted.length) : result;
 }
 
 /**

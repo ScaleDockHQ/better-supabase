@@ -69,10 +69,12 @@ const task = await db.tasks
   .orThrow();
 
 const { accepted, rejected } = await db.tasks
-  .update([
-    { workItemId: task.id, field: "stageId", value: inProgressStageId },
-    { workItemId: task.id, field: "endAt", value: friday },
-  ])
+  .update({
+    changes: [
+      { workItemId: task.id, field: "stageId", value: inProgressStageId },
+      { workItemId: task.id, field: "endAt", value: friday },
+    ],
+  })
   .orThrow();
 ```
 
@@ -84,18 +86,22 @@ import { useTasks } from "@/lib/supabase/hooks";
 const rows = useTasks({ limit: 50 });
 ```
 
-`update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `task.closed`. Moving back to an open stage clears both and records `task.reopened`.
+`update({ changes })` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `task.closed`. Moving back to an open stage clears both and records `task.reopened`.
 
-A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }`, which writes the two dates in one update. Two separate changes would fail the `endAt >= startAt` check halfway when the bar moves past its old end. Either key can be left out or `null`. Pass `{ atomic: true }` as the second argument when a batch must apply in full or not at all: the first refused change then fails the whole call with its hint, and nothing is written.
+A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }`, which writes the two dates in one update. Two separate changes would fail the `endAt >= startAt` check halfway when the bar moves past its old end. Either key can be left out or `null`. Pass `atomic: true` when a batch must apply in full or not at all: the first refused change then fails the whole call with its hint, and nothing is written.
 
 ```ts title="src/features/tasks/gantt.ts"
 await db.tasks
-  .update(
-    [{ workItemId: task.id, field: "window", value: { startAt, endAt } }],
-    { atomic: true },
-  )
+  .update({
+    changes: [
+      { workItemId: task.id, field: "window", value: { startAt, endAt } },
+    ],
+    atomic: true,
+  })
   .orThrow();
 ```
+
+Without `atomic`, a refused change comes back in `rejected` and the others stay applied. Pass `strict: true` to get the first refused change as the error instead, with its hint as the `raised` code, so an action can return it as it is.
 
 `assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `task.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
@@ -220,9 +226,11 @@ const task = await items
   .orThrow();
 
 const { accepted, rejected } = await items
-  .update([
-    { workItemId: task.id, field: "stageId", value: inProgressStageId },
-    { workItemId: task.id, field: "endAt", value: friday },
-  ])
+  .update({
+    changes: [
+      { workItemId: task.id, field: "stageId", value: inProgressStageId },
+      { workItemId: task.id, field: "endAt", value: friday },
+    ],
+  })
   .orThrow();
 ```

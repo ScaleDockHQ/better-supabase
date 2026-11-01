@@ -110,7 +110,9 @@ describe.skipIf(!live)("CRM recipe", () => {
       await tags.attach({ record: deal, tagId: hot.id }).orThrow();
 
       const moved = await deals
-        .update([{ dealId, field: "stageId", value: stage("qualified") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("qualified") }],
+        })
         .orThrow();
 
       expect(moved.rejected).toEqual([]);
@@ -151,7 +153,9 @@ describe.skipIf(!live)("CRM recipe", () => {
         .orThrow();
 
       const jump = await deals
-        .update([{ dealId, field: "stageId", value: stage("won") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("won") }],
+        })
         .orThrow();
 
       expect(jump.accepted).toEqual([]);
@@ -166,7 +170,9 @@ describe.skipIf(!live)("CRM recipe", () => {
       );
 
       const step = await deals
-        .update([{ dealId, field: "stageId", value: stage("qualified") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("qualified") }],
+        })
         .orThrow();
 
       expect(step.rejected).toEqual([]);

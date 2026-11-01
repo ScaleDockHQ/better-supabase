@@ -67,11 +67,17 @@ Amounts are `Money` values from [commerce](/docs/concepts/commerce): a `bigint` 
 
 ```ts
 const { accepted, rejected } = await deals
-  .update([
-    { dealId, field: "stageId", value: proposalStageId },
-    { dealId, field: "closeOn", value: Temporal.PlainDate.from("2026-12-15") },
-    { dealId, field: "forecast", value: "commit" },
-  ])
+  .update({
+    changes: [
+      { dealId, field: "stageId", value: proposalStageId },
+      {
+        dealId,
+        field: "closeOn",
+        value: Temporal.PlainDate.from("2026-12-15"),
+      },
+      { dealId, field: "forecast", value: "commit" },
+    ],
+  })
   .orThrow();
 ```
 
@@ -111,8 +117,13 @@ await deals.create(organizationId, {
   closeOn,
   fields: { region: "emea" },
 });
-await deals.update([{ dealId, field: "region", value: "apac" }]);
+await deals.update({
+  changes: [{ dealId, field: "region", value: "apac" }],
+  strict: true,
+});
 ```
+
+`update` returns the refused changes in `rejected` and leaves the others applied. With `strict: true`, the first refused change is the error instead, with its hint (such as `DEAL_LOCKED`) as the `raised` code.
 
 ## Stages, winning and losing
 

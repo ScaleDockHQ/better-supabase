@@ -73,11 +73,13 @@ describe.skipIf(!live)("field history", () => {
       expect(await history.of({ subject }).orThrow()).toEqual([]);
 
       await deals
-        .update([
-          { dealId: deal.id, field: "amount", value: eur(150_000n) },
-          { dealId: deal.id, field: "forecast", value: "commit" },
-          { dealId: deal.id, field: "name", value: "Growth plan, 60 seats" },
-        ])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "amount", value: eur(150_000n) },
+            { dealId: deal.id, field: "forecast", value: "commit" },
+            { dealId: deal.id, field: "name", value: "Growth plan, 60 seats" },
+          ],
+        })
         .orThrow();
 
       const changes = await history.of({ subject }).orThrow();

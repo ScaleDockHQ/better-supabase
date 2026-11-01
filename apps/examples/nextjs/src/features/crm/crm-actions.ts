@@ -239,18 +239,13 @@ export const moveDeal = bsb.action(
     permission: "deals.write",
   },
   async ({ dealId, stageId }, { db, auth }) => {
-    const moved = await db.deals.update([
-      { dealId, field: "stageId", value: stageId },
-    ]);
+    const moved = await db.deals.update({
+      changes: [{ dealId, field: "stageId", value: stageId }],
+      strict: true,
+    });
 
     if (!moved.ok) {
       return moved;
-    }
-
-    const [rejected] = moved.data.rejected;
-
-    if (rejected) {
-      return err(dbError("raised", rejected.reason));
     }
 
     await refreshCaller(auth);

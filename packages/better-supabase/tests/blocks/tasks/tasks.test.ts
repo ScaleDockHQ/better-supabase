@@ -202,6 +202,16 @@ describe("tasks block", () => {
       ],
       atomic: true,
     });
+
+    const strict = await items.update({
+      changes: [{ workItemId: "w1", field: "dueAt", value: null }],
+      strict: true,
+    });
+
+    expect(strict.ok ? undefined : strict.error).toMatchObject({
+      kind: "raised",
+      hint: "TASK_LOCKED",
+    });
     expect(
       await items.assign({ workItemId: "w1", userIds: ["u1", "u2"] }).orThrow(),
     ).toBe(2);

@@ -68,17 +68,19 @@ describe("deals fields", () => {
 
     const deals = createDeals({ transport: t, fields: Fields });
 
-    const refused = await deals.update([
-      { dealId: "d1", field: "region", value: "mars" },
-    ]);
+    const refused = await deals.update({
+      changes: [{ dealId: "d1", field: "region", value: "mars" }],
+    });
 
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     await deals
-      .update([
-        { dealId: "d1", field: "region", value: "apac" },
-        { dealId: "d1", field: "name", value: "Renamed" },
-      ])
+      .update({
+        changes: [
+          { dealId: "d1", field: "region", value: "apac" },
+          { dealId: "d1", field: "name", value: "Renamed" },
+        ],
+      })
       .orThrow();
     expect(t.calls[0]?.[0]).toBe("update_deals");
   });

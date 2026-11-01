@@ -171,15 +171,17 @@ describe("deals block", () => {
       }),
     });
 
+    const changes = [
+      {
+        dealId: "d1",
+        field: "closeOn",
+        value: Temporal.PlainDate.from("2026-12-01"),
+      },
+      { dealId: "d1", field: "amount", value: eur(5n) },
+    ];
+
     const result = await createDeals({ transport: t })
-      .update([
-        {
-          dealId: "d1",
-          field: "closeOn",
-          value: Temporal.PlainDate.from("2026-12-01"),
-        },
-        { dealId: "d1", field: "amount", value: eur(5n) },
-      ])
+      .update({ changes })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -196,6 +198,17 @@ describe("deals block", () => {
       { dealId: "d1", field: "amount", hint: "DEAL_LOCKED", reason: "locked" },
       { dealId: "d1", field: "x", reason: "bad" },
     ]);
+
+    const strict = await createDeals({ transport: t }).update({
+      changes,
+      strict: true,
+    });
+
+    expect(strict.ok ? undefined : strict.error).toMatchObject({
+      kind: "raised",
+      hint: "DEAL_LOCKED",
+      message: "amount: locked",
+    });
   });
 
   it("closes, sets contacts, members and lines, archives and removes", async () => {
@@ -419,9 +432,9 @@ describe("deals block", () => {
       },
     });
 
-    const change = await deals.update([
-      { dealId: "d1", field: "currency", value: "XXQ" },
-    ]);
+    const change = await deals.update({
+      changes: [{ dealId: "d1", field: "currency", value: "XXQ" }],
+    });
 
     expect(
       [mixed, other, lines, forecast].map((result) =>

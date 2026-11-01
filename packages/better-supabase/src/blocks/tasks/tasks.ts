@@ -28,6 +28,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { strictChanges } from "../strict-changes.ts";
 
 /** The state a stage's category sets; `completed` and `canceled` are closed. */
 export type WorkItemState =
@@ -151,6 +152,12 @@ export interface WorkItemUpdateOptions {
    * and comes back as the error, instead of a `rejected` entry.
    */
   readonly atomic?: boolean;
+  /**
+   * Turns the first refused change into the error, with its hint as the code,
+   * instead of a `rejected` entry. Accepted changes stay applied unless
+   * `atomic` is set too.
+   */
+  readonly strict?: boolean;
 }
 
 /** A work item's repeat rule: an RFC 5545 RRULE from `dtstart` in `tzid`. */
@@ -690,7 +697,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
               ),
             };
           },
-        ),
+        ).andThen((result) => strictChanges(result, updateOptions.strict)),
       ),
     assign: ({ workItemId, userIds }) =>
       call(

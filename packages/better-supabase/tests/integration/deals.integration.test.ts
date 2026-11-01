@@ -113,13 +113,15 @@ describe.skipIf(!live)("deals", () => {
       const proposal = pipeline?.stages[2]?.id ?? "";
 
       const edits = await deals
-        .update([
-          { dealId: deal.id, field: "stageId", value: proposal },
-          { dealId: deal.id, field: "closeOn", value: day("2026-12-15") },
-          { dealId: deal.id, field: "forecast", value: "commit" },
-          { dealId: deal.id, field: "motion", value: "upsell" },
-          { dealId: deal.id, field: "openedOn", value: "2020-01-01" },
-        ])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "stageId", value: proposal },
+            { dealId: deal.id, field: "closeOn", value: day("2026-12-15") },
+            { dealId: deal.id, field: "forecast", value: "commit" },
+            { dealId: deal.id, field: "motion", value: "upsell" },
+            { dealId: deal.id, field: "openedOn", value: "2020-01-01" },
+          ],
+        })
         .orThrow();
 
       expect(edits.accepted.map((item) => item.field)).toEqual([
@@ -133,7 +135,11 @@ describe.skipIf(!live)("deals", () => {
       ]);
 
       const wrongCurrency = await deals
-        .update([{ dealId: deal.id, field: "amount", value: money(5n, "USD") }])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "amount", value: money(5n, "USD") },
+          ],
+        })
         .orThrow();
 
       expect(wrongCurrency.rejected.map((item) => item.hint)).toEqual([
@@ -167,9 +173,11 @@ describe.skipIf(!live)("deals", () => {
         total: eur(4_622_500n),
       });
       await deals
-        .update([
-          { dealId: deal.id, field: "amountSource", value: "line_items" },
-        ])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "amountSource", value: "line_items" },
+          ],
+        })
         .orThrow();
       await deals
         .setLines({
@@ -233,7 +241,9 @@ describe.skipIf(!live)("deals", () => {
       expect(won.closedAt).toBeDefined();
 
       const closedEdit = await deals
-        .update([{ dealId: deal.id, field: "forecast", value: "omit" }])
+        .update({
+          changes: [{ dealId: deal.id, field: "forecast", value: "omit" }],
+        })
         .orThrow();
 
       expect(closedEdit.rejected[0]?.hint).toBe("DEAL_FORECAST_CLOSED");
@@ -340,10 +350,12 @@ describe.skipIf(!live)("deals", () => {
       await s.as(rep);
 
       const locked = await deals
-        .update([
-          { dealId: deal.id, field: "amount", value: money(5n, "USD") },
-          { dealId: deal.id, field: "note", value: "Waiting for PO" },
-        ])
+        .update({
+          changes: [
+            { dealId: deal.id, field: "amount", value: money(5n, "USD") },
+            { dealId: deal.id, field: "note", value: "Waiting for PO" },
+          ],
+        })
         .orThrow();
 
       expect(locked.rejected.map((item) => item.hint)).toEqual(["DEAL_LOCKED"]);
