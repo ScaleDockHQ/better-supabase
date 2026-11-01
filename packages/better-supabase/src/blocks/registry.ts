@@ -51,6 +51,7 @@ import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
 import { donationsBlock } from "./donations/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
+import { ePrescribingBlock } from "./e-prescribing/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
@@ -243,6 +244,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   rfqsBlock,
   tillsBlock,
   clinicalDecisionSupportBlock,
+  ePrescribingBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

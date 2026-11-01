@@ -6,6 +6,7 @@ import type { BlockOptions } from "../shared.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
+  APPRAISAL_ANONYMITY,
   APPRAISAL_CYCLE_STATUSES,
   APPRAISAL_REVIEW_KINDS,
   APPRAISAL_STATUSES,
@@ -31,6 +32,25 @@ export type AppraisalStatus = (typeof APPRAISAL_STATUSES)[number];
 /** Who writes a review. */
 export type AppraisalReviewKind = (typeof APPRAISAL_REVIEW_KINDS)[number];
 
+/** Who learns which peer wrote a review (`none`, `subject` or `all`). */
+export type AppraisalAnonymity = (typeof APPRAISAL_ANONYMITY)[number];
+
+/** One competency of a cycle's rubric. */
+export interface AppraisalCompetencyDefinition {
+  /** Lowercase letters, digits and underscores, starting with a letter. */
+  readonly key: string;
+  readonly name: string;
+  /** Above 0, at most 1000. Default 1. */
+  readonly weight?: number;
+}
+
+/** A competency of a cycle's rubric as stored. */
+export interface AppraisalRubricCompetency {
+  readonly key: string;
+  readonly name: string;
+  readonly weight: number;
+}
+
 /** A review cycle. */
 export interface AppraisalCycle {
   readonly id: string;
@@ -42,6 +62,11 @@ export interface AppraisalCycle {
   /** The key of the enrollment program the appraisals follow. */
   readonly program?: string;
   readonly status: AppraisalCycleStatus;
+  readonly anonymity: AppraisalAnonymity;
+  /** Whether the appraised person reads the feedback once signed off. */
+  readonly shareFeedback: boolean;
+  /** The rubric; empty when the cycle rates one overall rating. */
+  readonly competencies: readonly AppraisalRubricCompetency[];
   readonly openedAt?: Temporal.Instant;
   readonly closedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
@@ -55,6 +80,12 @@ export interface AppraisalCycleInput {
   readonly startsOn: string;
   readonly endsOn: string;
   readonly program?: string;
+  /** Default `subject`: peer reviewers stay hidden from the appraised person. */
+  readonly anonymity?: AppraisalAnonymity;
+  /** Default false. */
+  readonly shareFeedback?: boolean;
+  /** A rubric of weighted competencies, at most 20. */
+  readonly competencies?: readonly AppraisalCompetencyDefinition[];
 }
 
 /** One person in a cycle and who reviews them. */
@@ -64,21 +95,43 @@ export interface AppraisalAssignment {
   readonly peerIds?: readonly string[];
 }
 
+/** One rating of a competency in a review. */
+export interface AppraisalReviewRating {
+  readonly competency: string;
+  readonly rating: number;
+  readonly comment?: string;
+}
+
+/** A competency's result on an appraisal. */
+export interface AppraisalCompetencyResult extends AppraisalRubricCompetency {
+  /** The average of the submitted ratings, a decimal string. */
+  readonly average?: string;
+  /** The rating a calibration set. */
+  readonly calibrated?: number;
+}
+
 /** A review of one appraisal. */
 export interface AppraisalReview {
   readonly id: string;
-  readonly reviewerId: string;
+  /**
+   * Unset for a peer review the caller may not attribute (see the cycle's
+   * `anonymity`).
+   */
+  readonly reviewerId?: string;
   readonly kind: AppraisalReviewKind;
   /** 1 to 5; unset until the review is submitted. */
   readonly rating?: number;
   readonly comments?: string;
   readonly submissionId?: string;
   readonly submittedAt?: Temporal.Instant;
+  /** The competency ratings of a rubric cycle. */
+  readonly ratings: readonly AppraisalReviewRating[];
 }
 
-/** What `submitReview` takes. */
+/** What `submitReview` takes: `rating` without a rubric, `ratings` with one. */
 export interface AppraisalReviewInput {
-  readonly rating: number;
+  readonly rating?: number;
+  readonly ratings?: readonly AppraisalReviewRating[];
   readonly comments?: string;
   readonly submissionId?: string;
 }
@@ -89,6 +142,8 @@ export interface AppraisalCalibration {
   /** The rating before the step, a decimal string. */
   readonly fromRating?: string;
   readonly toRating: number;
+  /** The competency ratings the step set, by key. */
+  readonly competencyRatings: Readonly<Record<string, number>>;
   readonly reason: string;
   readonly calibratedBy?: string;
   readonly calibratedAt: Temporal.Instant;
@@ -112,6 +167,13 @@ export interface Appraisal {
   readonly signedOffBy?: string;
   /** Everyone's reviews for readers; the caller's own for everyone else. */
   readonly reviews: readonly AppraisalReview[];
+  /** The cycle's rubric. */
+  readonly rubric: readonly AppraisalRubricCompetency[];
+  /**
+   * Per competency results; for readers, and for the appraised person once a
+   * sharing cycle is signed off.
+   */
+  readonly competencies: readonly AppraisalCompetencyResult[];
   /** Only for readers. */
   readonly calibrations: readonly AppraisalCalibration[];
   readonly goalIds: readonly string[];
@@ -153,6 +215,20 @@ export interface Appraisals {
   calibrate(
     appraisalId: string,
     rating: number,
+    reason: string,
+  ): AsyncResult<Appraisal>;
+  /** Replaces the rubric of a draft cycle. */
+  setCompetencies(
+    cycleId: string,
+    competencies: readonly AppraisalCompetencyDefinition[],
+  ): AsyncResult<AppraisalCycle>;
+  /**
+   * Moves competency ratings of a reviewed appraisal; the calibrated rating
+   * becomes the weighted rating of the result.
+   */
+  calibrateCompetencies(
+    appraisalId: string,
+    competencies: Readonly<Record<string, number>>,
     reason: string,
   ): AsyncResult<Appraisal>;
   /** Replaces the goals the appraisal looks back on. */
@@ -197,6 +273,36 @@ const definedOf = (input: object): Record<string, unknown> =>
 const numberOf = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
 
+function rubricOf(value: unknown, fn: string): AppraisalRubricCompetency[] {
+  return recordsOf(value ?? [], fn).map((item) => ({
+    key: textOf(item["key"]),
+    name: textOf(item["name"]),
+    weight: Number(item["weight"]),
+  }));
+}
+
+function ratingOf(value: unknown, fn: string): AppraisalReviewRating {
+  const row = recordOf(value, fn);
+
+  return {
+    competency: textOf(row["competency"]),
+    rating: Number(row["rating"]),
+    ...optional("comment", optionalText(row["comment"])),
+  };
+}
+
+function resultOf(value: unknown, fn: string): AppraisalCompetencyResult {
+  const row = recordOf(value, fn);
+
+  return {
+    key: textOf(row["key"]),
+    name: textOf(row["name"]),
+    weight: Number(row["weight"]),
+    ...optional("average", optionalText(row["average"])),
+    ...optional("calibrated", numberOf(row["calibrated"])),
+  };
+}
+
 function cycleOf(value: unknown, fn: string): AppraisalCycle {
   const row = recordOf(value, fn);
 
@@ -211,6 +317,13 @@ function cycleOf(value: unknown, fn: string): AppraisalCycle {
       APPRAISAL_CYCLE_STATUSES,
       "cycle status",
     ),
+    anonymity: enumOrThrow(
+      row["anonymity"],
+      APPRAISAL_ANONYMITY,
+      "cycle anonymity",
+    ),
+    shareFeedback: row["shareFeedback"] === true,
+    competencies: rubricOf(row["competencies"], fn),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...optional("program", optionalText(row["program"])),
     ...optional("openedAt", optionalInstant(row["openedAt"])),
@@ -224,8 +337,11 @@ function reviewOf(value: unknown, fn: string): AppraisalReview {
 
   return {
     id: textOf(row["id"]),
-    reviewerId: textOf(row["reviewerId"]),
     kind: enumOrThrow(row["kind"], APPRAISAL_REVIEW_KINDS, "review kind"),
+    ratings: recordsOf(row["ratings"] ?? [], fn).map((item) =>
+      ratingOf(item, fn),
+    ),
+    ...optional("reviewerId", optionalText(row["reviewerId"])),
     ...optional("rating", numberOf(row["rating"])),
     ...optional("comments", optionalText(row["comments"])),
     ...optional("submissionId", optionalText(row["submissionId"])),
@@ -239,6 +355,11 @@ function calibrationOf(value: unknown, fn: string): AppraisalCalibration {
   return {
     id: textOf(row["id"]),
     toRating: Number(row["toRating"]),
+    competencyRatings: Object.fromEntries(
+      Object.entries(recordOf(row["competencyRatings"] ?? {}, fn)).map(
+        ([key, rating]) => [key, Number(rating)],
+      ),
+    ),
     reason: textOf(row["reason"]),
     calibratedAt: requiredInstant(row["calibratedAt"], "calibratedAt"),
     ...optional("fromRating", optionalText(row["fromRating"])),
@@ -255,6 +376,10 @@ function appraisalOf(value: unknown, fn: string): Appraisal {
     cycleId: textOf(row["cycleId"]),
     subjectUserId: textOf(row["subjectUserId"]),
     status: enumOrThrow(row["status"], APPRAISAL_STATUSES, "appraisal status"),
+    rubric: rubricOf(row["rubric"], fn),
+    competencies: recordsOf(row["competencies"] ?? [], fn).map((item) =>
+      resultOf(item, fn),
+    ),
     reviews: recordsOf(row["reviews"] ?? [], fn).map((item) =>
       reviewOf(item, fn),
     ),
@@ -288,7 +413,19 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
       tenant().andThen((organizationId) =>
         call(
           "create_appraisal_cycle",
-          { tenant: organizationId, input: definedOf(input) },
+          {
+            tenant: organizationId,
+            input: {
+              ...definedOf(input),
+              ...(input.competencies === undefined
+                ? {}
+                : {
+                    competencies: input.competencies.map((item) =>
+                      definedOf(item),
+                    ),
+                  }),
+            },
+          },
           cycle("create_appraisal_cycle"),
         ),
       ),
@@ -318,7 +455,15 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
     submitReview: (reviewId, input) =>
       call(
         "submit_appraisal_review",
-        { review_id: reviewId, input: definedOf(input) },
+        {
+          review_id: reviewId,
+          input: {
+            ...definedOf(input),
+            ...(input.ratings === undefined
+              ? {}
+              : { ratings: input.ratings.map((item) => definedOf(item)) }),
+          },
+        },
         appraisal("submit_appraisal_review"),
       ),
     calibrate: (appraisalId, rating, reason) =>
@@ -326,6 +471,21 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
         "calibrate_appraisal",
         { appraisal_id: appraisalId, rating, reason },
         appraisal("calibrate_appraisal"),
+      ),
+    setCompetencies: (cycleId, competencies) =>
+      call(
+        "set_appraisal_competencies",
+        {
+          cycle_id: cycleId,
+          competencies: competencies.map((item) => definedOf(item)),
+        },
+        cycle("set_appraisal_competencies"),
+      ),
+    calibrateCompetencies: (appraisalId, competencies, reason) =>
+      call(
+        "calibrate_appraisal_competencies",
+        { appraisal_id: appraisalId, competencies, reason },
+        appraisal("calibrate_appraisal_competencies"),
       ),
     setGoals: (appraisalId, goalIds) =>
       call(

@@ -33,6 +33,7 @@ breaking ones.
   [observations](/docs/blocks/observations),
   [medications](/docs/blocks/medications) with signatures and guest reads,
   [clinical decision support](/docs/blocks/clinical-decision-support) alerts,
+  [e-prescribing](/docs/blocks/e-prescribing),
   [funding](/docs/blocks/funding), [shifts](/docs/blocks/shifts) and
   [FHIR R4 mappers](/docs/concepts/fhir). See
   [ADR 0134](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0134-record-teams-access-and-read-logging.md)
@@ -268,8 +269,6 @@ packages that live outside this repository.
 
 ### Care
 
-- **E-prescribing:** sending a prescription to a pharmacy. Medications keep
-  the medication list and its administration records only.
 - **Funding on the ledger and approvals:** awards and claims that post to
   `ledger`, and registrations that wait for an `approvals` request, plus a
   funding UI recipe. Today registration approval is the block's own status.
@@ -294,8 +293,6 @@ packages that live outside this repository.
 - **Payroll export:** time entries are not filtered by timesheet approval,
   so unapproved hours count in a run. See
   [payroll export](/docs/blocks/payroll-export).
-- **E-invoices:** `externalRef` is not persisted on the invoice, so a sent
-  UBL document can't be matched back by it.
 - **Tills:** the "Add a till" form in the example app has no cash account
   field. See [tills](/docs/blocks/tills).
 
@@ -319,14 +316,17 @@ packages that live outside this repository.
 ### Adapter packages
 
 These are external adapter repositories, not part of the library. They are
-still to be written, and each plugs into a versioned port:
+still to be written, and each plugs into a versioned port. Start one from the
+tested skeletons in [Write an adapter](/docs/extending/write-an-adapter):
 
 - iWlz, iJw and iWmo claims through `FundingClaimFormat`.
 - The G-Standaard through `MedicationCatalog`.
 - RGS chart of accounts imports.
-- Peppol access points through `EInvoiceChannel`, with a UBL schema
+- Peppol access point adapters for `EInvoiceChannel`, with a UBL schema
   validator.
 - Bank feeds through `BankFeed`.
+- Pharmacy and national prescription services through `PrescriptionGateway`,
+  and drug databases through `ClinicalDecisionSupport`.
 
 ### Platform and naming
 

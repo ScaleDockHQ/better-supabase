@@ -21,6 +21,8 @@ const CYCLE = {
   openedAt: AT,
   createdAt: AT,
   appraisalsCreated: 2,
+  anonymity: "subject",
+  shareFeedback: false,
 };
 
 const APPRAISAL = {
@@ -194,6 +196,57 @@ describe("createAppraisals", () => {
     await expect(appraisals.signOff("a1").orThrow()).rejects.toThrow(/./);
   });
 
+  it("sets a rubric, rates competencies and calibrates them", async () => {
+    const rubric = [
+      { key: "craft", name: "Craft", weight: 3 },
+      { key: "teamwork", name: "Teamwork" },
+    ];
+
+    const t = fieldsTransport({
+      set_appraisal_competencies: () => ({
+        ...CYCLE,
+        anonymity: "all",
+        shareFeedback: true,
+        competencies: [
+          { ...rubric[0], weight: 3 },
+          { ...rubric[1], weight: 1 },
+        ],
+      }),
+      submit_appraisal_review: () => APPRAISAL,
+      calibrate_appraisal_competencies: () => ({
+        ...APPRAISAL,
+        rubric: [{ key: "craft", name: "Craft", weight: 3 }],
+        competencies: [{ key: "craft", average: 4, calibrated: 5 }],
+      }),
+    });
+
+    const appraisals = createAppraisals({ transport: t, tenant: "org-1" });
+    const cycle = await appraisals.setCompetencies("c1", rubric).orThrow();
+
+    await appraisals
+      .submitReview("v1", {
+        ratings: [{ competency: "craft", rating: 4, comment: "Solid" }],
+      })
+      .orThrow();
+
+    const calibrated = await appraisals
+      .calibrateCompetencies("a1", { craft: 5 }, "Raised")
+      .orThrow();
+
+    expect(cycle).toMatchObject({ anonymity: "all", shareFeedback: true });
+    expect(cycle.competencies).toHaveLength(2);
+    expect(calibrated.rubric).toHaveLength(1);
+    expect(calibrated.competencies[0]).toMatchObject({ key: "craft" });
+    expect(t.calls[0]).toEqual([
+      "set_appraisal_competencies",
+      { cycle_id: "c1", competencies: rubric },
+    ]);
+    expect(t.calls[2]).toEqual([
+      "calibrate_appraisal_competencies",
+      { appraisal_id: "a1", competencies: { craft: 5 }, reason: "Raised" },
+    ]);
+  });
+
   it("has a manifest and input schemas with the SQL bounds", () => {
     expect(appraisalsBlock.name).toBe("appraisals");
     expect(
@@ -215,6 +268,18 @@ describe("createAppraisals", () => {
     ).toBeUndefined();
     expect(
       validate(appraisalReviewInputSchema, { rating: 9 }).issues,
+    ).toBeDefined();
+  });
+
+  it("checks the anonymity mode of a cycle", () => {
+    const base = { name: "H2", startsOn: "2026-07-01", endsOn: "2026-12-31" };
+
+    expect(
+      validate(appraisalCycleInputSchema, { ...base, anonymity: "all" }).issues,
+    ).toBeUndefined();
+    expect(
+      validate(appraisalCycleInputSchema, { ...base, anonymity: "some" })
+        .issues,
     ).toBeDefined();
   });
 });

@@ -14,7 +14,7 @@ import type {
   InvoiceCollection,
   InvoicePaymentTerms,
 } from "./collections.ts";
-import type { InvoiceEInvoices } from "./e-invoice.ts";
+import type { InvoiceEDelivery } from "./e-delivery.ts";
 import type { InvoiceOpenItems } from "./open-items.ts";
 import type { InvoiceSources } from "./sources.ts";
 
@@ -50,7 +50,7 @@ import {
   invoiceCollections,
   paymentTermsOf,
 } from "./collections.ts";
-import { invoiceEInvoices } from "./e-invoice.ts";
+import { invoiceEDelivery } from "./e-delivery.ts";
 import { invoiceOpenItems } from "./open-items.ts";
 import { invoiceSources } from "./sources.ts";
 
@@ -294,8 +294,8 @@ export interface Invoices<F extends object = Record<never, never>>
   extends
     InvoiceCollections<Invoice<F>>,
     InvoiceOpenItems<Invoice<F>>,
-    InvoiceSources,
-    InvoiceEInvoices {
+    InvoiceEDelivery<Invoice<F>>,
+    InvoiceSources {
   create(
     organizationId: string,
     input: InvoiceInput<F>,
@@ -837,8 +837,10 @@ export function createInvoices<
         : AsyncResult.err(unknownCurrency(currency)),
     ...invoiceCollections(call, invoice),
     ...invoiceOpenItems(call, invoice),
+    ...invoiceEDelivery(call, (organizationId, input, lines) =>
+      client.create(organizationId, input, lines),
+    ),
     ...invoiceSources(call),
-    ...invoiceEInvoices(call),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
     payments: (invoiceId) =>

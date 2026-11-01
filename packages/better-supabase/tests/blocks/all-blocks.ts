@@ -50,6 +50,7 @@ import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
 import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
+import type { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { enrichmentBlock } from "../../src/blocks/enrichment/manifest.ts";
 import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
@@ -257,6 +258,7 @@ export type AllBlocks = {
   readonly rfqs: typeof rfqsBlock;
   readonly tills: typeof tillsBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
+  readonly "e-prescribing": typeof ePrescribingBlock;
   readonly manufacturing: typeof manufacturingBlock;
   readonly banking: typeof bankingBlock;
   readonly tax: typeof taxBlock;

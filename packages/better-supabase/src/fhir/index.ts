@@ -10,6 +10,8 @@ export * from "./observations.ts";
 
 export * from "./people.ts";
 
+export * from "./prescriptions.ts";
+
 export type * from "./types.ts";
 
 export type {

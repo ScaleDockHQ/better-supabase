@@ -14,6 +14,7 @@ import { locationsOf } from "./inventory-stock.ts";
 import { QUANTITY } from "./inventory-tracking.ts";
 import { warehouseCounting } from "./warehouse-counting.ts";
 import { warehousePicking } from "./warehouse-picking.ts";
+import { warehousePutaway } from "./warehouse-putaway.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
 import {
   PICK_LINE_STATUSES,
@@ -54,6 +55,9 @@ const NAMES: BlockSqlNames = {
     pick_wave: { table: "waves", singular: "pick_wave" },
     pick_line: { table: "lines", singular: "pick_line" },
     count_plan: { table: "plans", singular: "count_plan" },
+    putaway_rule: { table: "rules", singular: "putaway_rule" },
+    bin_slot: { table: "slots", singular: "bin_slot" },
+    variant_size: { table: "sizes", singular: "variant_size" },
   },
   events: EVENTS,
   hooks: ["before_pick_list_create", "after_pick_list_create"],
@@ -109,6 +113,7 @@ const NAMES: BlockSqlNames = {
         serials: "serials",
         quantity: "quantity",
         picked: "picked",
+        route: "route_position",
         status: "status",
         pickedAt: "picked_at",
         pickedBy: "picked_by",
@@ -133,6 +138,47 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
     },
+    rules: {
+      name: "putaway_rules",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        location: "location_id",
+        bin: "bin_id",
+        variant: "variant_id",
+        priority: "priority",
+        maxQuantity: "max_quantity",
+        active: "active",
+        createdAt: "created_at",
+      },
+    },
+    slots: {
+      name: "bin_slots",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        bin: "bin_id",
+        walkRank: "walk_rank",
+        capacity: "capacity",
+        updatedAt: "updated_at",
+      },
+    },
+    sizes: {
+      name: "variant_sizes",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        variant: "variant_id",
+        size: "size",
+        updatedAt: "updated_at",
+      },
+    },
   },
 };
 
@@ -141,7 +187,11 @@ const list = (values: readonly string[]): string =>
 
 function tables(ctx: BlockSqlContext): string {
   const q = warehouseSql(ctx);
-  const { w, p, l, n, waves, lists, lines, plans, inventory } = q;
+  const { w, p, l, n, r, s, z, waves, lists, lines, plans, inventory } = q;
+  const rules = q.rules;
+  const slots = q.slots;
+  const sizes = q.sizes;
+  const bins = inventory.table("bins");
   const loc = locationsOf(inventory);
   const allocations = inventory.table("allocations");
   const catalog = inventory.of("catalog");
@@ -226,6 +276,7 @@ create table if not exists ${lines} (
   ${l("lot")} uuid,
   ${l("serials")} text[],
   ${l("quantity")} ${QUANTITY} not null check (${l("quantity")} > 0),
+  ${l("route")} integer check (${l("route")} > 0),
   ${l("picked")} ${QUANTITY} not null default 0 check (${l("picked")} >= 0 and ${l("picked")} <= ${l("quantity")}),
   ${l("status")} text not null default 'open' check (${l("status")} in (${list(PICK_LINE_STATUSES)})),
   ${l("pickedAt")} timestamptz,
@@ -262,6 +313,54 @@ create index if not exists ${name("plans", "due_idx")} on ${plans} (${n("tenant"
 create index if not exists ${name("plans", "location_idx")} on ${plans} (${n("location")});
 ${lockTable(plans, { read: true })}
 ${readPolicy("plans", n("tenant"))}
+
+-- Where a receipt's stock goes: the bin to suggest for a variant (or for any
+-- variant), first by priority, up to max_quantity of that variant in the bin.
+create table if not exists ${rules} (
+  ${r("id")} uuid primary key default gen_random_uuid(),
+  ${r("tenant")} ${ctx.idType} not null,
+  ${r("location")} uuid not null references ${loc.table} (${loc.col("id")}) on delete cascade,
+  ${r("bin")} uuid not null references ${bins} (${inventory.col("bins", "id")}) on delete cascade,
+  ${r("variant")} uuid references ${variants} (${catalog.col("variants", "id")}) on delete cascade,
+  ${r("priority")} integer not null default 100 check (${r("priority")} between 0 and 10000),
+  ${r("maxQuantity")} ${QUANTITY} check (${r("maxQuantity")} > 0),
+  ${r("active")} boolean not null default true,
+  ${r("createdAt")} timestamptz not null default now(),
+  unique (${r("tenant")}, ${r("id")})
+);${appKey("rules", `${r("tenant")}, ${r("id")}`)}
+create index if not exists ${name("rules", "lookup_idx")} on ${rules} (${r("tenant")}, ${r("location")}, ${r("variant")}, ${r("priority")}) where ${r("active")};
+create index if not exists ${name("rules", "bin_idx")} on ${rules} (${r("bin")});
+create index if not exists ${name("rules", "location_idx")} on ${rules} (${r("location")});
+create index if not exists ${name("rules", "variant_idx")} on ${rules} (${r("variant")});
+${lockTable(rules, { read: true })}
+${readPolicy("rules", r("tenant"))}
+
+-- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
+-- how much it holds, in the same unit as variant_sizes.size.
+create table if not exists ${slots} (
+  ${s("id")} uuid primary key default gen_random_uuid(),
+  ${s("tenant")} ${ctx.idType} not null,
+  ${s("bin")} uuid not null unique references ${bins} (${inventory.col("bins", "id")}) on delete cascade,
+  ${s("walkRank")} integer not null default 0 check (${s("walkRank")} between 0 and 100000),
+  ${s("capacity")} ${QUANTITY} check (${s("capacity")} > 0),
+  ${s("updatedAt")} timestamptz not null default now(),
+  unique (${s("tenant")}, ${s("id")})
+);${appKey("slots", `${s("tenant")}, ${s("id")}`)}
+${ctx.owns("slots") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("slots").name}_bin_key`)} on ${slots} (${s("bin")});\n`}${lockTable(slots, { read: true })}
+${readPolicy("slots", s("tenant"))}
+
+-- The space one unit of a variant takes in a bin; a variant without a row
+-- takes 1.
+create table if not exists ${sizes} (
+  ${z("id")} uuid primary key default gen_random_uuid(),
+  ${z("tenant")} ${ctx.idType} not null,
+  ${z("variant")} uuid not null unique references ${variants} (${catalog.col("variants", "id")}) on delete cascade,
+  ${z("size")} ${QUANTITY} not null check (${z("size")} > 0),
+  ${z("updatedAt")} timestamptz not null default now(),
+  unique (${z("tenant")}, ${z("id")})
+);${appKey("sizes", `${z("tenant")}, ${z("id")}`)}
+${ctx.owns("sizes") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("sizes").name}_variant_key`)} on ${sizes} (${z("variant")});\n`}${lockTable(sizes, { read: true })}
+${readPolicy("sizes", z("tenant"))}
 `;
 }
 
@@ -278,10 +377,11 @@ function build(ctx: BlockSqlContext): string {
 -- a review before they post.
 ${tables(ctx)}
 ${warehousePicking(ctx)}
-${warehouseCounting(ctx)}`;
+${warehouseCounting(ctx)}
+${warehousePutaway(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "create_pick_wave", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "create_pick_list", args: ["{id}", "jsonb"], returns: "jsonb" },
@@ -298,6 +398,18 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "run_due_count_plans", args: ["{id}"], returns: "jsonb" },
     { name: "get_cycle_count_variance", args: ["uuid"], returns: "jsonb" },
     { name: "post_cycle_count", args: ["uuid", "boolean"], returns: "jsonb" },
+    { name: "save_putaway_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "delete_putaway_rule", args: ["uuid"], returns: "boolean" },
+    { name: "list_putaway_rules", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "save_bin_slot", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "save_variant_size", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "list_bin_slots", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "suggest_putaway", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "suggest_slotting", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "set_pick_route", args: ["uuid", "uuid[]"], returns: "jsonb" },
+    ...(ctx.of("inventory").hasTable("receipts")
+      ? [{ name: "suggest_receipt_putaway", args: ["uuid"], returns: "jsonb" }]
+      : []),
   ];
 }
 

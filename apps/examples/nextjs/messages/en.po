@@ -637,6 +637,17 @@ msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Log your hours for the week and send them for approval."
 
+#: src/app/[locale]/(app)/prescriptions/page.tsx
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.a5UKX3"
+msgid "Prescriptions"
+msgstr "Prescriptions"
+
+#: src/app/[locale]/(app)/prescriptions/page.tsx
+msgctxt "prescriptions.O1kWi4"
+msgid "Drafts the prescriber signs, then a gateway sends them to the pharmacy."
+msgstr "Drafts the prescriber signs, then a gateway sends them to the pharmacy."
+
 #: src/app/[locale]/(app)/production/page.tsx
 msgctxt "production.Eh10oP"
 msgid "Production planning"
@@ -7677,6 +7688,101 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Access"
 
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.oW2jG6"
+msgid "Signed"
+msgstr "Signed"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.gcuDcH"
+msgid "Sent"
+msgstr "Sent"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.8yizHP"
+msgid "Dispensed"
+msgstr "Dispensed"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.HsKQIf"
+msgid "Not signed yet"
+msgstr "Not signed yet"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.gDXziV"
+msgid "Sign"
+msgstr "Sign"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.venWl7"
+msgid "Medication"
+msgstr "Medication"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.iQpcFb"
+msgid "Only the prescriber signs a draft. A signed prescription freezes the order."
+msgstr "Only the prescriber signs a draft. A signed prescription freezes the order."
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.kbuBjj"
+msgid "The prescriptions didn't load"
+msgstr "The prescriptions didn't load"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.nnyot-"
+msgid "No prescriptions"
+msgstr "No prescriptions"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.3UeTGC"
+msgid "Draft a prescription from an active medication order, then sign it."
+msgstr "Draft a prescription from an active medication order, then sign it."
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.1A8Z_l"
+msgid "Check again"
+msgstr "Check again"
+
+#: src/features/e-prescribing/components/prescriptions.tsx
+msgctxt "prescriptions.BYSae4"
+msgid "Read the e-prescribing guide"
+msgstr "Read the e-prescribing guide"
+
 #: src/features/field/components/advance-work-order-button.tsx
 msgctxt "field.s7o6zU"
 msgid "Leave for the stop"
@@ -9790,6 +9896,11 @@ msgid "Meter"
 msgstr "Meter"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.Coy6SH"
+msgid "Calendar"
+msgstr "Calendar"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.C2iTEH"
 msgid "Paused"
 msgstr "Paused"
@@ -9835,9 +9946,9 @@ msgid "Maintenance plans"
 msgstr "Maintenance plans"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.HKgDIs"
-msgid "Plans fall due by time or by meter and open dispatch work orders."
-msgstr "Plans fall due by time or by meter and open dispatch work orders."
+msgctxt "maintenance.eVoywZ"
+msgid "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
+msgstr "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.32UjFX"
@@ -9860,9 +9971,9 @@ msgid "No maintenance plans yet"
 msgstr "No maintenance plans yet"
 
 #: src/features/maintenance/components/maintenance-plans.tsx
-msgctxt "maintenance.O4uDKc"
-msgid "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
-msgstr "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due."
+msgctxt "maintenance.MPVU48"
+msgid "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
+msgstr "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
 
 #: src/features/maintenance/components/maintenance-plans.tsx
 msgctxt "maintenance.PTnz1l"
@@ -10912,6 +11023,11 @@ msgstr "Medications"
 msgctxt "navigation.FuvPAW"
 msgid "Care alerts"
 msgstr "Care alerts"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.a5UKX3"
+msgid "Prescriptions"
+msgstr "Prescriptions"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y10hgk"
@@ -16674,6 +16790,11 @@ msgstr "Picked"
 msgctxt "warehouse.3wsVWF"
 msgid "Cancelled"
 msgstr "Cancelled"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.u9j3aI"
+msgid "Plan route"
+msgstr "Plan route"
 
 #: src/features/warehouse/components/pick-list-grid.tsx
 msgctxt "warehouse.U78NhE"

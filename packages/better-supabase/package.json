@@ -1125,6 +1125,11 @@
       "types": "./dist/blocks/clinical-decision-support/index.d.ts",
       "default": "./dist/blocks/clinical-decision-support/index.js"
     },
+    "./blocks/e-prescribing": {
+      "@better-supabase/source": "./src/blocks/e-prescribing/index.ts",
+      "types": "./dist/blocks/e-prescribing/index.d.ts",
+      "default": "./dist/blocks/e-prescribing/index.js"
+    },
     "./blocks/tills": {
       "@better-supabase/source": "./src/blocks/tills/index.ts",
       "types": "./dist/blocks/tills/index.d.ts",
@@ -2114,6 +2119,10 @@
       "./blocks/clinical-decision-support": {
         "types": "./dist/blocks/clinical-decision-support/index.d.ts",
         "default": "./dist/blocks/clinical-decision-support/index.js"
+      },
+      "./blocks/e-prescribing": {
+        "types": "./dist/blocks/e-prescribing/index.d.ts",
+        "default": "./dist/blocks/e-prescribing/index.js"
       },
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",
