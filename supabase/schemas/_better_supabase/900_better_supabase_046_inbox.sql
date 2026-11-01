@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:ba9add7876ad2ba6801ba0a0aa2ac378e6af38d37d47cbb4ec2085d1c2b7b7b0
+-- @bsb-hash sha256:75c64666b136039bd0eda3ef8b563184c2df3272e5d12aaf920f7240888c1267
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -943,6 +943,14 @@ begin
   else
     raise exception 'not allowed to open a conversation in this inbox' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_inbox_conversation_start"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using start_conversation.inbox, start_conversation.input;
+    end if;
+  end;
   v_contact := "better_supabase"."resolve_person"(v_inbox."tenant_id", v_contact_input);
   select p."user_id" into v_contact_user from "better_supabase"."people" p where p."id" = v_contact;
   v_id := gen_random_uuid();
@@ -977,6 +985,14 @@ begin
       case when v_staff then 'outbound' else 'inbound' end
     );
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_inbox_conversation_start"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_conv."id";
+    end if;
+  end;
   return "better_supabase"."inbox_conversation_json"(v_conv."id");
 end;
 $$;
@@ -1026,12 +1042,28 @@ begin
   else
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_inbox_message_send"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using send_inbox_message.conversation, send_inbox_message.input;
+    end if;
+  end;
   v_id := "better_supabase"."inbox_add_message"(v_conv."id", coalesce(input, '{}'::jsonb) - 'author_type', v_author_type, (select auth.uid()), v_direction);
   if v_author_type = 'agent' and v_kind = 'message' and v_conv."bot_mode" = 'bot' then
     update "better_supabase"."inbox_conversations" set "bot_mode" = 'human' where "id" = v_conv."id" returning * into v_conv;
     insert into "better_supabase"."inbox_conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'handoff', (select auth.uid()), jsonb_build_object('from', 'bot', 'to', 'human', 'reason', 'agent_reply'));
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_inbox_message_send"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return "better_supabase"."inbox_messages_json"(array[v_id]) -> 0;
 end;
 $$;
@@ -1171,6 +1203,14 @@ begin
     raise exception 'the assignee cannot read this inbox' using errcode = '22023', hint = 'INBOX_ASSIGNEE_INVALID';
   end if;
   v_before := v_conv."assignee_id";
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_inbox_conversation_assign"(uuid, uuid, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::uuid)', v_hook::oid::regproc)
+        using v_conv."id", assign_conversation.assignee, assign_conversation.team;
+    end if;
+  end;
   update "better_supabase"."inbox_conversations" set
     "assignee_id" = assign_conversation.assignee,
     "team_id" = coalesce(assign_conversation.team, "team_id")
@@ -1205,6 +1245,14 @@ begin
       null;
     end if;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_inbox_conversation_assign"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_conv."id";
+    end if;
+  end;
   return "better_supabase"."inbox_conversation_json"(v_conv."id");
 end;
 $$;
@@ -1235,6 +1283,14 @@ begin
     raise exception 'snoozing needs a snoozed_until in the future' using errcode = '22023', hint = 'INBOX_SNOOZE_UNTIL';
   end if;
   v_before := v_conv."status";
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_inbox_conversation_status_change"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_conv."id", set_conversation_status.status;
+    end if;
+  end;
   update "better_supabase"."inbox_conversations" set
     "status" = set_conversation_status.status,
     "snoozed_until" = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end,
@@ -1253,6 +1309,14 @@ begin
       perform "better_supabase".emit_event('inbox_conversation.reopened', jsonb_build_object('conversationId', v_conv."id", 'organizationId', v_conv."tenant_id"::text, 'inboxId', v_conv."inbox_id", 'contactId', v_conv."contact_id", 'assigneeId', v_conv."assignee_id", 'status', v_conv."status"), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id")::text, null, 'better-supabase/inbox');
     end if;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_inbox_conversation_status_change"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_conv."id";
+    end if;
+  end;
   return "better_supabase"."inbox_conversation_json"(v_conv."id");
 end;
 $$;
