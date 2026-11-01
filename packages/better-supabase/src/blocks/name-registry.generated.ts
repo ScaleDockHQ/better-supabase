@@ -79,29 +79,19 @@ export interface BlockNameRegistry {
     readonly primary: "activity";
     readonly formerKeys: "engagement";
   };
-  readonly "advisories": {
+  readonly "agent-checkout": {
     readonly tables: {
-      readonly "products": "id" | "tenant" | "key" | "name" | "vendor" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "versions": "id" | "tenant" | "product" | "version" | "releasedAt" | "endOfSupportAt" | "sbomSerial" | "sbomSpec" | "sbomComponents" | "sbomImportedAt" | "createdAt";
-      readonly "components": "id" | "tenant" | "version" | "bomRef" | "kind" | "name" | "componentVersion" | "purl" | "packagePurl" | "cpe" | "supplier" | "licenses" | "hashes";
-      readonly "vulnerabilities": "id" | "tenant" | "vulnId" | "aliases" | "summary" | "details" | "cvssVector" | "cvssVersion" | "cvssScore" | "severity" | "epssScore" | "epssPercentile" | "epssDate" | "kev" | "kevAddedOn" | "kevDueOn" | "kevRansomware" | "affectedPurls" | "referenceLinks" | "publishedAt" | "modifiedAt" | "enrichedAt" | "createdAt" | "updatedAt";
-      readonly "vex": "id" | "tenant" | "product" | "version" | "vulnerability" | "status" | "justification" | "impactStatement" | "actionStatement" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "advisories": "id" | "tenant" | "trackingId" | "title" | "summary" | "product" | "severity" | "status" | "revision" | "initialReleaseAt" | "currentReleaseAt" | "revisionHistory" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "links": "tenant" | "advisory" | "vulnerability" | "createdAt";
+      readonly "sessions": "id" | "tenant" | "cart" | "protocol" | "status" | "idempotencyKey" | "requestHash" | "buyer" | "order" | "expiresAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "mandates": "id" | "tenant" | "session" | "vct" | "status" | "credential" | "credentialHash" | "issuerKid" | "subject" | "expiresAt" | "consumedAt" | "createdBy" | "createdAt";
     };
-    readonly functions: "create_product_version" | "get_advisory" | "get_published_advisory" | "import_sbom" | "list_advisories" | "list_advisory_products" | "list_product_versions" | "list_published_advisories" | "list_sbom_components" | "list_vex_statements" | "list_vulnerabilities" | "publish_advisory" | "record_vulnerability_enrichment" | "save_advisory" | "save_advisory_product" | "save_vex_statement" | "save_vulnerability" | "version_exposure" | "vulnerabilities_due";
-    readonly actions: "read" | "write" | "publish";
+    readonly functions: "complete_checkout_session" | "consume_agent_mandate" | "create_checkout_session" | "get_agent_mandate" | "get_checkout_session" | "list_agent_mandates" | "list_checkout_sessions" | "revoke_agent_mandate" | "store_agent_mandate" | "update_checkout_session";
+    readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "advisory": "id" | "tenant_id" | "tracking_id" | "title" | "summary" | "product_id" | "severity" | "status" | "revision" | "initial_release_at" | "current_release_at" | "revision_history" | "created_by" | "created_at" | "updated_at";
-      readonly "advisory_product": "id" | "tenant_id" | "key" | "name" | "vendor" | "description" | "archived_at" | "created_by" | "created_at" | "updated_at";
-      readonly "advisory_product_version": "id" | "tenant_id" | "product_id" | "version" | "released_at" | "end_of_support_at" | "sbom_serial" | "sbom_spec" | "sbom_component_count" | "sbom_imported_at" | "created_at";
-      readonly "sbom_component": "id" | "tenant_id" | "version_id" | "bom_ref" | "component_type" | "name" | "component_version" | "purl" | "package_purl" | "cpe" | "supplier" | "licenses" | "hashes";
-      readonly "vulnerability": "id" | "tenant_id" | "vuln_id" | "aliases" | "summary" | "details" | "cvss_vector" | "cvss_version" | "cvss_score" | "severity" | "epss_score" | "epss_percentile" | "epss_date" | "kev" | "kev_added_on" | "kev_due_on" | "kev_ransomware" | "affected_purls" | "reference_links" | "published_at" | "modified_at" | "enriched_at" | "created_at" | "updated_at";
-      readonly "vex_statement": "id" | "tenant_id" | "product_id" | "version_id" | "vulnerability_id" | "status" | "justification" | "impact_statement" | "action_statement" | "created_by" | "created_at" | "updated_at";
-      readonly "advisory_vulnerability": "tenant_id" | "advisory_id" | "vulnerability_id" | "created_at";
+      readonly "checkout_session": "id" | "tenant_id" | "cart_id" | "protocol" | "status" | "idempotency_key" | "request_hash" | "buyer" | "order_id" | "expires_at" | "created_by" | "created_at" | "updated_at";
+      readonly "agent_mandate": "id" | "tenant_id" | "session_id" | "vct" | "status" | "credential" | "credential_hash" | "issuer_kid" | "subject" | "expires_at" | "consumed_at" | "created_by" | "created_at";
     };
-    readonly primary: "advisory";
+    readonly primary: "checkout_session";
     readonly formerKeys: never;
   };
   readonly "agents": {
@@ -160,20 +150,6 @@ export interface BlockNameRegistry {
     readonly primary: "ai_chat";
     readonly formerKeys: "chat" | "project";
   };
-  readonly "ai-evals": {
-    readonly tables: {
-      readonly "datasets": "id" | "tenant" | "name" | "description" | "createdAt";
-      readonly "items": "id" | "dataset" | "input" | "expected" | "metadata" | "sourceChat" | "sourceMessage" | "createdAt";
-      readonly "runs": "id" | "dataset" | "tenant" | "promptName" | "promptVersion" | "model" | "scorers" | "status" | "summary" | "createdAt" | "finishedAt";
-      readonly "results": "run" | "item" | "output" | "scores" | "passed" | "error" | "latencyMs" | "createdAt";
-    };
-    readonly functions: "add_eval_items" | "add_eval_items_from_feedback" | "compare_eval_runs" | "create_eval_dataset" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_run" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "record_eval_result";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-    readonly formerKeys: never;
-  };
   readonly "ai-files": {
     readonly tables: {
       readonly "files": "id" | "tenant" | "owner" | "chat" | "project" | "bucket" | "path" | "mediaType" | "filename" | "size" | "sha256" | "status" | "source" | "createdAt" | "uploadedAt" | "expiresAt";
@@ -189,18 +165,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "ai_document";
     readonly formerKeys: "document";
-  };
-  readonly "ai-guardrails": {
-    readonly tables: {
-      readonly "policies": "id" | "tenant" | "agent" | "stage" | "config" | "enabled" | "updatedAt";
-      readonly "decisions": "id" | "tenant" | "agent" | "stage" | "decision" | "reasons" | "chat" | "contentHash" | "createdAt";
-    };
-    readonly functions: "get_guardrail_policy" | "list_guardrail_decisions" | "purge_guardrail_decisions" | "record_guardrail_decision" | "set_guardrail_policy";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-    readonly formerKeys: never;
   };
   readonly "ai-keys": {
     readonly tables: {
@@ -629,7 +593,7 @@ export interface BlockNameRegistry {
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_control_evidence" | "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "export_oscal_assessment_results" | "get_control" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
+    readonly functions: "add_control_evidence" | "archive_compliance_policy" | "control_posture" | "get_control" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
     readonly actions: "read" | "manage" | "collect";
     readonly hooks: never;
     readonly entities: {
@@ -661,10 +625,8 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "purposes": "id" | "tenant" | "key" | "title" | "description" | "legalBasis" | "version" | "requiresSignature" | "validMonths" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "consents": "id" | "tenant" | "purpose" | "subjectType" | "subjectId" | "givenBy" | "givenByContact" | "givenByUser" | "status" | "scope" | "grantedAt" | "validUntil" | "withdrawnAt" | "withdrawnReason" | "signature" | "submission" | "attachment" | "createdBy" | "createdAt";
-      readonly "signals": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "raw" | "parsed" | "consents" | "createdBy" | "receivedAt";
-      readonly "receipts": "id" | "tenant" | "subjectType" | "subjectId" | "consent" | "status" | "receipt" | "digest" | "issuedAt";
     };
-    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "save_consent_purpose" | "withdraw_consent";
+    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "list_consent_purposes" | "list_consents" | "record_consent" | "save_consent_purpose" | "withdraw_consent";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
@@ -798,9 +760,8 @@ export interface BlockNameRegistry {
       readonly "deletions": "tenant" | "requestedBy" | "requestedAt" | "purgeAfter" | "cancelledAt" | "purgedAt" | "previouslyDisabled";
       readonly "policies": "id" | "tenant" | "plan" | "kind" | "keep" | "updatedAt";
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
-      readonly "requests": "id" | "tenant" | "kind" | "requester" | "subjectType" | "subjectId" | "details" | "status" | "receivedAt" | "receivedBy" | "dueAt" | "extendedAt" | "extensionReason" | "verifiedAt" | "verifiedBy" | "verificationMethod" | "exportId" | "resolution" | "closedAt" | "closedBy";
     };
-    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "expired_data_exports" | "extend_data_subject_request" | "fail_data_export" | "forget_data_exports" | "fulfil_data_subject_request" | "get_data_export" | "is_held" | "list_data_exports" | "list_data_subject_requests" | "list_legal_holds" | "list_retention_policies" | "open_data_subject_request" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "refuse_data_subject_request" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy" | "verify_data_subject_request";
+    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
     readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
@@ -1241,11 +1202,9 @@ export interface BlockNameRegistry {
       readonly "impacts": "tenant" | "incident" | "component" | "impact";
       readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "postmortem" | "task" | "createdAt";
-      readonly "profiles": "incident" | "tenant" | "regimes" | "awareAt" | "classification" | "classifiedAt" | "significant" | "activelyExploited" | "measureAvailableAt" | "createdAt" | "updatedAt";
-      readonly "filings": "id" | "tenant" | "incident" | "regime" | "stage" | "dueAt" | "reminder" | "submittedAt" | "submittedBy" | "reference" | "notes" | "createdAt";
       readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
     };
-    readonly functions: "delete_status_component" | "get_incident" | "get_incident_regulatory_profile" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incident_filings" | "list_incidents" | "list_status_components" | "open_incident" | "plan_incident_filings" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_incident_regulatory_profile" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "submit_incident_filing" | "update_incident";
+    readonly functions: "delete_status_component" | "get_incident" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incidents" | "list_status_components" | "open_incident" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "update_incident";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1333,13 +1292,12 @@ export interface BlockNameRegistry {
       readonly "dunningHistory": "id" | "tenant" | "invoice" | "run" | "kind" | "level" | "textKey" | "templateKey" | "fee" | "balance" | "note" | "createdAt";
       readonly "allocations": "id" | "tenant" | "reference" | "party" | "invoice" | "source" | "amount" | "discount" | "payment" | "discountPayment" | "allocatedOn" | "unallocatedAt" | "createdBy" | "createdAt";
       readonly "lineSources": "id" | "tenant" | "invoice" | "position" | "source" | "sourceId" | "sourceLine" | "orderLine" | "quantity" | "createdAt";
+      readonly "deliveries": "id" | "tenant" | "invoice" | "channel" | "format" | "externalRef" | "filename" | "sentBy" | "sentAt";
       readonly "approvalLevels": "id" | "tenant" | "legalEntity" | "level" | "minAmount" | "currency" | "approver" | "createdAt";
       readonly "approvals": "id" | "tenant" | "invoice" | "level" | "approver" | "comment" | "decidedAt";
-      readonly "eEndpoints": "id" | "tenant" | "partyKind" | "partyId" | "scheme" | "endpoint" | "createdAt" | "updatedAt";
-      readonly "eDeliveries": "id" | "tenant" | "invoice" | "direction" | "format" | "channel" | "messageId" | "state" | "reason" | "documentHash" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "find_e_endpoint_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_e_endpoints" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_e_invoice_deliveries" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "recompute_invoice_totals" | "record_e_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_e_invoice_delivery_state" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_e_endpoint" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
-    readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "send" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
+    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_deliveries" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "recompute_invoice_totals" | "record_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
       readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "deposit_amount" | "discount_bps" | "discount_amount" | "prices_include_tax" | "archived_at" | "direction" | "supplier_reference" | "purchase_order_id" | "dimensions" | "dunning_level" | "dunning_at" | "dunning_paused_until" | "buyer" | "payment_terms_id" | "discount_due_on" | "discount_amount_early" | "collection_status" | "collection_agency_id" | "collection_handed_at" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
@@ -1644,12 +1602,8 @@ export interface BlockNameRegistry {
       readonly "reports": "id" | "tenant" | "item" | "reporter" | "reason" | "note" | "status" | "resolvedBy" | "resolvedAt" | "createdAt";
       readonly "actions": "id" | "tenant" | "item" | "action" | "fromStatus" | "toStatus" | "reason" | "actor" | "createdAt";
       readonly "bans": "id" | "tenant" | "user" | "reason" | "bannedBy" | "expiresAt" | "liftedBy" | "liftedAt" | "createdAt";
-      readonly "statements": "id" | "tenant" | "item" | "restriction" | "facts" | "legalGround" | "termsGround" | "automatedDetection" | "automatedDecision" | "redress" | "issuedBy" | "createdAt";
-      readonly "notices": "id" | "tenant" | "item" | "subjectType" | "subjectId" | "explanation" | "url" | "notifierName" | "notifierEmail" | "notifier" | "trusted" | "status" | "outcome" | "decidedBy" | "decidedAt" | "createdAt";
-      readonly "flaggers": "id" | "tenant" | "user" | "name" | "awardedBy" | "revokedAt" | "createdAt";
-      readonly "appeals": "id" | "tenant" | "statement" | "notice" | "reasons" | "appellant" | "status" | "outcome" | "decidedBy" | "decidedAt" | "createdAt";
     };
-    readonly functions: "ban_user" | "decide_appeal" | "decide_notice" | "file_appeal" | "issue_statement" | "list_bans" | "list_notices" | "list_statements" | "moderate" | "moderation_apply" | "moderation_banned" | "moderation_item" | "moderation_queue" | "moderation_statuses" | "moderation_track" | "report_content" | "set_trusted_flagger" | "submit_notice" | "transparency_report" | "unban_user";
+    readonly functions: "ban_user" | "list_bans" | "moderate" | "moderation_apply" | "moderation_banned" | "moderation_item" | "moderation_queue" | "moderation_statuses" | "moderation_track" | "report_content" | "unban_user";
     readonly actions: "read" | "report" | "manage" | "ban";
     readonly hooks: never;
     readonly entities: {
@@ -1886,18 +1840,6 @@ export interface BlockNameRegistry {
       readonly "promotion": "id" | "tenant_id" | "name" | "description" | "kind" | "percent" | "currency" | "amount" | "min_subtotal" | "scope" | "target_ids" | "starts_at" | "ends_at" | "usage_limit" | "per_customer_limit" | "redemptions" | "stackable" | "priority" | "automatic" | "active" | "created_at" | "updated_at";
     };
     readonly primary: "promotion";
-    readonly formerKeys: never;
-  };
-  readonly "prompts": {
-    readonly tables: {
-      readonly "versions": "id" | "tenant" | "name" | "version" | "template" | "variables" | "createdAt";
-      readonly "labels": "tenant" | "name" | "label" | "version" | "updatedAt";
-    };
-    readonly functions: "create_prompt_version" | "get_prompt" | "list_prompt_versions" | "set_prompt_label";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
     readonly formerKeys: never;
   };
   readonly "push": {

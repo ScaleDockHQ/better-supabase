@@ -1,0 +1,65 @@
+---
+title: WebMCP
+description: Offer the block actions a user may run as tools to the browser's agent, and as MCP tools on the server.
+---
+
+WebMCP lets a page register tools with `document.modelContext` so a browser agent
+can call them. `better-supabase/webmcp` registers the block repository methods
+the signed-in user may run, and offers the same definitions to
+[`createMcp`](/docs/frameworks/mcp) so the browser and the server expose one set
+of actions.
+
+```ts
+import { blockAction, registerWebMcpTools } from "better-supabase/webmcp";
+
+const archive = blockAction({
+  name: "archive_customer",
+  description: "Archive a customer and everything attached to it.",
+  inputSchema: {
+    type: "object",
+    properties: { id: { type: "string", description: "The customer id" } },
+    required: ["id"],
+  },
+  permission: "customers.manage",
+  consequential: true,
+  call: ({ id }: { id: string }) => customers.archive(id),
+});
+
+const registration = await registerWebMcpTools([archive], {
+  can: (permission) => permissions.has(permission),
+});
+```
+
+An action declares the `permission` it needs, or `null` when it needs none; a
+missing key is a type error. `can` decides at registration, so an agent never
+sees a tool the user may not run, and again on every call, so a permission
+revoked later still stops the call. `registration.skipped` lists what was left
+out and why, and `registration.unregister()` removes the tools. Pass `signal` to
+tie them to a component's lifetime.
+
+Annotations come from the action: `readOnly`, `consequential` and
+`untrustedContent` set `readOnlyHint`, `consequentialHint` and
+`untrustedContentHint`. A hint enforces nothing, so the permission check and the
+repository's own checks still run. A repository `Result` that is not `ok` rejects
+with the error's message.
+
+Without `document.modelContext` (or the legacy `navigator.modelContext`) nothing
+registers and every action is reported as skipped. Pass `modelContext` to use
+another implementation, such as a test double.
+
+## The same actions as MCP tools
+
+```ts
+import { createMcp } from "better-supabase/mcp";
+import { mcpToolsOf } from "better-supabase/webmcp";
+
+const mcp = createMcp(betterSupabase, {
+  name: "crm",
+  version: "1.0.0",
+  tools: mcpToolsOf([archive]),
+});
+```
+
+Each tool's permission goes to the server's authorizer, and `consequential` maps
+to `destructiveHint`. The helper does not serve MCP Apps `ui://` resources,
+because `better-supabase/mcp` has no resource support yet.

@@ -302,6 +302,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
 - 0187: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
 - 0188: Advisories tracks products, SBOMs and vulnerabilities (OSV, EPSS and KEV through a versioned feed port) and publishes OpenVEX and CSAF; CVSS 4.0 is parsed, not scored, and exposure matches packages, not version ranges.
+- 0189: `agent-checkout` runs ACP and UCP sessions and AP2 mandates over orders and signing-keys; `agents` serves an A2A card and task endpoint; `better-supabase/webmcp` registers permitted block actions as page tools.
 
 ## Pre-release pins
 

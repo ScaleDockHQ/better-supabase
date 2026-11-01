@@ -2439,6 +2439,20 @@
       "ToolRegistrar"
     ]
   },
+  "./webmcp": {
+    "values": [
+      "blockAction",
+      "mcpToolsOf",
+      "registerWebMcpTools"
+    ],
+    "types": [
+      "ActionResult",
+      "BlockAction",
+      "ModelContextLike",
+      "WebMcpOptions",
+      "WebMcpRegistration"
+    ]
+  },
   "./blocks/queue": {
     "values": [
       "assertCron",
@@ -5453,15 +5467,32 @@
   },
   "./blocks/agents": {
     "values": [
+      "A2A_CARD_PATH",
+      "A2A_ERRORS",
+      "A2A_PROTOCOL_VERSION",
+      "agentCard",
+      "agentCardResponse",
       "agentsBlock",
       "agentsEvents",
+      "createA2AHandler",
       "createAgents",
       "dbTransport",
+      "isTerminalTask",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "taskOf",
+      "taskStateOf"
     ],
     "types": [
+      "A2AAgentCard",
+      "A2AAgentSkill",
+      "A2AChatClient",
+      "A2AHandlerOptions",
+      "A2ASession",
+      "A2ATask",
+      "A2ATaskState",
       "Agent",
+      "AgentCardOptions",
       "AgentFields",
       "AgentFilter",
       "AgentKnowledgeScope",
@@ -10187,6 +10218,68 @@
       "TillsEvents",
       "TillsOptions",
       "TillUpdate"
+    ]
+  },
+  "./blocks/agent-checkout": {
+    "values": [
+      "agentCheckoutBlock",
+      "agentCheckoutEvents",
+      "checkoutHash",
+      "checkoutSessionInputSchema",
+      "createAgentCheckout",
+      "dbTransport",
+      "decodeX402Header",
+      "encodeX402Header",
+      "extendBlock",
+      "matchRequirement",
+      "parsePaymentSignature",
+      "paymentRequired",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "withPayment",
+      "wrapTransport",
+      "X402_HEADERS",
+      "X402_VERSION",
+      "x402Requirement"
+    ],
+    "types": [
+      "AgentCheckout",
+      "AgentCheckoutEvents",
+      "AgentCheckoutOptions",
+      "AgentMandate",
+      "AgentMandateEventData",
+      "AgentMandateKind",
+      "AgentMandateListOptions",
+      "AgentMandateStatus",
+      "AgentMandateType",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CheckoutProtocol",
+      "CheckoutSession",
+      "CheckoutSessionCompletedEventData",
+      "CheckoutSessionEventData",
+      "CheckoutSessionListOptions",
+      "CheckoutSessionStatus",
+      "CompleteCheckoutSessionInput",
+      "CompletedCheckoutSession",
+      "CreateCheckoutSessionInput",
+      "CreatedCheckoutSession",
+      "PaymentRequiredOptions",
+      "RpcClient",
+      "SignMandateInput",
+      "UpdateCheckoutSessionInput",
+      "VerifiedMandate",
+      "WithPaymentOptions",
+      "X402Facilitator",
+      "X402PaymentPayload",
+      "X402PaymentRequired",
+      "X402Requirement",
+      "X402RequirementOptions",
+      "X402ResourceInfo",
+      "X402Settlement",
+      "X402Verification"
     ]
   },
   "./blocks/lims": {

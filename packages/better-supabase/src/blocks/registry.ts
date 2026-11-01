@@ -4,6 +4,7 @@ import { accessRequestsBlock } from "./access-requests/manifest.ts";
 import { accountingBlock } from "./accounting/manifest.ts";
 import { acknowledgementsBlock } from "./acknowledgements/manifest.ts";
 import { activitiesBlock } from "./activities/manifest.ts";
+import { agentCheckoutBlock } from "./agent-checkout/manifest.ts";
 import { advisoriesBlock } from "./advisories/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
@@ -248,6 +249,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   warehouseBlock,
   rfqsBlock,
   tillsBlock,
+  agentCheckoutBlock,
   clinicalDecisionSupportBlock,
   ePrescribingBlock,
   advisoriesBlock,

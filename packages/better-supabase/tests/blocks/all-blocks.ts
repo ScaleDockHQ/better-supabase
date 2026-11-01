@@ -2,6 +2,7 @@ import type { accessRequestsBlock } from "../../src/blocks/access-requests/manif
 import type { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import type { acknowledgementsBlock } from "../../src/blocks/acknowledgements/manifest.ts";
 import type { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
+import type { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import type { advisoriesBlock } from "../../src/blocks/advisories/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
@@ -262,6 +263,7 @@ export type AllBlocks = {
   readonly warehouse: typeof warehouseBlock;
   readonly rfqs: typeof rfqsBlock;
   readonly tills: typeof tillsBlock;
+  readonly "agent-checkout": typeof agentCheckoutBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
   readonly "e-prescribing": typeof ePrescribingBlock;
   readonly advisories: typeof advisoriesBlock;

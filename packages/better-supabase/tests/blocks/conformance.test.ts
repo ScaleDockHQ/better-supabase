@@ -41,6 +41,8 @@ const NO_FIELDS: readonly string[] = [
   // Assignments and read receipts point at the app's record, which carries
   // the app's data.
   "acknowledgements",
+  // Sessions and mandates are protocol records; app data goes on the cart and order.
+  "agent-checkout",
   // Tenant-owned catalog rows; vulnerabilities and advisories are not app data.
   "advisories",
   // Cache entries keyed by a request hash; nothing for an app to extend.
