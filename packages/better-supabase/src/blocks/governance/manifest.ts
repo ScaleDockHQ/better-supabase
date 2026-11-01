@@ -1,10 +1,10 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { auditBlock } from "../audit/manifest.ts";
 import { dataLifecycleBlock } from "../data-lifecycle/manifest.ts";
 import { defineBlock } from "../define-block.ts";
 import { fieldHistoryBlock } from "../field-history/manifest.ts";
+import { createGovernance } from "./governance.ts";
 
 /** The blocks `governance` is made of, by block name. */
 export const governanceParts: {
@@ -24,11 +24,10 @@ export type GovernanceParts = typeof governanceParts;
  * lifecycle, for records that must stay accountable. It installs its parts and
  * sets their defaults; the parts stay ordinary blocks in the config.
  */
-export const governanceBlock: BlockOf<
-  "governance",
-  (options: BlockContext & CompositeOptions<GovernanceParts>) => undefined
-> = defineBlock({
-  name: "governance",
-  composes: governanceParts,
-  category: "admin",
-});
+export const governanceBlock: BlockOf<"governance", typeof createGovernance> =
+  defineBlock({
+    name: "governance",
+    composes: governanceParts,
+    create: createGovernance,
+    category: "admin",
+  });

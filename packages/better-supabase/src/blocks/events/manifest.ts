@@ -1,9 +1,9 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { bookingsBlock } from "../bookings/manifest.ts";
 import { defineBlock } from "../define-block.ts";
 import { passesBlock } from "../passes/manifest.ts";
+import { createEvents } from "./glue.ts";
 
 /** The blocks `events` is made of, by block name. */
 export const eventsParts: {
@@ -18,11 +18,9 @@ export type EventsParts = typeof eventsParts;
  * It installs its parts and sets their defaults; the parts stay ordinary blocks
  * in the config.
  */
-export const eventsBlock: BlockOf<
-  "events",
-  (options: BlockContext & CompositeOptions<EventsParts>) => undefined
-> = defineBlock({
+export const eventsBlock: BlockOf<"events", typeof createEvents> = defineBlock({
   name: "events",
   composes: eventsParts,
+  create: createEvents,
   category: "scheduling",
 });

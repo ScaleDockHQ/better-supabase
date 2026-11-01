@@ -32,6 +32,20 @@ Installing `people` installs these blocks. Each stays an ordinary block in the c
 
 Hiring lives in [`recruiting`](/docs/blocks/recruiting), which the `people` preset lists next to the blocks it keeps.
 
+## Helpers
+
+`onboard` and `offboard`: `onboard` creates the employee and enrolls them in an onboarding program. `offboard` ends the employment, cancels the listed enrollments and unassigns the listed shifts, stopping at the first failure.
+
+```ts
+await blocks.people.onboard({
+  organizationId,
+  employee: { name: "Ann" },
+  program: "onboarding",
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

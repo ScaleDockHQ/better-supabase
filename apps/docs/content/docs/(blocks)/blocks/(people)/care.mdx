@@ -57,6 +57,22 @@ It sets person records to audit reads with a record team, vital signs as the obs
 
 The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/extending/composite-blocks)).
 
+## Helpers
+
+`prescribeWithConsent`: Check that the subject has an active consent for the purpose, then prescribe. Without the consent nothing is prescribed.
+
+```ts
+await blocks.care.prescribeWithConsent({
+  organizationId,
+  subject,
+  purposeKey: "medication",
+  medicationId,
+  order,
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

@@ -26,6 +26,21 @@ Installing `events` installs these blocks. Each stays an ordinary block in the c
 - [`bookings`](/docs/blocks/bookings)
 - [`passes`](/docs/blocks/passes)
 
+## Helpers
+
+`sellTicket`: Hold and confirm a booking for the slot, then issue a pass for it. No pass is issued when the booking is refused.
+
+```ts
+await blocks.events.sellTicket({
+  serviceId,
+  resourceId,
+  startsAt,
+  customer: { name: "Ann", email: "ann@example.com" },
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

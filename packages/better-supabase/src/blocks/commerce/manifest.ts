@@ -1,11 +1,11 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { catalogBlock } from "../catalog/manifest.ts";
 import { defineBlock } from "../define-block.ts";
 import { inventoryBlock } from "../inventory/manifest.ts";
 import { ordersBlock } from "../orders/manifest.ts";
 import { promotionsBlock } from "../promotions/manifest.ts";
+import { createCommerce } from "./commerce.ts";
 
 /** The blocks `commerce` is made of, by block name. */
 export const commerceParts: {
@@ -27,11 +27,10 @@ export type CommerceParts = typeof commerceParts;
  * It installs its parts and sets their defaults; the parts stay ordinary blocks
  * in the config.
  */
-export const commerceBlock: BlockOf<
-  "commerce",
-  (options: BlockContext & CompositeOptions<CommerceParts>) => undefined
-> = defineBlock({
-  name: "commerce",
-  composes: commerceParts,
-  category: "commerce",
-});
+export const commerceBlock: BlockOf<"commerce", typeof createCommerce> =
+  defineBlock({
+    name: "commerce",
+    composes: commerceParts,
+    create: createCommerce,
+    category: "commerce",
+  });

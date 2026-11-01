@@ -28,7 +28,18 @@ Installing `commerce` installs these blocks. Each stays an ordinary block in the
 - [`orders`](/docs/blocks/orders)
 - [`promotions`](/docs/blocks/promotions)
 
-It has no helpers yet. Shipments and invoices stay separate blocks, so add them next to it when the shop ships or bills.
+## Helpers
+
+`payAndFulfil`: Book the payment on an order, then fulfil every shipment line. A failed payment stops before anything ships.
+
+```ts
+await blocks.commerce.payAndFulfil({
+  orderId,
+  tracking: { trackingNumber: "1Z999" },
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove
 

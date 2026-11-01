@@ -30,6 +30,20 @@ Installing `service` installs these blocks. Each stays an ordinary block in the 
 - [`inventory`](/docs/blocks/inventory)
 - [`sla`](/docs/blocks/sla)
 
+## Helpers
+
+`completeVisit`: Record the parts used and the meter readings, then mark the work order done. The work order stays open when a part or reading fails, so call it again with the remaining items.
+
+```ts
+await blocks.service.completeVisit({
+  workOrderId,
+  parts: [{ name: "Filter", quantity: 1 }],
+  readings: [{ meterId, value: 1280 }],
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

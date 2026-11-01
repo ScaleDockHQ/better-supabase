@@ -1,5 +1,4 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { CARE_SETTINGS } from "../../preset/preset-blocks.ts";
 import { acknowledgementsBlock } from "../acknowledgements/manifest.ts";
@@ -30,6 +29,7 @@ import { signaturesBlock } from "../signatures/manifest.ts";
 import { stateMachineBlock } from "../state-machine/manifest.ts";
 import { timeTrackingBlock } from "../time-tracking/manifest.ts";
 import { versionsBlock } from "../versions/manifest.ts";
+import { createCare } from "./care.ts";
 
 /** The blocks `care` is made of, by block name. */
 export const careParts: {
@@ -97,12 +97,10 @@ export type CareParts = typeof careParts;
  * log, clinical blocks, funding, staffing and quality. It installs its parts
  * and sets their defaults; the parts stay ordinary blocks in the config.
  */
-export const careBlock: BlockOf<
-  "care",
-  (options: BlockContext & CompositeOptions<CareParts>) => undefined
-> = defineBlock({
+export const careBlock: BlockOf<"care", typeof createCare> = defineBlock({
   name: "care",
   composes: careParts,
+  create: createCare,
   defaults: CARE_SETTINGS,
   category: "people",
 });

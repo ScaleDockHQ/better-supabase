@@ -30,7 +30,15 @@ Installing `projects` installs these blocks. Each stays an ordinary block in the
 - [`invoices`](/docs/blocks/invoices)
 - [`meetings`](/docs/blocks/meetings)
 
-It has no helpers yet. The `projects` preset keeps listing its own blocks, because it adds ranking, reminders and a state machine, not these parts.
+## Helpers
+
+`approveAndInvoice`: Approve a timesheet, then invoice its billable time. A refused approval invoices nothing.
+
+```ts
+await blocks.projects.approveAndInvoice({ timesheetId });
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove
 

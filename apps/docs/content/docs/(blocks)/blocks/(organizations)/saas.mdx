@@ -35,7 +35,19 @@ Installing `saas` installs these blocks. Each stays an ordinary block in the con
 - [`onboarding`](/docs/blocks/onboarding)
 - [`outbox`](/docs/blocks/outbox)
 
-The `saas` composite replaces the old `SAAS` list in the presets. It has no helpers of its own yet; call the part clients, such as `blocks.organizations` and `blocks.billing`.
+## Helpers
+
+`inviteWithinSeats`: Invite a member only while the plan has a seat left. It counts the members, asks `entitlements` for the seats left and sends the invitation. With no seat left it returns an `invalid_request` error and sends nothing.
+
+```ts
+await blocks.saas.inviteWithinSeats({
+  organizationId,
+  email: "ann@example.com",
+  role: "member",
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove
 

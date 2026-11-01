@@ -27,6 +27,16 @@ Installing `governance` installs these blocks. Each stays an ordinary block in t
 - [`field-history`](/docs/blocks/field-history)
 - [`data-lifecycle`](/docs/blocks/data-lifecycle)
 
+## Helpers
+
+`exportSubject`: Request a subject data export, then record it in the audit log under a key derived from the export id, so a retry never writes a second entry.
+
+```ts
+await blocks.governance.exportSubject({ subjectType: "contact", subjectId });
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

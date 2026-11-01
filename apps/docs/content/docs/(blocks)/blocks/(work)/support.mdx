@@ -34,6 +34,20 @@ Tasks are named `ticket` and `issue`. Set `blocks.tasks.names` in the config to 
 
 The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/extending/composite-blocks)).
 
+## Helpers
+
+`openTicket`: Create a ticket as a task and start its SLA clocks. If the SLA step fails the ticket stays open; call `blocks.sla.start` again for it.
+
+```ts
+await blocks.support.openTicket({
+  organizationId,
+  ticket: { title: "Cannot sign in" },
+  priority: "high",
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

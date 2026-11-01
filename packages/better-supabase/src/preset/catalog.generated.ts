@@ -10777,7 +10777,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "saas",
       "sql": [],
       "category": "tenancy",
-      "client": null,
+      "client": {
+        "export": "saasBlock",
+        "subpath": "better-supabase/blocks/saas"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10818,7 +10821,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "governance",
       "sql": [],
       "category": "admin",
-      "client": null,
+      "client": {
+        "export": "governanceBlock",
+        "subpath": "better-supabase/blocks/governance"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10832,7 +10838,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "commerce",
       "sql": [],
       "category": "commerce",
-      "client": null,
+      "client": {
+        "export": "commerceBlock",
+        "subpath": "better-supabase/blocks/commerce"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10883,7 +10892,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "support",
       "sql": [],
       "category": "work",
-      "client": null,
+      "client": {
+        "export": "supportBlock",
+        "subpath": "better-supabase/blocks/support"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10905,7 +10917,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "projects",
       "sql": [],
       "category": "work",
-      "client": null,
+      "client": {
+        "export": "projectsBlock",
+        "subpath": "better-supabase/blocks/projects"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10922,7 +10937,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "service",
       "sql": [],
       "category": "work",
-      "client": null,
+      "client": {
+        "export": "serviceBlock",
+        "subpath": "better-supabase/blocks/service"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10939,7 +10957,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "people",
       "sql": [],
       "category": "people",
-      "client": null,
+      "client": {
+        "export": "peopleBlock",
+        "subpath": "better-supabase/blocks/people"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10990,7 +11011,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "learning",
       "sql": [],
       "category": "people",
-      "client": null,
+      "client": {
+        "export": "learningBlock",
+        "subpath": "better-supabase/blocks/learning"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -11003,7 +11027,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "events",
       "sql": [],
       "category": "scheduling",
-      "client": null,
+      "client": {
+        "export": "eventsBlock",
+        "subpath": "better-supabase/blocks/events"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -11016,7 +11043,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "cms",
       "sql": [],
       "category": "content",
-      "client": null,
+      "client": {
+        "export": "cmsBlock",
+        "subpath": "better-supabase/blocks/cms"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -11040,7 +11070,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "care",
       "sql": [],
       "category": "people",
-      "client": null,
+      "client": {
+        "export": "careBlock",
+        "subpath": "better-supabase/blocks/care"
+      },
       "consumes": {},
       "provides": [],
       "composes": [

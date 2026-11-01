@@ -26,6 +26,20 @@ Installing `learning` installs these blocks. Each stays an ordinary block in the
 - [`courses`](/docs/blocks/courses)
 - [`enrollments`](/docs/blocks/enrollments)
 
+## Helpers
+
+`assign`: Enroll a learner in a course and, when you pass a program and subject, in the program that tracks it.
+
+```ts
+await blocks.learning.assign({
+  courseId,
+  program: "certification",
+  subject: { type: "user", id: userId },
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
 ## Remove
 
 ```bash

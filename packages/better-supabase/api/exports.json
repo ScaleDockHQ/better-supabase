@@ -9801,10 +9801,13 @@
   },
   "./blocks/saas": {
     "values": [
+      "createSaas",
       "saasBlock",
       "saasParts"
     ],
     "types": [
+      "Saas",
+      "SaasOptions",
       "SaasParts"
     ]
   },
@@ -9823,20 +9826,28 @@
   },
   "./blocks/governance": {
     "values": [
+      "createGovernance",
       "governanceBlock",
       "governanceParts"
     ],
     "types": [
-      "GovernanceParts"
+      "Governance",
+      "GovernanceOptions",
+      "GovernanceParts",
+      "SubjectExport"
     ]
   },
   "./blocks/commerce": {
     "values": [
       "commerceBlock",
-      "commerceParts"
+      "commerceParts",
+      "createCommerce"
     ],
     "types": [
-      "CommerceParts"
+      "Commerce",
+      "CommerceOptions",
+      "CommerceParts",
+      "PaidAndFulfilled"
     ]
   },
   "./blocks/procurement": {
@@ -9865,37 +9876,54 @@
   },
   "./blocks/support": {
     "values": [
+      "createSupport",
       "supportBlock",
       "supportParts"
     ],
     "types": [
+      "OpenedTicket",
+      "Support",
+      "SupportOptions",
       "SupportParts"
     ]
   },
   "./blocks/projects": {
     "values": [
+      "createProjects",
       "projectsBlock",
       "projectsParts"
     ],
     "types": [
+      "ApprovedAndInvoiced",
+      "Projects",
+      "ProjectsOptions",
       "ProjectsParts"
     ]
   },
   "./blocks/service": {
     "values": [
+      "createService",
       "serviceBlock",
       "serviceParts"
     ],
     "types": [
+      "CompletedVisit",
+      "Service",
+      "ServiceOptions",
       "ServiceParts"
     ]
   },
   "./blocks/people": {
     "values": [
+      "createPeople",
       "peopleBlock",
       "peopleParts"
     ],
     "types": [
+      "Offboarded",
+      "Onboarded",
+      "People",
+      "PeopleOptions",
       "PeopleParts"
     ]
   },
@@ -9926,37 +9954,52 @@
   },
   "./blocks/learning": {
     "values": [
+      "createLearning",
       "learningBlock",
       "learningParts"
     ],
     "types": [
+      "AssignedTraining",
+      "Learning",
+      "LearningOptions",
       "LearningParts"
     ]
   },
   "./blocks/events": {
     "values": [
+      "createEvents",
       "eventsBlock",
       "eventsParts"
     ],
     "types": [
-      "EventsParts"
+      "Events",
+      "EventsOptions",
+      "EventsParts",
+      "SoldTicket"
     ]
   },
   "./blocks/cms": {
     "values": [
       "cmsBlock",
-      "cmsParts"
+      "cmsParts",
+      "createCms"
     ],
     "types": [
-      "CmsParts"
+      "Cms",
+      "CmsOptions",
+      "CmsParts",
+      "PublishedVersion"
     ]
   },
   "./blocks/care": {
     "values": [
       "careBlock",
-      "careParts"
+      "careParts",
+      "createCare"
     ],
     "types": [
+      "Care",
+      "CareOptions",
       "CareParts"
     ]
   },

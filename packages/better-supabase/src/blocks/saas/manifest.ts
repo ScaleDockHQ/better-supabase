@@ -1,5 +1,4 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { apiKeysBlock } from "../api-keys/manifest.ts";
 import { auditBlock } from "../audit/manifest.ts";
@@ -13,6 +12,7 @@ import { outboxBlock } from "../outbox/manifest.ts";
 import { profilesBlock } from "../profiles/manifest.ts";
 import { settingsBlock } from "../settings/manifest.ts";
 import { teamsBlock } from "../teams/manifest.ts";
+import { createSaas } from "./saas.ts";
 
 /** The blocks `saas` is made of, by block name. */
 export const saasParts: {
@@ -49,7 +49,9 @@ export type SaasParts = typeof saasParts;
  * and onboarding. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */
-export const saasBlock: BlockOf<
-  "saas",
-  (options: BlockContext & CompositeOptions<SaasParts>) => undefined
-> = defineBlock({ name: "saas", composes: saasParts, category: "tenancy" });
+export const saasBlock: BlockOf<"saas", typeof createSaas> = defineBlock({
+  name: "saas",
+  composes: saasParts,
+  create: createSaas,
+  category: "tenancy",
+});

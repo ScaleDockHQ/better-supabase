@@ -1,9 +1,9 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { coursesBlock } from "../courses/manifest.ts";
 import { defineBlock } from "../define-block.ts";
 import { enrollmentsBlock } from "../enrollments/manifest.ts";
+import { createLearning } from "./learning.ts";
 
 /** The blocks `learning` is made of, by block name. */
 export const learningParts: {
@@ -18,11 +18,10 @@ export type LearningParts = typeof learningParts;
  * learners through them. It installs its parts and sets their defaults; the
  * parts stay ordinary blocks in the config.
  */
-export const learningBlock: BlockOf<
-  "learning",
-  (options: BlockContext & CompositeOptions<LearningParts>) => undefined
-> = defineBlock({
-  name: "learning",
-  composes: learningParts,
-  category: "people",
-});
+export const learningBlock: BlockOf<"learning", typeof createLearning> =
+  defineBlock({
+    name: "learning",
+    composes: learningParts,
+    create: createLearning,
+    category: "people",
+  });

@@ -1,5 +1,4 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { employeesBlock } from "../employees/manifest.ts";
@@ -8,6 +7,7 @@ import { leaveBlock } from "../leave/manifest.ts";
 import { payrollExportBlock } from "../payroll-export/manifest.ts";
 import { qualificationsBlock } from "../qualifications/manifest.ts";
 import { shiftsBlock } from "../shifts/manifest.ts";
+import { createPeople } from "./people.ts";
 
 /** The blocks `people` is made of, by block name. */
 export const peopleParts: {
@@ -33,7 +33,9 @@ export type PeopleParts = typeof peopleParts;
  * qualifications and enrollments. It installs its parts and sets their
  * defaults; the parts stay ordinary blocks in the config.
  */
-export const peopleBlock: BlockOf<
-  "people",
-  (options: BlockContext & CompositeOptions<PeopleParts>) => undefined
-> = defineBlock({ name: "people", composes: peopleParts, category: "people" });
+export const peopleBlock: BlockOf<"people", typeof createPeople> = defineBlock({
+  name: "people",
+  composes: peopleParts,
+  create: createPeople,
+  category: "people",
+});
