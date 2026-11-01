@@ -154,6 +154,7 @@
   "blocks/posts",
   "blocks/profiles",
   "blocks/promotions",
+  "blocks/prompts",
   "blocks/push",
   "blocks/qualifications",
   "blocks/queue",
