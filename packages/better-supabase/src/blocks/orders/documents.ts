@@ -1,10 +1,12 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockCall } from "../shared.ts";
 import type { Address, Order } from "./codecs.ts";
+import type { OrderReads } from "./reads.ts";
 
 import { AsyncResult } from "../../core/result.ts";
 import { recordOf, textOf } from "../shared.ts";
 import { orderOf } from "./codecs.ts";
+import { orderReads } from "./reads.ts";
 
 /** One line of an order staff enter, such as a phone or wholesale order. */
 export interface OrderLineInput {
@@ -52,7 +54,9 @@ export interface OrderFromDocument<F extends object = Record<never, never>> {
 }
 
 /** Orders from lines and from accepted quotes. */
-export interface OrderDocuments<F extends object = Record<never, never>> {
+export interface OrderDocuments<
+  F extends object = Record<never, never>,
+> extends OrderReads {
   /**
    * A `confirmed` order from lines, outside the cart: its stock is allocated
    * (or backordered) and taken when a fulfillment ships.
@@ -133,6 +137,7 @@ export function orderDocuments<F extends object>(
   });
 
   return {
+    ...orderReads(call),
     fromLines: ({ organizationId, input }) =>
       created(
         call(

@@ -290,3 +290,10 @@ const status = await banking.reconciliation(accountId).orThrow();
 ## Review queue
 
 `reviewQueue({ accountId, limit })` returns the unmatched transactions, each with its best invoice suggestion when there is one. It makes one `suggestMatches` call per transaction. `acceptBestMatch({ transactionId, minScore })` records the top invoice match, or fails with the hint `BANK_NO_MATCH` when no candidate reaches `minScore`.
+
+`reconciliationBoard({ accountId, limit })` reads a whole reconciliation page in one call from the SQL function `bank_reconciliation_board`. The result holds the account `status` (statement balance, ledger balance and difference), the latest `limit` transactions (default 50) in `lines`, and the best open invoice for each unmatched one in `suggestions`, keyed by `transactionId`. It runs as the caller, so permissions and renamed columns apply as they do for `reconciliation` and `listTransactions`. Use it in a read set through `s.$fn.bank_reconciliation_board`, or call it from a Server Component.
+
+```ts
+const board = await db.banking.reconciliationBoard({ accountId }).orThrow();
+const unmatched = board.lines.filter((line) => line.status === "unmatched");
+```

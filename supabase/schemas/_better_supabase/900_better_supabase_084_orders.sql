@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:b911615957f0caaf654ba2029a3fc32bc20eb08c5d9dcdb9b177b40366a42816
+-- @bsb-hash sha256:e5ec299387d50fa6cd1d6238bfcfda9483ad94c3f4b9c93cfc49a0c2b2cfd649
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2559,6 +2559,53 @@ $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Kitchen stations (grill, bar, cold) a line is prepared at, and the
 -- products routed to each. Lines of an unrouted product go to the default.
 create table if not exists "better_supabase"."order_kitchen_stations" (
@@ -3574,6 +3621,15 @@ set search_path = ''
 as $$ select "better_supabase"."order_updated_at"($1) $$;
 revoke execute on function "api"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."order_updated_at"(text) to service_role;
+
+create or replace function "api"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."order_status_board"($1, $2) $$;
+revoke execute on function "api"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "api"."order_status_board"(uuid, integer) to authenticated, service_role;
 
 create or replace function "api"."save_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
 returns jsonb

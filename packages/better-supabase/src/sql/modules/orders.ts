@@ -28,6 +28,7 @@ import {
   kitchenSql,
 } from "./orders-kitchen.ts";
 import { dropShipContract, dropShipFunctions } from "./orders-procurement.ts";
+import { ORDER_READS, orderReads } from "./orders-reads.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
 import {
   orderVariantContract,
@@ -92,6 +93,7 @@ const EVENTS: BlockSqlEvents<OrdersEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  reads: ORDER_READS,
   links: [
     link(
       "fromQuote",
@@ -704,7 +706,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${orderReads(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -824,6 +826,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "text"],
       returns: "jsonb",
     },
+    { name: "order_status_board", args: ["{id}", "integer"], returns: "jsonb" },
     ...(kitchenOn(ctx) ? kitchenContract() : []),
     ...dropShipContract(ctx),
   ];

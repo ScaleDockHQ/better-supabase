@@ -41,7 +41,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   automations:
     "install_default_rules matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
   banking:
-    "apply_bank_rules bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
+    "apply_bank_rules bank_reconciliation_board bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "payroll-export":
     "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported refresh_payroll_run",
   "document-templates":
@@ -191,7 +191,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
-    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote place_order price_cart purchase_order_from_order receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
+    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote order_status_board place_order price_cart purchase_order_from_order receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
     "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
   outbox:

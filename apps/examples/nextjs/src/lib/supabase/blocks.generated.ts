@@ -149,6 +149,14 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { TasksEvents } from "better-supabase/blocks/tasks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
+import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
+import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
+import { procurementBlock as procurementBlockInstance } from "better-supabase/blocks/procurement";
+import { financeBlock as financeBlockInstance } from "better-supabase/blocks/finance";
+import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
+import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
+import { filespaceBlock as filespaceBlockInstance } from "better-supabase/blocks/filespace";
+import { crmBlock as crmBlockInstance } from "better-supabase/blocks/crm";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock as accessRequestsBlockInstance } from "better-supabase/blocks/access-requests";
 import { accountingBlock as accountingBlockInstance } from "better-supabase/blocks/accounting";
@@ -294,6 +302,74 @@ import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
+  sales: {
+    schema: "better_supabase",
+    options: {},
+  },
+  collaboration: {
+    schema: "better_supabase",
+    options: {},
+  },
+  governance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  commerce: {
+    schema: "better_supabase",
+    options: {},
+  },
+  procurement: {
+    schema: "better_supabase",
+    options: {},
+  },
+  finance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  support: {
+    schema: "better_supabase",
+    options: {},
+  },
+  projects: {
+    schema: "better_supabase",
+    options: {},
+  },
+  service: {
+    schema: "better_supabase",
+    options: {},
+  },
+  recruiting: {
+    schema: "better_supabase",
+    options: {},
+  },
+  scheduling: {
+    schema: "better_supabase",
+    options: {},
+  },
+  learning: {
+    schema: "better_supabase",
+    options: {},
+  },
+  events: {
+    schema: "better_supabase",
+    options: {},
+  },
+  cms: {
+    schema: "better_supabase",
+    options: {},
+  },
+  care: {
+    schema: "better_supabase",
+    options: {},
+  },
+  filespace: {
+    schema: "better_supabase",
+    options: {},
+  },
+  crm: {
+    schema: "better_supabase",
+    options: {},
+  },
   permissions: {
     schema: "better_supabase",
     api: "api",
@@ -1204,6 +1280,14 @@ export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenam
  * @public
  */
 export const blocks = {
+  sales: salesBlockInstance,
+  collaboration: collaborationBlockInstance,
+  procurement: procurementBlockInstance,
+  finance: financeBlockInstance,
+  recruiting: recruitingBlockInstance,
+  scheduling: schedulingBlockInstance,
+  filespace: filespaceBlockInstance,
+  crm: crmBlockInstance,
   permissions: permissionsBlockInstance,
   "access-requests": accessRequestsBlockInstance,
   accounting: accountingBlockInstance,
@@ -3737,6 +3821,71 @@ export type DealsBoardResult = {
   }[];
 };
 
+/** The arguments of `reads.banking.reconciliationBoard`. @public */
+export type BankingReconciliationBoardArgs = { readonly accountId: string; readonly limit?: number };
+
+/** What `reads.banking.reconciliationBoard` returns. @public */
+export type BankingReconciliationBoardResult = {
+  readonly status: {
+    readonly accountId: string;
+    readonly asOf: string;
+    readonly currency: string;
+    readonly statementId: string | null;
+    readonly statementBalance: string | null;
+    readonly transactionTotal: string;
+    readonly unmatchedCount: number;
+    readonly unmatchedTotal: string;
+    readonly ledgerBalance: string | null;
+    readonly difference: string | null;
+    readonly reconciled: boolean;
+  };
+  readonly lines: readonly {
+    readonly id: string;
+    readonly bookedOn: string;
+    readonly amount: string;
+    readonly currency: string;
+    readonly counterpartyName: string | null;
+    readonly counterpartyIban: string | null;
+    readonly remittance: string | null;
+    readonly status: string;
+  }[];
+  readonly suggestions: readonly {
+    readonly transactionId: string;
+    readonly targetType: string;
+    readonly targetId: string;
+    readonly label: string;
+    readonly balance: string;
+    readonly currency: string;
+    readonly score: number;
+    readonly reasons: readonly string[];
+  }[];
+};
+
+/** The arguments of `reads.orders.board`. @public */
+export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
+
+/** What `reads.orders.board` returns. @public */
+export type OrdersBoardResult = {
+  readonly columns: readonly {
+    readonly status: string;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly total: string;
+      readonly paid: string;
+    }[];
+    readonly orders: readonly {
+      readonly id: string;
+      readonly number: string;
+      readonly customerId: string | null;
+      readonly currency: string;
+      readonly total: string;
+      readonly paidTotal: string;
+      readonly placedAt: string;
+    }[];
+  }[];
+};
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -3745,5 +3894,11 @@ export type DealsBoardResult = {
 export const reads = {
   deals: {
     board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "api"),
+  },
+  banking: {
+    reconciliationBoard: blockRead<BankingReconciliationBoardArgs, BankingReconciliationBoardResult>("bank_reconciliation_board", { accountId: "account_id", limit: "line_limit" }, ["accounts", "transactions", "matches"], "api"),
+  },
+  orders: {
+    board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "api"),
   },
 } as const;

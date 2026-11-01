@@ -102,3 +102,11 @@ export type {
 export type { StockDetail } from "../../commerce/stock-detail.ts";
 
 export type { OrderVariants } from "../sales-variants.ts";
+
+export type {
+  OrderReads,
+  OrderStatusBoard,
+  OrderStatusCard,
+  OrderStatusColumn,
+  OrderStatusTotal,
+} from "./reads.ts";

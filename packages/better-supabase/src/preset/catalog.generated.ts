@@ -2877,6 +2877,53 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "order_from_quote"
         }
       ],
+      "reads": [
+        {
+          "name": "board",
+          "function": "order_status_board",
+          "args": {
+            "organizationId": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "perStatus": {
+              "param": "per_status",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": {
+            "columns": [
+              {
+                "status": "text",
+                "count": "number",
+                "totals": [
+                  {
+                    "currency": "text",
+                    "total": "text",
+                    "paid": "text"
+                  }
+                ],
+                "orders": [
+                  {
+                    "id": "text",
+                    "number": "text",
+                    "customerId": "text?",
+                    "currency": "text",
+                    "total": "text",
+                    "paidTotal": "text",
+                    "placedAt": "text"
+                  }
+                ]
+              }
+            ]
+          },
+          "summary": "An organization's orders by status: the count, the totals per currency and the latest orders of each status.",
+          "tables": [
+            "orders"
+          ]
+        }
+      ],
       "extraColumns": "orders",
       "entities": {
         "specs": {
@@ -9022,6 +9069,70 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "accounting"
+      ],
+      "reads": [
+        {
+          "name": "reconciliationBoard",
+          "function": "bank_reconciliation_board",
+          "args": {
+            "accountId": {
+              "param": "account_id",
+              "type": "id"
+            },
+            "limit": {
+              "param": "line_limit",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": {
+            "status": {
+              "accountId": "text",
+              "asOf": "text",
+              "currency": "text",
+              "statementId": "text?",
+              "statementBalance": "text?",
+              "transactionTotal": "text",
+              "unmatchedCount": "number",
+              "unmatchedTotal": "text",
+              "ledgerBalance": "text?",
+              "difference": "text?",
+              "reconciled": "bool"
+            },
+            "lines": [
+              {
+                "id": "text",
+                "bookedOn": "text",
+                "amount": "text",
+                "currency": "text",
+                "counterpartyName": "text?",
+                "counterpartyIban": "text?",
+                "remittance": "text?",
+                "status": "text"
+              }
+            ],
+            "suggestions": [
+              {
+                "transactionId": "text",
+                "targetType": "text",
+                "targetId": "text",
+                "label": "text",
+                "balance": "text",
+                "currency": "text",
+                "score": "number",
+                "reasons": [
+                  "text"
+                ]
+              }
+            ]
+          },
+          "summary": "A bank account's reconciliation status and its latest transactions, each unmatched one with its best invoice suggestion.",
+          "tables": [
+            "accounts",
+            "transactions",
+            "matches"
+          ]
+        }
       ],
       "extraColumns": "accounts",
       "entities": {
@@ -29005,6 +29116,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderPayment"
         },
         {
+          "name": "OrderReads"
+        },
+        {
           "name": "OrderRefund"
         },
         {
@@ -29025,6 +29139,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "OrderStatus"
+        },
+        {
+          "name": "OrderStatusBoard"
+        },
+        {
+          "name": "OrderStatusCard"
+        },
+        {
+          "name": "OrderStatusColumn"
+        },
+        {
+          "name": "OrderStatusTotal"
         },
         {
           "name": "OrderVariants"

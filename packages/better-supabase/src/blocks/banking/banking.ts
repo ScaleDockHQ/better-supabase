@@ -10,6 +10,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { BankFeed } from "./feed.ts";
+import type { BankReads } from "./reads.ts";
 import type {
   BankDate,
   BankStatementFormat,
@@ -47,6 +48,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { bankFeedOf } from "./feed.ts";
+import { bankReads } from "./reads.ts";
 import { sepaCreditTransferXml } from "./sepa.ts";
 
 /** Where a bank transaction stands. */
@@ -338,7 +340,9 @@ const bestInvoice = (
       suggestion.targetType === "invoice" && suggestion.score >= minScore,
   );
 
-export interface Banking<F extends object = Record<never, never>> {
+export interface Banking<
+  F extends object = Record<never, never>,
+> extends BankReads {
   saveAccount(input: {
     input: BankAccountInput<F>;
     accountId?: string | undefined;
@@ -1013,6 +1017,7 @@ export function createBanking<
           ignored: Number(row["ignored"]),
         };
       }),
+    ...bankReads(call),
     reconciliation: ({ accountId, asOf }) =>
       call(
         "bank_reconciliation_status",

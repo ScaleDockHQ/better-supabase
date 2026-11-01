@@ -23,6 +23,7 @@ import {
 } from "./banking-batches.ts";
 import { bankingFunctions } from "./banking-functions.ts";
 import { bankingMatching } from "./banking-matching.ts";
+import { BANK_READS, bankingReads } from "./banking-reads.ts";
 import { linked } from "./banking-sql.ts";
 import { bankingTables } from "./banking-tables.ts";
 
@@ -51,6 +52,7 @@ const EVENTS: BlockSqlEvents<BankingEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  reads: BANK_READS,
   entities: {
     bank_transaction: {
       table: "transactions",
@@ -193,6 +195,7 @@ ${batchTablesSql(ctx)}
 ${bankingFunctions(ctx)}
 ${batchFunctions(ctx)}
 ${bankingMatching(ctx)}
+${bankingReads(ctx)}
 ${linked(ctx, "accounting") ? accountingSourcesSql(ctx, bankingAccountingSources(ctx)) : ""}`;
 }
 
@@ -239,6 +242,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "bank_reconciliation_status",
       args: ["uuid", "date"],
+      returns: "jsonb",
+    },
+    {
+      name: "bank_reconciliation_board",
+      args: ["uuid", "integer"],
       returns: "jsonb",
     },
     ...batchContract(ctx),
