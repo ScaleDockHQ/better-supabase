@@ -106,6 +106,12 @@ export default defineConfig({
       rules: { "eslint/max-lines": "off" },
     },
     {
+      // The codemod's table of block client methods, one row per method
+      // (ADR 0177); 1,161 code lines, 1 finding when measured.
+      files: ["src/cli/codemod-object-inputs-data.ts"],
+      rules: { "eslint/max-lines": "off" },
+    },
+    {
       // Relation counts and aggregates are part of the repository API.
       files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
       rules: {

@@ -59,7 +59,11 @@ export const createCustomer = bsb.action(
         targetLabel: name,
       }),
     );
-    await onboarding.complete(gettingStarted, "customer", organizationId);
+    await onboarding.complete({
+      checklist: gettingStarted,
+      step: "customer",
+      organizationId,
+    });
 
     return created;
   },

@@ -16,18 +16,21 @@ export interface OnboardingControllerClient<
   Scope extends ChecklistScope,
 > {
   progress(
-    checklist: Checklist<Id, Scope>,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<ChecklistProgress<Id>>;
   complete(
-    checklist: Checklist<Id, Scope>,
-    step: Id,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+      readonly step: Id;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<boolean>;
   reset(
-    checklist: Checklist<Id, Scope>,
-    step: Id,
-    ...subject: ChecklistSubject<Scope>
+    input: {
+      readonly checklist: Checklist<Id, Scope>;
+      readonly step: Id;
+    } & ChecklistSubject<Scope>,
   ): AsyncResult<boolean>;
 }
 
@@ -71,11 +74,11 @@ export function createOnboardingController<
   const organizationId = options.organizationId ?? null;
   const ready = checklist.scope === "user" || organizationId !== null;
 
-  // SAFETY: ChecklistSubject is [organizationId] for organization checklists and [] for user ones.
+  // SAFETY: ChecklistSubject carries `organizationId` for organization checklists and nothing for user ones.
   const subject = (
     checklist.scope === "organization" && organizationId !== null
-      ? [organizationId]
-      : []
+      ? { organizationId }
+      : {}
   ) as ChecklistSubject<Scope>;
 
   return defineController<OnboardingSnapshot<Id>, OnboardingActions<Id>>(
@@ -83,7 +86,7 @@ export function createOnboardingController<
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
-        const result = await client.progress(checklist, ...subject);
+        const result = await client.progress({ checklist, ...subject });
 
         if (run !== state.run()) {
           return;
@@ -100,7 +103,7 @@ export function createOnboardingController<
         action: "complete" | "reset",
         step: Id,
       ): Promise<void> => {
-        const result = await client[action](checklist, step, ...subject);
+        const result = await client[action]({ checklist, step, ...subject });
 
         if (result.ok) {
           await refresh();

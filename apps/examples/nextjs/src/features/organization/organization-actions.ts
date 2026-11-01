@@ -110,7 +110,11 @@ export const updateOrganization = bsb.action(
 export const invitationSent = bsb.action(
   { requireTenant: true, permission: "members.invite" },
   async (_input, { tenant: organizationId, db }) => {
-    await db.onboarding.complete(gettingStarted, "invite", organizationId);
+    await db.onboarding.complete({
+      checklist: gettingStarted,
+      step: "invite",
+      organizationId,
+    });
     refresh();
 
     return ok(true);

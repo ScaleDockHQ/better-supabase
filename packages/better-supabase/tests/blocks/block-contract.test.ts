@@ -106,7 +106,7 @@ describe("block hooks", () => {
       createOnboarding({
         transport,
         hooks: { complete: { before: refuse } },
-      }).complete(checklist, "invite"),
+      }).complete({ checklist, step: "invite" }),
       createSettings({
         transport,
         settings: defineSettings({

@@ -2001,6 +2001,14 @@ timers never fire. Call
 `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
 once and drain the `block_ticks` queue with `blockTickHandler`.
 
+### BS509
+
+**Warning: a block client call passes positional arguments.** Since 0.47 every
+block client method takes one object, such as
+`drive.list({ organizationId, options })`. A call that still passes several
+positional arguments no longer type-checks. Run `bsb codemod 0.47`, which
+rewrites the calls it can place and lists the others for review.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets

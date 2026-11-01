@@ -95,7 +95,7 @@ import { useOnboarding } from "@/lib/supabase/hooks";
 const rows = useOnboarding({ limit: 50 });
 ```
 
-A user checklist takes no organization: `onboarding.progress(profile)`.
+A user checklist takes no organization: `onboarding.progress({ checklist: profile })`.
 `complete` returns `false` when the step was already done. With
 [`defineBlocks`](/docs/blocks/create-blocks), `onboardingBlock` builds the
 same client, and `hooks` run around its methods:
@@ -150,7 +150,7 @@ export function GettingStarted({ organizationId }: { organizationId: string }) {
 }
 ```
 
-In Server Components, call `onboarding.progress(checklist)` instead; the hook
+In Server Components, call `onboarding.progress({ checklist })` instead; the hook
 file starts with `"use client"`.
 
 ## Vue
@@ -289,10 +289,18 @@ import { gettingStarted } from "@/onboarding";
 const onboarding = createOnboarding({ transport: rpcTransport(supabase) });
 
 const progress = await onboarding
-  .progress(gettingStarted, organizationId)
+  .progress({ checklist: gettingStarted, organizationId })
   .orThrow();
 // { steps: [{ id, title, completed, completedAt, ... }], completed: 1, total: 3, done: false, next: { id: "billing", ... } }
 
-await onboarding.complete(gettingStarted, "project", organizationId);
-await onboarding.reset(gettingStarted, "project", organizationId);
+await onboarding.complete({
+  checklist: gettingStarted,
+  step: "project",
+  organizationId,
+});
+await onboarding.reset({
+  checklist: gettingStarted,
+  step: "project",
+  organizationId,
+});
 ```

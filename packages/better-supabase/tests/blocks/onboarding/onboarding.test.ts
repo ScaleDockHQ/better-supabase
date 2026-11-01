@@ -51,7 +51,10 @@ describe("defineChecklist", () => {
     const team = defineChecklist({ id: "team", scope: "organization", steps });
     const client = createOnboarding({ transport, schema: "app" });
 
-    const progress = await client.progress(team, "org").orThrow();
+    const progress = await client
+      .progress({ checklist: team, organizationId: "org" })
+      .orThrow();
+
     expect(call).toHaveBeenCalledWith("app", "onboarding_progress", {
       checklist: "team",
       tenant: "org",
@@ -70,8 +73,16 @@ describe("defineChecklist", () => {
     expect(progress).toMatchObject({ completed: 2, total: 3, done: false });
     expect(progress.next?.id).toBe("billing");
 
-    expect(await client.complete(team, "billing", "org").orThrow()).toBe(true);
-    expect(await client.reset(team, "billing", "org").orThrow()).toBe(false);
+    expect(
+      await client
+        .complete({ checklist: team, step: "billing", organizationId: "org" })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await client
+        .reset({ checklist: team, step: "billing", organizationId: "org" })
+        .orThrow(),
+    ).toBe(false);
     expect(call.mock.calls[2]?.[2]).toEqual({
       checklist: "team",
       step: "billing",
@@ -89,7 +100,7 @@ describe("defineChecklist", () => {
     });
 
     const progress = await createOnboarding({ transport: { call } })
-      .progress(profile)
+      .progress({ checklist: profile })
       .orThrow();
 
     expect(call).toHaveBeenCalledWith(

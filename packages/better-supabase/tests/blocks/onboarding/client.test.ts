@@ -33,24 +33,24 @@ const profile = defineChecklist({ id: "profile", scope: "user", steps });
 function client() {
   return {
     progress: vi.fn(
-      (
-        _checklist: Checklist<Step, "user" | "organization">,
-        ..._subject: string[]
-      ) => resolved(progress(0)),
+      (_input: {
+        checklist: Checklist<Step, "user" | "organization">;
+        organizationId?: string | undefined;
+      }) => resolved(progress(0)),
     ),
     complete: vi.fn(
-      (
-        _checklist: Checklist<Step, "user" | "organization">,
-        _step: Step,
-        ..._subject: string[]
-      ) => resolved(true),
+      (_input: {
+        checklist: Checklist<Step, "user" | "organization">;
+        step: Step;
+        organizationId?: string | undefined;
+      }) => resolved(true),
     ),
     reset: vi.fn(
-      (
-        _checklist: Checklist<Step, "user" | "organization">,
-        _step: Step,
-        ..._subject: string[]
-      ) => resolved(true),
+      (_input: {
+        checklist: Checklist<Step, "user" | "organization">;
+        step: Step;
+        organizationId?: string | undefined;
+      }) => resolved(true),
     ),
   };
 }
@@ -69,11 +69,18 @@ describe("createOnboardingController", () => {
     );
 
     await flush();
-    expect(calls.progress).toHaveBeenCalledWith(team, "org-1");
+    expect(calls.progress).toHaveBeenCalledWith({
+      checklist: team,
+      organizationId: "org-1",
+    });
     expect(view().progress?.completed).toBe(0);
     calls.progress.mockReturnValue(resolved(progress(1)));
     await view().complete("invite");
-    expect(calls.complete).toHaveBeenCalledWith(team, "invite", "org-1");
+    expect(calls.complete).toHaveBeenCalledWith({
+      checklist: team,
+      step: "invite",
+      organizationId: "org-1",
+    });
     expect(view().progress?.completed).toBe(1);
     calls.reset.mockReturnValue(failed("denied"));
     await view().reset("invite");
@@ -93,7 +100,7 @@ describe("createOnboardingController", () => {
         auth: fakeAuth(),
       }),
     ).unmount();
-    expect(user.progress).toHaveBeenCalledWith(profile);
+    expect(user.progress).toHaveBeenCalledWith({ checklist: profile });
 
     const waiting = client();
     mount(

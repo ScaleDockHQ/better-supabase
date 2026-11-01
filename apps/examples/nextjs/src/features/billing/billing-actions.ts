@@ -17,11 +17,11 @@ import { getPlans } from "./billing-queries";
 export const markPlanReviewed = bsb.action(
   { requireTenant: true, permission: "onboarding.complete" },
   async (_input, { tenant: organizationId, db }) => {
-    const completed = await db.onboarding.complete(
-      gettingStarted,
-      "plan",
+    const completed = await db.onboarding.complete({
+      checklist: gettingStarted,
+      step: "plan",
       organizationId,
-    );
+    });
 
     if (!completed.ok) {
       return completed;
