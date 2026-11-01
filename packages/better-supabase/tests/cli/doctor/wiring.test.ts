@@ -134,3 +134,22 @@ describe("BS507", () => {
     expect(registered).toEqual([]);
   });
 });
+
+describe("BS508", () => {
+  it("reports timers until a source drains the tick queue", async () => {
+    const missing = await rule("BS508").check(
+      context({ cases: "cases" }, { sources: [] }),
+    );
+
+    expect(missing.length).toBeGreaterThan(0);
+
+    const handled = await rule("BS508").check(
+      context(
+        { cases: "cases" },
+        { sources: [{ path: "route.ts", text: "blockTickHandler(blocks);" }] },
+      ),
+    );
+
+    expect(handled).toEqual([]);
+  });
+});

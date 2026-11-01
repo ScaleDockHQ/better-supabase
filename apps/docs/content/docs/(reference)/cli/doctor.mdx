@@ -1993,6 +1993,14 @@ action the rules consumer can't run. Build the registry with
 `createActionRegistry([...blockActions(blocks, { clients })])` from
 `better-supabase/blocks/automations` in the outbox route.
 
+### BS508
+
+**Warning: block timers have no handler.** An installed block declares timers,
+such as an SLA check, but no app source calls `blockTickHandler(...)`, so the
+timers never fire. Call
+`jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
+once and drain the `block_ticks` queue with `blockTickHandler`.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets

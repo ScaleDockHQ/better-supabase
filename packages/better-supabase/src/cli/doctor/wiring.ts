@@ -128,4 +128,37 @@ export const WIRING_RULES: readonly Rule[] = [
           ];
     },
   },
+  {
+    code: "BS508",
+    severity: "warning",
+    title: "Block timers have no handler",
+    description:
+      "An installed block declares timers (a schedule that runs `check()` or a sweep), but no app source calls `blockTickHandler(...)` or `blockSchedules(...)`. The timers never fire, so SLA checks and sweeps stay idle. Call `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })` once and drain the `block_ticks` queue with `blockTickHandler`.",
+    check: (context) => {
+      const plan = wiringFor(configInstances(context.config));
+
+      if (plan.schedules.length === 0) {
+        return [];
+      }
+
+      const handled = context.sources.some((file) =>
+        file.text.split("\n").some((line) => {
+          const code = line.trim();
+
+          return (
+            !code.startsWith("//") &&
+            !code.startsWith("*") &&
+            code.includes("blockTickHandler")
+          );
+        }),
+      );
+
+      return handled
+        ? []
+        : plan.schedules.map((entry) => ({
+            message: `${entry.block} schedules ${entry.runs} at \`${entry.cron}\`, but no source calls \`blockTickHandler\`. Drain the \`block_ticks\` queue with it.`,
+            target: `${entry.block}.${entry.runs}`,
+          }));
+    },
+  },
 ];

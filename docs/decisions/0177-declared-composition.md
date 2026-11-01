@@ -80,3 +80,8 @@ A manifest's `handlers` field holds an `ActionFactory` per conversion. `blockAct
 builds the registry from the installed blocks, so an app no longer lists each conversion by hand.
 `quotes.from_deal` ships as a default automation that is off. Doctor reports BS507 when installed blocks
 ship actions and no source builds a registry.
+
+Two conversions stay out of the registry. An invoice from an order has no `fromOrder` method on the
+invoices client, and a conversation to ticket has no ticket block to create into. Each needs its own
+block change first. Doctor also reports BS508 when blocks declare timers and no source calls
+`blockTickHandler`.
