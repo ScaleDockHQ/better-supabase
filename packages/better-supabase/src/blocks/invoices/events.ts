@@ -26,6 +26,10 @@ export type InvoicesEvents = {
   readonly "invoice.unallocated": InvoiceEventData;
   readonly "invoice.discount_applied": InvoiceEventData;
   readonly "invoice.approved": InvoiceEventData;
+  readonly "invoice.e_invoice_sent": InvoiceEventData;
+  readonly "invoice.e_invoice_delivered": InvoiceEventData;
+  readonly "invoice.e_invoice_rejected": InvoiceEventData;
+  readonly "invoice.e_invoice_received": InvoiceEventData;
 };
 
 /** The `invoices` block's event types, for its manifest and `onBlockEvent`. */
@@ -51,4 +55,8 @@ export const invoicesEvents: Events<InvoicesEvents> = defineEvents({
   "invoice.unallocated": event<InvoiceEventData>(),
   "invoice.discount_applied": event<InvoiceEventData>(),
   "invoice.approved": event<InvoiceEventData>(),
+  "invoice.e_invoice_sent": event<InvoiceEventData>(),
+  "invoice.e_invoice_delivered": event<InvoiceEventData>(),
+  "invoice.e_invoice_rejected": event<InvoiceEventData>(),
+  "invoice.e_invoice_received": event<InvoiceEventData>(),
 });

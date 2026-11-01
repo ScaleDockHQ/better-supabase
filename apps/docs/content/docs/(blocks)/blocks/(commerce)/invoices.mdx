@@ -5,7 +5,7 @@ description: Invoices an organization sends its own customers, with drafts and l
 
 `invoices` is accounts receivable: the invoices an organization sends its own customers for work, licences or goods. It is not [billing](/docs/blocks/billing), which charges your organizations for your app through Stripe. An invoice starts as a draft with lines, gets its number when you issue it, collects payments until its balance is zero, and can be credited, voided or written off. With the [quotes](/docs/blocks/quotes) module installed, an accepted quote becomes a deposit invoice and a final invoice.
 
-Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Every write on a [purchase bill](#purchase-bills) needs `invoices.purchase`, paying a bill that doesn't match its purchase order needs `invoices.override_match`, and approving a bill needs `invoices.approve`. Admins get every permission, and members get `invoices.read`.
+Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Every write on a [purchase bill](#purchase-bills) needs `invoices.purchase`, paying a bill that doesn't match its purchase order needs `invoices.override_match`, approving a bill needs `invoices.approve`, and sending an e-invoice needs `invoices.send`. Admins get every permission, and members get `invoices.read`.
 
 ```bash
 better-supabase add invoices
@@ -524,37 +524,44 @@ await templates.recurring
 invoice or credit note as a UBL 2.1 document for Peppol and reads a received
 one into a purchase bill.
 
-### Send through your own format and channel
+### Send through a format and a channel
 
-`sendEInvoice` renders an issued invoice with an `EInvoiceFormat` and hands the
-document to an `EInvoiceChannel`. Both are versioned ports (`apiVersion: 1`)
-that better-supabase doesn't implement: a format package writes the layout of
-its standard (Peppol BIS, XRechnung, Factur-X), and a channel package owns the
-access point credentials. Drafts and void invoices come back as
-`EINVOICE_NOT_ISSUED`, and a format or channel that throws comes back as an
-error result.
+`sendEInvoice` renders an issued invoice with an `EInvoiceFormat`, checks the
+buyer with the channel's `lookup`, hands the document to an `EInvoiceChannel`
+and logs the delivery as `pending` in `invoice_e_deliveries`. Both are
+versioned ports (`apiVersion: 1`). `peppolBis3Format` is the Peppol BIS
+Billing 3.0 format, and a channel package owns the access point credentials.
+It needs `invoices.send` and a participant id on the buyer's company.
+Drafts and void invoices come back as `EINVOICE_NOT_ISSUED`, a buyer without
+an id as `EINVOICE_NO_RECIPIENT`, an unreachable buyer as
+`EINVOICE_RECIPIENT_UNREACHABLE` and an invoice already sent as
+`EINVOICE_ALREADY_SENT` unless you pass `resend`. A format or channel that
+throws comes back as an error result.
 
 ```ts
-import { sendEInvoice } from "better-supabase/blocks/invoices";
+await invoices.setEInvoiceEndpoint(orgId, "company", companyId, {
+  scheme: "0106",
+  id: "12345678",
+});
 
-const sent = await sendEInvoice({
-  invoice: await invoices.issue(draft.id).orThrow(),
-  format: myPeppolFormat,
-  channel: myAccessPoint,
-  invoices,
-}).orThrow();
+const sent = await invoices
+  .sendEInvoice(await invoices.issue(draft.id).orThrow(), {
+    format: myPeppolFormat,
+    channel: myAccessPoint,
+  })
+  .orThrow();
 
-// `sent.externalRef` is kept on the invoice; `channel.status?.(...)` asks the
-// network about it later.
-const deliveries = await invoices.eInvoiceDeliveries(sent.invoiceId).orThrow();
+// Later, on a schedule:
+await invoices.syncEInvoices(orgId, { channel: myAccessPoint }).orThrow();
 ```
 
-The call keeps the channel's `externalRef` in `invoice_deliveries` through
-`invoices.recordEInvoice`, one row per invoice, channel and reference, so a
-retried record changes nothing. When the channel accepted the document but
-keeping the reference failed, the error message names the `externalRef`; call
-`invoices.recordEInvoice(invoiceId, { channel, format, externalRef })` with it
-instead of sending again.
+`syncEInvoices` moves pending deliveries to `delivered` or `rejected`, and
+`receiveEInvoices` turns documents from the channel into purchase bills of the
+company that owns the sender's participant id. Documents it can't match stay in
+the log as `unmatched`. Each step records an `invoice.e_invoice_sent`,
+`invoice.e_invoice_delivered`, `invoice.e_invoice_rejected` or
+`invoice.e_invoice_received` event. The [e-invoicing page](/docs/concepts/e-invoicing)
+has the details.
 
 ## In the books
 

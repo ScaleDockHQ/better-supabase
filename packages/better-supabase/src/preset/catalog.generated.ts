@@ -3962,7 +3962,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase": "invoices.purchase",
           "overrideMatch": "invoices.override_match",
           "collect": "invoices.collect",
-          "approve": "invoices.approve"
+          "approve": "invoices.approve",
+          "send": "invoices.send"
         }
       }
     },
@@ -8821,7 +8822,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "meetings",
       "entities": {
         "specs": {
           "meeting": {
@@ -10281,88 +10281,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "tills.read",
           "write": "tills.write",
           "manage": "tills.manage"
-        }
-      }
-    },
-    {
-      "name": "clinical-decision-support",
-      "title": "Clinical decision support",
-      "category": "people",
-      "requires": [
-        "memberships",
-        "permissions",
-        "subjects",
-        "medications"
-      ],
-      "integrates": [
-        "observations",
-        "consents",
-        "care-plans",
-        "outbox",
-        "audit"
-      ],
-      "manifest": "clinical-decision-support",
-      "scopes": [
-        "tenant"
-      ],
-      "entities": {
-        "specs": {
-          "care_alert": {
-            "table": "alerts",
-            "singular": "care_alert",
-            "primary": true
-          },
-          "care_rule": {
-            "table": "rules",
-            "singular": "care_rule"
-          }
-        },
-        "tables": {
-          "alerts": {
-            "name": "care_alerts",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "kind": "kind",
-              "severity": "severity",
-              "source": "source",
-              "rule": "rule_id",
-              "orderIds": "order_ids",
-              "message": "message",
-              "details": "details",
-              "fingerprint": "fingerprint",
-              "status": "status",
-              "decidedBy": "decided_by",
-              "decidedAt": "decided_at",
-              "decisionReason": "decision_reason",
-              "createdAt": "created_at",
-              "updatedAt": "updated_at"
-            }
-          },
-          "rules": {
-            "name": "care_rules",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "kind": "kind",
-              "medicationIds": "medication_ids",
-              "minDose": "min_dose",
-              "maxDose": "max_dose",
-              "maxPerDay": "max_per_day",
-              "severity": "severity",
-              "message": "message",
-              "active": "active",
-              "createdAt": "created_at",
-              "updatedAt": "updated_at"
-            }
-          }
-        },
-        "keys": {
-          "read": "clinical_decision_support.read",
-          "write": "clinical_decision_support.write",
-          "manage": "clinical_decision_support.manage"
         }
       }
     },
@@ -20308,8 +20226,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "Meeting",
-          "fields": true
+          "name": "Meeting"
         },
         {
           "name": "MeetingActionItem"
@@ -20342,8 +20259,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "MeetingCanceledEventData"
         },
         {
-          "name": "MeetingChange",
-          "fields": true
+          "name": "MeetingChange"
         },
         {
           "name": "MeetingDecision"
@@ -20361,22 +20277,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "MeetingDecisionVotes"
         },
         {
-          "name": "MeetingDetail",
-          "fields": true
+          "name": "MeetingDetail"
         },
         {
           "name": "MeetingEventData"
         },
         {
-          "name": "MeetingInput",
-          "fields": true
+          "name": "MeetingInput"
         },
         {
           "name": "MeetingListOptions"
         },
         {
-          "name": "Meetings",
-          "fields": true
+          "name": "Meetings"
         },
         {
           "name": "MeetingsEvents"
@@ -20434,11 +20347,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "array": true,
                 "optional": true,
                 "description": "The agenda, in order: `{ title, notes, presenterId }`."
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns, keyed by database name."
               }
             },
             "jsonSchema": {
@@ -20485,9 +20393,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "array",
                   "items": {},
                   "description": "The agenda, in order: `{ title, notes, presenterId }`."
-                },
-                "fields": {
-                  "description": "The extra columns, keyed by database name."
                 }
               },
               "required": [
@@ -22170,195 +22075,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "till_movement.recorded",
           "till_deposit.recorded",
           "till_deposit.reconciled"
-        ]
-      }
-    },
-    {
-      "name": "clinical-decision-support",
-      "sql": [
-        "clinical-decision-support"
-      ],
-      "category": "people",
-      "client": {
-        "export": "clinicalDecisionSupportBlock",
-        "subpath": "better-supabase/blocks/clinical-decision-support"
-      },
-      "consumes": {},
-      "provides": [],
-      "entityTypes": [
-        {
-          "name": "CareAlert"
-        },
-        {
-          "name": "CareAlertDecision"
-        },
-        {
-          "name": "CareAlertEventData"
-        },
-        {
-          "name": "CareAlertKind"
-        },
-        {
-          "name": "CareAlertListOptions"
-        },
-        {
-          "name": "CareAlertSeverity"
-        },
-        {
-          "name": "CareAlertStatus"
-        },
-        {
-          "name": "CareRule"
-        },
-        {
-          "name": "CareRuleEventData"
-        },
-        {
-          "name": "CareRuleInput"
-        },
-        {
-          "name": "CareRuleKind"
-        }
-      ],
-      "entitySchemas": {
-        "care_rule": {
-          "input": {
-            "title": "CareRuleInput",
-            "fields": {
-              "id": {
-                "kind": "uuid",
-                "optional": true,
-                "description": "Set to change a rule; leave out to add one."
-              },
-              "kind": {
-                "kind": "enum",
-                "values": [
-                  "dose_range",
-                  "duplicate_therapy",
-                  "interaction"
-                ]
-              },
-              "medicationIds": {
-                "kind": "uuid",
-                "array": true,
-                "description": "One medication for a dose range, two for an interaction, two or more for a therapy group."
-              },
-              "minDose": {
-                "kind": "number",
-                "optional": true,
-                "nullable": true
-              },
-              "maxDose": {
-                "kind": "number",
-                "optional": true,
-                "nullable": true
-              },
-              "maxPerDay": {
-                "kind": "number",
-                "optional": true,
-                "nullable": true
-              },
-              "severity": {
-                "kind": "enum",
-                "optional": true,
-                "values": [
-                  "info",
-                  "warning",
-                  "critical"
-                ]
-              },
-              "message": {
-                "kind": "string",
-                "optional": true,
-                "nullable": true,
-                "maxLength": 1000
-              },
-              "active": {
-                "kind": "boolean",
-                "optional": true
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "CareRuleInput",
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "Set to change a rule; leave out to add one."
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "dose_range",
-                    "duplicate_therapy",
-                    "interaction"
-                  ]
-                },
-                "medicationIds": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "description": "One medication for a dose range, two for an interaction, two or more for a therapy group."
-                },
-                "minDose": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "maxDose": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "maxPerDay": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "severity": {
-                  "type": "string",
-                  "enum": [
-                    "info",
-                    "warning",
-                    "critical"
-                  ]
-                },
-                "message": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "active": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "kind",
-                "medicationIds"
-              ],
-              "additionalProperties": false
-            }
-          }
-        }
-      },
-      "events": {
-        "type": "ClinicalDecisionSupportEvents",
-        "types": [
-          "care_alert.raised",
-          "care_alert.decided",
-          "care_alert.resolved",
-          "care_rule.created",
-          "care_rule.updated",
-          "care_rule.deleted"
         ]
       }
     },
@@ -26392,22 +26108,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "EInvoiceChannel"
-        },
-        {
-          "name": "EInvoiceContext"
-        },
-        {
           "name": "EInvoiceDelivery"
         },
         {
-          "name": "EInvoiceDocument"
+          "name": "EInvoiceDeliveryRecord"
         },
         {
-          "name": "EInvoiceFormat"
+          "name": "EInvoiceDeliveryState"
         },
         {
-          "name": "EInvoiceStatus"
+          "name": "EInvoiceEndpoints"
+        },
+        {
+          "name": "EInvoicePartyKind"
+        },
+        {
+          "name": "EInvoiceReceipt"
+        },
+        {
+          "name": "EInvoiceSync"
         },
         {
           "name": "Invoice",
@@ -26444,12 +26163,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCollections"
         },
         {
-          "name": "InvoiceDelivery"
-        },
-        {
-          "name": "InvoiceDeliveryInput"
-        },
-        {
           "name": "InvoiceDirection"
         },
         {
@@ -26474,7 +26187,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceDunningRunItem"
         },
         {
-          "name": "InvoiceEInvoices"
+          "name": "InvoiceEDelivery"
         },
         {
           "name": "InvoiceInput",
@@ -26525,6 +26238,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceWarning"
         },
         {
+          "name": "ReceiveEInvoicesOptions"
+        },
+        {
           "name": "SendEInvoiceOptions"
         },
         {
@@ -26554,7 +26270,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.allocated",
           "invoice.unallocated",
           "invoice.discount_applied",
-          "invoice.approved"
+          "invoice.approved",
+          "invoice.e_invoice_sent",
+          "invoice.e_invoice_delivered",
+          "invoice.e_invoice_rejected",
+          "invoice.e_invoice_received"
         ]
       },
       "schedules": [

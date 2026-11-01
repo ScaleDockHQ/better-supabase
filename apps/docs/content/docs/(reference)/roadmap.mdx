@@ -294,8 +294,6 @@ packages that live outside this repository.
 - **Payroll export:** time entries are not filtered by timesheet approval,
   so unapproved hours count in a run. See
   [payroll export](/docs/blocks/payroll-export).
-- **E-invoices:** `externalRef` is not persisted on the invoice, so a sent
-  UBL document can't be matched back by it.
 - **Tills:** the "Add a till" form in the example app has no cash account
   field. See [tills](/docs/blocks/tills).
 
@@ -324,7 +322,7 @@ still to be written, and each plugs into a versioned port:
 - iWlz, iJw and iWmo claims through `FundingClaimFormat`.
 - The G-Standaard through `MedicationCatalog`.
 - RGS chart of accounts imports.
-- Peppol access points through `EInvoiceChannel`, with a UBL schema
+- Peppol access point adapters for `EInvoiceChannel`, with a UBL schema
   validator.
 - Bank feeds through `BankFeed`.
 

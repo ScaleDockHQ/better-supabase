@@ -524,21 +524,6 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
-  readonly "clinical-decision-support": {
-    readonly tables: {
-      readonly "rules": "id" | "tenant" | "kind" | "medicationIds" | "minDose" | "maxDose" | "maxPerDay" | "severity" | "message" | "active" | "createdAt" | "updatedAt";
-      readonly "alerts": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "severity" | "source" | "rule" | "orderIds" | "message" | "details" | "fingerprint" | "status" | "decidedBy" | "decidedAt" | "decisionReason" | "createdAt" | "updatedAt";
-    };
-    readonly functions: "care_decision_context" | "decide_care_alert" | "delete_care_rule" | "evaluate_care_rules" | "list_care_alerts" | "list_care_rules" | "record_care_alerts" | "save_care_rule" | "sync_care_alerts";
-    readonly actions: "read" | "write" | "manage";
-    readonly hooks: "before_care_alert_decide" | "after_care_alert_decide";
-    readonly entities: {
-      readonly "care_alert": "id" | "tenant_id" | "subject_type" | "subject_id" | "kind" | "severity" | "source" | "rule_id" | "order_ids" | "message" | "details" | "fingerprint" | "status" | "decided_by" | "decided_at" | "decision_reason" | "created_at" | "updated_at";
-      readonly "care_rule": "id" | "tenant_id" | "kind" | "medication_ids" | "min_dose" | "max_dose" | "max_per_day" | "severity" | "message" | "active" | "created_at" | "updated_at";
-    };
-    readonly primary: "care_alert";
-    readonly formerKeys: never;
-  };
   readonly "collections": {
     readonly tables: {
       readonly "collections": "id" | "tenant" | "subjectType" | "scope" | "owner" | "team" | "name" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
@@ -1260,12 +1245,13 @@ export interface BlockNameRegistry {
       readonly "dunningHistory": "id" | "tenant" | "invoice" | "run" | "kind" | "level" | "textKey" | "templateKey" | "fee" | "balance" | "note" | "createdAt";
       readonly "allocations": "id" | "tenant" | "reference" | "party" | "invoice" | "source" | "amount" | "discount" | "payment" | "discountPayment" | "allocatedOn" | "unallocatedAt" | "createdBy" | "createdAt";
       readonly "lineSources": "id" | "tenant" | "invoice" | "position" | "source" | "sourceId" | "sourceLine" | "orderLine" | "quantity" | "createdAt";
-      readonly "deliveries": "id" | "tenant" | "invoice" | "channel" | "format" | "externalRef" | "filename" | "sentBy" | "sentAt";
       readonly "approvalLevels": "id" | "tenant" | "legalEntity" | "level" | "minAmount" | "currency" | "approver" | "createdAt";
       readonly "approvals": "id" | "tenant" | "invoice" | "level" | "approver" | "comment" | "decidedAt";
+      readonly "eEndpoints": "id" | "tenant" | "partyKind" | "partyId" | "scheme" | "endpoint" | "createdAt" | "updatedAt";
+      readonly "eDeliveries": "id" | "tenant" | "invoice" | "direction" | "format" | "channel" | "messageId" | "state" | "reason" | "documentHash" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_deliveries" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "record_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
-    readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
+    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "find_e_endpoint_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_e_endpoints" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_e_invoice_deliveries" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "record_e_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_e_invoice_delivery_state" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_e_endpoint" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "send" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
       readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "deposit_amount" | "discount_bps" | "discount_amount" | "prices_include_tax" | "archived_at" | "direction" | "supplier_reference" | "purchase_order_id" | "dimensions" | "dunning_level" | "dunning_at" | "dunning_paused_until" | "buyer" | "payment_terms_id" | "discount_due_on" | "discount_amount_early" | "collection_status" | "collection_agency_id" | "collection_handed_at" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
@@ -2393,7 +2379,7 @@ export interface BlockNameRegistry {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince" | "employee";
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
-    readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reject_timesheet" | "reopen_timesheet" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
+    readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reject_timesheet" | "reopen_timesheet" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {

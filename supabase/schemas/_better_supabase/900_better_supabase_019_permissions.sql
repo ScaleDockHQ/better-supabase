@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:39febc2769602cec8b9aa8fca7391b678ac2d352aab2620963d8bef1be45f2ca
+-- @bsb-hash sha256:8f1add9c448f9731987c9bb150f2411f50c96190916c18108d31a632dc76f17c
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -245,9 +245,6 @@ as $$
     when 'channels.create' then 'channels.create'
     when 'channels.manage' then 'channels.manage'
     when 'channels.read' then 'messages.read'
-    when 'clinical-decision-support.manage' then 'clinical_decision_support.manage'
-    when 'clinical-decision-support.read' then 'clinical_decision_support.read'
-    when 'clinical-decision-support.write' then 'clinical_decision_support.write'
     when 'comments.create' then 'messages.send'
     when 'comments.moderate' then 'messages.moderate'
     when 'comments.read' then 'messages.read'
@@ -356,6 +353,7 @@ as $$
     when 'invoices.overrideMatch' then 'invoices.override_match'
     when 'invoices.purchase' then 'invoices.purchase'
     when 'invoices.read' then 'invoices.read'
+    when 'invoices.send' then 'invoices.send'
     when 'invoices.write' then 'invoices.write'
     when 'knowledge.manage' then 'knowledge.manage'
     when 'knowledge.read' then 'knowledge.read'

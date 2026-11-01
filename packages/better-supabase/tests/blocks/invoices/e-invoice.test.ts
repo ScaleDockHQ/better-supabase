@@ -1,156 +1,124 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  EInvoiceChannel,
-  EInvoiceFormat,
-  Invoice,
-  InvoiceDelivery,
-  InvoiceDeliveryInput,
-  InvoiceEInvoices,
-} from "../../../src/blocks/invoices/index.ts";
-import type { BlockCall } from "../../../src/blocks/shared.ts";
+import type { EInvoiceChannel } from "../../../src/e-invoicing/index.ts";
 
-import { invoiceEInvoices } from "../../../src/blocks/invoices/e-invoice.ts";
+import { createInvoices } from "../../../src/blocks/invoices/index.ts";
 import {
   eInvoiceChannelOf,
   eInvoiceFormatOf,
-  sendEInvoice,
-} from "../../../src/blocks/invoices/index.ts";
-import { AsyncResult, err, ok } from "../../../src/core/result.ts";
+  peppolBis3Format,
+} from "../../../src/e-invoicing/index.ts";
 
-/** A reference format that renders a minimal UBL-like document. */
-const ubl: EInvoiceFormat = {
-  apiVersion: 1,
-  key: "ubl-reference",
-  render: (invoice) => ({
-    body: `<Invoice><ID>${invoice.identifier}</ID></Invoice>`,
-    filename: `${invoice.identifier}.xml`,
-    contentType: "application/xml",
+type Row = Record<string, unknown>;
+
+const delivery = (over: Row = {}): Row => ({
+  id: "d1",
+  organizationId: "o",
+  invoiceId: "i1",
+  direction: "outbound",
+  format: "peppol-bis-3",
+  channel: "memory",
+  messageId: "m-1",
+  state: "pending",
+  ...over,
+});
+
+function transport(results: Record<string, (args: Row) => unknown>) {
+  const calls: [string, Row][] = [];
+
+  return {
+    calls,
+    call(_schema: string, fn: string, args: Row) {
+      calls.push([fn, args]);
+      const result = results[fn];
+
+      return result
+        ? Promise.resolve(result(args))
+        : Promise.reject(new Error(`unexpected ${fn}`));
+    },
+  };
+}
+
+const format = {
+  apiVersion: 1 as const,
+  key: "fake",
+  render: (
+    invoice: { identifier?: string },
+    context: { endpoints?: unknown },
+  ) => ({
+    type: "Invoice" as const,
+    id: invoice.identifier ?? "",
+    xml: `<Invoice>${JSON.stringify(context.endpoints)}</Invoice>`,
   }),
 };
 
-function memoryChannel() {
+function memoryChannel(extra: Partial<EInvoiceChannel> = {}) {
   const sent: string[] = [];
 
   const channel: EInvoiceChannel = {
     apiVersion: 1,
     key: "memory",
-    send(document) {
-      sent.push(document.filename);
+    send(document, context) {
+      sent.push(`${document.id}->${context.recipient.id}`);
 
-      return Promise.resolve({ externalRef: `ref-${sent.length}` });
+      return Promise.resolve({ messageId: `m-${sent.length}` });
     },
+    ...extra,
   };
 
   return { channel, sent };
 }
 
-function memoryInvoices() {
-  const kept: { invoiceId: string; input: InvoiceDeliveryInput }[] = [];
+// SAFETY: the methods read only these fields.
+const invoice = (status: string) =>
+  ({ id: "i1", organizationId: "o", identifier: "INV-1", status }) as never;
 
-  const invoices: Pick<InvoiceEInvoices, "recordEInvoice"> = {
-    recordEInvoice: (invoiceId, input) => {
-      kept.push({ invoiceId, input });
+const buyer = { scheme: "0106", id: "12345678" };
 
-      return AsyncResult.from(() =>
-        Promise.resolve(
-          ok({
-            id: `d${kept.length}`,
-            invoiceId,
-            ...input,
-            sentAt: Temporal.Now.instant(),
-          }),
-        ),
-      );
-    },
-  };
+function client(over: Record<string, (args: Row) => unknown> = {}) {
+  const t = transport({
+    invoice_e_endpoints: () => ({ seller: { scheme: "0106", id: "1" }, buyer }),
+    list_e_invoice_deliveries: () => null,
+    record_e_invoice_delivery: () => ({ created: true, delivery: delivery() }),
+    ...over,
+  });
 
-  return { invoices, kept };
+  return { t, invoices: createInvoices({ transport: t }) };
 }
 
-// SAFETY: the sender reads only these fields.
-const invoice = (status: string) =>
-  ({
-    id: "i1",
-    organizationId: "o",
-    identifier: "INV-1",
-    status,
-  }) as unknown as Invoice;
-
 describe("sendEInvoice", () => {
-  it("renders and sends an issued invoice", async () => {
+  it("renders with the stored endpoints, sends and logs the delivery", async () => {
+    const { t, invoices } = client();
     const { channel, sent } = memoryChannel();
 
-    const result = await sendEInvoice({
-      invoice: invoice("sent"),
-      format: ubl,
+    const result = await invoices.sendEInvoice(invoice("issued"), {
+      format,
       channel,
-      invoices: memoryInvoices().invoices,
     });
 
-    expect(sent).toEqual(["INV-1.xml"]);
-    expect(result.ok && result.data).toMatchObject({
-      invoiceId: "i1",
-      format: "ubl-reference",
+    expect(sent).toEqual(["INV-1->12345678"]);
+    expect(result.ok && result.data.delivery.state).toBe("pending");
+    expect(result.ok && result.data.document.xml).toContain("12345678");
+
+    const logged = t.calls.find(([fn]) => fn === "record_e_invoice_delivery");
+
+    expect(logged?.[1]).toMatchObject({
+      tenant: "o",
+      direction: "outbound",
       channel: "memory",
-      externalRef: "ref-1",
+      message_id: "m-1",
+      invoice: "i1",
     });
-  });
-
-  it("keeps the channel's externalRef through recordEInvoice", async () => {
-    const { channel } = memoryChannel();
-    const { invoices, kept } = memoryInvoices();
-
-    const result = await sendEInvoice({
-      invoice: invoice("sent"),
-      format: ubl,
-      channel,
-      invoices,
-    });
-
-    expect(kept).toEqual([
-      {
-        invoiceId: "i1",
-        input: {
-          channel: "memory",
-          format: "ubl-reference",
-          externalRef: "ref-1",
-          filename: "INV-1.xml",
-        },
-      },
-    ]);
-    expect(result.ok && result.data.deliveryId).toBe("d1");
-  });
-
-  it("names the externalRef when keeping it fails", async () => {
-    const { channel, sent } = memoryChannel();
-
-    const result = await sendEInvoice({
-      invoice: invoice("sent"),
-      format: ubl,
-      channel,
-      invoices: {
-        recordEInvoice: () =>
-          AsyncResult.from<InvoiceDelivery>(() =>
-            Promise.resolve(
-              err({ kind: "network", message: "database down", status: 503 }),
-            ),
-          ),
-      },
-    });
-
-    expect(sent).toHaveLength(1);
-    expect(result.ok ? undefined : result.error.message).toContain("ref-1");
+    expect(logged?.[1]["document_hash"]).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it.each(["draft", "void"])("refuses a %s invoice", async (status) => {
+    const { invoices } = client();
     const { channel, sent } = memoryChannel();
 
-    const result = await sendEInvoice({
-      invoice: invoice(status),
-      format: ubl,
+    const result = await invoices.sendEInvoice(invoice(status), {
+      format,
       channel,
-      invoices: memoryInvoices().invoices,
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
@@ -159,11 +127,69 @@ describe("sendEInvoice", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("needs a participant id on the buyer", async () => {
+    const { invoices } = client({ invoice_e_endpoints: () => ({}) });
+    const { channel } = memoryChannel();
+
+    const result = await invoices.sendEInvoice(invoice("issued"), {
+      format,
+      channel,
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "EINVOICE_NO_RECIPIENT",
+    );
+  });
+
+  it("refuses an unreachable buyer", async () => {
+    const { invoices } = client();
+
+    const { channel, sent } = memoryChannel({
+      lookup: () => Promise.resolve(false),
+    });
+
+    const result = await invoices.sendEInvoice(invoice("issued"), {
+      format,
+      channel,
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "EINVOICE_RECIPIENT_UNREACHABLE",
+    );
+    expect(sent).toHaveLength(0);
+  });
+
+  it("refuses a second send unless resend is set", async () => {
+    const { invoices } = client({
+      list_e_invoice_deliveries: () => [delivery({ state: "delivered" })],
+    });
+
+    const { channel, sent } = memoryChannel();
+
+    const first = await invoices.sendEInvoice(invoice("issued"), {
+      format,
+      channel,
+    });
+
+    expect(first.ok ? undefined : first.error.hint).toBe(
+      "EINVOICE_ALREADY_SENT",
+    );
+
+    const again = await invoices.sendEInvoice(invoice("issued"), {
+      format,
+      channel,
+      resend: true,
+    });
+
+    expect(again.ok).toBe(true);
+    expect(sent).toHaveLength(1);
+  });
+
   it("returns a failing channel as an error result", async () => {
-    const result = await sendEInvoice({
-      invoice: invoice("sent"),
-      format: ubl,
-      invoices: memoryInvoices().invoices,
+    const { invoices } = client();
+
+    const result = await invoices.sendEInvoice(invoice("issued"), {
+      format,
       channel: {
         apiVersion: 1,
         key: "down",
@@ -174,33 +200,48 @@ describe("sendEInvoice", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("passes the abort signal on", async () => {
-    let seen: AbortSignal | undefined;
-    const controller = new AbortController();
+  it("names the message id when logging fails after the send", async () => {
+    const { invoices } = client({
+      record_e_invoice_delivery: () => Promise.reject(new Error("db down")),
+    });
+    const { channel, sent } = memoryChannel();
 
-    await sendEInvoice({
-      invoice: invoice("sent"),
-      format: ubl,
-      signal: controller.signal,
-      invoices: memoryInvoices().invoices,
-      channel: {
-        apiVersion: 1,
-        key: "spy",
-        send(_document, context) {
-          seen = context.signal;
-
-          return Promise.resolve({ externalRef: "r" });
-        },
-      },
+    const result = await invoices.sendEInvoice(invoice("issued"), {
+      format,
+      channel,
     });
 
-    expect(seen).toBe(controller.signal);
+    expect(sent).toHaveLength(1);
+    expect(result.ok ? undefined : result.error.message).toContain("m-1");
+  });
+
+  it("records a delivery the channel already accepted", async () => {
+    const { t, invoices } = client();
+
+    const result = await invoices.recordEInvoiceDelivery(invoice("issued"), {
+      channel: "memory",
+      format: "peppol-bis-3",
+      messageId: "m-1",
+    });
+
+    expect(result.ok && result.data.messageId).toBe("m-1");
+    expect(t.calls.at(-1)).toEqual([
+      "record_e_invoice_delivery",
+      {
+        tenant: "o",
+        direction: "outbound",
+        channel: "memory",
+        message_id: "m-1",
+        format: "peppol-bis-3",
+        invoice: "i1",
+      },
+    ]);
   });
 
   it("rejects another apiVersion", () => {
     expect(() =>
       // SAFETY: simulates a format built for a newer API.
-      eInvoiceFormatOf({ ...ubl, apiVersion: 2 } as never),
+      eInvoiceFormatOf({ ...format, apiVersion: 2 } as never),
     ).toThrow(TypeError);
     expect(() =>
       // SAFETY: simulates a channel built for a newer API.
@@ -209,89 +250,143 @@ describe("sendEInvoice", () => {
   });
 });
 
-describe("invoiceEInvoices", () => {
-  const row = {
-    id: "d1",
-    invoiceId: "i1",
-    channel: "peppol",
-    format: "ubl",
-    externalRef: "ref-1",
-    sentAt: "2026-11-01T10:00:00Z",
-  };
+describe("syncEInvoices", () => {
+  it("moves pending deliveries to the state the channel reports", async () => {
+    const { t, invoices } = client({
+      list_e_invoice_deliveries: () => [
+        delivery({ id: "d1", messageId: "m-1" }),
+        delivery({ id: "d2", messageId: "m-2" }),
+        delivery({ id: "d3", messageId: "m-3", channel: "other" }),
+      ],
+      set_e_invoice_delivery_state: (args) =>
+        delivery({ id: args["delivery"], state: args["state"] }),
+    });
 
-  function stub() {
-    const calls: { fn: string; args: Readonly<Record<string, unknown>> }[] = [];
-
-    const call: BlockCall = (fn, args, then) => {
-      calls.push({ fn, args });
-
-      return AsyncResult.from(async () =>
-        ok(
-          await then(
-            fn === "list_invoice_deliveries"
-              ? [row, { ...row, id: "d2", filename: "INV-1.xml" }]
-              : row,
-          ),
+    const { channel } = memoryChannel({
+      status: (id) =>
+        Promise.resolve(
+          id === "m-1"
+            ? { state: "delivered" }
+            : { state: "rejected", reason: "unknown receiver" },
         ),
-      );
-    };
-
-    return { call, calls };
-  }
-
-  it("records a delivery and passes a missing filename as null", async () => {
-    const { call, calls } = stub();
-
-    const result = await invoiceEInvoices(call).recordEInvoice("i1", {
-      channel: "peppol",
-      format: "ubl",
-      externalRef: "ref-1",
     });
 
-    expect(calls).toEqual([
-      {
-        fn: "record_invoice_delivery",
-        args: {
-          invoice: "i1",
-          channel: "peppol",
-          format: "ubl",
-          external_ref: "ref-1",
-          filename: null,
-        },
+    const result = await invoices.syncEInvoices("o", { channel });
+
+    expect(result.ok && result.data).toEqual({
+      checked: 2,
+      delivered: 1,
+      rejected: 1,
+    });
+    expect(
+      t.calls.filter(([fn]) => fn === "set_e_invoice_delivery_state"),
+    ).toHaveLength(2);
+  });
+
+  it("refuses a channel that can't report status", async () => {
+    const { invoices } = client();
+    const { channel } = memoryChannel();
+
+    const result = await invoices.syncEInvoices("o", { channel });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "EINVOICE_CHANNEL_UNSUPPORTED",
+    );
+  });
+});
+
+describe("receiveEInvoices", () => {
+  it("logs unreadable documents as unmatched", async () => {
+    const { t, invoices } = client({
+      record_e_invoice_delivery: () => ({
+        created: true,
+        delivery: delivery({ direction: "inbound", state: "unmatched" }),
+      }),
+      set_e_invoice_delivery_state: (args) =>
+        delivery({ direction: "inbound", state: args["state"] }),
+    });
+
+    const { channel } = memoryChannel({
+      receive: () =>
+        Promise.resolve([
+          { type: "Invoice", id: "X", xml: "<nope/>", messageId: "in-1" },
+        ]),
+    });
+
+    const result = await invoices.receiveEInvoices("o", { channel });
+
+    expect(result.ok && result.data.unmatched).toHaveLength(1);
+    expect(result.ok && result.data.created).toHaveLength(0);
+    expect(
+      t.calls.find(([fn]) => fn === "set_e_invoice_delivery_state")?.[1],
+    ).toMatchObject({ state: "unmatched" });
+  });
+
+  it("skips documents already in the log", async () => {
+    const { invoices } = client({
+      record_e_invoice_delivery: () => ({
+        created: false,
+        delivery: delivery({ direction: "inbound", state: "received" }),
+      }),
+    });
+
+    const { channel } = memoryChannel({
+      receive: () =>
+        Promise.resolve([
+          { type: "Invoice", id: "X", xml: "<nope/>", messageId: "in-1" },
+        ]),
+    });
+
+    const result = await invoices.receiveEInvoices("o", { channel });
+
+    expect(result.ok && result.data.skipped).toBe(1);
+  });
+});
+
+describe("endpoints", () => {
+  it("sets and clears a participant id", async () => {
+    const { t, invoices } = client({
+      set_invoice_e_endpoint: (args) =>
+        args["scheme"] === null
+          ? null
+          : { scheme: args["scheme"], id: args["endpoint_id"] },
+    });
+
+    const set = await invoices.setEInvoiceEndpoint("o", "company", "c1", buyer);
+
+    const cleared = await invoices.setEInvoiceEndpoint(
+      "o",
+      "company",
+      "c1",
+      null,
+    );
+
+    expect(set.ok && set.data).toEqual(buyer);
+    expect(cleared.ok && cleared.data).toBeNull();
+    expect(t.calls[0]?.[1]).toMatchObject({
+      party_kind: "company",
+      scheme: "0106",
+    });
+  });
+
+  it("peppolBis3Format hands the stored endpoints to parties", async () => {
+    let seen: unknown;
+
+    const bis = peppolBis3Format({
+      parties: (_invoice, context) => {
+        seen = context.endpoints;
+        throw new Error("stop");
       },
-    ]);
-    expect(result.ok && result.data).toMatchObject({
-      id: "d1",
-      externalRef: "ref-1",
-    });
-    expect(result.ok && result.data.filename).toBeUndefined();
-  });
-
-  it("passes the filename on", async () => {
-    const { call, calls } = stub();
-
-    await invoiceEInvoices(call).recordEInvoice("i1", {
-      channel: "peppol",
-      format: "ubl",
-      externalRef: "ref-1",
-      filename: "INV-1.xml",
     });
 
-    expect(calls[0]?.args["filename"]).toBe("INV-1.xml");
-  });
-
-  it("lists the deliveries of an invoice", async () => {
-    const { call, calls } = stub();
-
-    const result = await invoiceEInvoices(call).eInvoiceDeliveries("i1");
-
-    expect(calls[0]).toEqual({
-      fn: "list_invoice_deliveries",
-      args: { invoice: "i1" },
-    });
-    expect(result.ok && result.data.map((d) => d.filename)).toEqual([
-      undefined,
-      "INV-1.xml",
-    ]);
+    await expect(
+      Promise.resolve().then(() =>
+        bis.render(invoice("issued"), {
+          organizationId: "o",
+          endpoints: { buyer },
+        }),
+      ),
+    ).rejects.toThrow("stop");
+    expect(seen).toEqual({ buyer });
   });
 });

@@ -185,6 +185,7 @@ export const MODULE_PERMISSION_SCOPES: {
     overrideMatch: "tenant",
     collect: "tenant",
     approve: "tenant",
+    send: "tenant",
   },
   sla: { read: "tenant", manage: "tenant" },
   goals: { read: "tenant", manage: "tenant" },
