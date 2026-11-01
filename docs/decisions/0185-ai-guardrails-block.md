@@ -1,4 +1,4 @@
-# 0183: ai-guardrails keeps per-agent policies and a hashed decision log
+# 0185: ai-guardrails keeps per-agent policies and a hashed decision log
 
 - Status: accepted
 - Date: 2026-11-01

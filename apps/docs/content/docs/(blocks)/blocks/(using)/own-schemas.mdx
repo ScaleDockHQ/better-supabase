@@ -128,10 +128,12 @@ may be your own enum or domain.
 - `api-keys`
   - `better_supabase.api_keys`: `id`, `organization_id`, `user_id`, `name`, `prefix`, `public_id`, `secret_hash`, `scopes`, `expires_at`, `revoked_at`, `created_at`; typed: `kind`
 - `appraisals`
-  - `better_supabase.appraisal_cycles`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `program`, `status`, `opened_at`, `closed_at`, `created_by`, `created_at`
-  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `subject_user_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
+  - `better_supabase.appraisal_cycles`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `program`, `status`, `anonymity`, `share_feedback`, `opened_at`, `closed_at`, `created_by`, `created_at`
+  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `subject_user_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `calibrated_competencies`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
   - `better_supabase.appraisal_reviews`: `id`, `tenant_id`, `appraisal_id`, `reviewer_id`, `kind`, `rating`, `comments`, `submission_id`, `submitted_at`
-  - `better_supabase.appraisal_calibrations`: `id`, `tenant_id`, `appraisal_id`, `from_rating`, `to_rating`, `reason`, `calibrated_by`, `calibrated_at`
+  - `better_supabase.appraisal_calibrations`: `id`, `tenant_id`, `appraisal_id`, `from_rating`, `to_rating`, `competency_ratings`, `reason`, `calibrated_by`, `calibrated_at`
+  - `better_supabase.appraisal_competencies`: `id`, `tenant_id`, `cycle_id`, `key`, `name`, `weight`, `position`
+  - `better_supabase.appraisal_review_ratings`: `id`, `tenant_id`, `review_id`, `competency_id`, `rating`, `comment`
   - `better_supabase.appraisal_goals`: `id`, `tenant_id`, `appraisal_id`, `goal_id`
 - `approvals`
   - `better_supabase.approval_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `action`, `status`, `requested_by`, `created_at`; typed: `status`
@@ -329,6 +331,8 @@ may be your own enum or domain.
   - `better_supabase.drive_drive_grants`: `id`, `tenant_id`, `drive_id`, `role`, `created_at`; typed: `role`
   - `better_supabase.drive_connections`: `id`, `tenant_id`, `user_id`, `provider`, `name`, `status`, `created_at`; typed: `provider`, `status`
   - `better_supabase.drive_node_texts`: `node_id`, `tenant_id`, `attachment_id`, `content`
+- `e-prescribing`
+  - `better_supabase.prescriptions`: `id`, `tenant_id`, `order_id`, `subject_type`, `subject_id`, `prescriber_id`, `prescriber_name`, `status`, `snapshot`, `signed_by`, `signed_at`, `gateway`, `gateway_reference`, `sent_at`, `delivery_error`, `dispensed_at`, `cancelled_at`, `cancel_reason`, `created_at`, `updated_at`
 - `employees`
   - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`
@@ -449,9 +453,10 @@ may be your own enum or domain.
   - `better_supabase.invoice_dunning_history`: `id`, `tenant_id`, `invoice_id`, `kind`, `level`, `fee`, `balance`, `created_at`
   - `better_supabase.invoice_allocations`: `id`, `tenant_id`, `reference`, `party_id`, `invoice_id`, `source`, `amount`, `discount`, `payment_id`, `discount_payment_id`, `allocated_on`, `unallocated_at`, `created_by`, `created_at`
   - `better_supabase.invoice_line_sources`: `id`, `tenant_id`, `invoice_id`, `position`, `source`, `source_id`, `quantity`, `created_at`
-  - `better_supabase.invoice_deliveries`: `id`, `tenant_id`, `invoice_id`, `channel`, `format`, `external_ref`, `sent_at`
   - `better_supabase.invoice_approval_levels`: `id`, `tenant_id`, `legal_entity_id`, `level`, `min_amount`, `currency`, `approver_id`, `created_at`
   - `better_supabase.invoice_approvals`: `id`, `tenant_id`, `invoice_id`, `level`, `approver_id`, `comment`, `decided_at`
+  - `better_supabase.invoice_e_endpoints`: `id`, `tenant_id`, `party_kind`, `party_id`, `scheme`, `endpoint_id`, `created_at`, `updated_at`
+  - `better_supabase.invoice_e_deliveries`: `id`, `tenant_id`, `invoice_id`, `direction`, `format`, `channel`, `message_id`, `state`, `reason`, `document_hash`, `created_at`, `updated_at`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
   - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`
@@ -487,11 +492,11 @@ may be your own enum or domain.
   - `better_supabase.mail_tracking_events`: `id`, `tenant_id`, `message_id`, `kind`, `occurred_at`; typed: `kind`
   - `better_supabase.mail_thread_subjects`: `tenant_id`, `thread_id`, `subject_type`, `subject_id`; typed: `source`
 - `maintenance`
-  - `better_supabase.maintenance_plans`: `id`, `tenant_id`, `title`, `asset_id`, `kind`, `every_days`, `meter_id`, `every_value`, `priority`, `status`, `last_done_at`, `last_done_value`, `next_due_at`, `work_order_id`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.maintenance_plans`: `id`, `tenant_id`, `title`, `asset_id`, `kind`, `every_days`, `meter_id`, `every_value`, `priority`, `status`, `last_done_at`, `last_done_value`, `next_due_at`, `work_order_id`, `rrule`, `dtstart`, `tz`, `required_qualifications`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.maintenance_plan_parts`: `id`, `tenant_id`, `plan_id`, `name`, `quantity`, `variant_id`
   - `better_supabase.maintenance_meters`: `id`, `tenant_id`, `name`, `unit`, `asset_id`, `reading`, `read_at`, `created_at`
   - `better_supabase.maintenance_meter_readings`: `id`, `tenant_id`, `meter_id`, `value`, `read_at`, `read_by`
-  - `better_supabase.maintenance_calibrations`: `id`, `tenant_id`, `asset_id`, `instrument`, `performed_at`, `due_at`, `result`, `reference`, `performed_by`
+  - `better_supabase.maintenance_calibrations`: `id`, `tenant_id`, `asset_id`, `instrument`, `performed_at`, `due_at`, `result`, `reference`, `performed_by`, `qualifications`
 - `manufacturing`
   - `better_supabase.boms`: `id`, `tenant_id`, `variant_id`, `version`, `status`, `quantity`, `note`, `activated_at`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.work_centers`: `id`, `tenant_id`, `name`, `asset_id`, `hours_per_day`, `cost_rate`, `currency`, `archived_at`, `created_at`, `updated_at`
@@ -769,8 +774,11 @@ may be your own enum or domain.
 - `warehouse`
   - `better_supabase.pick_waves`: `id`, `tenant_id`, `name`, `location_id`, `status`, `released_at`, `completed_at`, `created_by`, `created_at`
   - `better_supabase.pick_lists`: `id`, `tenant_id`, `wave_id`, `location_id`, `document_type`, `document_id`, `status`, `assignee_id`, `task_id`, `picked_at`, `created_by`, `created_at`
-  - `better_supabase.pick_lines`: `id`, `tenant_id`, `pick_list_id`, `allocation_id`, `variant_id`, `bin_id`, `lot_id`, `serials`, `quantity`, `picked`, `status`, `picked_at`, `picked_by`
+  - `better_supabase.pick_lines`: `id`, `tenant_id`, `pick_list_id`, `allocation_id`, `variant_id`, `bin_id`, `lot_id`, `serials`, `quantity`, `picked`, `route_position`, `status`, `picked_at`, `picked_by`
   - `better_supabase.count_plans`: `id`, `tenant_id`, `name`, `location_id`, `every_days`, `variant_ids`, `variance_limit_pct`, `next_run_on`, `last_run_at`, `last_count_id`, `active`, `created_at`
+  - `better_supabase.putaway_rules`: `id`, `tenant_id`, `location_id`, `bin_id`, `variant_id`, `priority`, `max_quantity`, `active`, `created_at`
+  - `better_supabase.bin_slots`: `id`, `tenant_id`, `bin_id`, `walk_rank`, `capacity`, `updated_at`
+  - `better_supabase.variant_sizes`: `id`, `tenant_id`, `variant_id`, `size`, `updated_at`
 - `webhook-inbox`
   - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `locked_until`, `received_at`
 - `webhooks-in`

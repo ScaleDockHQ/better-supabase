@@ -1,4 +1,4 @@
-# 0178: Prompts are versioned templates behind labels, read as the service role
+# 0183: Prompts are versioned templates behind labels, read as the service role
 
 - Status: accepted
 - Date: 2026-11-01

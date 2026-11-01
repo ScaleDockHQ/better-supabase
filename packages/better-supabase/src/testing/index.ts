@@ -108,6 +108,8 @@ export { testFieldPack } from "./kits/field-pack.ts";
 
 export { testTaxProvider } from "./kits/tax-provider.ts";
 
+export { testEInvoiceChannel } from "./kits/e-invoice-channel.ts";
+
 export { testShippingProvider } from "./kits/shipping-provider.ts";
 
 export { testIncomingDestination } from "./kits/incoming-destination.ts";
@@ -188,6 +190,8 @@ export type { TestFieldPackOptions } from "./kits/field-pack.ts";
 
 export type { TestTaxProviderOptions } from "./kits/tax-provider.ts";
 
+export type { TestEInvoiceChannelOptions } from "./kits/e-invoice-channel.ts";
+
 export type { TestShippingProviderOptions } from "./kits/shipping-provider.ts";
 
 export type { TestIncomingDestinationOptions } from "./kits/incoming-destination.ts";
@@ -209,6 +213,7 @@ export {
   testGraphCompiler,
   testMedicationCatalog,
   testNoteTaker,
+  testPrescriptionGateway,
   testTextExtractor,
   testTranscriber,
 } from "./injectables.ts";
@@ -224,6 +229,7 @@ export type {
   TestGraphCompilerOptions,
   TestMedicationCatalogOptions,
   TestNoteTakerOptions,
+  TestPrescriptionGatewayOptions,
   TestTextExtractorOptions,
   TestTranscriberOptions,
 } from "./injectables.ts";

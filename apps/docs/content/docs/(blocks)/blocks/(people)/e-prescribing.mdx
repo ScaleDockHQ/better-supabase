@@ -1,0 +1,143 @@
+---
+title: E-prescribing
+description: Prescriptions of medication orders that only their prescriber signs, a state machine in SQL from draft to dispensed, a FHIR R4 MedicationRequest, and a versioned port that delivers them.
+---
+
+`e-prescribing` turns an active [medication order](/docs/blocks/medications)
+into a prescription. A prescription starts as a draft, the prescriber signs
+it, a gateway delivers it to a pharmacy or a national prescription service,
+and the pharmacy's answer marks it dispensed. The block bundles no national
+format: you write the gateway against the `PrescriptionGateway` port.
+
+```bash
+better-supabase add e-prescribing
+```
+
+```ts
+import { createEPrescribing } from "better-supabase/blocks/e-prescribing";
+```
+
+The module requires `memberships`, `permissions`, `subjects` and `medications`.
+With `outbox` it records its events, and every step is audited under the
+`data` category.
+
+## Tables
+
+| Table           | Holds                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| `prescriptions` | A prescription: the order, the record, the `prescriber_id`, `status`, the frozen `snapshot` and delivery |
+
+A record has one live prescription per order. A cancelled prescription frees
+the order for a new draft.
+
+| Permission             | Allows                                                   |
+| ---------------------- | -------------------------------------------------------- |
+| `e_prescribing.read`   | reading prescriptions                                    |
+| `e_prescribing.write`  | drafting, sending, dispensing and cancelling your drafts |
+| `e_prescribing.sign`   | signing, when you are also the prescriber of the draft   |
+| `e_prescribing.manage` | cancelling any prescription                              |
+
+Admins have all four; members get none, so grant them to the roles that
+prescribe and dispense.
+
+## States
+
+```
+draft -> signed -> sent -> dispensed
+  \        \        \
+   +--------+--------+--> cancelled
+```
+
+```ts
+const draft = await db.ePrescribing
+  .create(order.id, { prescriberName: "Dr. Jansen" })
+  .orThrow();
+const signed = await db.ePrescribing.sign(draft.id).orThrow();
+const sent = await db.ePrescribing.send(signed.id).orThrow();
+await db.ePrescribing.dispense(sent.id).orThrow();
+```
+
+`sign` needs `e_prescribing.sign` and a signed-in user who is the prescriber of
+the draft. The database checks this against `auth.uid()`, so the service role
+never signs, and neither does another member with the permission. Signing
+freezes the order into `snapshot`, so a later change to the medication order
+does not alter what was signed. It fails when the order is no longer active.
+
+A delivery that fails keeps the prescription `signed`, stores the error in
+`delivery_error` and raises `prescription.delivery_failed`, so you retry
+`send`. A signed or sent prescription is cancelled with a `reason`. Cancelling
+a sent one asks the gateway to withdraw it first.
+
+## A gateway
+
+```ts
+import type { PrescriptionGateway } from "better-supabase/blocks/e-prescribing";
+
+const pharmacy: PrescriptionGateway = {
+  key: "my-pharmacy",
+  async deliver({ prescription, medicationRequest }, { signal }) {
+    const response = await fetch("https://pharmacy.example/requests", {
+      method: "POST",
+      body: JSON.stringify(medicationRequest),
+      signal,
+    });
+    if (!response.ok) throw new Error(`Pharmacy answered ${response.status}`);
+    const { id } = await response.json();
+    return { reference: id };
+  },
+};
+
+const prescribing = createEPrescribing({ transport, gateway: pharmacy });
+```
+
+The port is versioned with `apiVersion: 1` (omit it for 1). `deliver` gets the
+signed prescription and its FHIR R4 `MedicationRequest` and returns a
+`reference`, or throws. `cancel` is optional. Without a gateway, `send` is an
+error with hint `PRESCRIPTION_GATEWAY_MISSING`.
+
+Test a gateway with `testPrescriptionGateway` from `better-supabase/testing`.
+
+## FHIR
+
+`db.ePrescribing.medicationRequest(id)` returns a signed prescription as a
+`MedicationRequest`, built with `toFhirPrescription` from
+`better-supabase/fhir`: the prescription's identifier, its status (`active`
+once signed or sent, `completed` once dispensed), `authoredOn` and the
+requester. A draft has no request and is a `PRESCRIPTION_STATUS` error.
+
+## Events
+
+| Event                                                                                                                                                  | Data                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `prescription.created`, `prescription.signed`, `prescription.sent`, `prescription.delivery_failed`, `prescription.dispensed`, `prescription.cancelled` | `organizationId`, `id`, `orderId`, `subjectType`, `subjectId`, `status` |
+
+## Hooks
+
+`before_prescription_sign` and `after_prescription_sign` run around a
+signature. A `before` hook can refuse it.
+
+## Errors
+
+| Hint                           | Cause                                                    |
+| ------------------------------ | -------------------------------------------------------- |
+| `PRESCRIPTION_FORBIDDEN`       | the caller lacks the permission, or isn't the prescriber |
+| `PRESCRIPTION_INVALID`         | a bad input, an inactive order or a missing reason       |
+| `PRESCRIPTION_NOT_FOUND`       | no prescription or order with that id                    |
+| `PRESCRIPTION_STATUS`          | the step isn't allowed from the current status           |
+| `PRESCRIPTION_GATEWAY_MISSING` | `send` without a configured gateway                      |
+| `PRESCRIPTION_DELIVERY_FAILED` | the gateway threw; the prescription stays signed         |
+| `PRESCRIPTION_CANCEL_FAILED`   | the gateway couldn't withdraw a sent prescription        |
+
+## Without the client
+
+`db.ePrescribing` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+const prescribing = createEPrescribing({
+  transport,
+  tenant: organizationId,
+  gateway: pharmacy,
+});
+const drafts = await prescribing.list({ status: "draft" }).orThrow();
+```

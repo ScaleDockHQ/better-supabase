@@ -16,6 +16,7 @@
     "payroll-export",
     "medications",
     "clinical-decision-support",
+    "e-prescribing",
     "passes",
     "enrollments"
   ]

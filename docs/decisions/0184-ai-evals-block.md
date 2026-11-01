@@ -1,4 +1,4 @@
-# 0182: ai-evals runs datasets against a prompt version and a model
+# 0184: ai-evals runs datasets against a prompt version and a model
 
 - Status: accepted
 - Date: 2026-11-01

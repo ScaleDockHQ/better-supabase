@@ -93,6 +93,7 @@ const NO_FIELDS: readonly string[] = [
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.
   "domains",
+  "e-prescribing",
   // Results describe parties; app data lives on the companies and people.
   "enrichment",
   // Programs and enrollments track steps of a subject the app owns; the

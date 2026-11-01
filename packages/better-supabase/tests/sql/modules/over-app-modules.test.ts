@@ -119,6 +119,7 @@ const MODULES = [
   "rfqs",
   "tills",
   "clinical-decision-support",
+  "e-prescribing",
   "manufacturing",
   "legal-entities",
   "document-templates",
