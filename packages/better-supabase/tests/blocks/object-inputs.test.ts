@@ -22,7 +22,7 @@ const POSITIONAL = new Set<string>([
   "attachments/attachments.ts:createSignedUrl",
   "attachments/attachments.ts:getPublicUrl",
   "attachments/attachments.ts:publicUrl",
-  "attachments/attachments.ts:scan",
+  "attachments/scanners.ts:scan",
   "attachments/attachments.ts:signedUrl",
   "attachments/attachments.ts:upload",
   "attachments/attachments.ts:uploadToSignedUrl",
