@@ -120,10 +120,12 @@ may be your own enum or domain.
 - `api-keys`
   - `better_supabase.api_keys`: `id`, `organization_id`, `user_id`, `name`, `prefix`, `public_id`, `secret_hash`, `scopes`, `expires_at`, `revoked_at`, `created_at`; typed: `kind`
 - `appraisals`
-  - `better_supabase.appraisal_cycles`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `program`, `status`, `opened_at`, `closed_at`, `created_by`, `created_at`
-  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `subject_user_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
+  - `better_supabase.appraisal_cycles`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `program`, `status`, `anonymity`, `share_feedback`, `opened_at`, `closed_at`, `created_by`, `created_at`
+  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `subject_user_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `calibrated_competencies`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
   - `better_supabase.appraisal_reviews`: `id`, `tenant_id`, `appraisal_id`, `reviewer_id`, `kind`, `rating`, `comments`, `submission_id`, `submitted_at`
-  - `better_supabase.appraisal_calibrations`: `id`, `tenant_id`, `appraisal_id`, `from_rating`, `to_rating`, `reason`, `calibrated_by`, `calibrated_at`
+  - `better_supabase.appraisal_calibrations`: `id`, `tenant_id`, `appraisal_id`, `from_rating`, `to_rating`, `competency_ratings`, `reason`, `calibrated_by`, `calibrated_at`
+  - `better_supabase.appraisal_competencies`: `id`, `tenant_id`, `cycle_id`, `key`, `name`, `weight`, `position`
+  - `better_supabase.appraisal_review_ratings`: `id`, `tenant_id`, `review_id`, `competency_id`, `rating`, `comment`
   - `better_supabase.appraisal_goals`: `id`, `tenant_id`, `appraisal_id`, `goal_id`
 - `approvals`
   - `better_supabase.approval_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `action`, `status`, `requested_by`, `created_at`; typed: `status`
