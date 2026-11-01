@@ -429,4 +429,36 @@ export const RISKS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  seeds: {
+    // The matrix `options.defaultMatrix` describes; `ensure_risk_matrix` seeds
+    // it lazily when an organization has none.
+    defaults: (ctx) => {
+      const q = risksSql(ctx);
+      const d = q.defaultMatrix;
+
+      return [
+        {
+          table: q.matrices,
+          tenantColumn: q.m("tenant"),
+          key: [q.m("key")],
+          rows: [
+            {
+              values: {
+                [q.m("key")]: d.key,
+                [q.m("name")]: d.name,
+                [q.m("likelihoodLevels")]: { json: d.likelihoodLevels },
+                [q.m("impactLevels")]: { json: d.impactLevels },
+                [q.m("bands")]: { json: d.bands },
+                [q.m("scoring")]: d.scoring,
+                // Only the first matrix becomes the default.
+                [q.m("isDefault")]: {
+                  sql: `not exists (select 1 from ${q.matrices} d where d.${sqlIdent(q.m("tenant"))} = p_tenant and d.${sqlIdent(q.m("isDefault"))})`,
+                },
+              },
+            },
+          ],
+        },
+      ];
+    },
+  },
 };
