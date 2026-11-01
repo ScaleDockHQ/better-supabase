@@ -2374,11 +2374,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
+-- @bsb-hash sha256:8fa217c66b59ec0ddeaadbd7b7660889e297fd1a5bbe3c8940422f04d358c450
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.memories', target_type => 'memory', event_prefix => 'memory', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('memory', 5, 'managed')

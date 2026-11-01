@@ -10,6 +10,7 @@ import type { Paint } from "../style.ts";
 import {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   TABLE_FEATURES,
 } from "../../sql/index.ts";
@@ -127,12 +128,14 @@ export async function runTable(
     );
   }
 
-  const next = setTableFeature(
-    found.text,
+  const enabled = action === "enable";
+
+  const next = setFeatureStatement(
+    setTableFeature(found.text, schema, name, feature, enabled),
     schema,
     name,
     feature,
-    action === "enable",
+    enabled,
   );
 
   const plan: FilePlan = {

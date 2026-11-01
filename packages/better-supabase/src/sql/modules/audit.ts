@@ -48,8 +48,8 @@ import {
 import { retention } from "./audit-retention.ts";
 import { revert } from "./audit-revert.ts";
 import {
+  actorKind,
   requestIpSql,
-  staffTest,
   subjectColumnsSql,
 } from "./audit-subjects.ts";
 import { auditTests } from "./audit-tests.ts";
@@ -68,6 +68,7 @@ const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "appendOnly",
+    "blockTables",
     "chain",
     "correlationIdHeader",
     "eventCategory",
@@ -195,26 +196,6 @@ const NAMES: BlockSqlNames = {
   },
   hooks: ["audit_retention"],
 };
-
-/**
- * How the caller acted: service, support, impersonation, oauth-client, staff
- * (with `staffClaim`), user or system.
- */
-function actorKind(ctx: BlockSqlContext): string {
-  const staff = staffTest(ctx);
-
-  return `case
-      when better_supabase.import_run() is not null then 'integration'
-      when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
-      when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
-      when auth.jwt() -> 'act' is not null then 'impersonation'
-      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'${
-        staff === undefined ? "" : `\n      when ${staff} then 'staff'`
-      }
-      when auth.uid() is not null then 'user'
-      else 'system'
-    end`;
-}
 
 const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')`;
 

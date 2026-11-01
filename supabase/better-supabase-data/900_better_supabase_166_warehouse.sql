@@ -1,10 +1,16 @@
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
--- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
+-- @bsb-hash sha256:7bfcff651ed4466f4db9481e0cce08a425a25213fcc8aafe7c86520749cb3602
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_list', event_prefix => 'pick_list', deferred => true);
+select better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
+select better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
+select better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('warehouse', 1, 'managed')

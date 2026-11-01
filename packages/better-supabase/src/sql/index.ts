@@ -239,6 +239,7 @@ export type { BsbComment, BsbTag } from "./bsb-tags.ts";
 export {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   TABLE_FEATURES,
   tableFeatures,

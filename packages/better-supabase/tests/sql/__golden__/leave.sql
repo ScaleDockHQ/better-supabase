@@ -2258,11 +2258,15 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block-data leave
--- @bsb-hash sha256:469ff4c4bc15d1e8ee80aa4c07064294ad84d3ad846f25e7bfca61c713c861e9
+-- @bsb-hash sha256:bab58baeace5541ae026a834390b3c28c700016d79420b00f874586953fe64a3
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.leave_requests', target_type => 'leave_request', event_prefix => 'leave_request', deferred => true);
+select better_supabase.audit('better_supabase.leave_types', target_type => 'leave_type', event_prefix => 'leave_type', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('leave', 3, 'managed')

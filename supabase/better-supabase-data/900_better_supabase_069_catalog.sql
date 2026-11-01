@@ -1,10 +1,14 @@
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
--- @bsb-hash sha256:2033a9a55f3f1254315d7e49a0457c27bea8dd7841443521168e86d6f1d378c9
+-- @bsb-hash sha256:073fa2f24c3f7340b5b6b5290b272640b6b4f640a65f2e34c1788e26fc6dc969
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.products', target_type => 'product', event_prefix => 'product', deferred => true);
+select better_supabase.audit('better_supabase.product_variants', target_type => 'product_variant', event_prefix => 'product_variant', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('catalog', 6, 'managed')

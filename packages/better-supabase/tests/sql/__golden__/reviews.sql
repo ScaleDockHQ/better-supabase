@@ -1224,7 +1224,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
+-- @bsb-hash sha256:6eb202b9bb07ad4356da995e62fab66697917ae8c07e217a7f5a515d17873954
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1237,6 +1237,9 @@ insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.reviews', target_type => 'review', event_prefix => 'review', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('reviews', 2, 'managed')

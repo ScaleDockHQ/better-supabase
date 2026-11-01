@@ -471,7 +471,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:5a1567d2385eb7c2b64b6d63db7b53d28d637a8bbcdc99c716970ce4554a312f
+-- @bsb-hash sha256:fe419380cd9188e4fd95e8c72b885397d6a24d415fe529f45f122f6eb1af4dec
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -578,6 +578,9 @@ from (values
   ('workflow.published', 'workflow_definition.published')
 ) as m(old_type, next_type)
 where t."type" = m.old_type;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.timeline_entries', target_type => 'timeline_entry', event_prefix => 'timeline_entry', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('timeline', 2, 'managed')

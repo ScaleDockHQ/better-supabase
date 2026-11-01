@@ -2523,11 +2523,15 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block-data assets
--- @bsb-hash sha256:cdfee733cdb1ab16291963d28940f13d8d33a1ba53dbbfb6af72eed615bd1cdf
+-- @bsb-hash sha256:36a9be8c90dadf65f74790fcbe215539df329dd3abd3b8dfffee2345098bae23
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.assets', target_type => 'asset', event_prefix => 'asset', deferred => true);
+select better_supabase.audit('better_supabase.asset_locations', target_type => 'asset_location', event_prefix => 'asset_location', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('assets', 1, 'managed')

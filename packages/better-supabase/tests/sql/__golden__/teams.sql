@@ -959,11 +959,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:af0781564dfd49e1eea7753d2287f72934866bb6541918fb9238d95aae9fb425
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.teams', target_type => 'team', event_prefix => 'team', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('teams', 2, 'managed')

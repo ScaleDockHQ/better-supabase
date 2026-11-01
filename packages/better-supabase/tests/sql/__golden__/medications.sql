@@ -2987,11 +2987,16 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block-data medications
--- @bsb-hash sha256:5a31b4489eba3fccd92a203fd47e002c98354a7226595d3ed756da092d3c5994
+-- @bsb-hash sha256:41372d590702f147c30e79d65e1ae554e2807e334a4de76caf7ebd12113351ca
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.medications', target_type => 'medication', event_prefix => 'medication', deferred => true);
+select better_supabase.audit('better_supabase.medication_orders', target_type => 'medication_order', event_prefix => 'medication_order', deferred => true);
+select better_supabase.audit('better_supabase.medication_administrations', target_type => 'medication_administration', event_prefix => 'medication_administration', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('medications', 1, 'managed')

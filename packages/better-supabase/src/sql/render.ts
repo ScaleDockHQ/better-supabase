@@ -54,6 +54,7 @@ import {
   resolveBlocks,
   SQL_MODULES,
 } from "./registry.ts";
+import { rowAuditData } from "./row-audit.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { tableBase } from "./table-renames.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
@@ -409,6 +410,7 @@ function moduleFiles(
       .map((trigger) => trigger.statement)
       .join("\n"),
     scoped(module.data?.(ctx, layout).trim() ?? ""),
+    rowAuditData(ctx, layout, installed),
     moduleRow(module, ctx.mode, ctx.instance),
   ]
     .filter((part) => part !== "")

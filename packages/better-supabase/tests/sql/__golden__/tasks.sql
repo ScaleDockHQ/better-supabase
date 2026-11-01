@@ -2196,7 +2196,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:afa514c68143e087fdd8cde8f66f4d0ac61cc6223787cd12d0111278b84c8594
+-- @bsb-hash sha256:fe22f5a890439d7c75bc6d965ca49c7d1967e3ce3033a0d715b87c04ec439093
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2291,6 +2291,12 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
 from "better_supabase"."projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.tasks', target_type => 'task', event_prefix => 'task', deferred => true);
+select better_supabase.audit('better_supabase.projects', target_type => 'project', event_prefix => 'project', deferred => true);
+select better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
+select better_supabase.audit('better_supabase.task_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 4, 'managed')

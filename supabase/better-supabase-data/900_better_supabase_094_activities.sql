@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:e394f49a4ad253c9749062e32b3451884ad566e46ee99686bbe2d5f919271ee1
+-- @bsb-hash sha256:ca9a162c0440f6cd829fa170374245c43e19bef80a53ea6028c687cb5fb2dc6a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -84,6 +84,9 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_awards"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."funding_awards" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_deliveries"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."funding_deliveries" set "source_type" = 'activity' where "source_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_alerts"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_alerts" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.activities', target_type => 'activity', event_prefix => 'activity', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('activities', 3, 'managed')

@@ -140,6 +140,12 @@ blocks: {
 A value that doesn't parse as the column's type stores `null` instead of
 failing the audited write.
 
+## Row entries for block tables
+
+Every table a block owns writes a row entry when something changes it outside a block function. Block functions already call `ctx.record`, and the row trigger skips a row that function recorded in the same transaction, so a change appears once. The triggers are deferred to commit, so a later direct write to the same row in that transaction is not listed.
+
+`blocks.audit.options.blockTables` sets the scope: `"entities"` (the default) covers each module's entity tables, `"all"` adds the other block tables, and `"none"` turns it off. The audit block's own tables never write row entries.
+
 ## Module actions
 
 Every SQL module records its security-relevant actions in the log once the

@@ -53,6 +53,17 @@ constants.
 - A graph command or panel in the CLI. Create already is the graph; it gets
   better edges.
 
+## Addendum: row audit and links
+
+- Block tables get row triggers from the audit module's `data` hook. A function
+  that calls `ctx.record` sets the transaction-local `bsb.recorded` marker, and
+  the row trigger skips marked rows. The triggers are deferred constraint
+  triggers so they fire after `ctx.record`. A later direct write to the same
+  row in the same transaction is skipped.
+- Declared links are polymorphic type and id pairs, or have no column, so they
+  get no foreign keys. `reference` links are metadata only. A `not valid`
+  foreign key upgrade step is added only where a real column exists.
+
 ## Consequences
 
 - Amends 0029 (manifests gain composition fields), 0048 (events fire from

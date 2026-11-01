@@ -1430,13 +1430,16 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block-data flags
--- @bsb-hash sha256:4036cb86aa3b85d73b2ac180acf313c89af7cdb5b89f3c1de52a83f004a060dd
+-- @bsb-hash sha256:1fcf6e4a3cf9cc3d8086e00a92129a0a1ac2a099d12130a3d108f626ece0af00
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.flags', target_type => 'flag', event_prefix => 'flag', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('flags', 4, 'managed')

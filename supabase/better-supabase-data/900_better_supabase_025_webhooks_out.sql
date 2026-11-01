@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:e22059a63e739ae8299b6d48935aa83fdb23207bfb06cafad37e87d2239456d5
+-- @bsb-hash sha256:7916d0f26225eba592dd8fc0851ccded54e813ab4ce97905a5f0dff43ef68012
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -148,6 +148,9 @@ update "better_supabase"."webhook_endpoints" t set "event_types" = array(
   )) x order by x
 )
 where t."event_types" && array(select old_type from m);
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.webhook_endpoints', target_type => 'webhook_endpoint', event_prefix => 'webhook_endpoint', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-out', 6, 'managed')

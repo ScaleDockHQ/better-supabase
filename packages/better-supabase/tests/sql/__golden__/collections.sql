@@ -2193,11 +2193,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:765d624d8e44a064e5e0d10f8394dd0cf06113378bcc26d37a60e1e77ca5f8d1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.subject_collections', target_type => 'subject_collection', event_prefix => 'subject_collection', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('collections', 2, 'managed')

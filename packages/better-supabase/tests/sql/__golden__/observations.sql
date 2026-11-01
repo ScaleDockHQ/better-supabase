@@ -2427,11 +2427,15 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block-data observations
--- @bsb-hash sha256:60a418ee7d27530f37b366a45350503d8d5481d1f1904ec2a586de82869b3749
+-- @bsb-hash sha256:91438fad69b72b9f3ad491ed8abbcbf708629bd46768c19177fd5a35273b2a20
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+select better_supabase.audit('better_supabase.observations', target_type => 'observation', event_prefix => 'observation', deferred => true);
+select better_supabase.audit('better_supabase.observation_definitions', target_type => 'observation_definition', event_prefix => 'observation_definition', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('observations', 1, 'managed')

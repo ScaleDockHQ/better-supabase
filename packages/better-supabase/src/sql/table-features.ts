@@ -128,3 +128,46 @@ export function tableTagComments(
       : [];
   });
 }
+
+/**
+ * The statement a feature needs besides its tag: `audit` registers the row
+ * trigger through a static `audit()` call, which pg-delta keeps in the schema
+ * file's diff. Other features are read from the tag alone.
+ */
+export function featureStatement(
+  feature: TableFeature,
+  schema: string,
+  table: string,
+): string | undefined {
+  return feature === "audit"
+    ? `select better_supabase.audit('${schema}.${table}');`
+    : undefined;
+}
+
+/**
+ * `sql` with `feature`'s statement present or absent for `table`; `sql` itself
+ * when the feature has none or the file is already in the wanted state.
+ */
+export function setFeatureStatement(
+  sql: string,
+  schema: string,
+  table: string,
+  feature: TableFeature,
+  enabled: boolean,
+): string {
+  const statement = featureStatement(feature, schema, table);
+
+  if (statement === undefined) {
+    return sql;
+  }
+
+  const present = sql.includes(statement);
+
+  if (enabled) {
+    return present ? sql : `${sql.replace(/\n*$/u, "")}\n\n${statement}\n`;
+  }
+
+  return present
+    ? sql.replace(`\n${statement}`, "").replace(statement, "")
+    : sql;
+}
