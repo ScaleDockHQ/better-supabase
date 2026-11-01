@@ -1,5 +1,4 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
-import type { Result } from "../../core/result.ts";
 import type { AttachmentStorage } from "../attachments/attachments.ts";
 import type {
   Drive,
@@ -14,6 +13,7 @@ import type {
 import { recordOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { firstFailure } from "../read-all.ts";
 import { nodesOf } from "./parse.ts";
 import { putRequestFile } from "./requests.ts";
 
@@ -138,18 +138,6 @@ const flagsOf = (value: unknown): DriveFlags => {
     write: row["write"] === true,
     share: row["share"] === true,
   };
-};
-
-const firstFailure = (
-  results: readonly Result<unknown>[],
-): Result<never> | undefined => {
-  for (const result of results) {
-    if (!result.ok) {
-      return err(result.error);
-    }
-  }
-
-  return undefined;
 };
 
 const principalKey = (principal: DrivePrincipal): string =>

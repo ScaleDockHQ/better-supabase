@@ -110,3 +110,15 @@ does not know. `drive.search` is the SQL function `drive_search`, which escapes 
 Grants with names are not possible inside the block: it stores no member names. `grantsWithNames` takes a
 `names` resolver that the app answers from its own users table. `attachments.uploadFile` can report only
 start and end through `onProgress`, because supabase-js gives no byte progress.
+
+## Addendum: page reads for people, scheduling and records
+
+`shifts.roster`, `courses.outline` and `dispatch.board` already existed, so they are not repeated.
+`hiring.board`, `bookings.page`, `qualifications.matrix`, `documents.page` and `care.dossier` are new.
+
+They are TypeScript over reads that exist and already have pgTAP tests, run in parallel through the
+hooked client, and return the first error. A new SQL function per page would copy the access checks of
+each part and drift from them, so no new SQL and no new pgTAP test came with them; the unit tests cover
+the combining. `qualifications.matrix` shows a holder's id when no gap names it, because the block
+stores no member names, and `documents.page` reads versions and suggestions after `open` because
+opening creates the document.

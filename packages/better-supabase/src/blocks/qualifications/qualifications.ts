@@ -7,12 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -190,6 +190,28 @@ export interface QualifiedHoldersOptions {
   readonly on?: Temporal.PlainDate;
 }
 
+export interface QualificationMatrixOptions {
+  /** Default: `member`. */
+  readonly holderType?: QualificationHolderType;
+  /** Default: today. */
+  readonly on?: Temporal.PlainDate;
+}
+
+/** `valid`, a gap status, or `none` when the holder neither holds nor needs it. */
+export type QualificationCellStatus = QualificationGapStatus | "valid" | "none";
+
+export interface QualificationMatrixRow {
+  readonly holderId: string;
+  /** The holder's name when a gap names it, else the id. */
+  readonly holderTitle: string;
+  readonly cells: Readonly<Record<string, QualificationCellStatus>>;
+}
+
+export interface QualificationMatrix {
+  readonly types: readonly QualificationType[];
+  readonly rows: readonly QualificationMatrixRow[];
+}
+
 export interface Qualifications<F extends object = Record<never, never>> {
   /** Needs `qualifications.manage`. */
   saveType(input: {
@@ -234,6 +256,15 @@ export interface Qualifications<F extends object = Record<never, never>> {
   gaps(
     input: { organizationId: string } & QualificationGapOptions,
   ): AsyncResult<readonly QualificationGap[]>;
+  /**
+   * Holders by the qualification types they need or hold, read together:
+   * `types` are the active types (the columns), `rows` the holders with a valid
+   * holding or a gap (the rows), each with one cell per type key. A holder with
+   * neither does not appear.
+   */
+  matrix(
+    input: { organizationId: string } & QualificationMatrixOptions,
+  ): AsyncResult<QualificationMatrix>;
   /** The ids of the holders with a valid holding of `typeKey` on a day. */
   qualifiedHolders(
     input: {
@@ -524,6 +555,80 @@ export function createQualifications<
         },
         idsOf,
       ),
+    matrix: ({ organizationId, holderType, on }) =>
+      AsyncResult.from<QualificationMatrix>(async () => {
+        const kind = holderType ?? "member";
+        const types = await hooked.types({ organizationId });
+
+        if (!types.ok) {
+          return err(types.error);
+        }
+
+        const [gaps, valid] = await Promise.all([
+          hooked.gaps({ organizationId, holderType: kind }),
+          Promise.all(
+            types.data.map((type) =>
+              hooked.qualifiedHolders({
+                organizationId,
+                typeKey: type.key,
+                holderType: kind,
+                ...(on ? { on } : {}),
+              }),
+            ),
+          ),
+        ]);
+
+        if (!gaps.ok) {
+          return err(gaps.error);
+        }
+
+        const titles = new Map<string, string>();
+
+        const cells = new Map<
+          string,
+          Record<string, QualificationCellStatus>
+        >();
+
+        const cellsOf = (holderId: string) => {
+          const found = cells.get(holderId) ?? {};
+
+          cells.set(holderId, found);
+
+          return found;
+        };
+
+        for (const [index, holders] of valid.entries()) {
+          if (!holders.ok) {
+            return err(holders.error);
+          }
+
+          const type = types.data[index];
+
+          for (const holderId of holders.data) {
+            if (type) {
+              cellsOf(holderId)[type.key] = "valid";
+            }
+          }
+        }
+
+        for (const gap of gaps.data) {
+          titles.set(gap.holderId, gap.holderTitle);
+          cellsOf(gap.holderId)[gap.typeKey] = gap.status;
+        }
+
+        return ok({
+          types: types.data,
+          rows: [...cells]
+            .map(([holderId, found]) => ({
+              holderId,
+              holderTitle: titles.get(holderId) ?? holderId,
+              cells: Object.fromEntries(
+                types.data.map((type) => [type.key, found[type.key] ?? "none"]),
+              ),
+            }))
+            .toSorted((a, b) => a.holderTitle.localeCompare(b.holderTitle)),
+        });
+      }),
     notifyExpiring: () => call("notify_expiring_qualifications", {}, numberOf),
     check: ({ organizationId, typeKey, holderId, holderType, on }) =>
       hooked

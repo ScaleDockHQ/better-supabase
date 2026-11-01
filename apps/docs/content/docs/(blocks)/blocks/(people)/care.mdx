@@ -73,6 +73,10 @@ await blocks.care.prescribeWithConsent({
 
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
+## The client dossier
+
+`care.dossier({ organizationId, subject })` reads one client's care plans, latest observations, active medication orders, consents and funding awards with their usage together. The first read that fails returns its error and nothing else.
+
 ## Remove
 
 ```bash

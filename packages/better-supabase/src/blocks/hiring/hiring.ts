@@ -8,7 +8,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -194,6 +195,15 @@ export interface Hiring<F extends object = Record<never, never>> {
     state?: ApplicationState | undefined;
   }): AsyncResult<JobPipelineStage[]>;
   /**
+   * One job and its applications grouped by stage, read together. A job the
+   * caller can't see is `not_found`.
+   */
+  board(input: {
+    organizationId: string;
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<JobBoard<F>>;
+  /**
    * Closes the job: `saveJob` with `status: "closed"`, which stamps `closedAt`
    * and emits `job_opening.closed`. Closing a closed job changes nothing.
    */
@@ -201,6 +211,11 @@ export interface Hiring<F extends object = Record<never, never>> {
 }
 
 /** One stage's applications in `Hiring.pipeline`. */
+export interface JobBoard<F extends object = Record<never, never>> {
+  readonly job: Job<F>;
+  readonly stages: readonly JobPipelineStage[];
+}
+
 export interface JobPipelineStage {
   /** `undefined` for applications that have no stage yet. */
   readonly stageId: string | undefined;
@@ -455,6 +470,27 @@ export function createHiring<
           stageId,
           applications: grouped,
         }));
+      }),
+    board: ({ organizationId, jobId, state }) =>
+      AsyncResult.from<JobBoard<F>>(async () => {
+        const [jobs, stages] = await Promise.all([
+          hooked.jobs({ organizationId }),
+          hooked.pipeline({ jobId, state }),
+        ]);
+
+        if (!jobs.ok) {
+          return err(jobs.error);
+        }
+
+        if (!stages.ok) {
+          return err(stages.error);
+        }
+
+        const found = jobs.data.find((job) => job.id === jobId);
+
+        return found
+          ? ok({ job: found, stages: stages.data })
+          : err(dbError("not_found", "The job does not exist."));
       }),
     close: ({ organizationId, jobId }) =>
       hooked.saveJob({ organizationId, job: { id: jobId, status: "closed" } }),

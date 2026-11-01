@@ -2,11 +2,11 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { fromBase64, toBase64 } from "../../core/base64.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -119,9 +119,28 @@ export interface DecidedSuggestion extends DocumentSuggestion {
 
 export type SuggestionDecision = "accepted" | "rejected" | "withdrawn";
 
+/** A document page in one read: `documents.page`. */
+export interface DocumentPage extends OpenedDocument {
+  /** Newest first; empty unless `versions` was asked for. */
+  readonly versions: readonly DocumentVersion[];
+  /** Open suggestions, oldest first; empty unless `suggestions` was asked for. */
+  readonly suggestions: readonly DocumentSuggestion[];
+}
+
 export interface Documents {
   /** The document's state; creates it on first open for an editor. */
   open(ref: DocumentRef): AsyncResult<OpenedDocument>;
+  /**
+   * `open`, plus the versions (needs the versions module) and the open
+   * suggestions when asked for, read together. Opening creates the document for
+   * an editor, so the other two read after it.
+   */
+  page(
+    ref: DocumentRef & {
+      readonly versions?: boolean;
+      readonly suggestions?: boolean;
+    },
+  ): AsyncResult<DocumentPage>;
   /** Appends an update and returns its sequence number. */
   push(input: { documentId: string; update: Uint8Array }): AsyncResult<number>;
   /**
@@ -309,6 +328,37 @@ export function createDocuments(options: DocumentsOptions): Documents {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Documents = {
+    page: ({ versions, suggestions, ...ref }) =>
+      AsyncResult.from<DocumentPage>(async () => {
+        const opened = await hooked.open(ref);
+
+        if (!opened.ok) {
+          return err(opened.error);
+        }
+
+        const [versionList, suggestionList] = await Promise.all([
+          versions
+            ? hooked.versions({ documentId: opened.data.id })
+            : Promise.resolve(ok<readonly DocumentVersion[]>([])),
+          suggestions
+            ? hooked.suggestions({ documentId: opened.data.id })
+            : Promise.resolve(ok<readonly DocumentSuggestion[]>([])),
+        ]);
+
+        if (!versionList.ok) {
+          return err(versionList.error);
+        }
+
+        if (!suggestionList.ok) {
+          return err(suggestionList.error);
+        }
+
+        return ok({
+          ...opened.data,
+          versions: versionList.data,
+          suggestions: suggestionList.data,
+        });
+      }),
     open: (ref) =>
       call(
         "open_document",
@@ -416,8 +466,11 @@ export function createDocuments(options: DocumentsOptions): Documents {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Documents = withBlockHooks(client, options.hooks, {
     block: "documents",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

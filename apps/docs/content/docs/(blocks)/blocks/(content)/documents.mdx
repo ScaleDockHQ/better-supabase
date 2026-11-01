@@ -122,6 +122,10 @@ const saved = await documents
 
 Named versions are versions with a label. `nameVersion(documentId, versionId, label)` names or renames one, `null` removes the name, and `versions(documentId, { named: true })` lists only the named ones. Each version also carries its `source` and whether it is `frozen`; a frozen version keeps its name (`DOCUMENT_VERSION_FROZEN`).
 
+## A document page in one read
+
+`documents.page({ organizationId, subjectType, subjectId })` opens the document and, with `versions: true` and `suggestions: true`, adds the version list and the open suggestions. Opening comes first because it creates the document for an editor; the other two reads run together afterwards. Versions need the versions module.
+
 ## Errors
 
 | Hint                            | When                                                                                               |

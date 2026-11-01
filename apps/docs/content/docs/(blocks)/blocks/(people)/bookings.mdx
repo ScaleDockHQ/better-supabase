@@ -460,6 +460,10 @@ placed and can raise to refuse it. `after_booking_reserve(booking)`,
 `after_booking_confirm(booking)` and `after_booking_cancel(booking)` run after
 the change. Every occurrence of a series runs the same hooks. See [block hooks](/docs/extending/blocks#hooks).
 
+## A booking page in one read
+
+`bookings.page({ organizationId, serviceId, range })` returns the active services, the active resources and the open slots of one service. Without `serviceId` and `range` it skips the slot read and `slots` is empty. `tz` and `resourceId` narrow the slots as in `availableSlots`.
+
 ## Errors
 
 | Hint                         | When                                                                                                             |

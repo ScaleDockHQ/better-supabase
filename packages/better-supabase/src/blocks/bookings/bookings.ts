@@ -21,7 +21,7 @@ import {
 import { applyTemporal } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { compact } from "../sales-shared.ts";
 import {
@@ -215,6 +215,13 @@ export interface BookingExpirePayload {
   readonly bookingId?: string;
 }
 
+/** A booking page in one read: `bookings.page`. */
+export interface BookingPage {
+  readonly services: readonly BookingService[];
+  readonly resources: readonly BookingResource[];
+  readonly slots: readonly BookingSlot[];
+}
+
 /** `F` is the extra booking fields `options.fields` describes. */
 export interface Bookings<F extends object = Record<never, never>> {
   saveResource(input: {
@@ -258,6 +265,18 @@ export interface Bookings<F extends object = Record<never, never>> {
       readonly resourceId?: string;
     },
   ): AsyncResult<BookingSlot[]>;
+  /**
+   * What a booking page shows, read together: the active services and resources
+   * and, with `serviceId` and `range`, that service's open slots. Without them
+   * `slots` is empty.
+   */
+  page(input: {
+    organizationId: string;
+    serviceId?: string | undefined;
+    range?: BookingRange | undefined;
+    tz?: string | undefined;
+    resourceId?: string | undefined;
+  }): AsyncResult<BookingPage>;
   /** Holds a slot for the service's `holdFor`, or books it with `confirm`. */
   hold(
     input: {
@@ -527,6 +546,39 @@ export function createBookings<
         },
         slotsOf,
       ),
+    page: ({ organizationId, serviceId, range, tz, resourceId }) =>
+      AsyncResult.from<BookingPage>(async () => {
+        const [services, resources, slots] = await Promise.all([
+          hooked.services({ organizationId }),
+          hooked.resources({ organizationId }),
+          serviceId && range
+            ? hooked.availableSlots({
+                serviceId,
+                range,
+                ...(tz ? { tz } : {}),
+                ...(resourceId ? { resourceId } : {}),
+              })
+            : Promise.resolve(ok<BookingSlot[]>([])),
+        ]);
+
+        if (!services.ok) {
+          return err(services.error);
+        }
+
+        if (!resources.ok) {
+          return err(resources.error);
+        }
+
+        if (!slots.ok) {
+          return err(slots.error);
+        }
+
+        return ok({
+          services: services.data,
+          resources: resources.data,
+          slots: slots.data,
+        });
+      }),
     hold: ({ serviceId, resourceId, startsAt, customer, ...holdOptions }) =>
       placed(
         "hold_booking",

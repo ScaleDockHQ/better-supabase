@@ -134,6 +134,10 @@ function fakeServer(canWrite = true, canSuggest = canWrite) {
     },
     version: () => AsyncResult.ok(new Uint8Array()),
     toCompact: () => AsyncResult.ok([DOC_ID]),
+    page: (ref) =>
+      documents
+        .open(ref)
+        .map((opened) => ({ ...opened, versions: [], suggestions: [] })),
   };
 
   return {
