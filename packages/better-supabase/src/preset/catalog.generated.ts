@@ -10799,7 +10799,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "collaboration",
       "sql": [],
       "category": "collaboration",
-      "client": null,
+      "client": {
+        "export": "collaborationBlock",
+        "subpath": "better-supabase/blocks/collaboration"
+      },
       "consumes": {},
       "provides": [],
       "composes": [
@@ -10970,7 +10973,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "scheduling",
       "sql": [],
       "category": "scheduling",
-      "client": null,
+      "client": {
+        "export": "schedulingBlock",
+        "subpath": "better-supabase/blocks/scheduling"
+      },
       "consumes": {},
       "provides": [],
       "composes": [

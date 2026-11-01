@@ -9802,10 +9802,14 @@
   "./blocks/collaboration": {
     "values": [
       "collaborationBlock",
-      "collaborationParts"
+      "collaborationParts",
+      "createCollaboration"
     ],
     "types": [
-      "CollaborationParts"
+      "Collaboration",
+      "CollaborationOptions",
+      "CollaborationParts",
+      "Discussion"
     ]
   },
   "./blocks/governance": {
@@ -9900,10 +9904,14 @@
   },
   "./blocks/scheduling": {
     "values": [
+      "createScheduling",
       "schedulingBlock",
       "schedulingParts"
     ],
     "types": [
+      "BookedWithReminder",
+      "Scheduling",
+      "SchedulingOptions",
       "SchedulingParts"
     ]
   },

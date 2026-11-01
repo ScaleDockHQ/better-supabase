@@ -1,10 +1,10 @@
-import type { BlockContext } from "../create-blocks.ts";
-import type { BlockOf, CompositeOptions } from "../define-block.ts";
+import type { BlockOf } from "../define-block.ts";
 
 import { bookingsBlock } from "../bookings/manifest.ts";
 import { calendarBlock } from "../calendar/manifest.ts";
 import { defineBlock } from "../define-block.ts";
 import { remindersBlock } from "../reminders/manifest.ts";
+import { createScheduling } from "./scheduling.ts";
 
 /** The blocks `scheduling` is made of, by block name. */
 export const schedulingParts: {
@@ -24,11 +24,10 @@ export type SchedulingParts = typeof schedulingParts;
  * reminders. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */
-export const schedulingBlock: BlockOf<
-  "scheduling",
-  (options: BlockContext & CompositeOptions<SchedulingParts>) => undefined
-> = defineBlock({
-  name: "scheduling",
-  composes: schedulingParts,
-  category: "scheduling",
-});
+export const schedulingBlock: BlockOf<"scheduling", typeof createScheduling> =
+  defineBlock({
+    name: "scheduling",
+    composes: schedulingParts,
+    create: createScheduling,
+    category: "scheduling",
+  });
