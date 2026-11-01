@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:e03dddaa5bf45ff10d13603f0636db3ecb5dc2b626702aea4dc6a6d7cafc0436
+-- @bsb-hash sha256:9a6edfefb2c08515aed237b469cda1615d40894a9538cc938888e71ba71e607f
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -992,6 +992,37 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."leave_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" ap on ap."id" = r."approval_id"
+    where r."tenant_id" = leave_range_close_blockers.tenant
+      and r."starts_on" between leave_range_close_blockers.starts_on and leave_range_close_blockers.ends_on
+      and r."cancelled_at" is null and r."approved_at" is null and ap."status" = 'pending'
+  ) then array['pending_requests']::text[] else '{}'::text[] end
+$$;
+revoke execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."leave_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform "better_supabase"."close_leave_year"(leave_close_range.tenant, extract(year from leave_close_range.starts_on)::integer);
+end;
+$$;
+revoke execute on function "better_supabase"."leave_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."leave_close_range"(uuid, date, date) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

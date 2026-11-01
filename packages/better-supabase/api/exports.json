@@ -10182,6 +10182,33 @@
       "TillUpdate"
     ]
   },
+  "./blocks/periods": {
+    "values": [
+      "createPeriods",
+      "dbTransport",
+      "extendBlock",
+      "periodsBlock",
+      "periodsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CreatePeriodInput",
+      "Period",
+      "PeriodEventData",
+      "PeriodListOptions",
+      "Periods",
+      "PeriodsEvents",
+      "PeriodsOptions",
+      "PeriodStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/lims": {
     "values": [
       "createLims",

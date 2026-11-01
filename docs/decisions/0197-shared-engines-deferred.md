@@ -28,3 +28,24 @@ it would rot.
 Maintenance plans, appointments and calendar alarms keep their own recurrence
 handling until the shared expander exists. Revisit when a second block needs
 the same rule.
+
+## Periods engine (feat/engine-periods)
+
+The `periods` block ships with this change: the `periods` table, `period_for`,
+`period_is_open`, `lock_period`, `close_period`, `reopen_period` and the close
+protocol where a block contributes `blockers` and `onClose` functions through
+`contributes.periods`. Accounting contributes `fiscal_period` and leave
+contributes `leave_year`. The existing `close_accounting_period` and
+`close_leave_year` keep their names.
+
+### Deferred
+
+- Payroll runs, usage billing windows and forecast snapshots do not contribute a
+  kind yet. Each needs a range to row mapping of its own, and none of them has a
+  second consumer to shape it. They add a kind with `contributes.periods`.
+- `finance.closeMonth` and `leave.rolloverYear` did not exist, so nothing
+  converts to a wrapper. Closing a fiscal period or a leave year stays on
+  `closeAccountingPeriod` and `closeYear`, and `periods.close` calls the same SQL.
+- Blocks do not check `period_is_open` before they write. Accounting still
+  refuses posts into closed fiscal periods by its own status, and leave has no
+  write guard for a closed year. Adding the guard per block is the follow-up.

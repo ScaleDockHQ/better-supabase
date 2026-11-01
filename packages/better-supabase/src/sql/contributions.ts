@@ -14,6 +14,7 @@ export interface BlockContributions {
   readonly bulk: BulkActionContribution;
   readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
+  readonly periods: PeriodContribution;
   readonly pipelines: PipelineContribution;
   readonly relations: RelationContribution;
   readonly "share-links": ShareLinkContribution;
@@ -103,6 +104,29 @@ export interface ApprovalRequestSql {
   readonly comment: string;
   /** The user whose decision this is, as uuid. */
   readonly approver: string;
+}
+
+/**
+ * A kind of period the contributing block takes part in closing (ADR 0197). The
+ * `periods` block lists the kind in `period_for`, asks `blockers` before
+ * `close_period` closes it and calls `onClose` once it does.
+ */
+export interface PeriodContribution {
+  /** The period kind rows carry, such as `fiscal_period` or `leave_year`. */
+  readonly kind: string;
+  /** The calendar unit `period_for` creates a missing period of this kind in. */
+  readonly cadence?: "week" | "month" | "quarter" | "year";
+  /**
+   * The qualified function `(tenant, starts_on date, ends_on date) returns
+   * text[]` that names what keeps the range from closing, or an empty array.
+   */
+  readonly blockers?: string;
+  /**
+   * The qualified function `(tenant, starts_on date, ends_on date)` that runs
+   * in the closing transaction, such as carrying balances forward. Its result
+   * is ignored.
+   */
+  readonly onClose?: string;
 }
 
 /** Requests of one subject type the contributing block files with approvals. */

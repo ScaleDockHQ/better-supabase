@@ -139,6 +139,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
   "clinical-decision-support":
     "care_decision_context decide_care_alert delete_care_rule evaluate_care_rules list_care_alerts list_care_rules record_care_alerts save_care_rule",
+  periods:
+    "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   tills:
     "close_till_session create_till deposit_till_cash get_till_session list_till_sessions list_tills open_till_session reconcile_till_deposit record_till_movement update_till",
   lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",

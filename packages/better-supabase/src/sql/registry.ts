@@ -116,6 +116,7 @@ import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PASSES } from "./modules/passes.ts";
 import { PAYROLL_EXPORT } from "./modules/payroll-export.ts";
+import { PERIODS } from "./modules/periods.ts";
 import { ACCESS } from "./modules/permissions.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
@@ -435,6 +436,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(PERIODS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

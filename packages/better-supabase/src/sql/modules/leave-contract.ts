@@ -186,6 +186,14 @@ export function leaveContract(
 
 /** The final approval of a leave request books it. */
 export const LEAVE_CONTRIBUTES: BlockContributes = {
+  periods: (own) => [
+    {
+      kind: "leave_year",
+      cadence: "year",
+      blockers: own.fn("leave_range_close_blockers"),
+      onClose: own.fn("leave_close_range"),
+    },
+  ],
   "share-links": (own) => [leaveFeedSubject(own), ...leaveTeamFeedSubject(own)],
   approvals: (own) =>
     leaveStatusMode(own)

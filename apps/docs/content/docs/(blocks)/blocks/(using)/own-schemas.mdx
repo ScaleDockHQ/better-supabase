@@ -570,6 +570,8 @@ may be your own enum or domain.
 - `payroll-export`
   - `better_supabase.payroll_runs`: `id`, `tenant_id`, `period_from`, `period_to`, `label`, `status`, `format`, `checksum`, `exported_at`, `exported_by`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.payroll_lines`: `id`, `tenant_id`, `run_id`, `user_id`, `employee_id`, `employee_name`, `kind`, `code`, `paid`, `unit`, `quantity`, `source_count`, `created_at`
+- `periods`
+  - `better_supabase.periods`: `id`, `tenant_id`, `kind`, `starts_on`, `ends_on`, `status`, `closed_at`, `closed_by`, `created_at`
 - `permissions`
   - `better_supabase.roles`: `id`, `key`
   - `better_supabase.permissions`: `id`, `key`

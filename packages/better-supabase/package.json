@@ -1220,6 +1220,11 @@
       "types": "./dist/blocks/tills/index.d.ts",
       "default": "./dist/blocks/tills/index.js"
     },
+    "./blocks/periods": {
+      "@better-supabase/source": "./src/blocks/periods/index.ts",
+      "types": "./dist/blocks/periods/index.d.ts",
+      "default": "./dist/blocks/periods/index.js"
+    },
     "./blocks/lims": {
       "@better-supabase/source": "./src/blocks/lims/index.ts",
       "types": "./dist/blocks/lims/index.d.ts",
@@ -2280,6 +2285,10 @@
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",
         "default": "./dist/blocks/tills/index.js"
+      },
+      "./blocks/periods": {
+        "types": "./dist/blocks/periods/index.d.ts",
+        "default": "./dist/blocks/periods/index.js"
       },
       "./blocks/lims": {
         "types": "./dist/blocks/lims/index.d.ts",

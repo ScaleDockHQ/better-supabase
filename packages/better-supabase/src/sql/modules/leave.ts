@@ -50,6 +50,7 @@ import {
   leaveOwner,
   leaveParts,
 } from "./leave-owner.ts";
+import { INTEGRATES, INTERNAL, periodFunctions } from "./leave-periods.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -1032,7 +1033,7 @@ ${
 end;
 $$;
 ${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid" : ""})`)}
-
+${periodFunctions(ctx, joinApproval("r", "ap"), pendingIn("r", "ap"))}
 `;
 }
 
@@ -1040,7 +1041,7 @@ const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 
 export const LEAVE: BlockSqlDefinition = {
   contributes: LEAVE_CONTRIBUTES,
-  internal: ["leave_available", "leave_post", "leave_posted"],
+  internal: INTERNAL,
   name: "leave",
   scopes: ["tenant"],
   title: "Leave",
@@ -1059,7 +1060,7 @@ export const LEAVE: BlockSqlDefinition = {
           typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
         ),
     ),
-  integrates: ["outbox", "audit", "employees", "share-links", "teams"],
+  integrates: INTEGRATES,
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

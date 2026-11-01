@@ -114,6 +114,7 @@ import { outboxBlock } from "./outbox/manifest.ts";
 import { passesBlock } from "./passes/manifest.ts";
 import { payrollExportBlock } from "./payroll-export/manifest.ts";
 import { peopleBlock } from "./people/manifest.ts";
+import { periodsBlock } from "./periods/manifest.ts";
 import { permissionsBlock } from "./permissions/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
@@ -279,6 +280,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   warehouseBlock,
   rfqsBlock,
   tillsBlock,
+  periodsBlock,
   clinicalDecisionSupportBlock,
   manufacturingBlock,
   bankingBlock,

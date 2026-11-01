@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:9c9953210f4271a4840f0a70e6eb22d2fd89b9c7dac2527fc1f63b262339aca8
+-- @bsb-hash sha256:660de13c48d73cc46fc08d4a8847f8b4d703c742ee0ead268bdd93a16b1edd5d
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1877,6 +1877,47 @@ $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
@@ -3382,7 +3423,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f8ae78562cc8b331a707761f00e822f3605830b9abd9335c04385f9e5e6d2477
+-- @bsb-hash sha256:7fa7e8f864136784ac3c1741d868ece7f736fae8bbeb288a3c06611d50c018c8
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5352,6 +5393,47 @@ $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
@@ -6949,7 +7031,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f3a05dad880cd29cbb4fa4d931e5e713b693344fa7e2fc558066ff4e18385608
+-- @bsb-hash sha256:956c0f65f81f239c7325f2cc3af19da823bfcf655117a63bce769743a2538790
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8830,6 +8912,47 @@ $$;
 revoke execute on function "app_private"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "app_private"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "app_private"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("app_private"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "app_private"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "app_private"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "app_private"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "app_private"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "app_private"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "app_private"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "app_private"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "app_private"."close_accounting_period"(period_id uuid)
@@ -10335,7 +10458,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:017a34a1e6972992740c599a3001644a56f22e0bdf79671d039301b103ea6d65
+-- @bsb-hash sha256:bfc8f9d99229d790950c9bec3eff090141ab5194e8f45a24ecf8b50bf40b4d22
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12211,6 +12334,47 @@ $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
@@ -13674,6 +13838,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_li
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."accounting_range_close_blockers"(uuid, date, date);
+drop function if exists "api"."accounting_close_range"(uuid, date, date);
+
 drop function if exists "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
 drop function if exists "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
 drop function if exists "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
@@ -14183,7 +14351,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:1c85b95de5f615f90a40d4941dc419a819cf5ee4db5c71b82a0ef0f90d497c8d
+-- @bsb-hash sha256:dfdaf74b66d648d18a37d7bef07e67a403c0601150d92281ffa0c79e37194071
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16010,6 +16178,47 @@ $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
@@ -17508,7 +17717,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:bcfff0e0048a364c6a842a35906c6f73404a3e2f188343519baf26189b2f69bf
+-- @bsb-hash sha256:5ce497dba540a6ae37c6de49ab495c0fed5be02371656718c58be0d57f01ce04
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19383,6 +19592,47 @@ as $$
 $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."org_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."org_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
 
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.

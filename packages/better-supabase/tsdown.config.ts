@@ -134,6 +134,7 @@ const entries = [
   "blocks/filespace/index",
   "blocks/crm/index",
   "blocks/tills/index",
+  "blocks/periods/index",
   "blocks/clinical-decision-support/index",
   "blocks/maintenance/index",
   "blocks/appraisals/index",

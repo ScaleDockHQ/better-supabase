@@ -4973,6 +4973,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "share-links",
         "teams",
+        "periods",
         "approvals"
       ],
       "manifest": "leave",
@@ -4980,6 +4981,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "periods",
         "share-links",
         "approvals"
       ],
@@ -7680,6 +7682,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "risks",
       "entities": {
         "specs": {
@@ -7960,6 +7965,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "data-lifecycle",
         "banking",
+        "periods",
         "imports"
       ],
       "manifest": "accounting",
@@ -7967,7 +7973,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
-        "imports"
+        "imports",
+        "periods"
       ],
       "extraColumns": "entries",
       "entities": {
@@ -8687,6 +8694,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "created_from"
         }
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "cases",
       "entities": {
         "specs": {
@@ -10923,6 +10933,53 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "tills.read",
           "write": "tills.write",
           "manage": "tills.manage"
+        }
+      }
+    },
+    {
+      "name": "periods",
+      "title": "Periods",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "periods",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "period": {
+            "table": "periods",
+            "singular": "period",
+            "primary": true
+          }
+        },
+        "tables": {
+          "periods": {
+            "name": "periods",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "periods.read",
+          "write": "periods.write",
+          "manage": "periods.manage"
         }
       }
     },
@@ -23417,6 +23474,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "till_deposit.reconciled"
         ]
       }
+    },
+    {
+      "name": "periods",
+      "sql": [
+        "periods"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "periodsBlock",
+        "subpath": "better-supabase/blocks/periods"
+      },
+      "consumes": {},
+      "provides": []
     },
     {
       "name": "clinical-decision-support",
