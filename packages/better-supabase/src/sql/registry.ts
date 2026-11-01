@@ -40,6 +40,7 @@ import { CASES } from "./modules/cases.ts";
 import { CATALOG } from "./modules/catalog.ts";
 import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
+import { CLINICAL_DECISION_SUPPORT } from "./modules/clinical-decision-support.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { COMPLIANCE } from "./modules/compliance.ts";
@@ -432,6 +433,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(WAREHOUSE),
       built(RFQS),
       built(TILLS),
+      built(CLINICAL_DECISION_SUPPORT),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -66,6 +66,8 @@ const NO_FIELDS: readonly string[] = [
   "bulk",
   // A channel names a conversation; app data goes on its linked record or on messages.
   "channels",
+  // Rules and alerts are fixed records; app data goes on the medication orders.
+  "clinical-decision-support",
   // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
   // a comment task only links a message to a work item.
   "comments",

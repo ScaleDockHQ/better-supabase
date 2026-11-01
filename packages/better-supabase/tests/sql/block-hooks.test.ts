@@ -241,6 +241,10 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_rfq_award",
     "after_rfq_award",
   ],
+  "clinical-decision-support": [
+    "before_care_alert_decide",
+    "after_care_alert_decide",
+  ],
   tills: [
     "before_till_session_open",
     "after_till_session_open",

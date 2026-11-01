@@ -231,6 +231,9 @@ may be your own enum or domain.
   - `better_supabase.chat_state_lists`: `id`, `key_prefix`, `list_key`, `value`, `expires_at`
   - `better_supabase.chat_state_queues`: `id`, `key_prefix`, `thread_id`, `value`, `expires_at`
   - `better_supabase.chat_installations`: `id`, `tenant_id`, `adapter`, `external_id`, `credential_ref`, `installed_at`, `uninstalled_at`
+- `clinical-decision-support`
+  - `better_supabase.care_rules`: `id`, `tenant_id`, `kind`, `medication_ids`, `min_dose`, `max_dose`, `max_per_day`, `severity`, `message`, `active`, `created_at`, `updated_at`
+  - `better_supabase.care_alerts`: `id`, `tenant_id`, `subject_type`, `subject_id`, `kind`, `severity`, `source`, `rule_id`, `order_ids`, `message`, `details`, `fingerprint`, `status`, `decided_by`, `decided_at`, `decision_reason`, `created_at`, `updated_at`
 - `collections`
   - `better_supabase.subject_collections`: `id`, `tenant_id`, `subject_type`, `scope`, `owner_id`, `team_id`, `name`, `archived_at`, `created_at`; typed: `scope`
   - `better_supabase.subject_collection_entries`: `collection_id`, `tenant_id`, `subject_type`, `subject_id`, `rank`

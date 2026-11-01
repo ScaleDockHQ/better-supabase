@@ -170,3 +170,4 @@ add one, and link it from the code or config it explains.
 | [0170](0170-rfqs-block.md)                                    | Requests for quotation go to suppliers, their quotes are compared, and an award creates a draft purchase order                                               |
 | [0171](0171-tills-block.md)                                   | Tills run shifts with a float, cash movements and a count that books its variance, then deposit and reconcile through banking                                |
 | [0172](0172-payroll-reads-approved-timesheets.md)             | Payroll runs count only the time entries of weeks with an approved timesheet                                                                                 |
+| [0173](0173-clinical-decision-support-block.md)               | Clinical decision support evaluates built-in rules over medication orders and keeps a versioned port for external engines                                    |

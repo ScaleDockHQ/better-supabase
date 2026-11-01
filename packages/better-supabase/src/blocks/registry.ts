@@ -29,6 +29,7 @@ import { carePlansBlock } from "./care-plans/manifest.ts";
 import { casesBlock } from "./cases/manifest.ts";
 import { catalogBlock } from "./catalog/manifest.ts";
 import { channelsBlock } from "./channels/manifest.ts";
+import { clinicalDecisionSupportBlock } from "./clinical-decision-support/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
 import { complianceBlock } from "./compliance/manifest.ts";
@@ -240,6 +241,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   warehouseBlock,
   rfqsBlock,
   tillsBlock,
+  clinicalDecisionSupportBlock,
   manufacturingBlock,
   bankingBlock,
   legalEntitiesBlock,

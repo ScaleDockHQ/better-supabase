@@ -103,6 +103,16 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "Your organization's events by month."
 
+#: src/app/[locale]/(app)/care-alerts/page.tsx
+msgctxt "care-alerts.FuvPAW"
+msgid "Care alerts"
+msgstr "Care alerts"
+
+#: src/app/[locale]/(app)/care-alerts/page.tsx
+msgctxt "care-alerts.X4g2aN"
+msgid "Dose range, duplicate therapy and interaction alerts on medication orders."
+msgstr "Dose range, duplicate therapy and interaction alerts on medication orders."
+
 #: src/app/[locale]/(app)/care-plans/page.tsx
 msgctxt "care-plans.y10hgk"
 msgid "Care plans"
@@ -4164,6 +4174,111 @@ msgstr "Catch up on this thread without reading every reply."
 msgctxt "chat.IQWhFZ"
 msgid "Summarize"
 msgstr "Summarize"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.2pzTGC"
+msgid "Critical"
+msgstr "Critical"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.3SVI5p"
+msgid "Warning"
+msgstr "Warning"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.we4Lby"
+msgid "Info"
+msgstr "Info"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.FnKIAW"
+msgid "Acknowledged"
+msgstr "Acknowledged"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.QGpThC"
+msgid "Overridden"
+msgstr "Overridden"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.vCAhII"
+msgid "Severity"
+msgstr "Severity"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.frsrZ8"
+msgid "Alert"
+msgstr "Alert"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.a-0Mbo"
+msgid "Acknowledge"
+msgstr "Acknowledge"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.9zub-u"
+msgid "Alerts"
+msgstr "Alerts"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.wE7p5Z"
+msgid "Evaluating a record checks its active medication orders. Critical alerts need an override reason."
+msgstr "Evaluating a record checks its active medication orders. Critical alerts need an override reason."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.hFb_iK"
+msgid "The alerts didn't load"
+msgstr "The alerts didn't load"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.27THl1"
+msgid "No alerts"
+msgstr "No alerts"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.H9ne16"
+msgid "Add dose range, duplicate therapy or interaction rules, then evaluate a record after prescribing."
+msgstr "Add dose range, duplicate therapy or interaction rules, then evaluate a record after prescribing."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.1A8Z_l"
+msgid "Check again"
+msgstr "Check again"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.wJrzbz"
+msgid "Read the decision support guide"
+msgstr "Read the decision support guide"
 
 #: src/features/community/components/post-board.tsx
 msgctxt "community.yUcWBK"
@@ -10792,6 +10907,11 @@ msgstr "Observations"
 msgctxt "navigation.gOuYI7"
 msgid "Medications"
 msgstr "Medications"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.FuvPAW"
+msgid "Care alerts"
+msgstr "Care alerts"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y10hgk"
