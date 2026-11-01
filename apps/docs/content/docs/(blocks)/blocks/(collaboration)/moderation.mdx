@@ -178,3 +178,76 @@ const queue = await moderation.queue().orThrow();
 
 await moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
 ```
+
+## Notices, statements of reasons and appeals
+
+The module carries the notice-and-action workflow of the Digital Services Act
+(Regulation (EU) 2022/2065, pinned as `SPEC_PINS.euDsa`). It adds four tables
+(`moderation_notices`, `moderation_statements`, `moderation_flaggers` and
+`moderation_appeals`) and reuses the existing permissions: `moderation.report`
+sends a notice, `moderation.read` reads notices and the transparency report,
+and `moderation.manage` decides, issues statements, awards trusted flagger
+status and decides appeals.
+
+```ts
+const notice = await db.moderation
+  .submitNotice(
+    { type: "post", id: post.id },
+    { explanation: "This post offers counterfeit goods.", url: post.url },
+  )
+  .orThrow();
+
+const { id: itemId } = (await db.moderation
+  .item({ type: "post", id: post.id })
+  .orThrow())!;
+await db.moderation
+  .decideNotice(notice.id, "remove", { outcome: "Counterfeit" })
+  .orThrow();
+
+await db.moderation
+  .issueStatement(itemId, {
+    restriction: "removal",
+    facts: "The post offered branded goods that are not genuine.",
+    legalGround: "Trade mark infringement",
+    automatedDetection: false,
+  })
+  .orThrow();
+```
+
+`submitNotice` (Article 16) stores the explanation, the URL and the notifier,
+and gives the subject a moderation item when it has none. A notice from an
+active trusted flagger (Article 22) is marked `trusted` and comes first in
+`notices()`. `setTrustedFlagger(userId, { name, awardedBy })` awards the status
+and `revokeTrustedFlagger(userId)` ends it.
+
+`decideNotice(noticeId, decision)` takes `hide`, `remove` or `reject`. Hiding
+or removing runs the same decision as `decide`, and the
+`moderation_notice.decided` event names the notifier, so you can send them the
+outcome Article 16(5) asks for.
+
+`issueStatement(itemId, input)` records a statement of reasons (Article 17):
+the restriction (`removal`, `disabled_access`, `demotion`,
+`visibility_suspension`, `monetary_suspension`, `service_suspension`,
+`service_termination`, `account_suspension` or `account_termination`), the
+facts and circumstances, a legal ground, a terms ground or both, whether
+automated means detected or decided it, and the redress routes (default:
+internal complaint, out-of-court settlement and judicial redress). The
+`moderation_statement.issued` event carries the affected user. The author of
+the item reads their statements through `statements(itemId)`.
+
+`appeal(target, reasons)` (Article 20) files an appeal against a statement, by
+the item's author, or against a rejected notice, by its notifier. A person
+decides it with `decideAppeal(appealId, "upheld" | "reversed", { reason })`.
+Reversing an appeal against a statement restores hidden or removed content,
+and reversing one against a notice puts the notice back in the queue. A
+removed message stays removed, because the messaging block can't restore it,
+and the call returns that error.
+
+`transparencyReport({ start, end })` returns CSV with the columns `metric`,
+`dimension` and `value`: notices by status and from trusted flaggers,
+statements by restriction and by automated means, appeals by outcome,
+decisions by action and reports received (Articles 15 and 24). Export the
+rows you need for the report you publish.
+
+This is data handling for the workflow, not legal advice: which restrictions
+and grounds apply to your service is a decision for your counsel.

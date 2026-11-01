@@ -265,6 +265,8 @@ may be your own enum or domain.
 - `consents`
   - `better_supabase.consent_purposes`: `id`, `tenant_id`, `key`, `title`, `legal_basis`, `version`, `requires_signature`, `valid_months`, `archived_at`, `created_at`; typed: `legal_basis`
   - `better_supabase.consents`: `id`, `tenant_id`, `purpose_id`, `subject_type`, `subject_id`, `given_by`, `given_by_contact_id`, `given_by_user_id`, `status`, `granted_at`, `valid_until`, `withdrawn_at`, `created_at`; typed: `given_by`, `status`
+  - `better_supabase.consent_signals`: `id`, `tenant_id`, `subject_type`, `subject_id`, `kind`, `raw`, `parsed`, `consent_ids`, `created_by`, `received_at`
+  - `better_supabase.consent_receipts`: `id`, `tenant_id`, `subject_type`, `subject_id`, `consent_id`, `status`, `receipt`, `digest`, `issued_at`
 - `contacts`
   - `better_supabase.companies`: `id`, `tenant_id`, `name`, `domain`, `website`, `lifecycle`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_user_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
@@ -298,6 +300,7 @@ may be your own enum or domain.
   - `better_supabase.organization_deletions`: `organization_id`, `purge_after`, `cancelled_at`, `purged_at`, `previously_disabled`
   - `better_supabase.retention_policies`: `id`, `organization_id`, `kind`, `keep`; typed: `kind`
   - `better_supabase.legal_holds`: `id`, `organization_id`, `kind`, `reason`, `placed_at`, `released_at`; typed: `kind`
+  - `better_supabase.data_subject_requests`: `id`, `organization_id`, `kind`, `requester`, `subject_type`, `subject_id`, `details`, `status`, `received_at`, `received_by`, `due_at`, `extended_at`, `extension_reason`, `verified_at`, `verified_by`, `verification_method`, `export_id`, `resolution`, `closed_at`, `closed_by`
 - `deals`
   - `better_supabase.deals`: `id`, `tenant_id`, `number`, `identifier`, `name`, `company_type`, `company_id`, `owner_user_id`, `amount`, `currency`, `value_period`, `amount_source`, `pipeline_id`, `stage_id`, `stage_entered_at`, `outcome`, `probability`, `forecast_category`, `opened_on`, `expected_close_on`, `closed_at`, `note`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `value_period`, `amount_source`, `outcome`, `forecast_category`
   - `better_supabase.deal_contacts`: `tenant_id`, `deal_id`, `contact_type`, `contact_id`, `is_primary`
@@ -414,6 +417,8 @@ may be your own enum or domain.
   - `better_supabase.incident_impacts`: `tenant_id`, `incident_id`, `component_id`, `impact`; typed: `impact`
   - `better_supabase.incident_postmortems`: `id`, `tenant_id`, `incident_id`, `summary`, `status`, `published_at`; typed: `status`
   - `better_supabase.incident_postmortem_actions`: `id`, `tenant_id`, `postmortem_id`, `task_id`
+  - `better_supabase.incident_regulatory_profiles`: `incident_id`, `tenant_id`, `regimes`, `aware_at`, `classification`, `classified_at`, `significant`, `actively_exploited`, `measure_available_at`, `created_at`, `updated_at`
+  - `better_supabase.incident_regulatory_filings`: `id`, `tenant_id`, `incident_id`, `regime`, `stage`, `due_at`, `reminder_id`, `submitted_at`, `submitted_by`, `reference`, `notes`, `created_at`
   - `better_supabase.incident_status_pages`: `id`, `tenant_id`, `slug`, `title`, `published`
 - `inspections`
   - `better_supabase.inspection_programs`: `id`, `tenant_id`, `name`, `period_start`, `period_end`, `owner_id`, `status`, `archived_at`, `created_at`, `updated_at`
@@ -537,6 +542,10 @@ may be your own enum or domain.
   - `better_supabase.moderation_reports`: `id`, `tenant_id`, `item_id`, `reporter_id`, `reason`, `status`, `created_at`; typed: `status`
   - `better_supabase.moderation_actions`: `id`, `tenant_id`, `item_id`, `action`, `from_status`, `to_status`, `reason`, `actor_id`, `created_at`; typed: `action`, `from_status`, `to_status`
   - `better_supabase.moderation_bans`: `id`, `tenant_id`, `user_id`, `expires_at`, `lifted_at`, `created_at`
+  - `better_supabase.moderation_statements`: `id`, `tenant_id`, `item_id`, `restriction`, `facts`, `legal_ground`, `terms_ground`, `automated_detection`, `automated_decision`, `redress`, `issued_by`, `created_at`
+  - `better_supabase.moderation_notices`: `id`, `tenant_id`, `item_id`, `subject_type`, `subject_id`, `explanation`, `url`, `notifier_name`, `notifier_email`, `notifier_id`, `trusted`, `status`, `outcome`, `decided_by`, `decided_at`, `created_at`
+  - `better_supabase.moderation_flaggers`: `id`, `tenant_id`, `user_id`, `name`, `awarded_by`, `revoked_at`, `created_at`
+  - `better_supabase.moderation_appeals`: `id`, `tenant_id`, `statement_id`, `notice_id`, `reasons`, `appellant_id`, `status`, `outcome`, `decided_by`, `decided_at`, `created_at`
 - `notifications`
   - `better_supabase.notification_events`: `id`, `type`, `data`, `created_at`
   - `better_supabase.notification_recipients`: `id`, `event_id`, `user_id`, `read_at`, `dismissed_at`, `created_at`

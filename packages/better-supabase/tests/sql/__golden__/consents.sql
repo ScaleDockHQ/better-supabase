@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:988d9cba4e95075d83fdee761cae9f66851ecd6e88fa192b7a453250b18cca81
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:7a2990ddced26cc8e61ea0b8ab19fd8af660c8b56bb2256ceaa295a480a3c680
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,6 +58,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -128,6 +144,55 @@ drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "better_supabase"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
+create policy consent_signals_read on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "better_supabase"."consent_receipts" (
+  "id" uuid primary key,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
+create policy consent_receipts_read on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -613,6 +678,295 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or false
+      or false) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  null;
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -670,6 +1024,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -687,21 +1083,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:0389dd80984d2a4d12dfa7f881c05b6f0e9b8a9269463589bddb16d7fce160da
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:5b7f811e44a1e32710afe5d51b24a9f4b77e6822cc6cb4a57660c93a105f8718
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -758,6 +1154,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -828,6 +1240,55 @@ drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "better_supabase"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
+create policy consent_signals_read on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "better_supabase"."consent_receipts" (
+  "id" uuid primary key,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
+create policy consent_receipts_read on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -1472,6 +1933,335 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or ((v_tenant)::text, (record_consent_signal.subject_type)::text, (record_consent_signal.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = record_consent_signal.subject_type and r."target_id" = (record_consent_signal.subject_id)::text
+        and r."data" ->> 'authority' = 'act'
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  perform "better_supabase".emit_event('consent_signal.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'signalId', v_row."id", 'kind', v_row."kind", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'consent-signals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/consents');
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or ((v_tenant)::text, (list_consent_signals.subject_type)::text, (list_consent_signals.subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_tenant)::text, (list_consent_signals.subject_type)::text, (list_consent_signals.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = list_consent_signals.subject_type and r."target_id" = (list_consent_signals.subject_id)::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_row."tenant_id")::text
+        and r."target_type" = v_row."subject_type" and r."target_id" = (v_row."subject_id")::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_row."tenant_id")::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  perform "better_supabase".emit_event('consent_receipt.issued', jsonb_build_object('organizationId', v_receipt."tenant_id", 'receiptId', v_receipt."id", 'consentId', v_receipt."consent_id", 'status', v_receipt."status", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'consent-receipts/' || v_receipt."id"::text, (v_receipt."tenant_id")::text, null, 'better-supabase/consents');
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or ((v_tenant)::text, (list_consent_receipts.subject_type)::text, (list_consent_receipts.subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_tenant)::text, (list_consent_receipts.subject_type)::text, (list_consent_receipts.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = list_consent_receipts.subject_type and r."target_id" = (list_consent_receipts.subject_id)::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1529,6 +2319,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1546,21 +2378,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:7fa991e8b58b5bf064ed15264e88f4e28f03a42284bdfcf08992e0ed85858e71
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:7ed40d8968eacf1a097b48b0fd010194bafc8b34bd6470f670083e096d8557a4
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,6 +2449,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."consents";
     drop policy if exists bsb_tenant_scope_update on "app_private"."consents";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1692,6 +2540,55 @@ drop policy if exists consents_read on "app_private"."consents";
 create policy consents_read on "app_private"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "app_private"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "app_private"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "app_private"."consent_signals" enable row level security;
+revoke all on "app_private"."consent_signals" from public, anon, authenticated;
+grant select on "app_private"."consent_signals" to authenticated;
+grant all on "app_private"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "app_private"."consent_signals";
+create policy consent_signals_read on "app_private"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "app_private"."consent_receipts" (
+  "id" uuid primary key,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "app_private"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "app_private"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "app_private"."consent_receipts" enable row level security;
+revoke all on "app_private"."consent_receipts" from public, anon, authenticated;
+grant select on "app_private"."consent_receipts" to authenticated;
+grant all on "app_private"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "app_private"."consent_receipts";
+create policy consent_receipts_read on "app_private"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -2177,6 +3074,295 @@ $$;
 revoke execute on function "app_private"."expire_consents"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "app_private"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "app_private"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "app_private"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "app_private"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "app_private"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "app_private"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or false
+      or false) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "app_private"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "app_private"."parse_tc_string"(v_value)
+      else "app_private"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "app_private"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "app_private"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "app_private"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "app_private"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "app_private"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "app_private"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "app_private"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "app_private"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "app_private"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."consents";
+  v_purpose "app_private"."consent_purposes";
+  v_receipt "app_private"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "app_private"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "app_private"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "app_private"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "app_private"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  null;
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "app_private"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "app_private"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "app_private"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "app_private"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "app_private"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "app_private"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2234,6 +3420,48 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."consents";
 create policy bsb_tenant_scope_delete on "app_private"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "app_private"."consent_signals";
+create policy bsb_tenant_scope_select on "app_private"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."consent_signals";
+create policy bsb_tenant_scope_insert on "app_private"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."consent_signals";
+create policy bsb_tenant_scope_update on "app_private"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."consent_signals";
+create policy bsb_tenant_scope_delete on "app_private"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."consent_receipts";
+create policy bsb_tenant_scope_select on "app_private"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."consent_receipts";
+create policy bsb_tenant_scope_insert on "app_private"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."consent_receipts";
+create policy bsb_tenant_scope_update on "app_private"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."consent_receipts";
+create policy bsb_tenant_scope_delete on "app_private"."consent_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2251,21 +3479,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:6e55e5dc39e61ebfe4a0b8d730f8c4ee3f5a807bb969d4a0bb9d073f4b038902
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:fa3296df8dfb7e807cce7811ffca6f2a8f0af62697e455ca2c48c03b6eed4641
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2322,6 +3550,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2392,6 +3636,55 @@ drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "better_supabase"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
+create policy consent_signals_read on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "better_supabase"."consent_receipts" (
+  "id" uuid primary key,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
+create policy consent_receipts_read on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -2877,6 +4170,295 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or false
+      or false) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  null;
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2932,6 +4514,48 @@ create policy bsb_tenant_scope_update on "better_supabase"."consents" as restric
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -3029,6 +4653,42 @@ as $$ select "better_supabase"."expire_consents"() $$;
 revoke execute on function "api"."expire_consents"() from public, anon, authenticated;
 grant execute on function "api"."expire_consents"() to service_role;
 
+create or replace function "api"."record_consent_signal"(subject_type text, subject_id text, kind text, value text, purpose_keys text[] default '{}', consent_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_consent_signal"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "api"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+create or replace function "api"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_consent_signals"($1, $2) $$;
+revoke execute on function "api"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "api"."list_consent_signals"(text, text) to authenticated, service_role;
+
+create or replace function "api"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."issue_consent_receipt"($1) $$;
+revoke execute on function "api"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "api"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_consent_receipts"($1, $2) $$;
+revoke execute on function "api"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "api"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3045,21 +4705,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:a9629c4ead7cd557ac84f5ecc9017a3d6f463173f7ff5df19f6663d7386fc985
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:a2b1a47f021a72559b4d0adf268dc3c9af23a127cd3c21eb3b0a6953abd97d80
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3134,6 +4794,22 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3193,6 +4869,50 @@ drop policy if exists bsb_consents_select on "better_supabase"."consents";
 create policy bsb_consents_select on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+-- better_supabase.consent_signals is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."consent_signals" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."consent_signals" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."consent_signals" add column if not exists "subject_type" text;
+alter table "better_supabase"."consent_signals" add column if not exists "subject_id" text;
+alter table "better_supabase"."consent_signals" add column if not exists "kind" text check ("kind" in ('gpc', 'tcf', 'gpp'));
+alter table "better_supabase"."consent_signals" add column if not exists "raw" text check (length("raw") between 1 and 8192);
+alter table "better_supabase"."consent_signals" add column if not exists "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object');
+alter table "better_supabase"."consent_signals" add column if not exists "consent_ids" uuid[] not null default '{}';
+alter table "better_supabase"."consent_signals" add column if not exists "created_by" uuid;
+alter table "better_supabase"."consent_signals" add column if not exists "received_at" timestamptz not null default now();
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists bsb_consent_signals_select on "better_supabase"."consent_signals";
+create policy bsb_consent_signals_select on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+-- better_supabase.consent_receipts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."consent_receipts" add column if not exists "id" uuid;
+alter table "better_supabase"."consent_receipts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."consent_receipts" add column if not exists "subject_type" text;
+alter table "better_supabase"."consent_receipts" add column if not exists "subject_id" text;
+alter table "better_supabase"."consent_receipts" add column if not exists "consent_id" uuid references "better_supabase"."consents" ("id") on delete cascade;
+alter table "better_supabase"."consent_receipts" add column if not exists "status" text;
+alter table "better_supabase"."consent_receipts" add column if not exists "receipt" jsonb check (jsonb_typeof("receipt") = 'object');
+alter table "better_supabase"."consent_receipts" add column if not exists "digest" text check ("digest" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."consent_receipts" add column if not exists "issued_at" timestamptz not null default now();
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists bsb_consent_receipts_select on "better_supabase"."consent_receipts";
+create policy bsb_consent_receipts_select on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -3678,6 +5398,295 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or false
+      or false) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."tenant_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."tenant_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "tenant_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  null;
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."tenant_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3735,6 +5744,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3752,21 +5803,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@1 managed
--- @bsb-hash sha256:ef04b63098b920bf6314d171ea6881b7d559358678a00b18ba0b5128cc6cf3bf
+-- @bsb-block consents@2 managed
+-- @bsb-hash sha256:d9e86ec12016ac862393f6eb09c116003baf401ebf1a2ecf2627f86e714d14eb
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3823,6 +5874,22 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3893,6 +5960,55 @@ drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+
+
+-- A signal a browser or consent platform sent for a record: the Sec-GPC header,
+-- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
+create table if not exists "better_supabase"."consent_signals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null check (length("raw") between 1 and 8192),
+  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "consent_ids" uuid[] not null default '{}',
+  "created_by" uuid,
+  "received_at" timestamptz not null default now()
+);
+create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("org_id", "subject_type", "subject_id", "received_at" desc);
+alter table "better_supabase"."consent_signals" enable row level security;
+revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
+grant select on "better_supabase"."consent_signals" to authenticated;
+grant all on "better_supabase"."consent_signals" to service_role;
+drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
+create policy consent_signals_read on "better_supabase"."consent_signals"
+  for select to authenticated
+  using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
+
+-- A receipt for one consent decision: the document handed to the person, with
+-- the SHA-256 of its text. One receipt per consent and status, never changed.
+create table if not exists "better_supabase"."consent_receipts" (
+  "id" uuid primary key,
+  "org_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
+  "status" text not null,
+  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "issued_at" timestamptz not null default now(),
+  unique ("consent_id", "status")
+);
+create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("org_id", "issued_at" desc);
+alter table "better_supabase"."consent_receipts" enable row level security;
+revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
+grant select on "better_supabase"."consent_receipts" to authenticated;
+grant all on "better_supabase"."consent_receipts" to service_role;
+drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
+create policy consent_receipts_read on "better_supabase"."consent_receipts"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- Creates or changes the purpose with key and version: what the organization
 -- asks consent for, its lawful basis, whether it takes a signature and how many
@@ -4378,6 +6494,295 @@ $$;
 revoke execute on function "better_supabase"."expire_consents"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_consents"() to service_role;
 
+-- Parses the core segment of an IAB TCF v2.2 TC string.
+create or replace function "better_supabase"."parse_tc_string"(tc_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_core text := split_part(coalesce(tc_string, ''), '.', 1);
+  v_bits text := '';
+  i integer;
+begin
+  if v_core !~ '^[A-Za-z0-9_-]{36,}$' then
+    raise exception 'a TC string is base64url text of at least 36 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_core) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_core, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 213 then
+    raise exception 'the TC string is shorter than a core segment' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if substring(v_bits from 1 for 6)::bit(6)::bigint <> 2 then
+    raise exception 'only TCF v2 TC strings are supported' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  return jsonb_build_object(
+    'version', substring(v_bits from 1 for 6)::bit(6)::bigint,
+    'created', to_jsonb(to_timestamp(substring(v_bits from 7 for 36)::bit(36)::bigint / 10.0)),
+    'lastUpdated', to_jsonb(to_timestamp(substring(v_bits from 43 for 36)::bit(36)::bigint / 10.0)),
+    'cmpId', substring(v_bits from 79 for 12)::bit(12)::bigint,
+    'cmpVersion', substring(v_bits from 91 for 12)::bit(12)::bigint,
+    'consentScreen', substring(v_bits from 103 for 6)::bit(6)::bigint,
+    'consentLanguage', chr(65 + (substring(v_bits from 109 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 115 for 6)::bit(6)::int)),
+    'vendorListVersion', substring(v_bits from 121 for 12)::bit(12)::bigint,
+    'tcfPolicyVersion', substring(v_bits from 133 for 6)::bit(6)::bigint,
+    'tcfV22', substring(v_bits from 133 for 6)::bit(6)::bigint >= 4,
+    'isServiceSpecific', substring(v_bits from 139 for 1) = '1',
+    'useNonStandardTexts', substring(v_bits from 140 for 1) = '1',
+    'specialFeatureOptIns', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 12) k where substring(v_bits from 140 + k for 1) = '1'),
+    'purposesConsent', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 152 + k for 1) = '1'),
+    'purposesLiTransparency', (select coalesce(jsonb_agg(k order by k), '[]'::jsonb) from generate_series(1, 24) k where substring(v_bits from 176 + k for 1) = '1'),
+    'purposeOneTreatment', substring(v_bits from 201 for 1) = '1',
+    'publisherCc', chr(65 + (substring(v_bits from 202 for 6)::bit(6)::int)) || chr(65 + (substring(v_bits from 208 for 6)::bit(6)::int))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_tc_string"(text) from public, anon, authenticated;
+
+-- Reads the header of a GPP string and keeps its sections.
+create or replace function "better_supabase"."parse_gpp_string"(gpp_string text)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_header text := split_part(coalesce(gpp_string, ''), '~', 1);
+  v_bits text := '';
+  i integer;
+  v_sections jsonb;
+begin
+  if v_header !~ '^[A-Za-z0-9_-]{4,}$' then
+    raise exception 'a GPP string starts with a base64url header' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  for i in 1 .. length(v_header) loop
+    v_bits := v_bits || (strpos('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', substr(v_header, i, 1)) - 1)::bit(6)::text;
+  end loop;
+  if length(v_bits) < 12 or substring(v_bits from 1 for 6)::bit(6)::int <> 3 then
+    raise exception 'the GPP header has type 3' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(s order by n), '[]'::jsonb) into v_sections
+  from unnest(string_to_array(gpp_string, '~')) with ordinality as t(s, n)
+  where n > 1;
+  return jsonb_build_object(
+    'type', substring(v_bits from 1 for 6)::bit(6)::int,
+    'version', substring(v_bits from 7 for 6)::bit(6)::int,
+    'sections', v_sections
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."parse_gpp_string"(text) from public, anon, authenticated;
+
+-- Records a signal for record subject_type/subject_id as consent evidence.
+-- kind gpc: value is the Sec-GPC header value, 1, and purpose_keys names the
+-- purposes it opts out of; each gets a refused consent. kind tcf or gpp: value
+-- is the string, parsed and kept; consent_id optionally ties it to a consent
+-- of the same record. The raw value is kept either way.
+create or replace function "better_supabase"."record_consent_signal"(
+  subject_type text,
+  subject_id text,
+  kind text,
+  value text,
+  purpose_keys text[] default '{}',
+  consent_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+  v_value text := trim(coalesce(record_consent_signal.value, ''));
+  v_keys text[] := coalesce(record_consent_signal.purpose_keys, '{}');
+  v_parsed jsonb;
+  v_key text;
+  v_ids uuid[] := '{}';
+  v_decision jsonb;
+  v_row "better_supabase"."consent_signals";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.record'), false) and coalesce("better_supabase"."can_subject"(record_consent_signal.subject_type, record_consent_signal.subject_id, 'read'), false))
+      or false
+      or false) then
+    raise exception 'not allowed to record a consent signal for this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if record_consent_signal.kind is null or record_consent_signal.kind not in ('gpc', 'tcf', 'gpp') then
+    raise exception 'kind is gpc, tcf or gpp' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if length(v_value) not between 1 and 8192 then
+    raise exception 'value is 1 to 8192 characters' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+  end if;
+  if record_consent_signal.kind = 'gpc' then
+    if v_value <> '1' then
+      raise exception 'the Sec-GPC header is 1 when the person opts out' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if cardinality(v_keys) = 0 then
+      raise exception 'purpose_keys names the purposes the signal opts out of' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    if record_consent_signal.consent_id is not null then
+      raise exception 'a Sec-GPC signal creates its own consents' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := jsonb_build_object('header', 'Sec-GPC', 'optOut', true, 'purposeKeys', to_jsonb(v_keys));
+    foreach v_key in array v_keys loop
+      v_decision := "better_supabase"."record_consent"(record_consent_signal.subject_type, record_consent_signal.subject_id, v_key, 'refused');
+      v_ids := v_ids || (v_decision ->> 'id')::uuid;
+    end loop;
+  else
+    if cardinality(v_keys) > 0 then
+      raise exception 'purpose_keys applies to a Sec-GPC signal only' using errcode = '22023', hint = 'CONSENT_SIGNAL_INVALID';
+    end if;
+    v_parsed := case record_consent_signal.kind
+      when 'tcf' then "better_supabase"."parse_tc_string"(v_value)
+      else "better_supabase"."parse_gpp_string"(v_value)
+    end;
+    if record_consent_signal.consent_id is not null then
+      if not exists (
+        select 1 from "better_supabase"."consents" x
+        where x."id" = record_consent_signal.consent_id and x."org_id" = v_tenant
+          and x."subject_type" = record_consent_signal.subject_type and x."subject_id" = record_consent_signal.subject_id
+      ) then
+        raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+      end if;
+      v_ids := array[record_consent_signal.consent_id];
+    end if;
+  end if;
+  insert into "better_supabase"."consent_signals" ("org_id", "subject_type", "subject_id", "kind", "raw", "parsed", "consent_ids", "created_by")
+  values (v_tenant, record_consent_signal.subject_type, record_consent_signal.subject_id, record_consent_signal.kind, v_value, v_parsed, v_ids, auth.uid())
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'kind', v_row."kind", 'raw', v_row."raw", 'parsed', v_row."parsed", 'consentIds', to_jsonb(v_row."consent_ids"), 'receivedAt', v_row."received_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."record_consent_signal"(text, text, text, text, text[], uuid) to authenticated, service_role;
+
+-- The signals recorded for a record, the newest first.
+create or replace function "better_supabase"."list_consent_signals"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_signals.subject_type, list_consent_signals.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent signals of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'kind', x."kind", 'raw', x."raw", 'parsed', x."parsed", 'consentIds', to_jsonb(x."consent_ids"), 'receivedAt', x."received_at") order by x."received_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_signals" x
+    where x."org_id" = v_tenant
+      and x."subject_type" = list_consent_signals.subject_type and x."subject_id" = list_consent_signals.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_signals"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_signals"(text, text) to authenticated, service_role;
+
+-- Issues the receipt for a consent decision: who, what, when, on which
+-- purpose version and with which evidence, plus the SHA-256 of its text. The
+-- same consent and status give the same receipt back; a withdrawal is a
+-- second receipt.
+create or replace function "better_supabase"."issue_consent_receipt"(consent_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consents";
+  v_purpose "better_supabase"."consent_purposes";
+  v_receipt "better_supabase"."consent_receipts";
+  v_id uuid := gen_random_uuid();
+  v_issued timestamptz := now();
+  v_doc jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consents" x where x."id" = issue_consent_receipt.consent_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_row."org_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'no such consent' using errcode = 'P0002', hint = 'CONSENT_NOT_FOUND';
+  end if;
+  select * into v_receipt from "better_supabase"."consent_receipts" x where x."consent_id" = v_row."id" and x."status" = v_row."status";
+  if found then
+    return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+  end if;
+  select * into v_purpose from "better_supabase"."consent_purposes" x where x."id" = v_row."purpose_id";
+  v_doc := jsonb_build_object(
+    'format', 'better-supabase/consent-receipt@1',
+    'receiptId', v_id,
+    'issuedAt', v_issued,
+    'organizationId', v_row."org_id",
+    'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
+    'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'evidence', jsonb_build_object(
+      'signatureId', v_row."signature_id",
+      'submissionId', v_row."submission_id",
+      'attachmentId', v_row."attachment_id",
+      'signals', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'kind', y."kind", 'receivedAt', y."received_at") order by y."received_at", y."id"), '[]'::jsonb) from "better_supabase"."consent_signals" y where v_row."id" = any(y."consent_ids"))
+    )
+  );
+  insert into "better_supabase"."consent_receipts" ("id", "org_id", "subject_type", "subject_id", "consent_id", "status", "receipt", "digest", "issued_at")
+  values (v_id, v_row."org_id", v_row."subject_type", v_row."subject_id", v_row."id", v_row."status", v_doc, encode(sha256(convert_to(v_doc::text, 'UTF8')), 'hex'), v_issued)
+  returning * into v_receipt;
+  null;
+  return (v_receipt."receipt" || jsonb_build_object('digest', v_receipt."digest"));
+end;
+$$;
+revoke execute on function "better_supabase"."issue_consent_receipt"(uuid) from public, anon;
+grant execute on function "better_supabase"."issue_consent_receipt"(uuid) to authenticated, service_role;
+
+-- The receipts of a record's consents, the newest first.
+create or replace function "better_supabase"."list_consent_receipts"(subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(list_consent_receipts.subject_type, list_consent_receipts.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    raise exception 'not allowed to read the consent receipts of this record' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg((x."receipt" || jsonb_build_object('digest', x."digest")) order by x."issued_at" desc, x."id"), '[]'::jsonb)
+    from "better_supabase"."consent_receipts" x
+    where x."org_id" = v_tenant
+      and x."subject_type" = list_consent_receipts.subject_type and x."subject_id" = list_consent_receipts.subject_id
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4435,6 +6840,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4452,13 +6899,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 1, 'managed')
+values ('consents', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

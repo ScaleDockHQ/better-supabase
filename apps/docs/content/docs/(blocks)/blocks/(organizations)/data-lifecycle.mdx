@@ -533,6 +533,46 @@ billing, revokes credentials or removes files. Placing and releasing a hold emit
 `legal_hold.placed` and `legal_hold.released`. When `data-lifecycle` isn't
 installed, each purge keeps its plain `older_than` and nothing is held.
 
+## Data subject requests
+
+A request under [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj) Articles
+15 to 20 gets one row in `data_subject_requests`, with a due date 30 days
+after it was received. The kinds are `access`, `erasure`, `rectification` and
+`portability`.
+
+```ts
+const request = await db.dataLifecycle
+  .openDataSubjectRequest({
+    organizationId,
+    kind: "access",
+    requester: "ada@example.com",
+    subject: { type: "contact", id: contactId },
+  })
+  .orThrow();
+
+await db.dataLifecycle
+  .verifyDataSubjectRequest(request.id, "email link")
+  .orThrow();
+await db.dataLifecycle
+  .fulfilDataSubjectRequest(request.id, "export sent")
+  .orThrow();
+```
+
+Fulfilment needs a verified identity (`DSAR_UNVERIFIED` otherwise). For
+`access` and `portability` it starts the NDJSON export of the record and keeps
+its `exportId`. For `erasure` it checks the legal holds: a hold on the
+organization refuses the request with `DSAR_HELD`, and otherwise the row
+records that the app has deleted or anonymized the data with the purge and
+anonymize functions above. `rectification` is recorded the same way.
+
+`extendDataSubjectRequest(id, reason)` moves the due date to three months after
+receipt, once (Article 12(3)). A second extension fails with `DSAR_EXTENDED`.
+`refuseDataSubjectRequest(id, reason)` closes a request with its reason.
+`dataSubjectRequests({ organizationId, status, openOnly })` lists them with an
+`overdue` flag. All of these need `data-lifecycle.export`. The error codes are
+`DSAR_FORBIDDEN`, `DSAR_NOT_FOUND`, `DSAR_INVALID`, `DSAR_CLOSED`,
+`DSAR_UNVERIFIED`, `DSAR_EXTENDED` and `DSAR_HELD`.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as

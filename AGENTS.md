@@ -300,6 +300,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0184: `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs; ai-chat feedback feeds datasets.
 - 0185: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
 - 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
+- 0187: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
 
 ## Pre-release pins
 

@@ -87,4 +87,47 @@ describe("incidents module", () => {
       ]),
     );
   });
+
+  describe("regulatory reporting", () => {
+    const withReminders = (): string =>
+      renderBlocks(["incidents", "reminders"], {})
+        .filter((file) => file.module === "incidents")
+        .map((file) => file.contents)
+        .join("\n");
+
+    it("creates the profile and filing tables and the functions", () => {
+      const sql = sqlOf();
+
+      expect(sql).toContain("incident_regulatory_profiles");
+      expect(sql).toContain("incident_regulatory_filings");
+      expect(sql).toContain("save_incident_regulatory_profile");
+      expect(sql).toContain("submit_incident_filing");
+      expect(sql).toContain("interval '24 hours'");
+      expect(sql).toContain("interval '72 hours'");
+      expect(sql).toContain("interval '1 month'");
+      expect(sql).toContain("interval '14 days'");
+      expect(sql).toContain("interval '4 hours'");
+    });
+
+    it("keeps the planner internal to the service role", () => {
+      const grants = sqlOf()
+        .split("\n")
+        .filter((line) => line.includes('"plan_incident_filings"'))
+        .filter((line) => line.startsWith("grant execute"));
+
+      expect(grants).toHaveLength(1);
+      expect(grants[0]).toContain("to service_role");
+      expect(grants[0]).not.toContain("authenticated");
+    });
+
+    it("writes reminders only with the reminders block", () => {
+      expect(sqlOf()).not.toContain("remind_at");
+      expect(withReminders()).toMatch(/insert into "[a-z_]+"\."reminders"/);
+    });
+
+    it("bumps the version with an upgrade from 3", () => {
+      expect(INCIDENTS.version).toBe(4);
+      expect(INCIDENTS.upgrades?.some((step) => step.from === 3)).toBe(true);
+    });
+  });
 });

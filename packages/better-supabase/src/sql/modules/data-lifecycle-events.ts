@@ -65,4 +65,24 @@ export const DATA_LIFECYCLE_EVENTS: BlockSqlEvents<DataLifecycleEvents> = {
     subject: "legal-holds",
     payload: ["holdId", "organizationId", "kind", "reason"],
   },
+  "data_subject_request.received": {
+    subject: "data-subject-requests",
+    payload: ["requestId", "organizationId", "kind", "status", "dueAt"],
+  },
+  "data_subject_request.verified": {
+    subject: "data-subject-requests",
+    payload: ["requestId", "organizationId", "kind", "status", "dueAt"],
+  },
+  "data_subject_request.extended": {
+    subject: "data-subject-requests",
+    payload: ["requestId", "organizationId", "kind", "status", "dueAt"],
+  },
+  "data_subject_request.fulfilled": {
+    subject: "data-subject-requests",
+    payload: ["requestId", "organizationId", "kind", "status", "dueAt"],
+  },
+  "data_subject_request.refused": {
+    subject: "data-subject-requests",
+    payload: ["requestId", "organizationId", "kind", "status", "dueAt"],
+  },
 };
