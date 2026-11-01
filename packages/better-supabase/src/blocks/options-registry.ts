@@ -92,6 +92,7 @@ import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
+import type { PromptsSqlOptions } from "./prompts/options.ts";
 import type { PushSqlOptions } from "./push/options.ts";
 import type { QualificationsSqlOptions } from "./qualifications/options.ts";
 import type {
@@ -238,6 +239,7 @@ import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
+import { promptsSqlOptions } from "./prompts/options.ts";
 import { pushSqlOptions } from "./push/options.ts";
 import { qualificationsSqlOptions } from "./qualifications/options.ts";
 import {
@@ -304,6 +306,7 @@ export interface BlockOptionsRegistry {
   readonly activities: ActivitiesSqlOptions;
   readonly agents: AgentsSqlOptions;
   readonly "ai-cache": AiCacheSqlOptions;
+  readonly prompts: PromptsSqlOptions;
   readonly "ai-chat": AiChatSqlOptions;
   readonly "ai-files": AiFilesSqlOptions;
   readonly "ai-keys": AiKeysSqlOptions;
@@ -482,6 +485,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   activities: activitiesSqlOptions,
   agents: agentsSqlOptions,
   "ai-cache": aiCacheSqlOptions,
+  prompts: promptsSqlOptions,
   "ai-chat": aiChatSqlOptions,
   "ai-files": aiFilesSqlOptions,
   "ai-keys": aiKeysSqlOptions,

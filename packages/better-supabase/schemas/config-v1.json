@@ -1736,6 +1736,7 @@
               "posts",
               "profiles",
               "promotions",
+              "prompts",
               "push",
               "qualifications",
               "queue",
@@ -1919,6 +1920,7 @@
                   "posts",
                   "profiles",
                   "promotions",
+                  "prompts",
                   "push",
                   "qualifications",
                   "queue",
@@ -2322,6 +2324,9 @@
             },
             "promotions": {
               "$ref": "#/$defs/blocks/promotions"
+            },
+            "prompts": {
+              "$ref": "#/$defs/blocks/prompts"
             },
             "push": {
               "$ref": "#/$defs/blocks/push"
@@ -6836,6 +6841,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "prompts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBytes": {
+                "type": "number"
               }
             }
           }

@@ -110,6 +110,7 @@ import { pipelinesBlock } from "./pipelines/manifest.ts";
 import { postsBlock } from "./posts/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
 import { promotionsBlock } from "./promotions/manifest.ts";
+import { promptsBlock } from "./prompts/manifest.ts";
 import { pushBlock } from "./push/manifest.ts";
 import { qualificationsBlock } from "./qualifications/manifest.ts";
 import {
@@ -272,6 +273,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   inventoryBlock,
   invoicesBlock,
   idempotencyBlock,
+  promptsBlock,
   queueBlock,
   rateLimitBlock,
   webhookInboxBlock,

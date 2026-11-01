@@ -94,6 +94,7 @@ import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { idempotencyBlock } from "better-supabase/blocks/queue";
+import { promptsBlock } from "better-supabase/blocks/prompts";
 import { queueBlock } from "better-supabase/blocks/queue";
 import { rateLimitBlock } from "better-supabase/blocks/queue";
 import { webhookInboxBlock } from "better-supabase/blocks/queue";
@@ -249,6 +250,7 @@ export const blockSet = defineBlocks(blockConfig, {
   inventory: inventoryBlock,
   invoices: invoicesBlock,
   idempotency: idempotencyBlock,
+  prompts: promptsBlock,
   queue: queueBlock,
   rateLimit: rateLimitBlock,
   webhookInbox: webhookInboxBlock,

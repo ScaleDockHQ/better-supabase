@@ -180,3 +180,4 @@ add one, and link it from the code or config it explains.
 | [0180](0180-appraisal-rubrics-anonymity.md)                   | Appraisal cycles carry a weighted competency rubric and hide peer reviewers from the appraised person or from every reader                                   |
 | [0181](0181-warehouse-putaway-slotting-routes.md)             | Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task                                      |
 | [0182](0182-peppol-in-the-blocks.md)                          | Invoices keep Peppol participant ids and one delivery log behind one channel port in `better-supabase/e-invoicing`                                           |
+| [0183](0183-prompts-block.md)                                 | Prompts are versioned templates behind labels, read as the service role                                                                                      |

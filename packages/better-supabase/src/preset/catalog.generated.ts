@@ -10518,6 +10518,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "prompts",
+      "title": "Prompts",
+      "category": "ai",
+      "requires": [],
+      "integrates": [],
+      "manifest": "prompts"
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -26928,6 +26936,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "idempotencyBlock",
         "subpath": "better-supabase/blocks/queue"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "prompts",
+      "sql": [
+        "prompts"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "promptsBlock",
+        "subpath": "better-supabase/blocks/prompts"
       },
       "consumes": {},
       "provides": []

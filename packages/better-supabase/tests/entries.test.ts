@@ -24,6 +24,7 @@ const PURE_BARRELS = [
   "blocks/ai-schedules",
   "blocks/push",
   "blocks/ai-cache",
+  "blocks/prompts",
   "blocks/ai-keys",
   "ai-sdk",
   "ai-sdk/chat",

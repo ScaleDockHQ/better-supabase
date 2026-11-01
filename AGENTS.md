@@ -296,6 +296,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
 - 0182: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
+- 0183: Prompts are versioned templates behind labels, read as the service role.
 
 ## Pre-release pins
 

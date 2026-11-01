@@ -149,6 +149,8 @@ const NO_FIELDS: readonly string[] = [
   "payroll-export",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
+  // Versions are immutable templates; nothing for an app to extend.
+  "prompts",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   // Job rows, schedules and rate limit rules belong to the block's functions.
   "queue",

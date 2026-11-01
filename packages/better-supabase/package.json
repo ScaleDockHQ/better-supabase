@@ -595,6 +595,11 @@
       "types": "./dist/blocks/ai-cache/index.d.ts",
       "default": "./dist/blocks/ai-cache/index.js"
     },
+    "./blocks/prompts": {
+      "@better-supabase/source": "./src/blocks/prompts/index.ts",
+      "types": "./dist/blocks/prompts/index.d.ts",
+      "default": "./dist/blocks/prompts/index.js"
+    },
     "./blocks/ai-keys": {
       "@better-supabase/source": "./src/blocks/ai-keys/index.ts",
       "types": "./dist/blocks/ai-keys/index.d.ts",
@@ -1689,6 +1694,10 @@
       "./blocks/ai-cache": {
         "types": "./dist/blocks/ai-cache/index.d.ts",
         "default": "./dist/blocks/ai-cache/index.js"
+      },
+      "./blocks/prompts": {
+        "types": "./dist/blocks/prompts/index.d.ts",
+        "default": "./dist/blocks/prompts/index.js"
       },
       "./blocks/ai-keys": {
         "types": "./dist/blocks/ai-keys/index.d.ts",

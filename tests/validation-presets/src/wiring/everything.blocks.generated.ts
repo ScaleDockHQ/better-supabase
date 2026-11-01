@@ -219,6 +219,7 @@ import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
 import { idempotencyBlock as idempotencyBlockInstance } from "better-supabase/blocks/queue";
+import { promptsBlock as promptsBlockInstance } from "better-supabase/blocks/prompts";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { rateLimitBlock as rateLimitBlockInstance } from "better-supabase/blocks/queue";
 import { webhookInboxBlock as webhookInboxBlockInstance } from "better-supabase/blocks/queue";
@@ -685,6 +686,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  prompts: {
+    schema: "better_supabase",
+    options: {},
+  },
   queue: {
     schema: "better_supabase",
     options: {},
@@ -1086,6 +1091,7 @@ export const blocks = {
   inventory: inventoryBlockInstance,
   invoices: invoicesBlockInstance,
   idempotency: idempotencyBlockInstance,
+  prompts: promptsBlockInstance,
   queue: queueBlockInstance,
   "rate-limit": rateLimitBlockInstance,
   "webhook-inbox": webhookInboxBlockInstance,

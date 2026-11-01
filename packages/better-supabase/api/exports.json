@@ -5451,6 +5451,24 @@
       "BlockTransport"
     ]
   },
+  "./blocks/prompts": {
+    "values": [
+      "createPrompts",
+      "dbTransport",
+      "promptsBlock",
+      "renderPrompt",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Prompt",
+      "PromptOptions",
+      "Prompts",
+      "PromptSaveOptions",
+      "PromptVersion"
+    ]
+  },
   "./blocks/ai-keys": {
     "values": [
       "aiKeysBlock",
