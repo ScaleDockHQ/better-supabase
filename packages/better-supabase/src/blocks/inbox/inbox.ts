@@ -27,7 +27,7 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { reactionsOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
@@ -90,6 +90,26 @@ export interface CreateInboxInput {
    * inbox.
    */
   readonly settings?: Readonly<Record<string, unknown>>;
+}
+
+/** What `inboxes.setup` creates beyond the inbox itself. */
+export interface SetupInboxInput extends CreateInboxInput {
+  /** Added to the inbox in order. */
+  readonly members?: readonly {
+    readonly userId: string;
+    readonly role: "agent" | "lead";
+  }[];
+  /** A team to create in the same tenant, with the users to put on it. */
+  readonly team?: {
+    readonly name: string;
+    readonly userIds?: readonly string[];
+  };
+}
+
+/** What `inboxes.setup` created. */
+export interface SetupInboxResult {
+  readonly inbox: InboxRow;
+  readonly team?: { readonly id: string; readonly name: string };
 }
 
 export interface InboxPatch {
@@ -234,6 +254,13 @@ export interface Inbox {
       tenant: string;
       name: string;
     }): AsyncResult<{ readonly id: string; readonly name: string }>;
+    /**
+     * Creates the inbox, adds its `members` and, with `team`, creates the team
+     * and puts its users on it, one step after the other. The first failing
+     * step ends the setup and its error is returned; what the earlier steps
+     * created stays, and calling `update` or `setMember` finishes it.
+     */
+    setup(input: SetupInboxInput): AsyncResult<SetupInboxResult>;
     setTeamMember(input: {
       teamId: string;
       userId: string;
@@ -652,6 +679,45 @@ export function createInbox(options: InboxOptions): Inbox {
           { inbox: inboxId, member: userId, role },
           (value) => value === true,
         ),
+      setup: ({ members = [], team, ...create }) =>
+        hooked.inboxes.create(create).andThen(async (inbox) => {
+          for (const member of members) {
+            const added = await hooked.inboxes.setMember({
+              inboxId: inbox.id,
+              ...member,
+            });
+
+            if (!added.ok) {
+              return added;
+            }
+          }
+
+          if (team === undefined) {
+            return ok({ inbox });
+          }
+
+          const created = await hooked.inboxes.createTeam({
+            tenant: create.tenant,
+            name: team.name,
+          });
+
+          if (!created.ok) {
+            return created;
+          }
+
+          for (const userId of team.userIds ?? []) {
+            const added = await hooked.inboxes.setTeamMember({
+              teamId: created.data.id,
+              userId,
+            });
+
+            if (!added.ok) {
+              return added;
+            }
+          }
+
+          return ok({ inbox, team: created.data });
+        }),
       createTeam: ({ tenant, name }) =>
         call("create_inbox_team", { tenant, name }, (value) => {
           const row = recordOf(value, "create_inbox_team");

@@ -238,6 +238,16 @@ Steps map other approval models: any of several approvers is `required: 1`, a qu
 
 `requestedBy` makes that user the requester: they can't decide the request unless the policy allows self-approval or it is a `confirm` request, a `required: "all"` step leaves them out, and they get the decision's notification. A signed-in caller that passes `policy`, or a `requestedBy` other than themselves, fails with `APPROVAL_FORBIDDEN`; a malformed policy fails with `APPROVAL_POLICY_INVALID`. In SQL, `request_approval` takes them as `policy` and `requested_by`.
 
+## Wait for a decision
+
+`requestAndWait({ subject, input, timeoutMs?, intervalMs?, signal? })` files a request and polls it every `intervalMs` (default 1000) until it leaves `pending`, then resolves with the request's detail: approved, rejected, cancelled or expired. After `timeoutMs` (default 30000) it fails with a `timeout` error, hint `APPROVAL_WAIT_TIMEOUT`, and the request stays pending. Aborting `signal` ends the wait early with the same error. Use it for a short, interactive decision; for a long one, resume a workflow instead (below).
+
+```ts
+const done = await approvals
+  .requestAndWait({ subject, input: { action: "send" }, timeoutMs: 60_000 })
+  .orThrow();
+```
+
 ## Use an approval once
 
 `isApproved` answers whether a subject was approved, which suits a status change. For an operation such as a refund or an export, bind the approval to the exact request and use it once. Pass a fingerprint when you file the request, and call `consume` with the same fingerprint right before the operation runs:

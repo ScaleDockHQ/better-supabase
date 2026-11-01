@@ -14514,7 +14514,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/custom-fields"
       },
       "consumes": {},
-      "provides": [],
+      "provides": [
+        "customFields"
+      ],
       "entityTypes": [
         {
           "name": "CustomFields"
@@ -27633,6 +27635,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ScheduledInboxMessage"
+        },
+        {
+          "name": "SetupInboxInput"
+        },
+        {
+          "name": "SetupInboxResult"
         }
       ],
       "events": {
@@ -31749,7 +31757,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "tasksBlock",
         "subpath": "better-supabase/blocks/tasks"
       },
-      "consumes": {},
+      "consumes": {
+        "customFields": "optional"
+      },
       "provides": [
         "sink"
       ],

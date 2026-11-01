@@ -2,6 +2,7 @@ import type { EventSink } from "../events/cloud-event.ts";
 import type { AccessRequests } from "./access-requests/access-requests.ts";
 import type { AiFiles } from "./ai-files/types.ts";
 import type { Attachments } from "./attachments/attachments.ts";
+import type { CustomFields } from "./custom-fields/custom-fields.ts";
 import type { MailSync } from "./mail-sync/mail-sync.ts";
 import type { Workflows } from "./workflows/workflows.ts";
 
@@ -39,6 +40,8 @@ export interface BlockPorts {
   readonly mailer: Pick<MailSync, "send">;
   /** The `access-requests` block, for access requests on drive nodes. */
   readonly recordAccess: Pick<AccessRequests, "requestRecord" | "records">;
+  /** The `custom-fields` block, for values set when a record is created. */
+  readonly customFields: Pick<CustomFields, "setValue">;
   /** An outbox sink, for `outbox.relayRoute({ consumers: blocks.sinks })`. */
   readonly sink: EventSink;
 }
@@ -56,6 +59,7 @@ const PORT_KEYS: { readonly [K in PortName]: true } = {
   workflows: true,
   mailer: true,
   recordAccess: true,
+  customFields: true,
   sink: true,
 };
 

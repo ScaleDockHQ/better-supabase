@@ -489,3 +489,55 @@ describe("createInbox", () => {
     ]);
   });
 });
+
+describe("inboxes.setup", () => {
+  it("creates the inbox, adds members, then the team and its users", async () => {
+    const { transport, call } = fakeTransport({
+      create_inbox: inboxRow,
+      set_inbox_member: true,
+      create_inbox_team: { id: "team1", name: "Tier 1" },
+      set_inbox_team_member: true,
+    });
+
+    const result = await createInbox({ transport })
+      .inboxes.setup({
+        tenant: "org",
+        name: "Support",
+        members: [{ userId: "u1", role: "lead" }],
+        team: { name: "Tier 1", userIds: ["u1", "u2"] },
+      })
+      .orThrow();
+
+    expect(result.inbox.id).toBe("i1");
+    expect(result.team).toEqual({ id: "team1", name: "Tier 1" });
+    expect(call.mock.calls.map((each) => each[1])).toEqual([
+      "create_inbox",
+      "set_inbox_member",
+      "create_inbox_team",
+      "set_inbox_team_member",
+      "set_inbox_team_member",
+    ]);
+  });
+
+  it("stops at the first failing step and returns its error", async () => {
+    const { transport, call } = fakeTransport({
+      create_inbox: inboxRow,
+      set_inbox_member: () => {
+        throw new Error("boom");
+      },
+    });
+
+    const result = await createInbox({ transport }).inboxes.setup({
+      tenant: "org",
+      name: "Support",
+      members: [{ userId: "u1", role: "agent" }],
+      team: { name: "Tier 1" },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(call.mock.calls.map((each) => each[1])).toEqual([
+      "create_inbox",
+      "set_inbox_member",
+    ]);
+  });
+});

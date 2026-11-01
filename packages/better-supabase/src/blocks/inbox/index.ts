@@ -12,6 +12,8 @@ export type {
   ContactInput,
   ConversationFilter,
   CreateInboxInput,
+  SetupInboxInput,
+  SetupInboxResult,
   InboundInput,
   MessagePageOptions,
   Inbox,

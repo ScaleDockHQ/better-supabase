@@ -120,6 +120,19 @@ person.
 `inbox.contacts.upsert` and the `upsert_contact` function are removed; see
 [0.46 to 0.47](/docs/migration/0.46-to-0.47#inbox-contacts).
 
+`inboxes.setup` creates an inbox with its members and a team in one call: `setup({ tenant, name, channel?, members?, team? })` creates the inbox, adds each member (`{ userId, role: "agent" | "lead" }`) and, with `team: { name, userIds? }`, creates the team and puts its users on it. The first failing step ends the setup and its error is returned. What the earlier steps created stays, so run `inboxes.update` or `inboxes.setMember` to finish it.
+
+```ts
+const { inbox, team } = await inbox.inboxes
+  .setup({
+    tenant,
+    name: "Support",
+    members: [{ userId: lead, role: "lead" }],
+    team: { name: "Tier 1", userIds: [lead] },
+  })
+  .orThrow();
+```
+
 ## Conversations and messages
 
 ```ts

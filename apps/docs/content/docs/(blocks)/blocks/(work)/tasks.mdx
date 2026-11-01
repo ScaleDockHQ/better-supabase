@@ -109,6 +109,18 @@ Without `atomic`, a refused change comes back in `rejected` and the others stay 
 
 The notification carries the item's title as its subject label, and `options.actionPath` sets its action path from a template with `{id}` and `{identifier}`, such as `"/tasks/{id}"`. Set `options.notify: false` when the app sends its own assignment notifications; the assignees still watch the item.
 
+`create` takes `custom`, a map from custom field definition id to value. The values are set on the new task through the `customFields` port that `createBlocks` passes when the `custom-fields` block is installed (hint `TASKS_CUSTOM_FIELDS_MISSING` without it). When a value is refused, the task is removed again and the error returned.
+
+```ts
+await tasks
+  .create({
+    organizationId,
+    input: { title: "Ship" },
+    custom: { [priorityFieldId]: "high" },
+  })
+  .orThrow();
+```
+
 ## Lists, trees, projects and iterations
 
 `list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.

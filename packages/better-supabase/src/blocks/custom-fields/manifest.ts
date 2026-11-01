@@ -13,12 +13,13 @@ export const customFieldsBlock: BlockOf<
   typeof createCustomFields,
   CustomFieldsEvents,
   Record<never, never>,
-  never,
+  "customFields",
   typeof customFieldsBinding
 > = defineBlock({
   name: "custom-fields",
   sql: ["custom-fields"],
   options: { "custom-fields": customFieldsSqlOptions },
+  provides: { customFields: (client) => client },
   events: customFieldsEvents,
   record: customFieldsBinding,
   create: createCustomFields,
