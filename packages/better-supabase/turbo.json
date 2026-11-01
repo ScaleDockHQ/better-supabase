@@ -5,7 +5,7 @@
   "tasks": {
     "test": {
       "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
-      "dependsOn": ["transit", "build"],
+      "dependsOn": ["$TURBO_EXTENDS$", "build"],
       "outputs": [".vitest/blob/**"],
       "inputs": [
         "$TURBO_DEFAULT$",

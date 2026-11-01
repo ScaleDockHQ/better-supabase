@@ -189,6 +189,13 @@
         "packages/better-supabase/skills/**"
       ]
     },
+    "//#check:skills": {
+      "inputs": [
+        "scripts/check-skills.ts",
+        "skills-lock.json",
+        ".agents/skills/**"
+      ]
+    },
     "//#check:no-permdock": {
       "inputs": [
         "scripts/check-no-permdock.ts",
@@ -282,7 +289,8 @@
       ]
     },
     "test": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.mdx"]
     },
     "check:publish": {
       "dependsOn": ["build", "^build"]

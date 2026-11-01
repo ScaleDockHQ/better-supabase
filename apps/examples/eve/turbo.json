@@ -13,11 +13,8 @@
         "WORKFLOW_*"
       ]
     },
-    "lint": {
-      "dependsOn": ["transit", "^build"]
-    },
     "typecheck": {
-      "dependsOn": ["transit", "^build"]
+      "dependsOn": ["$TURBO_EXTENDS$", "^build"]
     },
     "dev:portless": {
       "passThroughEnv": [
