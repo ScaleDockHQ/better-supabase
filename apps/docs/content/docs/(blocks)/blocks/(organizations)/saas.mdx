@@ -47,6 +47,14 @@ await blocks.saas.inviteWithinSeats({
 });
 ```
 
+`rotateApiKey`: Rotate an API key and keep the old token working for `graceHours` more hours (24 by default, 0 to 720). It calls `apiKeys.rotate`, so the new token is returned once and only its hash is stored. A value outside the range returns an `invalid_request` error and rotates nothing.
+
+```ts
+const rotated = await blocks.saas.rotateApiKey({ id: keyId, graceHours: 48 });
+```
+
+An app that installs the key block without the other parts of `saas` builds just this helper with `createKeyRotator({ apiKeys })` from `better-supabase/blocks/saas`. The Next.js example does, in `apps/examples/nextjs/src/features/composites/composites.ts`, and calls it from the `rotateKey` server action.
+
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove

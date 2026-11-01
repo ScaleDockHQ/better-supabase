@@ -9833,6 +9833,7 @@
   },
   "./blocks/saas": {
     "values": [
+      "createKeyRotator",
       "createSaas",
       "saasBlock",
       "saasParts"
@@ -9879,7 +9880,9 @@
       "Commerce",
       "CommerceOptions",
       "CommerceParts",
-      "PaidAndFulfilled"
+      "PaidAndFulfilled",
+      "ProcessedReturn",
+      "ReturnDisposition"
     ]
   },
   "./blocks/procurement": {
@@ -9913,6 +9916,7 @@
       "supportParts"
     ],
     "types": [
+      "EscalatedTicket",
       "OpenedTicket",
       "Support",
       "SupportOptions",
@@ -9927,9 +9931,13 @@
     ],
     "types": [
       "ApprovedAndInvoiced",
+      "MemberUtilization",
+      "ProjectFinancials",
       "Projects",
       "ProjectsOptions",
-      "ProjectsParts"
+      "ProjectsParts",
+      "RetainerDrawdown",
+      "Utilization"
     ]
   },
   "./blocks/service": {
@@ -10055,9 +10063,13 @@
       "crmReadSets"
     ],
     "types": [
+      "Attainment",
+      "AttainmentInput",
       "Crm",
       "CrmOptions",
-      "CrmParts"
+      "CrmParts",
+      "MetricAttainment",
+      "RoutedLead"
     ]
   },
   "./blocks/rfqs": {
