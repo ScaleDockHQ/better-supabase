@@ -29157,6 +29157,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "QuoteDecision"
         },
         {
+          "name": "QuoteFromDealClients"
+        },
+        {
+          "name": "QuoteFromDealOptions"
+        },
+        {
           "name": "QuoteInput",
           "fields": true
         },
