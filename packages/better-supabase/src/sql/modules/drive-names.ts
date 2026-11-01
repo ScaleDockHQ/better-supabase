@@ -155,6 +155,7 @@ export const NAMES: BlockSqlNames = {
     "previewPrefix",
     "extraColumns",
     "maxTextBytes",
+    "searchColumn",
     "quota",
     "control",
     "sync",

@@ -3,6 +3,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addCheck,
@@ -62,6 +63,32 @@ import { moduleOperations } from "./permissions-model.ts";
 import { shareLinkRow } from "./share-links.ts";
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
+/**
+ * The exclusion that keeps a calendar's opaque, single, timed events from
+ * overlapping. Recurring rows and all-day events are left out: their other
+ * occurrences are not stored.
+ */
+function eventOverlap(ctx: BlockSqlContext): string {
+  if (!ctx.flag("noOverlap", false) || !ctx.owns("events")) {
+    return "";
+  }
+
+  const e = (column: string): string => ctx.col("events", column);
+
+  return `\n${ensureExclusion(
+    ctx.table("events"),
+    ctx.naming.rename("calendar_events_no_overlap"),
+    [
+      { expression: e("calendar"), operator: "=" },
+      {
+        expression: `tstzrange(${e("startsAt")}, ${e("endsAt")}, '[)')`,
+        operator: "&&",
+      },
+    ],
+    `${e("status")} <> 'cancelled' and ${e("rrule")} is null and ${e("recurrence")} is null and ${e("transparency")} = 'opaque' and not ${e("allDay")}`,
+  )}`;
+}
+
 function reminderRule(ctx: BlockSqlContext, op: "save" | "delete"): string {
   if (!ctx.installed("reminders")) {
     return "";
@@ -294,7 +321,7 @@ ${addCheck({
   table: events,
   name: `${ctx.tableName("events").name}_transparency_check`,
   expression: `${e("transparency")} in ${TRANSPARENCIES}`,
-})}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}
+})}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}${eventOverlap(ctx)}
 ${lockTable(events, { read: true })}
 ${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
 ${attendeesTable()}${alarmsTable(ctx)}${defaultAlarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`

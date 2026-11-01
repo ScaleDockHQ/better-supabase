@@ -18,6 +18,12 @@ export type DealsSqlOptions = {
    * and to basis points. Default `"bps"`.
    */
   readonly lineRates?: "bps" | "percent";
+  /**
+   * Adds a stored `search_tsv` column and a GIN index to deals, so queries
+   * match with `search_tsv @@ websearch_to_tsquery('simple', ...)`. Default
+   * `false`.
+   */
+  readonly searchColumn?: boolean;
 };
 
 export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
@@ -31,4 +37,5 @@ export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
     extraColumns: option.extraColumns(),
     lineExtraColumns: option.extraColumns(),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
+    searchColumn: option.boolean({ default: false }),
   });

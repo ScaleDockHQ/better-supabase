@@ -4983,6 +4983,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "approvals"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "requests",
       "entities": {
         "specs": {
@@ -10112,6 +10115,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "seeds": {
+        "variants": []
+      },
       "entities": {
         "specs": {
           "tax_code": {

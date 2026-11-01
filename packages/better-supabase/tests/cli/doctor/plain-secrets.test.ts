@@ -208,7 +208,48 @@ describe("BS352", () => {
     expect(unlisted).toHaveLength(1);
   });
 
-  it("stays quiet without a block that keeps secrets out of the row", async () => {
-    expect(await run({}, withIntegrations(COLUMNS))).toEqual([]);
+  it("leaves BS352 quiet without a block that keeps secrets out of the row", async () => {
+    const findings = await run({}, withIntegrations(COLUMNS));
+
+    expect(findings.some((finding) => finding.code === "BS352")).toBe(false);
+  });
+});
+
+describe("BS360", () => {
+  it("reports plain secret columns when no secret block is installed", async () => {
+    const findings = await run({}, withIntegrations(COLUMNS));
+
+    expect(findings.map((finding) => finding.code)).toEqual([
+      "BS360",
+      "BS360",
+      "BS360",
+    ]);
+    expect(findings[0]).toEqual(
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.integrations.access_token",
+        message: expect.stringContaining("vault.create_secret"),
+      }),
+    );
+  });
+
+  it("leaves the columns to BS352 when field-encryption is installed", async () => {
+    const findings = await run(
+      { blocks: ["field-encryption"] },
+      withIntegrations(COLUMNS),
+    );
+
+    expect(findings.some((finding) => finding.code === "BS360")).toBe(false);
+  });
+
+  it("skips a column that a seal trigger fills", async () => {
+    expect(
+      await run(
+        {
+          tooling: { doctor: { sealTriggers: ["public.seal_secret_fields"] } },
+        },
+        withIntegrations({ access_token: "text" }, [SEAL]),
+      ),
+    ).toEqual([]);
   });
 });

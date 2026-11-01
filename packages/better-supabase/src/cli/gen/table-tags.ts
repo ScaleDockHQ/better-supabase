@@ -95,11 +95,11 @@ function text(value: string | true | undefined): string | undefined {
  * `config` with the per-table features the schema's `@bsb` table comments turn
  * on (ADR 0102): `subject`, `realtime`, `vector-search`, `json` (`column=Type`,
  * or `column=import:module#Name`), `encrypted` (`column=type`, a bare column is
- * text), `lookup` (bare encrypted columns) and `events` (`on`, `include`).
- * `audit`, `audit-reads` and `expose` change the table's SQL only, so `gen` has
- * nothing to read from them. A key the config sets itself wins, so a project
- * can move to tags one table at a time. Tables outside `config.schemas` are
- * ignored.
+ * text), `lookup` (bare encrypted columns), `events` (`on`, `include`) and
+ * `search` (`columns`). `audit`, `audit-reads` and `expose` change the table's
+ * SQL only, so `gen` has nothing to read from them. A key the config sets
+ * itself wins, so a project can move to tags one table at a time. Tables
+ * outside `config.schemas` are ignored.
  */
 export function withTableTags(
   config: ResolvedConfig,
@@ -290,6 +290,19 @@ export function withTableTags(
 
         appTables[table.name] = { ...appTables[table.name], events };
         eventTables.add(table.name);
+        changed = true;
+      } else if (
+        tag.name === "search" &&
+        table.schema === "public" &&
+        appTables[table.name]?.search === undefined
+      ) {
+        const columns = list(tag.args["columns"]);
+
+        appTables[table.name] = {
+          ...appTables[table.name],
+          search: columns.length === 0 ? true : { columns },
+        };
+
         changed = true;
       } else if (
         tag.name === "audit-reads" ||

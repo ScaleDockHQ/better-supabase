@@ -25,6 +25,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { formatValidatorSql, validatorsOf } from "../format-checks.ts";
 import { moduleContext } from "../module-context.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { searchColumnStatements } from "../search-column.ts";
 import {
   authenticatedPolicy,
   TENANT_SCOPE_NAMES,
@@ -317,6 +318,50 @@ function rankIndex(table: AppTable): readonly (readonly string[])[] {
       ? [APP_RANK_COLUMN]
       : [rank.group, APP_RANK_COLUMN],
   ];
+}
+
+/** The `search_tsv` column and index of a table with `search`. */
+function searchSql(table: AppTable): string {
+  const search = table.config.search;
+
+  if (search === undefined) {
+    return "";
+  }
+
+  const columns = Object.entries(table.config.columns ?? {});
+  const named = search === true ? undefined : search.columns;
+
+  if (named !== undefined) {
+    const unknown = named.find(
+      (name) => !columns.some(([column]) => column === name),
+    );
+
+    if (unknown !== undefined) {
+      throw new TypeError(
+        `tables.${table.name}.search.columns names "${unknown}", which is not a column of the table`,
+      );
+    }
+  }
+
+  const indexed = columns
+    .filter(([name, column]) =>
+      named === undefined
+        ? column.type === "text" && column.encrypted !== true
+        : named.includes(name),
+    )
+    .map(([name]) => sqlIdent(name));
+
+  if (indexed.length === 0) {
+    throw new TypeError(
+      `tables.${table.name}.search needs at least one text column to index`,
+    );
+  }
+
+  return searchColumnStatements(
+    qualified(table.name),
+    `${table.name}_search_tsv_idx`,
+    indexed,
+  ).trim();
 }
 
 function indexesSql(table: AppTable): string {
@@ -809,6 +854,7 @@ function tableSql(table: AppTable): string {
     policiesSql(table),
     constraintsSql(table),
     indexesSql(table),
+    searchSql(table),
     commentsSql(table),
     triggerSql(table),
     eventsSql(table),
