@@ -1,0 +1,34 @@
+# OpenTelemetry Collector in front of PostHog AI Observability: strips message content, batches under the 4 MB request cap.
+# Verified against PostHog docs "OpenTelemetry AI Observability installation", validated with collector-contrib 0.162.0, 2026-10-11.
+# Env (set values from a 0600 env file): POSTHOG_PROJECT_TOKEN, POSTHOG_OTLP_TRACES_ENDPOINT
+#   US cloud https://us.i.posthog.com/i/v0/ai/otel, EU cloud https://eu.i.posthog.com/i/v0/ai/otel, self-hosted https://<your-host>/i/v0/ai/otel
+# PostHog accepts OTLP over HTTP only (protobuf or JSON), no gRPC.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  attributes/strip-content:
+    actions:
+      # Remove these three to keep full prompts and completions in PostHog.
+      - { key: gen_ai.input.messages, action: delete }
+      - { key: gen_ai.output.messages, action: delete }
+      - { key: gen_ai.system_instructions, action: delete }
+  batch:
+    send_batch_size: 100
+    send_batch_max_size: 200
+
+exporters:
+  otlphttp/posthog:
+    traces_endpoint: ${env:POSTHOG_OTLP_TRACES_ENDPOINT}
+    headers:
+      Authorization: "Bearer ${env:POSTHOG_PROJECT_TOKEN}"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/strip-content, batch]
+      exporters: [otlphttp/posthog]

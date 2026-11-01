@@ -97,6 +97,12 @@
       "skillPath": "skills/conventional-commits/SKILL.md",
       "computedHash": "85d1eb12fe3af844a88c05054a22c1aad15439847cb21e7bbe5450d039150bd4"
     },
+    "csv": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/csv/SKILL.md",
+      "computedHash": "5579e9aa7c710a840f155409d688fd9f0e5838b43951a3a150af31ed603817e9"
+    },
     "cyclonedx": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
@@ -132,6 +138,12 @@
       "sourceType": "github",
       "skillPath": "skills/editorconfig/SKILL.md",
       "computedHash": "769ee57c3b1953d9d752771047007fa833156e28c8c1e537177c211a5ff90e70"
+    },
+    "en-16931": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/en-16931/SKILL.md",
+      "computedHash": "f9855039df58a6f4d542c6e5a0029f7218f4f68332989214c6418402eef12c3f"
     },
     "en-301-549": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -235,6 +247,12 @@
       "skillPath": "skills/fapi/SKILL.md",
       "computedHash": "32c7881030620070c4c8088f128a742b09949048486a76655793841dcfae346e"
     },
+    "fhir": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fhir/SKILL.md",
+      "computedHash": "ee3d4eccd045264a889b804ebad97d61cf48449ea5686e7731753205cdaf7504"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
@@ -246,6 +264,12 @@
       "sourceType": "github",
       "skillPath": "skills/flags-sdk/SKILL.md",
       "computedHash": "fb7d6081d40ae23ca4fdbf42adbcc7805bb70c71104f907761d9b1c5552133b7"
+    },
+    "gdpr": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gdpr/SKILL.md",
+      "computedHash": "3edce0cb3d0363f8d46121edcfd556bbd9fec8934fcf4a6e638bc2d0cbde057d"
     },
     "gnap": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -265,6 +289,12 @@
       "skillPath": "skills/http-semantics/SKILL.md",
       "computedHash": "58102d332b607fde7c7414e5bc60b29547c0893a4d7d56b962c2c0aba070362b"
     },
+    "icalendar": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/icalendar/SKILL.md",
+      "computedHash": "31c8a44525640778b298173a74b9d19d663f9c94686f004b9859836e88442c62"
+    },
     "improve": {
       "source": "shadcn/improve",
       "sourceType": "github",
@@ -277,11 +307,23 @@
       "skillPath": "skills/json-canonicalization/SKILL.md",
       "computedHash": "a2f85a0de829199f65de304dc793eed356b3af44d97d7c6fa7acbfbf4c1bae3a"
     },
+    "json-patch": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/json-patch/SKILL.md",
+      "computedHash": "3e8ba7ba57f12a3eb654b1367c6fc635b12d0dd2d57951608c6e5ee22ceca659"
+    },
     "json-pointer": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
       "skillPath": "skills/json-pointer/SKILL.md",
       "computedHash": "ab5ce05c13bc1a59ddbbdcc685176795c54d66dd6afee82c70e3b93eb5ff2ba6"
+    },
+    "json-rpc": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/json-rpc/SKILL.md",
+      "computedHash": "d6ed3330f6a3e07fae239040e0c130223c811a216e24708b481091a7f8af7411"
     },
     "json-schema": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -307,6 +349,18 @@
       "skillPath": "skills/knip/SKILL.md",
       "computedHash": "89f3a78088109045afc77e09c93a28b6cc4cb51ae00e789091e9991a180e39db"
     },
+    "llm-evals": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/llm-evals/SKILL.md",
+      "computedHash": "0c86db125e16ee9a2c64d30a3e35c1f0bdc80d69cc294da20ee6e17cc0e86039"
+    },
+    "llm-observability": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/llm-observability/SKILL.md",
+      "computedHash": "448e77a5b95ee45ed83a6db9c1bb64ba473824179a7e0d4d70473dbf8570291b"
+    },
     "llms-txt": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
@@ -324,6 +378,12 @@
       "sourceType": "github",
       "skillPath": "skills/mcp/SKILL.md",
       "computedHash": "c1fe5544add39dc685e948a43fb97511c21f63df7e1b510584bc9485070ba10c"
+    },
+    "mcp-apps": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mcp-apps/SKILL.md",
+      "computedHash": "8652cbe39346bc7278057b1fe2794cd98fb7c37609d98f09efe05f520aa5336c"
     },
     "mcp-authorization": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -487,11 +547,41 @@
       "skillPath": "skills/owasp-agentic/SKILL.md",
       "computedHash": "a08b157237273780ffec302d87ee8cd4bf750193ea7c8ed10e6207144b1d40e2"
     },
+    "owasp-api-security": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/owasp-api-security/SKILL.md",
+      "computedHash": "eef3f1de6674f62d5849848be3c094b8d7cb3edc46f01824ad153866770df388"
+    },
+    "owasp-asvs": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/owasp-asvs/SKILL.md",
+      "computedHash": "3300608044d32efaf3fc3593ebe89f4bdb445e810f56f3f10fdeebded9c0b85d"
+    },
+    "owasp-llm": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/owasp-llm/SKILL.md",
+      "computedHash": "8356cd7552aa771448ea1faf46e250054f52e4e7ee44717736a6ecda0f59ed6c"
+    },
     "oxlint": {
       "source": "delexw/claude-code-misc",
       "sourceType": "github",
       "skillPath": "skills/oxlint/SKILL.md",
       "computedHash": "44808aefb361ada1250783eb31ccb20aa020e2c61466e52f53efb10ce20d793b"
+    },
+    "peppol-bis": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/peppol-bis/SKILL.md",
+      "computedHash": "3a7b3981d683952be504913721a21188b46bd8cc8843446ee563aa0660cf87dc"
+    },
+    "pgvector": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pgvector/SKILL.md",
+      "computedHash": "e59ed927de796e6c30c108e2a15faffc8c3b2edeb3994d47b9b679a33f32fcd4"
     },
     "playwright-best-practices": {
       "source": "currents-dev/playwright-best-practices-skill",
@@ -505,11 +595,23 @@
       "skillPath": "skills/portless/SKILL.md",
       "computedHash": "9ce19ea221881e94ea4894c91b30dd19536c748f64a9fbef4373b569de180e7d"
     },
+    "posthog-llm-analytics": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/posthog-llm-analytics/SKILL.md",
+      "computedHash": "60bd4351b819cb25ab4f5fb6b76f4eaa427093b22aeba675bd1a0deb68f4d59c"
+    },
     "problem-details": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
       "skillPath": "skills/problem-details/SKILL.md",
       "computedHash": "87d67886ca9312b9ccaee92a9c957a5d805cb95d2a045e4c19e60e7a7aa58702"
+    },
+    "push-api": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/push-api/SKILL.md",
+      "computedHash": "00a938d28ef34dc30dc1d6fb3ec9b5490ddd75b9c836f4e599a16ff0bf0b9a10"
     },
     "queues": {
       "source": "vercel-labs/vercel-plugin",
@@ -625,6 +727,12 @@
       "skillPath": "skills/slsa/SKILL.md",
       "computedHash": "d7d86b1bd08a2db032d29000813c0e2c50cd0da51b2d705c7b96d854716fb963"
     },
+    "smart-on-fhir": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/smart-on-fhir/SKILL.md",
+      "computedHash": "9ebbedff32aecc7f825279fc17b74e4b1e44cd011f779950eea2bc1796d9ada0"
+    },
     "spiffe": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
@@ -642,6 +750,12 @@
       "sourceType": "github",
       "skillPath": "skills/standard-webhooks/SKILL.md",
       "computedHash": "00ae5357c9d3b6ac55a13968a2dd2a0fa355f741ce09b7eb3117a0d5995d9dcc"
+    },
+    "structured-outputs": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/structured-outputs/SKILL.md",
+      "computedHash": "a2315f92aa01dac14b65a533cf272cb0048205886cf4ec50173da4d3b79fae5b"
     },
     "supabase": {
       "source": "supabase/agent-skills",
@@ -666,6 +780,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/tdd/SKILL.md",
       "computedHash": "daf55026f456af104a72fa43247f7bcec89e5127316dc5b1b8d675d6a9d8ce94"
+    },
+    "time-zone-database": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/time-zone-database/SKILL.md",
+      "computedHash": "8caf9255fd1af602872eceae41ff2eb1bd9d9dc44871599d1572b869a455f0f4"
     },
     "toml": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -703,11 +823,23 @@
       "skillPath": "skills/typespec/SKILL.md",
       "computedHash": "ea54c012dfb98f7d0ba87584ba865b14834e75157ee7b814f93c04a660a30db6"
     },
+    "ubl": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ubl/SKILL.md",
+      "computedHash": "74515d7798a4899cdd5c34ea0cf497342b84a58a335aae6326bb559e4adcdac8"
+    },
     "valibot": {
       "source": "open-circle/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/valibot/SKILL.md",
       "computedHash": "dc7ad7dc09548808d26aef0bc58786a4ee3559e153a1e83c9c4574f3a294ea1b"
+    },
+    "vercel-ai-gateway": {
+      "source": "ScaleDockHQ/llm-skills",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-ai-gateway/SKILL.md",
+      "computedHash": "c3cfd488c494d78522c80d5d416e66122e518074cb167aea7453a7c9a93e3708"
     },
     "vercel-cli": {
       "source": "vercel/vercel",
@@ -774,6 +906,12 @@
       "sourceType": "github",
       "skillPath": "skills/web-bot-auth/SKILL.md",
       "computedHash": "8783e785796eb889589f739c531e3e1726945e7aecc0e710c3ce269e59c9fcd5"
+    },
+    "web-cryptography": {
+      "source": "ScaleDockHQ/scaledock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/web-cryptography/SKILL.md",
+      "computedHash": "b0892ea1011cdea7099d7eda63bc3358efa910e759fedef970710f9057117494"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",

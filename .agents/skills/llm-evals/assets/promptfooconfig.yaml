@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Baseline vs candidate on the same golden set, against two OpenAI-compatible endpoints.
+# Verified against promptfoo 0.124.1.
+#
+# Required environment (keys are read by name; never put them in this file):
+#   BASELINE_BASE_URL   e.g. http://localhost:8000/v1      (the /v1 root, not /v1/chat/completions)
+#   BASELINE_API_KEY    key for the baseline endpoint
+#   CANDIDATE_BASE_URL  e.g. https://llm.example.com/v1
+#   CANDIDATE_API_KEY   key for the candidate endpoint
+# For endpoints without auth, replace apiKeyEnvar with: apiKeyRequired: false
+#
+# Replace baseline-model / candidate-model with the IDs reported by GET <base-url>/models.
+#
+# Run:
+#   npx promptfoo@0.124.1 eval -c promptfooconfig.yaml --no-cache -o results.json -o report.html
+#   npx promptfoo@0.124.1 eval -c promptfooconfig.yaml --no-cache --filter-providers '^candidate$' -o candidate.jsonl
+
+description: Golden set, baseline vs candidate
+
+prompts:
+  - |
+    You are a concise assistant for internal support questions.
+    Answer in at most five sentences. If the answer is not in the provided context, say so.
+
+    {{input}}
+
+providers:
+  - id: openai:chat:baseline-model
+    label: baseline
+    config:
+      apiBaseUrl: "{{ env.BASELINE_BASE_URL }}"
+      apiKeyEnvar: BASELINE_API_KEY
+      # Identical sampling on both sides is the whole point of the comparison.
+      temperature: 0
+      top_p: 1
+      max_tokens: 1024
+      seed: 1234
+      showThinking: false
+
+  - id: openai:chat:candidate-model
+    label: candidate
+    config:
+      apiBaseUrl: "{{ env.CANDIDATE_BASE_URL }}"
+      apiKeyEnvar: CANDIDATE_API_KEY
+      temperature: 0
+      top_p: 1
+      max_tokens: 1024
+      seed: 1234
+      showThinking: false
+      # Example: disable thinking on Qwen3/GLM-style chat templates served by vLLM.
+      # Only add this if the baseline gets the same setting.
+      # passthrough:
+      #   chat_template_kwargs:
+      #     enable_thinking: false
+
+defaultTest:
+  # Applied to every test in addition to its own assertions.
+  assert:
+    - type: not-icontains
+      value: "<think>"
+      metric: format
+    - type: javascript
+      value: output.trim().length > 0
+      metric: format
+    # Catches truncation (max_tokens too low, context overflow): normalized finish reason must be "stop".
+    - type: finish-reason
+      value: stop
+      metric: format
+    # Requires --no-cache.
+    - type: latency
+      threshold: 60000
+      metric: latency
+  # Grader for model-graded assertions (llm-rubric etc.). Uncomment and set JUDGE_* env vars.
+  # Use a different model family than the candidate, temperature 0, and calibrate it first.
+  # options:
+  #   provider:
+  #     id: openai:chat:judge-model
+  #     label: judge
+  #     config:
+  #       apiBaseUrl: '{{ env.JUDGE_BASE_URL }}'
+  #       apiKeyEnvar: JUDGE_API_KEY
+  #       temperature: 0
+  #       max_tokens: 2048
+  #       showThinking: false
+
+# One promptfoo test object per line: vars, assert, description, metadata.
+tests: file://golden-set.example.jsonl
