@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:fcb24b1ebdeff7ed383890637dd9a9f8ebab82fb848cd395c71652cda394f870
+-- @bsb-hash sha256:ef9c162f81c548b0da072aa3c0246d3ffdff4a9382f3b286c382f65a1441a9b0
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,6 +159,65 @@ begin
       v_key.index_name, v_key.cols);
   end loop;
 end $$;
+
+-- A number may not be held twice by the default legal entity and by documents
+-- without one (null stands for the default entity).
+create or replace function "better_supabase"."bsb_invoices_entity_numbers"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_default uuid;
+begin
+  select e."id" into v_default from "better_supabase"."legal_entities" e where e."tenant_id" = new."tenant_id" and e."is_default";
+  if new.legal_entity_id is not null and new.legal_entity_id is distinct from v_default then
+    return new;
+  end if;
+  if new."number" is not null then
+    perform pg_advisory_xact_lock(hashtextextended('bsb_entity_number:' || 'invoices' || ':' || new."tenant_id"::text || ':number:' || new."number"::text, 0));
+    if exists (
+      select 1 from "better_supabase"."invoices" x
+      where x."tenant_id" = new."tenant_id" and x."number" = new."number" and x."id" <> new."id" and x."direction" is not distinct from new."direction" and x."kind" is not distinct from new."kind"
+        and (x.legal_entity_id is null or x.legal_entity_id = v_default)
+    ) then
+      raise exception '% % % is already used: a document without a legal entity and a document of the default legal entity share one series', 'invoices', 'number', new."number"
+        using errcode = '23505', hint = 'LEGAL_ENTITY_NUMBER_TAKEN';
+    end if;
+  end if;
+  if new."identifier" is not null then
+    perform pg_advisory_xact_lock(hashtextextended('bsb_entity_number:' || 'invoices' || ':' || new."tenant_id"::text || ':identifier:' || new."identifier"::text, 0));
+    if exists (
+      select 1 from "better_supabase"."invoices" x
+      where x."tenant_id" = new."tenant_id" and x."identifier" = new."identifier" and x."id" <> new."id" and x."direction" is not distinct from new."direction" and x."kind" is not distinct from new."kind"
+        and (x.legal_entity_id is null or x.legal_entity_id = v_default)
+    ) then
+      raise exception '% % % is already used: a document without a legal entity and a document of the default legal entity share one series', 'invoices', 'identifier', new."identifier"
+        using errcode = '23505', hint = 'LEGAL_ENTITY_NUMBER_TAKEN';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."bsb_invoices_entity_numbers"() from public, anon, authenticated;
+drop trigger if exists "bsb_invoices_entity_numbers" on "better_supabase"."invoices";
+create trigger "bsb_invoices_entity_numbers" before insert or update of "number", "identifier", "direction", "kind", legal_entity_id on "better_supabase"."invoices"
+  for each row execute function "better_supabase"."bsb_invoices_entity_numbers"();
+-- Documents that already share a number across the null and default spellings
+-- stay as they are; the guard only checks new and changed rows. They are
+-- listed by legal_entities_disable_check.
+do $$
+begin
+  if exists (
+    select 1 from "better_supabase"."invoices" x
+    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
+    join "better_supabase"."invoices" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."identifier" = y."identifier") and x."direction" is not distinct from y."direction" and x."kind" is not distinct from y."kind"
+  ) then
+    raise warning 'invoices holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
+      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
+  end if;
+end $$;
 alter table "better_supabase"."quotes" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."quotes" drop constraint if exists "bsb_quotes_legal_entity_fk";
 alter table "better_supabase"."quotes" add constraint "bsb_quotes_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
@@ -192,6 +251,54 @@ begin
     execute format('create unique index %I on "better_supabase"."quotes" (%s, coalesce(legal_entity_id, ''00000000-0000-0000-0000-000000000000''::uuid))',
       v_key.index_name, v_key.cols);
   end loop;
+end $$;
+
+-- A number may not be held twice by the default legal entity and by documents
+-- without one (null stands for the default entity).
+create or replace function "better_supabase"."bsb_quotes_entity_numbers"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_default uuid;
+begin
+  select e."id" into v_default from "better_supabase"."legal_entities" e where e."tenant_id" = new."tenant_id" and e."is_default";
+  if new.legal_entity_id is not null and new.legal_entity_id is distinct from v_default then
+    return new;
+  end if;
+  if new."number" is not null then
+    perform pg_advisory_xact_lock(hashtextextended('bsb_entity_number:' || 'quotes' || ':' || new."tenant_id"::text || ':number:' || new."number"::text, 0));
+    if exists (
+      select 1 from "better_supabase"."quotes" x
+      where x."tenant_id" = new."tenant_id" and x."number" = new."number" and x."id" <> new."id" and x."revision" is not distinct from new."revision"
+        and (x.legal_entity_id is null or x.legal_entity_id = v_default)
+    ) then
+      raise exception '% % % is already used: a document without a legal entity and a document of the default legal entity share one series', 'quotes', 'number', new."number"
+        using errcode = '23505', hint = 'LEGAL_ENTITY_NUMBER_TAKEN';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."bsb_quotes_entity_numbers"() from public, anon, authenticated;
+drop trigger if exists "bsb_quotes_entity_numbers" on "better_supabase"."quotes";
+create trigger "bsb_quotes_entity_numbers" before insert or update of "number", "revision", legal_entity_id on "better_supabase"."quotes"
+  for each row execute function "better_supabase"."bsb_quotes_entity_numbers"();
+-- Documents that already share a number across the null and default spellings
+-- stay as they are; the guard only checks new and changed rows. They are
+-- listed by legal_entities_disable_check.
+do $$
+begin
+  if exists (
+    select 1 from "better_supabase"."quotes" x
+    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
+    join "better_supabase"."quotes" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number") and x."revision" is not distinct from y."revision"
+  ) then
+    raise warning 'quotes holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
+      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
+  end if;
 end $$;
 alter table "better_supabase"."orders" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."orders" drop constraint if exists "bsb_orders_legal_entity_fk";
@@ -227,6 +334,65 @@ begin
       v_key.index_name, v_key.cols);
   end loop;
 end $$;
+
+-- A number may not be held twice by the default legal entity and by documents
+-- without one (null stands for the default entity).
+create or replace function "better_supabase"."bsb_orders_entity_numbers"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_default uuid;
+begin
+  select e."id" into v_default from "better_supabase"."legal_entities" e where e."tenant_id" = new."tenant_id" and e."is_default";
+  if new.legal_entity_id is not null and new.legal_entity_id is distinct from v_default then
+    return new;
+  end if;
+  if new."number" is not null then
+    perform pg_advisory_xact_lock(hashtextextended('bsb_entity_number:' || 'orders' || ':' || new."tenant_id"::text || ':number:' || new."number"::text, 0));
+    if exists (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = new."tenant_id" and x."number" = new."number" and x."id" <> new."id"
+        and (x.legal_entity_id is null or x.legal_entity_id = v_default)
+    ) then
+      raise exception '% % % is already used: a document without a legal entity and a document of the default legal entity share one series', 'orders', 'number', new."number"
+        using errcode = '23505', hint = 'LEGAL_ENTITY_NUMBER_TAKEN';
+    end if;
+  end if;
+  if new."invoice_number" is not null then
+    perform pg_advisory_xact_lock(hashtextextended('bsb_entity_number:' || 'orders' || ':' || new."tenant_id"::text || ':invoiceNumber:' || new."invoice_number"::text, 0));
+    if exists (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = new."tenant_id" and x."invoice_number" = new."invoice_number" and x."id" <> new."id"
+        and (x.legal_entity_id is null or x.legal_entity_id = v_default)
+    ) then
+      raise exception '% % % is already used: a document without a legal entity and a document of the default legal entity share one series', 'orders', 'invoiceNumber', new."invoice_number"
+        using errcode = '23505', hint = 'LEGAL_ENTITY_NUMBER_TAKEN';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."bsb_orders_entity_numbers"() from public, anon, authenticated;
+drop trigger if exists "bsb_orders_entity_numbers" on "better_supabase"."orders";
+create trigger "bsb_orders_entity_numbers" before insert or update of "number", "invoice_number", legal_entity_id on "better_supabase"."orders"
+  for each row execute function "better_supabase"."bsb_orders_entity_numbers"();
+-- Documents that already share a number across the null and default spellings
+-- stay as they are; the guard only checks new and changed rows. They are
+-- listed by legal_entities_disable_check.
+do $$
+begin
+  if exists (
+    select 1 from "better_supabase"."orders" x
+    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
+    join "better_supabase"."orders" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."invoice_number" = y."invoice_number")
+  ) then
+    raise warning 'orders holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
+      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
+  end if;
+end $$;
 alter table "better_supabase"."number_sequences" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."number_sequences" drop constraint if exists "bsb_number_sequences_legal_entity_fk";
 alter table "better_supabase"."number_sequences" add constraint "bsb_number_sequences_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
@@ -247,6 +413,175 @@ alter table "better_supabase"."organization_settings" add column if not exists l
 alter table "better_supabase"."organization_settings" drop constraint if exists "bsb_organization_settings_legal_entity_fk";
 alter table "better_supabase"."organization_settings" add constraint "bsb_organization_settings_legal_entity_fk" foreign key ("organization_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index if not exists "bsb_organization_settings_legal_entity_idx" on "better_supabase"."organization_settings" ("organization_id", legal_entity_id) where legal_entity_id is not null;
+
+-- Making an entity the default merges its numbers with those of documents that
+-- have no legal entity, so the switch needs them to be distinct.
+create or replace function "better_supabase"."legal_entity_default_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_number text;
+begin
+  select x."number"::text into v_number
+  from "better_supabase"."invoices" x
+  where x."tenant_id" = new."tenant_id" and x."number" is not null
+    and (x.legal_entity_id is null or x.legal_entity_id = new."id")
+  group by x."number", x."direction", x."kind" having count(*) > 1
+  limit 1;
+  if v_number is not null then
+    raise exception 'can not make this legal entity the default: % % exists for it and for documents without a legal entity', 'invoices', v_number
+      using errcode = '23505', hint = 'LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT';
+  end if;
+  select x."identifier"::text into v_number
+  from "better_supabase"."invoices" x
+  where x."tenant_id" = new."tenant_id" and x."identifier" is not null
+    and (x.legal_entity_id is null or x.legal_entity_id = new."id")
+  group by x."identifier", x."direction", x."kind" having count(*) > 1
+  limit 1;
+  if v_number is not null then
+    raise exception 'can not make this legal entity the default: % % exists for it and for documents without a legal entity', 'invoices', v_number
+      using errcode = '23505', hint = 'LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT';
+  end if;
+  select x."number"::text into v_number
+  from "better_supabase"."quotes" x
+  where x."tenant_id" = new."tenant_id" and x."number" is not null
+    and (x.legal_entity_id is null or x.legal_entity_id = new."id")
+  group by x."number", x."revision" having count(*) > 1
+  limit 1;
+  if v_number is not null then
+    raise exception 'can not make this legal entity the default: % % exists for it and for documents without a legal entity', 'quotes', v_number
+      using errcode = '23505', hint = 'LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT';
+  end if;
+  select x."number"::text into v_number
+  from "better_supabase"."orders" x
+  where x."tenant_id" = new."tenant_id" and x."number" is not null
+    and (x.legal_entity_id is null or x.legal_entity_id = new."id")
+  group by x."number" having count(*) > 1
+  limit 1;
+  if v_number is not null then
+    raise exception 'can not make this legal entity the default: % % exists for it and for documents without a legal entity', 'orders', v_number
+      using errcode = '23505', hint = 'LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT';
+  end if;
+  select x."invoice_number"::text into v_number
+  from "better_supabase"."orders" x
+  where x."tenant_id" = new."tenant_id" and x."invoice_number" is not null
+    and (x.legal_entity_id is null or x.legal_entity_id = new."id")
+  group by x."invoice_number" having count(*) > 1
+  limit 1;
+  if v_number is not null then
+    raise exception 'can not make this legal entity the default: % % exists for it and for documents without a legal entity', 'orders', v_number
+      using errcode = '23505', hint = 'LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."legal_entity_default_guard"() from public, anon, authenticated;
+drop trigger if exists bsb_legal_entity_default_guard on "better_supabase"."legal_entities";
+create trigger bsb_legal_entity_default_guard after update of "is_default" on "better_supabase"."legal_entities"
+  for each row when (new."is_default" and not old."is_default") execute function "better_supabase"."legal_entity_default_guard"();
+
+-- Lists what blocks legal-entities from handing a number back to the
+-- organization: collisions are numbers that more than one legal entity holds
+-- (the default entity and documents without an entity count as one), so the
+-- per-organization key can't be restored until one of each pair is renumbered.
+-- defaultCollisions are numbers the default entity and documents without an
+-- entity hold twice already. ok is true when there are no collisions. Needs
+-- legal-entities.manage.
+create or replace function "better_supabase"."legal_entities_disable_check"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_collisions jsonb;
+  v_defaults jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', legal_entities_disable_check.tenant, 'legal_entities.manage'), false)) then
+    raise exception 'not allowed to manage legal entities' using errcode = '42501', hint = 'LEGAL_ENTITY_FORBIDDEN';
+  end if;
+  v_collisions := coalesce((select jsonb_agg(jsonb_build_object('kind', q.kind, 'column', q."column", 'value', q.value, 'documents', q.documents, 'legalEntityIds', q.entities) order by q.kind, q."column", q.value) from (
+    select 'invoices' as kind, 'number' as "column", x."number"::text as value,
+      count(*) as documents, jsonb_agg(distinct coalesce(x.legal_entity_id, (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))) as entities
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+    group by x."number", x."direction", x."kind"
+    having count(*) > 1
+    union all
+    select 'invoices' as kind, 'identifier' as "column", x."identifier"::text as value,
+      count(*) as documents, jsonb_agg(distinct coalesce(x.legal_entity_id, (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))) as entities
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."identifier" is not null
+    group by x."identifier", x."direction", x."kind"
+    having count(*) > 1
+    union all
+    select 'quotes' as kind, 'number' as "column", x."number"::text as value,
+      count(*) as documents, jsonb_agg(distinct coalesce(x.legal_entity_id, (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))) as entities
+    from "better_supabase"."quotes" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+    group by x."number", x."revision"
+    having count(*) > 1
+    union all
+    select 'orders' as kind, 'number' as "column", x."number"::text as value,
+      count(*) as documents, jsonb_agg(distinct coalesce(x.legal_entity_id, (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))) as entities
+    from "better_supabase"."orders" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+    group by x."number"
+    having count(*) > 1
+    union all
+    select 'orders' as kind, 'invoiceNumber' as "column", x."invoice_number"::text as value,
+      count(*) as documents, jsonb_agg(distinct coalesce(x.legal_entity_id, (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))) as entities
+    from "better_supabase"."orders" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."invoice_number" is not null
+    group by x."invoice_number"
+    having count(*) > 1
+  ) q), '[]'::jsonb);
+  v_defaults := coalesce((select jsonb_agg(jsonb_build_object('kind', q.kind, 'column', q."column", 'value', q.value, 'documents', q.documents) order by q.kind, q."column", q.value) from (
+    select 'invoices' as kind, 'number' as "column", x."number"::text as value, count(*) as documents
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+      and (x.legal_entity_id is null or x.legal_entity_id = (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))
+    group by x."number", x."direction", x."kind"
+    having count(*) > 1
+    union all
+    select 'invoices' as kind, 'identifier' as "column", x."identifier"::text as value, count(*) as documents
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."identifier" is not null
+      and (x.legal_entity_id is null or x.legal_entity_id = (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))
+    group by x."identifier", x."direction", x."kind"
+    having count(*) > 1
+    union all
+    select 'quotes' as kind, 'number' as "column", x."number"::text as value, count(*) as documents
+    from "better_supabase"."quotes" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+      and (x.legal_entity_id is null or x.legal_entity_id = (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))
+    group by x."number", x."revision"
+    having count(*) > 1
+    union all
+    select 'orders' as kind, 'number' as "column", x."number"::text as value, count(*) as documents
+    from "better_supabase"."orders" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."number" is not null
+      and (x.legal_entity_id is null or x.legal_entity_id = (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))
+    group by x."number"
+    having count(*) > 1
+    union all
+    select 'orders' as kind, 'invoiceNumber' as "column", x."invoice_number"::text as value, count(*) as documents
+    from "better_supabase"."orders" x
+    where x."tenant_id" = legal_entities_disable_check.tenant and x."invoice_number" is not null
+      and (x.legal_entity_id is null or x.legal_entity_id = (select d."id" from "better_supabase"."legal_entities" d where d."tenant_id" = x."tenant_id" and d."is_default"))
+    group by x."invoice_number"
+    having count(*) > 1
+  ) q), '[]'::jsonb);
+  return jsonb_build_object('ok', jsonb_array_length(v_collisions) = 0, 'collisions', v_collisions, 'defaultCollisions', v_defaults);
+end;
+$$;
+revoke execute on function "better_supabase"."legal_entities_disable_check"(uuid) from public, anon;
+grant execute on function "better_supabase"."legal_entities_disable_check"(uuid) to authenticated, service_role;
+
 alter table "better_supabase"."field_values" add column if not exists legal_entity_id uuid;
 alter table "better_supabase"."field_values" drop constraint if exists "bsb_field_values_legal_entity_fk";
 alter table "better_supabase"."field_values" add constraint "bsb_field_values_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
@@ -801,6 +1136,15 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."legal_entities_disable_check"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."legal_entities_disable_check"($1) $$;
+revoke execute on function "api"."legal_entities_disable_check"(uuid) from public, anon;
+grant execute on function "api"."legal_entities_disable_check"(uuid) to authenticated, service_role;
 
 create or replace function "api"."create_legal_entity"(tenant uuid, code text, name text, address jsonb default null, vat_number text default null, coc_number text default null, iban text default null, bic text default null, logo_attachment_id uuid default null, default_currency text default null, fiscal jsonb default null, is_default boolean default false)
 returns jsonb

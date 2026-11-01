@@ -627,26 +627,50 @@ they are the approver of, and `approvalStatus(invoiceId)` reports `not_required`
 `pending` or `approved` with the levels still open. A bill that waits for
 approval is skipped by [payment batches](/docs/blocks/banking#payment-batches).
 
+### Repair stored totals
+
+An invoice issued before its header total followed the payment-term credit
+restriction keeps the old figures. `recomputeTotals(organizationId, { invoiceIds?, dryRun? })`
+(`recompute_invoice_totals(tenant, invoice_ids, dry_run)`) recomputes the
+header and tax lines of issued invoices through the tax computation and
+reports each difference as `old`, `new` and the balance before and after. It
+is a dry run unless you pass `dryRun: false`, writes only invoices that differ,
+and a second run changes nothing. It never changes a number, an issue date or a
+status. Needs `invoices.manage`.
+
+```ts
+const preview = await invoices.recomputeTotals(organizationId).orThrow();
+await invoices.recomputeTotals(organizationId, { dryRun: false }).orThrow();
+```
+
+Each correction is written to the audit log as `invoice.totals_corrected`
+(a system correction, category `billing`). The event is sent to the outbox only
+when `options.correctionEvents` is on. A posted accounting entry is never
+changed: when an invoice is booked, its `ledger` reports `posted`,
+`entryNumber`, the `periodStatus` and `needsCorrectingEntry: true`, also when
+the period is closed, so the books are corrected with an entry of your own.
+
 ## Aging
 
 `aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
 
 ## Events
 
-| Event                                                                                                                              | Data                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `invoice.created`, `invoice.updated`, `invoice.deleted`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance` |
-| `invoice.payment_recorded`                                                                                                         | the same, with `paymentId`, `amount` and `balance`                                                                               |
-| `invoice.credited`                                                                                                                 | the same, with `creditNoteId` and `amount`                                                                                       |
-| `invoice.payment_reversed`                                                                                                         | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                       |
-| `invoice.charged`, `invoice.charge_removed`                                                                                        | the same, with `chargeId`, `amount` and `balance`                                                                                |
-| `invoice.credit_applied`                                                                                                           | the same, with `paymentId`, `partyId`, `amount` and `balance`                                                                    |
-| `invoice.dunning_escalated`                                                                                                        | the same, with `level`, `templateKey`, `fee`, `final`, `balance` and `dueOn`                                                     |
-| `invoice.dunning_paused`                                                                                                           | the same, with `until` and `reason`                                                                                              |
-| `invoice.allocated`, `invoice.unallocated`                                                                                         | the invoice, with `reference`, `partyId`, `amount` and `balance`                                                                 |
-| `invoice.discount_applied`                                                                                                         | the invoice, with `reference`, `amount` and `balance`                                                                            |
-| `invoice.approved`                                                                                                                 | the invoice, with `level` and `approvalStatus`                                                                                   |
-| `invoice.collection_started`                                                                                                       | the invoice, with `agencyPartyId`, `balance` and `level`                                                                         |
+| Event                                                                                                                              | Data                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invoice.created`, `invoice.updated`, `invoice.deleted`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance`              |
+| `invoice.payment_recorded`                                                                                                         | the same, with `paymentId`, `amount` and `balance`                                                                                            |
+| `invoice.credited`                                                                                                                 | the same, with `creditNoteId` and `amount`                                                                                                    |
+| `invoice.payment_reversed`                                                                                                         | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                                    |
+| `invoice.charged`, `invoice.charge_removed`                                                                                        | the same, with `chargeId`, `amount` and `balance`                                                                                             |
+| `invoice.credit_applied`                                                                                                           | the same, with `paymentId`, `partyId`, `amount` and `balance`                                                                                 |
+| `invoice.dunning_escalated`                                                                                                        | the same, with `level`, `templateKey`, `fee`, `final`, `balance` and `dueOn`                                                                  |
+| `invoice.dunning_paused`                                                                                                           | the same, with `until` and `reason`                                                                                                           |
+| `invoice.allocated`, `invoice.unallocated`                                                                                         | the invoice, with `reference`, `partyId`, `amount` and `balance`                                                                              |
+| `invoice.discount_applied`                                                                                                         | the invoice, with `reference`, `amount` and `balance`                                                                                         |
+| `invoice.approved`                                                                                                                 | the invoice, with `level` and `approvalStatus`                                                                                                |
+| `invoice.collection_started`                                                                                                       | the invoice, with `agencyPartyId`, `balance` and `level`                                                                                      |
+| `invoice.totals_corrected`                                                                                                         | the invoice, with `oldTotal`, `newTotal`, `oldTaxTotal`, `newTaxTotal` and `needsCorrectingEntry` (sent only with `options.correctionEvents`) |
 
 Send the customer's reminder from `invoice.dunning_escalated` with an outbox sink that renders its `templateKey`, or build your own sequence with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
 

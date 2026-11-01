@@ -57,6 +57,8 @@ describe("shipments intrastat client", () => {
       id: "l2",
       flow: "dispatch",
       source: "shipment",
+      receiptLineId: null,
+      supersedes: [],
       variantId: null,
       tradeCode: null,
       country: null,
@@ -70,9 +72,54 @@ describe("shipments intrastat client", () => {
         code: "INTRASTAT_TRADE_CODE_MISSING",
         lineId: "l2",
         shipmentLineId: null,
+        receiptLineId: null,
       },
-      { code: "INTRASTAT_VALUE_MISSING", lineId: null, shipmentLineId: "s1" },
+      {
+        code: "INTRASTAT_VALUE_MISSING",
+        lineId: null,
+        shipmentLineId: "s1",
+        receiptLineId: null,
+      },
     ]);
+  });
+
+  it("reads receipt arrivals and what a manual line supersedes", async () => {
+    const { client } = fake({
+      period: "2026-10",
+      superseded: [{ manualLineId: "m1", receiptLineId: "r1" }],
+      lines: [
+        {
+          id: "m1",
+          flow: "arrival",
+          source: "manual",
+          country: "DE",
+          supersedes: ["r1"],
+        },
+        { id: "l3", flow: "arrival", source: "receipt", receiptLineId: "r2" },
+      ],
+      exceptions: [
+        {
+          code: "INTRASTAT_TRADE_CODE_MISSING",
+          lineId: "l3",
+          receiptLineId: "r2",
+        },
+      ],
+    });
+
+    const prepared = await client.prepareIntrastat("2026-10").orThrow();
+
+    expect(prepared.lines[0]).toMatchObject({
+      source: "manual",
+      supersedes: ["r1"],
+    });
+    expect(prepared.lines[1]).toMatchObject({
+      source: "receipt",
+      receiptLineId: "r2",
+    });
+    expect(prepared.superseded).toEqual([
+      { manualLineId: "m1", receiptLineId: "r1" },
+    ]);
+    expect(prepared.exceptions[0]).toMatchObject({ receiptLineId: "r2" });
   });
 
   it("saves a manual line as text amounts and deletes one", async () => {

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:a70ee0b23ac7a6f21ff2409f3413adfe21ddc4e7148b2a4a7ef8ad5f688350fa
+-- @bsb-hash sha256:cfe6c3051169d42001b95956d072f2a2ddc8a03586b7e50c5c6cd2f196bbe9f2
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2718,7 +2718,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -2767,7 +2767,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop

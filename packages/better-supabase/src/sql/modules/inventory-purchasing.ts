@@ -330,7 +330,7 @@ ${userGrant(`${fn("place_purchase_order")}(uuid)`)}
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder${receipt.result === "" ? "" : ", plus receiptId: the goods receipt of\n-- this delivery"}.
@@ -354,7 +354,7 @@ begin
   for v_line in
     select y.${pl("id")} as id, y.${pl("variant")} as variant, y.${pl("quantity")} as ordered,
       y.${pl("received")} as received, (e ->> 'quantity')::numeric as quantity, y.${pl("unitCost")} as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join ${lines} y on y.${pl("id")} = (e ->> 'lineId')::uuid and y.${pl("order")} = receive_purchase_order.purchase_order
   loop

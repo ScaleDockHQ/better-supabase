@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:350ead164db343a4c3313a02ecf429d1c1d1372b9768cf6cfa48aaec153720d5
+-- @bsb-hash sha256:948ec5c58617fcd5e2279c8b3691c4d8fd214beebce6f309db5802811b1443a4
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3238,6 +3238,92 @@ $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "better_supabase"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "better_supabase"."invoices" x
+    where x."tenant_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "better_supabase"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      null;
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
 -- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
@@ -3766,7 +3852,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:8c9f666ca6453c055ffbded95b5b54b9bf3ebcf5bfbc82f0fbe1edb6eaf814a1
+-- @bsb-hash sha256:8630a75cc57150085d46421b30049a1f2df95f2cc1de35b292f856dd8f043460
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7433,6 +7519,110 @@ $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "better_supabase"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "better_supabase"."invoices" x
+    where x."tenant_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "better_supabase"."issue_invoice_tax"(v_row."id", v_row."issued_on");
+      perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "better_supabase"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    select e."id", e."number", p."status"
+      into v_entry, v_entry_number, v_period
+    from "better_supabase"."accounting_entries" e
+    left join "better_supabase"."accounting_periods" p on p."id" = e."period_id"
+    where e."tenant_id" = v_row."tenant_id"
+      and e."source_type" = 'invoice'
+      and e."source_id" = v_row."id"::text
+      and e."status" = 'posted';
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      perform better_supabase.audit_event(
+    event_type => 'invoice.totals_corrected',
+    category => 'billing',
+    target_type => 'invoice',
+    record_id => v_row."id"::text,
+    target_label => v_row."identifier",
+    summary => 'invoice totals corrected (system correction)',
+    tenant => (v_row."tenant_id"::text)::uuid,
+    metadata => v_detail
+  );
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 -- Invoices several delivered sources for one billing party. party is { type, id }
 -- (the company or contact invoiced). source_refs is a list of
 --   { type: "order", id, lines?: [{ id, quantity }] }  the delivered, unreturned quantity of
@@ -8511,7 +8701,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:01b0ea016893ccd2467ce5f937b9f73987f74107eb9ae977866caa9d89e9c909
+-- @bsb-hash sha256:c0615797afb2323ddd9311a1e2f5371a0d12dd5a97aac595a21ee42313eabe1d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11753,6 +11943,92 @@ $$;
 revoke execute on function "app_private"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "app_private"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "app_private"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "app_private"."invoices" x
+    where x."tenant_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "app_private"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "app_private"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      null;
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "app_private"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "app_private"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
 -- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
@@ -12281,7 +12557,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:2cdb15363fb322c3a42c43eb334043152c6787091983510604528362052f574b
+-- @bsb-hash sha256:df4dac5660cc2494e4f9bd5b683cf76758af89b714a642bae0747ce8f2abfbfc
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15518,6 +15794,92 @@ $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "better_supabase"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "better_supabase"."invoices" x
+    where x."tenant_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "better_supabase"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      null;
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
 -- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
@@ -16442,6 +16804,15 @@ as $$ select "better_supabase"."unallocate_payment"($1, $2, $3) $$;
 revoke execute on function "api"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "api"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+create or replace function "api"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."recompute_invoice_totals"($1, $2, $3) $$;
+revoke execute on function "api"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "api"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 create or replace function "api"."import_invoice"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language sql
@@ -16517,7 +16888,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:5b80eeec51121acbdf61da1d1d000e4b2ae68c23f81f8d1bdf3c47fd29a5523c
+-- @bsb-hash sha256:9108d3c1b5b37e435c1602ffd0ada5b6797a25003d4985582c1fc415f63a5aa3
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19735,6 +20106,92 @@ $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
 
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "better_supabase"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "better_supabase"."invoices" x
+    where x."tenant_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "better_supabase"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      null;
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
 -- company?, contact?, origin?, direction?, legalEntityId?, buyer?, createdAt?,
@@ -20263,7 +20720,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:20574344a62039c3a476399e3c01c34b8052f7159f41cafad1ca64bef89bc112
+-- @bsb-hash sha256:cb718c62329ba62379cbf0fc0b54203d3c92ca40847feb2deda530b844566a4c
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23499,6 +23956,92 @@ end;
 $$;
 revoke execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."unallocate_payment"(uuid, text, jsonb) to authenticated, service_role;
+
+-- Recounts the totals of issued invoices (not drafts or voided ones) with the
+-- credit restriction of their payment terms, for invoices issued before the
+-- totals followed it. invoice_ids null means every issued invoice of the
+-- organization. dry_run (the default) writes nothing. An invoice whose stored
+-- totals already match is left alone, so a second run changes nothing. It
+-- never changes a number, an issue date or a status. The result lists the
+-- invoices that differ with their old and new totals and balance, and says
+-- whether a posted accounting entry books the old amounts: the entry is not
+-- touched, and it needs a correcting entry. Each corrected invoice gets an
+-- audit entry as a system correction; options.correctionEvents also sends an
+-- event. Needs invoices.manage.
+create or replace function "better_supabase"."recompute_invoice_totals"(tenant uuid, invoice_ids uuid[] default null, dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_old jsonb;
+  v_new jsonb;
+  v_balance bigint;
+  v_balance_after bigint;
+  v_entry uuid;
+  v_entry_number text;
+  v_period text;
+  v_detail jsonb;
+  v_ledger jsonb;
+  v_items jsonb := '[]'::jsonb;
+  v_checked integer := 0;
+  v_changed integer := 0;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', recompute_invoice_totals.tenant, 'invoices.manage'), false)) then
+    raise exception 'not allowed to manage invoices in this organization' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  for v_row in
+    select * from "better_supabase"."invoices" x
+    where x."org_id" = recompute_invoice_totals.tenant
+      and x."status" not in ('draft', 'void')
+      and (recompute_invoice_totals.invoice_ids is null or x."id" = any (recompute_invoice_totals.invoice_ids))
+    order by x."created_at", x."id"
+    for update
+  loop
+    v_checked := v_checked + 1;
+    v_old := jsonb_build_object('listTotal', v_row."list_total"::text, 'discountTotal', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text);
+    v_balance := (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total");
+    begin
+      perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+      select jsonb_build_object('listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text), (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") into v_new, v_balance_after
+      from "better_supabase"."invoices" x where x."id" = v_row."id";
+      if v_new = v_old then
+        raise exception using errcode = 'P0BSB', message = 'unchanged';
+      end if;
+      if recompute_invoice_totals.dry_run then
+        raise exception using errcode = 'P0BSB', message = 'dry run';
+      end if;
+    exception
+      when sqlstate 'P0BSB' then
+        null;
+    end;
+    if v_new = v_old then
+      continue;
+    end if;
+    v_changed := v_changed + 1;
+    v_entry := null;
+    v_entry_number := null;
+    v_period := null;
+    v_ledger := jsonb_build_object('posted', v_entry is not null, 'entryId', v_entry, 'entryNumber', v_entry_number,
+      'periodStatus', v_period, 'needsCorrectingEntry', v_entry is not null);
+    v_detail := jsonb_build_object('correction', 'credit_restriction', 'old', v_old, 'new', v_new, 'ledger', v_ledger);
+    v_items := v_items || jsonb_build_array(jsonb_build_object(
+      'invoiceId', v_row."id", 'identifier', v_row."identifier", 'currency', v_row."currency", 'status', v_row."status",
+      'old', v_old, 'new', v_new, 'balance', v_balance::text, 'balanceAfter', v_balance_after::text,
+      'ledger', v_ledger));
+    if not recompute_invoice_totals.dry_run then
+      null;
+      
+    end if;
+  end loop;
+  return jsonb_build_object('dryRun', recompute_invoice_totals.dry_run, 'checked', v_checked, 'changed', v_changed,
+    'applied', case when recompute_invoice_totals.dry_run then 0 else v_changed end, 'invoices', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
 
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,

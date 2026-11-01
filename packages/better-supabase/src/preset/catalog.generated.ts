@@ -26520,6 +26520,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceStatus"
         },
         {
+          "name": "InvoiceTotalsCorrection"
+        },
+        {
+          "name": "InvoiceTotalsRepair"
+        },
+        {
+          "name": "InvoiceTotalsSnapshot"
+        },
+        {
           "name": "InvoiceWarning"
         },
         {
@@ -26545,6 +26554,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.voided",
           "invoice.uncollected",
           "invoice.charged",
+          "invoice.totals_corrected",
           "invoice.charge_removed",
           "invoice.payment_reversed",
           "invoice.match_checked",

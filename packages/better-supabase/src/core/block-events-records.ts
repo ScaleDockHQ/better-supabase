@@ -277,6 +277,14 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly channel?: string;
   /** For the `invoice.e_invoice_*` events: the channel's id for the document. */
   readonly messageId?: string;
+  /** For `invoice.totals_corrected`: the stored and the recounted total. */
+  readonly oldTotal?: string;
+  readonly newTotal?: string;
+  /** For `invoice.totals_corrected`: the stored and the recounted tax. */
+  readonly oldTaxTotal?: string;
+  readonly newTaxTotal?: string;
+  /** For `invoice.totals_corrected`: a posted entry books the old amounts. */
+  readonly needsCorrectingEntry?: boolean;
 }
 
 /** Events from the sla module: a clock on a record warned, breached or was met. */

@@ -54,6 +54,7 @@ export const INTRASTAT_TABLE = {
     flow: "flow",
     source: "source",
     shipmentLine: "shipment_line_id",
+    receiptLine: "receipt_line_id",
     variant: "variant_id",
     tradeCode: "trade_code",
     country: "country",
@@ -64,6 +65,7 @@ export const INTRASTAT_TABLE = {
     createdAt: "created_at",
     updatedAt: "updated_at",
   },
+  optional: ["receiptLine"],
   typed: ["flow", "source"],
 } as const;
 
@@ -81,6 +83,16 @@ function intrastatOn(ctx: BlockSqlContext): boolean {
   );
 }
 
+/**
+ * Whether goods receipts exist; callers have checked that inventory is
+ * installed.
+ */
+function receiptsOn(ctx: BlockSqlContext): boolean {
+  const inventory = ctx.of("inventory");
+
+  return inventory.hasTable("receipts") && inventory.hasTable("receiptLines");
+}
+
 /** The `intrastat_lines` table (managed mode). */
 export function intrastatTable(ctx: BlockSqlContext): string {
   if (!ctx.manages || !intrastatOn(ctx)) {
@@ -94,19 +106,26 @@ export function intrastatTable(ctx: BlockSqlContext): string {
   const name = ctx.tableName("intrastatLines").name;
   const read = ctx.permission("read", moduleOperations("shipments").read);
   const policyName = sqlIdent(`${name}_read`);
+  const receipts = receiptsOn(ctx);
+
+  const receiptKey = receipts
+    ? `
+  ${i("receiptLine")} uuid unique references ${ctx.of("inventory").table("receiptLines")} (${ctx.of("inventory").col("receiptLines", "id")}) on delete cascade,`
+    : "";
 
   return `
 -- One line of the monthly Intrastat declaration. A shipment line that leaves for
--- or comes back from another member state is derived into a line by
--- prepare_intrastat; a line of another source (a purchase receipt) is saved by
--- hand and stays when the month is prepared again.
+-- or comes back from another member state, and a purchase receipt line that
+-- names the member state it came from, are derived into lines by
+-- prepare_intrastat; a manual line is saved by hand and stays when the month is
+-- prepared again.
 create table if not exists ${t} (
   ${i("id")} uuid primary key default gen_random_uuid(),
   ${i("tenant")} ${ctx.idType} not null,
   ${i("period")} date not null check (${i("period")} = date_trunc('month', ${i("period")})::date),
   ${i("flow")} text not null check (${i("flow")} in (${list(INTRASTAT_FLOWS)})),
-  ${i("source")} text not null default 'shipment' check (${i("source")} in ('shipment', 'manual')),
-  ${i("shipmentLine")} uuid unique references ${ctx.table("lines")} (${l("id")}) on delete cascade,
+  ${i("source")} text not null default 'shipment' check (${i("source")} in ('shipment', 'receipt', 'manual')),
+  ${i("shipmentLine")} uuid unique references ${ctx.table("lines")} (${l("id")}) on delete cascade,${receiptKey}
   ${i("variant")} uuid references ${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete set null,
   ${i("tradeCode")} text check (${i("tradeCode")} is null or ${i("tradeCode")} ~ '^[0-9]{4,10}$'),
   ${i("country")} char(2) check (${i("country")} is null or ${i("country")} ~ '^[A-Z]{2}$'),
@@ -122,6 +141,62 @@ create index if not exists ${sqlIdent(`${name}_variant_idx`)} on ${t} (${i("vari
 ${lockModuleTable(ctx, "intrastatLines", { read: true })}
 drop policy if exists ${policyName} on ${t};
 ${renderPolicy(makePolicy({ table: t, name: policyName, command: "select", roles: ["authenticated"], using: ctx.scope.check(i("tenant"), read) }), { target: t })}
+`;
+}
+
+/**
+ * The statement of `prepare_intrastat` that derives arrival lines from the
+ * goods receipts received in the month. A receipt line is an arrival when its
+ * detail names the member state it came from (`country`, else
+ * `supplierCountry`, else `countryOfOrigin`); trade code and net mass come from
+ * the variant (or `detail.netMassKg`), the value from `detail.value` or the
+ * unit cost, in the purchase order's currency. A manual arrival line for the
+ * same variant and country wins: the receipt line is left out and reported in
+ * `v_superseded`.
+ */
+function receiptDerivation(ctx: BlockSqlContext): string {
+  const t = ctx.table("intrastatLines");
+  const i = columns(ctx, "intrastatLines");
+  const inventory = ctx.of("inventory");
+  const catalog = inventory.of("catalog");
+  const v = columns(catalog, "variants");
+  const rc = columns(inventory, "receipts");
+  const cl = columns(inventory, "receiptLines");
+  const po = columns(inventory, "purchaseOrders");
+
+  const tradeCode = catalog.has("variants", "tradeCode")
+    ? `cv.${v("tradeCode")}`
+    : "null::text";
+
+  const weight = catalog.has("variants", "weight")
+    ? `cv.${v("weight")}`
+    : "null::integer";
+
+  return `  with cand as (
+    select rl.${cl("tenant")} as tenant, rl.${cl("id")} as line, rl.${cl("variant")} as variant, rl.${cl("quantity")} as quantity,
+      ${tradeCode} as trade_code, r.country,
+      coalesce(nullif(rl.${cl("detail")} ->> 'netMassKg', '')::numeric, case when ${weight} is not null then round(${weight}::numeric * rl.${cl("quantity")} / 1000, 3) end) as net_mass,
+      o.${po("currency")} as currency,
+      coalesce(nullif(rl.${cl("detail")} ->> 'value', '')::bigint, round(rl.${cl("quantity")} * rl.${cl("unitCost")})::bigint) as value,
+      (select m.${i("id")} from ${t} m
+        where m.${i("tenant")} = rl.${cl("tenant")} and m.${i("period")} = v_start and m.${i("flow")} = 'arrival' and m.${i("source")} = 'manual'
+          and m.${i("variant")} = rl.${cl("variant")} and m.${i("country")} = r.country
+        order by m.${i("createdAt")}, m.${i("id")} limit 1) as manual_line
+    from ${inventory.table("receiptLines")} rl
+    join ${inventory.table("receipts")} rc on rc.${rc("id")} = rl.${cl("receipt")}
+    join ${inventory.table("purchaseOrders")} o on o.${po("id")} = rc.${rc("purchaseOrder")}
+    left join ${catalog.table("variants")} cv on cv.${v("id")} = rl.${cl("variant")}
+    cross join lateral (select upper(coalesce(nullif(rl.${cl("detail")} ->> 'country', ''), nullif(rl.${cl("detail")} ->> 'supplierCountry', ''), nullif(rl.${cl("detail")} ->> 'countryOfOrigin', ''))) as country) r
+    where rl.${cl("tenant")} = prepare_intrastat.tenant
+      and rc.${rc("receivedAt")} >= v_start::timestamptz and rc.${rc("receivedAt")} < (v_start + interval '1 month')::timestamptz
+      and r.country = any (${COUNTRIES})
+  ), added as (
+    insert into ${t} (${i("tenant")}, ${i("period")}, ${i("flow")}, ${i("source")}, ${i("receiptLine")}, ${i("variant")}, ${i("tradeCode")}, ${i("country")}, ${i("netMass")}, ${i("quantity")}, ${i("value")}, ${i("currency")})
+    select c.tenant, v_start, 'arrival', 'receipt', c.line, c.variant, c.trade_code, c.country, c.net_mass, c.quantity, c.value, c.currency
+    from cand c where c.manual_line is null
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('manualLineId', c.manual_line, 'receiptLineId', c.line) order by c.line) filter (where c.manual_line is not null), '[]'::jsonb)
+  into v_superseded from cand c;
 `;
 }
 
@@ -142,6 +217,9 @@ export function intrastatFunctions(ctx: BlockSqlContext): string {
   const v = columns(catalog, "variants");
   const manage = ctx.permission("manage", moduleOperations("shipments").manage);
 
+  const fromReceipts =
+    receiptsOn(ctx) && ctx.has("intrastatLines", "receiptLine");
+
   const allowed = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, manage)})`;
 
@@ -153,14 +231,25 @@ export function intrastatFunctions(ctx: BlockSqlContext): string {
     ? `cv.${v("weight")}`
     : "null::integer";
 
+  const receiptLineOf = (row: string): string =>
+    fromReceipts ? `${row}.${i("receiptLine")}` : "null::uuid";
+
+  const supersedes = (row: string): string =>
+    fromReceipts
+      ? `coalesce((select jsonb_agg(e -> 'receiptLineId' order by e ->> 'receiptLineId') from jsonb_array_elements(v_superseded) e where e ->> 'manualLineId' = ${row}.${i("id")}::text), '[]'::jsonb)`
+      : "'[]'::jsonb";
+
   const lineJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${i("id")}, 'period', ${row}.${i("period")}, 'flow', ${row}.${i("flow")}, 'source', ${row}.${i("source")},
-      'shipmentLineId', ${row}.${i("shipmentLine")}, 'variantId', ${row}.${i("variant")}, 'tradeCode', ${row}.${i("tradeCode")}, 'country', ${row}.${i("country")},
+      'shipmentLineId', ${row}.${i("shipmentLine")}, 'receiptLineId', ${receiptLineOf(row)}, 'supersedes', ${supersedes(row)}, 'variantId', ${row}.${i("variant")}, 'tradeCode', ${row}.${i("tradeCode")}, 'country', ${row}.${i("country")},
       'netMassKg', ${row}.${i("netMass")}::text, 'quantity', ${row}.${i("quantity")}::text, 'value', ${row}.${i("value")}::text, 'currency', ${row}.${i("currency")})`;
 
   return `
 -- Derives the Intrastat lines of a month (period is any date in it) from the
--- shipment lines moved in it, and lists them with their exceptions. An outbound
+-- shipment lines moved in it and the goods receipt lines received in it, and
+-- lists them with their exceptions. A receipt line is an arrival when its
+-- detail names the member state it came from; a manual arrival line for the same
+-- variant and country wins and is reported under superseded. An outbound
 -- line to another member state is a dispatch and a return line from one an
 -- arrival; the partner country is the shipment's destination, and the shipment's
 -- own country (its from address) is left out. Trade code and net mass come from
@@ -179,6 +268,7 @@ as $$
 #variable_conflict use_column
 declare
   v_start date := date_trunc('month', prepare_intrastat.period)::date;
+  v_superseded jsonb := '[]'::jsonb;
 begin
   if not ${allowed("prepare_intrastat.tenant")} then
     ${fail("SHIPMENT_FORBIDDEN", "not allowed to manage shipments")}
@@ -186,7 +276,7 @@ begin
   if prepare_intrastat.period is null then
     ${fail("SHIPMENT_INTRASTAT_INVALID", "name the month to prepare", "22023")}
   end if;
-  delete from ${t} x where x.${i("tenant")} = prepare_intrastat.tenant and x.${i("period")} = v_start and x.${i("source")} = 'shipment';
+  delete from ${t} x where x.${i("tenant")} = prepare_intrastat.tenant and x.${i("period")} = v_start and x.${i("source")} in ('shipment', 'receipt');
   insert into ${t} (${i("tenant")}, ${i("period")}, ${i("flow")}, ${i("source")}, ${i("shipmentLine")}, ${i("variant")}, ${i("tradeCode")}, ${i("country")}, ${i("netMass")}, ${i("quantity")}, ${i("value")}, ${i("currency")})
   select s.tenant, v_start, s.flow, 'shipment', s.line, s.variant, s.trade_code, s.partner, s.net_mass, s.quantity, s.value, s.currency
   from (
@@ -206,13 +296,14 @@ begin
       and sl.${l("movedAt")} >= v_start::timestamptz and sl.${l("movedAt")} < (v_start + interval '1 month')::timestamptz
   ) s
   where s.partner = any (${COUNTRIES}) and s.partner is distinct from s.own;
-  return jsonb_build_object(
+${fromReceipts ? receiptDerivation(ctx) : ""}  return jsonb_build_object(
     'period', v_start,
+    'superseded', v_superseded,
     'lines', (select coalesce(jsonb_agg(${lineJson("x")} order by x.${i("flow")}, x.${i("tradeCode")} nulls first, x.${i("createdAt")}, x.${i("id")}), '[]'::jsonb) from ${t} x
       where x.${i("tenant")} = prepare_intrastat.tenant and x.${i("period")} = v_start),
-    'exceptions', (select coalesce(jsonb_agg(jsonb_build_object('lineId', e.id, 'shipmentLineId', e.shipment_line, 'variantId', e.variant, 'code', e.code) order by e.code, e.id), '[]'::jsonb)
+    'exceptions', (select coalesce(jsonb_agg(jsonb_build_object('lineId', e.id, 'shipmentLineId', e.shipment_line, 'receiptLineId', e.receipt_line, 'variantId', e.variant, 'code', e.code) order by e.code, e.id), '[]'::jsonb)
       from (
-        select x.${i("id")} as id, x.${i("shipmentLine")} as shipment_line, x.${i("variant")} as variant, c.code
+        select x.${i("id")} as id, x.${i("shipmentLine")} as shipment_line, ${fromReceipts ? `x.${i("receiptLine")}` : "null::uuid"} as receipt_line, x.${i("variant")} as variant, c.code
         from ${t} x
         cross join lateral (values
           ('INTRASTAT_TRADE_CODE_MISSING', x.${i("tradeCode")} is null),
@@ -227,7 +318,7 @@ end;
 $$;
 ${userGrant(`${fn("prepare_intrastat")}(${ctx.idType}, date)`)}
 
--- Saves a line the shipments don't derive, such as a purchase receipt (line
+-- Saves a line the shipments and receipts don't derive (line
 -- null creates one). attrs: { period, flow, country, tradeCode?, netMassKg?,
 -- quantity?, value? (minor units as text), currency?, variantId? }. Returns the
 -- line's id and whether it was created.

@@ -20,18 +20,23 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
 const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
   permissions: { model: "catalog" },
   approvals: { options: { tenantPolicies: true } },
+  "legal-entities": { options: { on: ["invoices"] } },
 };
 
 // Record access requests exist only next to a subject with a team, project
 // costs only next to tasks, supplier statuses from qualifications only next
 // to qualifications, drop ship purchase orders only next to inventory, and
-// funding's time and invoice functions only next to those blocks.
+// funding's time and invoice functions only next to those blocks, Intrastat
+// only next to inventory, and the legal-entities number check only once
+// options.on names a document kind.
 const MODULE_BLOCKS: Readonly<Record<string, readonly string[]>> = {
   "access-requests": ["subjects"],
   "billable-time": ["tasks"],
   contacts: ["qualifications"],
   funding: ["time-tracking", "invoices"],
   orders: ["catalog", "inventory"],
+  shipments: ["inventory"],
+  "legal-entities": ["invoices"],
 };
 
 const TEAM_SUBJECT = {

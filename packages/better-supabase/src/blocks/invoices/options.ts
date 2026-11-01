@@ -42,6 +42,12 @@ export type InvoicesSqlOptions = {
   readonly linePositionKey?: boolean;
   readonly paymentsAfterWriteOff?: boolean;
   /**
+   * `true` also sends the `invoice.totals_corrected` event when
+   * `recompute_invoice_totals` corrects an invoice. The correction is always
+   * audited, and by default it sends no event. Default `false`.
+   */
+  readonly correctionEvents?: boolean;
+  /**
    * The kind column's value that marks a deposit invoice, one of the values
    * `values.invoices.kind.invoice` maps to. `fromQuote` writes it on a deposit
    * invoice and finds the deposits to deduct by it and the quote link.
@@ -89,6 +95,7 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     uniqueNumber: option.unknown<"number" | "identifier" | false>(),
     linePositionKey: option.boolean({ default: true }),
     paymentsAfterWriteOff: option.boolean({ default: false }),
+    correctionEvents: option.boolean({ default: false }),
     depositKind: option.string(),
     depositLine:
       option.unknown<NonNullable<InvoicesSqlOptions["depositLine"]>>(),
