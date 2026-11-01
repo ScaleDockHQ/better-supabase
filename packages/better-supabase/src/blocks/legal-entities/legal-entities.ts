@@ -33,6 +33,28 @@ export interface ResolvedSetting {
   readonly legalEntityId: string | undefined;
 }
 
+/** A number that more than one document holds. */
+export interface NumberCollision {
+  /** The `options.on` key: `invoices`, `quotes` or `orders`. */
+  readonly kind: string;
+  /** The number column, such as `number` or `invoiceNumber`. */
+  readonly column: string;
+  readonly value: string;
+  readonly documents: number;
+  /** The legal entities that hold it; the default entity counts for null. */
+  readonly legalEntityIds?: readonly string[];
+}
+
+/** What stands in the way of turning legal entities off for a kind. */
+export interface DisableCheck {
+  /** True when no number is held by more than one legal entity. */
+  readonly ok: boolean;
+  /** Numbers that would break the per-organization key. */
+  readonly collisions: readonly NumberCollision[];
+  /** Numbers the default entity and documents without an entity hold twice. */
+  readonly defaultCollisions: readonly NumberCollision[];
+}
+
 /** A company that issues invoices and keeps books inside an organization. */
 export interface LegalEntity {
   readonly id: string;
@@ -117,6 +139,13 @@ export interface LegalEntities {
     key: string,
     options?: { readonly legalEntityId?: string },
   ): AsyncResult<ResolvedSetting>;
+  /**
+   * Lists the numbers that block turning `options.on` off: numbers more than
+   * one legal entity holds on invoices, quotes and orders. Run it while the
+   * option is on, renumber one document of each pair, then turn the option off.
+   * Needs `legal-entities.manage`.
+   */
+  disableCheck(): AsyncResult<DisableCheck>;
   /** The settings stored on this entity, by key, as JSON. */
   settings(id: string): AsyncResult<Readonly<Record<string, unknown>>>;
   setSetting(id: string, key: string, value: unknown): AsyncResult<unknown>;
@@ -290,6 +319,37 @@ export function createLegalEntities(
                 row["legalEntityId"] === undefined
                   ? undefined
                   : textOf(row["legalEntityId"]),
+            };
+          },
+        ),
+      ),
+    disableCheck: () =>
+      tenant().andThen((organizationId) =>
+        call(
+          "legal_entities_disable_check",
+          { tenant: organizationId },
+          (value): DisableCheck => {
+            const row = recordOf(value, "legal_entities_disable_check");
+
+            const collisionsOf = (key: string): readonly NumberCollision[] =>
+              recordsOf(row[key], key).map((entry) => ({
+                kind: textOf(entry["kind"]),
+                column: textOf(entry["column"]),
+                value: textOf(entry["value"]),
+                documents: Number(entry["documents"]),
+                ...(Array.isArray(entry["legalEntityIds"])
+                  ? {
+                      legalEntityIds: entry["legalEntityIds"].map(
+                        (id: unknown) => textOf(id),
+                      ),
+                    }
+                  : {}),
+              }));
+
+            return {
+              ok: row["ok"] === true,
+              collisions: collisionsOf("collisions"),
+              defaultCollisions: collisionsOf("defaultCollisions"),
             };
           },
         ),

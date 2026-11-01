@@ -181,6 +181,14 @@ export interface PurchaseOrderInput {
 export interface ReceiptLine extends StockDetail {
   readonly lineId: string;
   readonly quantity: number;
+  /**
+   * The member state the goods came from (ISO 3166 alpha-2). With the shipments
+   * block's Intrastat lines, a receipt line that names one becomes an arrival
+   * line.
+   */
+  readonly country?: string;
+  /** The net mass of the delivered units in kilograms, for Intrastat. */
+  readonly netMassKg?: number;
 }
 
 export interface Receipt {
@@ -525,11 +533,15 @@ export function createInventory<
         "receive_purchase_order",
         {
           purchase_order: purchaseOrderId,
-          lines: lines.map(({ lineId, quantity, ...detail }) => ({
-            lineId,
-            quantity,
-            ...detailArg(detail),
-          })),
+          lines: lines.map(
+            ({ lineId, quantity, country, netMassKg, ...detail }) => ({
+              lineId,
+              quantity,
+              ...(country === undefined ? {} : { country }),
+              ...(netMassKg === undefined ? {} : { netMassKg }),
+              ...detailArg(detail),
+            }),
+          ),
         },
         (value) => {
           const row = recordOf(value, "receive_purchase_order");

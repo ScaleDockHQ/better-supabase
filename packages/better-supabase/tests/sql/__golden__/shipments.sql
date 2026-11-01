@@ -759,7 +759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:f8899dabced807ff28f9b61baa0f0d50c3ba4a7dd37911557129338e53fc096e
+-- @bsb-hash sha256:f1cb8b47f01d5cf33a527f8479156b37afd10da6d647a6bd52194ea32c294f98
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1006,16 +1006,18 @@ create policy shipment_lines_read on "better_supabase"."shipment_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
 -- One line of the monthly Intrastat declaration. A shipment line that leaves for
--- or comes back from another member state is derived into a line by
--- prepare_intrastat; a line of another source (a purchase receipt) is saved by
--- hand and stays when the month is prepared again.
+-- or comes back from another member state, and a purchase receipt line that
+-- names the member state it came from, are derived into lines by
+-- prepare_intrastat; a manual line is saved by hand and stays when the month is
+-- prepared again.
 create table if not exists "better_supabase"."intrastat_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period" date not null check ("period" = date_trunc('month', "period")::date),
   "flow" text not null check ("flow" in ('arrival', 'dispatch')),
-  "source" text not null default 'shipment' check ("source" in ('shipment', 'manual')),
+  "source" text not null default 'shipment' check ("source" in ('shipment', 'receipt', 'manual')),
   "shipment_line_id" uuid unique references "better_supabase"."shipment_lines" ("id") on delete cascade,
+  "receipt_line_id" uuid unique references "better_supabase"."inventory_receipt_lines" ("id") on delete cascade,
   "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete set null,
   "trade_code" text check ("trade_code" is null or "trade_code" ~ '^[0-9]{4,10}$'),
   "country" char(2) check ("country" is null or "country" ~ '^[A-Z]{2}$'),
@@ -1659,7 +1661,10 @@ revoke execute on function "better_supabase"."receive_shipment_return"(uuid, jso
 grant execute on function "better_supabase"."receive_shipment_return"(uuid, jsonb) to authenticated, service_role;
 
 -- Derives the Intrastat lines of a month (period is any date in it) from the
--- shipment lines moved in it, and lists them with their exceptions. An outbound
+-- shipment lines moved in it and the goods receipt lines received in it, and
+-- lists them with their exceptions. A receipt line is an arrival when its
+-- detail names the member state it came from; a manual arrival line for the same
+-- variant and country wins and is reported under superseded. An outbound
 -- line to another member state is a dispatch and a return line from one an
 -- arrival; the partner country is the shipment's destination, and the shipment's
 -- own country (its from address) is left out. Trade code and net mass come from
@@ -1678,6 +1683,7 @@ as $$
 #variable_conflict use_column
 declare
   v_start date := date_trunc('month', prepare_intrastat.period)::date;
+  v_superseded jsonb := '[]'::jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1688,7 +1694,7 @@ begin
   if prepare_intrastat.period is null then
     raise exception 'name the month to prepare' using errcode = '22023', hint = 'SHIPMENT_INTRASTAT_INVALID';
   end if;
-  delete from "better_supabase"."intrastat_lines" x where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start and x."source" = 'shipment';
+  delete from "better_supabase"."intrastat_lines" x where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start and x."source" in ('shipment', 'receipt');
   insert into "better_supabase"."intrastat_lines" ("tenant_id", "period", "flow", "source", "shipment_line_id", "variant_id", "trade_code", "country", "net_mass_kg", "quantity", "value", "currency")
   select s.tenant, v_start, s.flow, 'shipment', s.line, s.variant, s.trade_code, s.partner, s.net_mass, s.quantity, s.value, s.currency
   from (
@@ -1708,15 +1714,41 @@ begin
       and sl."moved_at" >= v_start::timestamptz and sl."moved_at" < (v_start + interval '1 month')::timestamptz
   ) s
   where s.partner = any (array['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']) and s.partner is distinct from s.own;
+  with cand as (
+    select rl."tenant_id" as tenant, rl."id" as line, rl."variant_id" as variant, rl."quantity" as quantity,
+      cv."trade_code" as trade_code, r.country,
+      coalesce(nullif(rl."detail" ->> 'netMassKg', '')::numeric, case when cv."weight_grams" is not null then round(cv."weight_grams"::numeric * rl."quantity" / 1000, 3) end) as net_mass,
+      o."currency" as currency,
+      coalesce(nullif(rl."detail" ->> 'value', '')::bigint, round(rl."quantity" * rl."unit_cost")::bigint) as value,
+      (select m."id" from "better_supabase"."intrastat_lines" m
+        where m."tenant_id" = rl."tenant_id" and m."period" = v_start and m."flow" = 'arrival' and m."source" = 'manual'
+          and m."variant_id" = rl."variant_id" and m."country" = r.country
+        order by m."created_at", m."id" limit 1) as manual_line
+    from "better_supabase"."inventory_receipt_lines" rl
+    join "better_supabase"."inventory_receipts" rc on rc."id" = rl."receipt_id"
+    join "better_supabase"."purchase_orders" o on o."id" = rc."purchase_order_id"
+    left join "better_supabase"."product_variants" cv on cv."id" = rl."variant_id"
+    cross join lateral (select upper(coalesce(nullif(rl."detail" ->> 'country', ''), nullif(rl."detail" ->> 'supplierCountry', ''), nullif(rl."detail" ->> 'countryOfOrigin', ''))) as country) r
+    where rl."tenant_id" = prepare_intrastat.tenant
+      and rc."received_at" >= v_start::timestamptz and rc."received_at" < (v_start + interval '1 month')::timestamptz
+      and r.country = any (array['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'])
+  ), added as (
+    insert into "better_supabase"."intrastat_lines" ("tenant_id", "period", "flow", "source", "receipt_line_id", "variant_id", "trade_code", "country", "net_mass_kg", "quantity", "value", "currency")
+    select c.tenant, v_start, 'arrival', 'receipt', c.line, c.variant, c.trade_code, c.country, c.net_mass, c.quantity, c.value, c.currency
+    from cand c where c.manual_line is null
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('manualLineId', c.manual_line, 'receiptLineId', c.line) order by c.line) filter (where c.manual_line is not null), '[]'::jsonb)
+  into v_superseded from cand c;
   return jsonb_build_object(
     'period', v_start,
+    'superseded', v_superseded,
     'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'period', x."period", 'flow', x."flow", 'source', x."source",
-      'shipmentLineId', x."shipment_line_id", 'variantId', x."variant_id", 'tradeCode', x."trade_code", 'country', x."country",
+      'shipmentLineId', x."shipment_line_id", 'receiptLineId', x."receipt_line_id", 'supersedes', coalesce((select jsonb_agg(e -> 'receiptLineId' order by e ->> 'receiptLineId') from jsonb_array_elements(v_superseded) e where e ->> 'manualLineId' = x."id"::text), '[]'::jsonb), 'variantId', x."variant_id", 'tradeCode', x."trade_code", 'country', x."country",
       'netMassKg', x."net_mass_kg"::text, 'quantity', x."quantity"::text, 'value', x."value"::text, 'currency', x."currency") order by x."flow", x."trade_code" nulls first, x."created_at", x."id"), '[]'::jsonb) from "better_supabase"."intrastat_lines" x
       where x."tenant_id" = prepare_intrastat.tenant and x."period" = v_start),
-    'exceptions', (select coalesce(jsonb_agg(jsonb_build_object('lineId', e.id, 'shipmentLineId', e.shipment_line, 'variantId', e.variant, 'code', e.code) order by e.code, e.id), '[]'::jsonb)
+    'exceptions', (select coalesce(jsonb_agg(jsonb_build_object('lineId', e.id, 'shipmentLineId', e.shipment_line, 'receiptLineId', e.receipt_line, 'variantId', e.variant, 'code', e.code) order by e.code, e.id), '[]'::jsonb)
       from (
-        select x."id" as id, x."shipment_line_id" as shipment_line, x."variant_id" as variant, c.code
+        select x."id" as id, x."shipment_line_id" as shipment_line, x."receipt_line_id" as receipt_line, x."variant_id" as variant, c.code
         from "better_supabase"."intrastat_lines" x
         cross join lateral (values
           ('INTRASTAT_TRADE_CODE_MISSING', x."trade_code" is null),
@@ -1732,7 +1764,7 @@ $$;
 revoke execute on function "better_supabase"."prepare_intrastat"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."prepare_intrastat"(uuid, date) to authenticated, service_role;
 
--- Saves a line the shipments don't derive, such as a purchase receipt (line
+-- Saves a line the shipments and receipts don't derive (line
 -- null creates one). attrs: { period, flow, country, tradeCode?, netMassKg?,
 -- quantity?, value? (minor units as text), currency?, variantId? }. Returns the
 -- line's id and whether it was created.

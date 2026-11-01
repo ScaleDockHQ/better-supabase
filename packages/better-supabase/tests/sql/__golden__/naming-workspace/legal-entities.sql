@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:fbb8fcc2eb21e95190ac7dcee8cf29f93d9f19593bca0b3f85b5241674763e5b
+-- @bsb-hash sha256:a5f93b0c948713712e06b96ca386137dc280cfe1bdd58c22b670f97628583fc0
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,6 +126,8 @@ drop policy if exists legal_entity_settings_read on "better_supabase"."legal_ent
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
+
+
 
 
 

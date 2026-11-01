@@ -1,7 +1,7 @@
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockCall } from "../shared.ts";
 
-import { isRecord, recordOf, recordsOf, textOf } from "../shared.ts";
+import { recordOf, recordsOf, textOf } from "../shared.ts";
 
 export const INTRASTAT_FLOWS = ["arrival", "dispatch"] as const;
 
@@ -10,7 +10,14 @@ export type IntrastatFlow = (typeof INTRASTAT_FLOWS)[number];
 export interface IntrastatLine {
   readonly id: string;
   readonly flow: IntrastatFlow;
-  readonly source: "shipment" | "manual";
+  readonly source: "shipment" | "receipt" | "manual";
+  /** The goods receipt line an arrival was derived from. */
+  readonly receiptLineId: string | null;
+  /**
+   * The receipt lines a manual line replaced: a manual arrival for the same
+   * variant and country wins over the derived one.
+   */
+  readonly supersedes: readonly string[];
   readonly variantId: string | null;
   readonly tradeCode: string | null;
   readonly country: string | null;
@@ -29,12 +36,18 @@ export interface IntrastatException {
   readonly code: string;
   readonly lineId: string | null;
   readonly shipmentLineId: string | null;
+  readonly receiptLineId: string | null;
 }
 
 export interface PreparedIntrastat {
   readonly period: string;
   readonly lines: readonly IntrastatLine[];
   readonly exceptions: readonly IntrastatException[];
+  /** The manual lines that replaced a derived receipt line. */
+  readonly superseded: readonly {
+    readonly manualLineId: string;
+    readonly receiptLineId: string;
+  }[];
 }
 
 export interface ManualIntrastatLine {
@@ -52,9 +65,9 @@ export interface ManualIntrastatLine {
 
 export interface ShipmentsIntrastat {
   /**
-   * Re-derives a month's lines from the shipments moved in it and lists the
-   * lines that miss a trade code, country, net mass or value. Manual lines stay
-   * as they are.
+   * Re-derives a month's lines from the shipments moved and the goods receipts
+   * received in it and lists the lines that miss a trade code, country, net
+   * mass or value. Manual lines stay as they are.
    */
   prepareIntrastat(period: string): AsyncResult<PreparedIntrastat>;
   saveIntrastatLine(
@@ -72,7 +85,14 @@ const lineOf = (value: unknown): IntrastatLine => {
   return {
     id: textOf(row["id"]),
     flow: row["flow"] === "arrival" ? "arrival" : "dispatch",
-    source: row["source"] === "manual" ? "manual" : "shipment",
+    source:
+      row["source"] === "manual" || row["source"] === "receipt"
+        ? row["source"]
+        : "shipment",
+    receiptLineId: nullable(row["receiptLineId"]),
+    supersedes: Array.isArray(row["supersedes"])
+      ? row["supersedes"].map(String)
+      : [],
     variantId: nullable(row["variantId"]),
     tradeCode: nullable(row["tradeCode"]),
     country: nullable(row["country"]),
@@ -104,11 +124,17 @@ export function shipmentsIntrastat(
                 (item) => ({
                   code: textOf(item["code"]),
                   lineId: nullable(item["lineId"]),
-                  shipmentLineId: isRecord(item)
-                    ? nullable(item["shipmentLineId"])
-                    : null,
+                  shipmentLineId: nullable(item["shipmentLineId"]),
+                  receiptLineId: nullable(item["receiptLineId"]),
                 }),
               ),
+              superseded: recordsOf(
+                row["superseded"] ?? [],
+                "prepare_intrastat",
+              ).map((item) => ({
+                manualLineId: textOf(item["manualLineId"]),
+                receiptLineId: textOf(item["receiptLineId"]),
+              })),
             };
           },
         ),

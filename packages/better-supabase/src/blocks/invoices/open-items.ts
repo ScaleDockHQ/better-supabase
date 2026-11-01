@@ -159,6 +159,48 @@ export interface InvoiceApproval {
   }[];
 }
 
+/** The header totals of an invoice, in minor units. */
+export interface InvoiceTotalsSnapshot {
+  readonly listTotal?: Money;
+  readonly discountTotal?: Money;
+  readonly subtotal: Money;
+  readonly taxTotal: Money;
+  readonly total: Money;
+}
+
+/** One invoice whose totals `recomputeTotals` found to differ. */
+export interface InvoiceTotalsCorrection {
+  readonly invoiceId: string;
+  readonly identifier?: string;
+  readonly status: string;
+  /** The totals stored on the invoice. */
+  readonly old: InvoiceTotalsSnapshot;
+  /** The totals its lines and credit restriction give. */
+  readonly new: InvoiceTotalsSnapshot;
+  readonly balance: Money;
+  readonly balanceAfter: Money;
+  readonly ledger: {
+    /** Whether a posted accounting entry books the invoice. */
+    readonly posted: boolean;
+    readonly entryId?: string;
+    readonly entryNumber?: string;
+    /** The status of the entry's accounting period. */
+    readonly periodStatus?: string;
+    /** The posted entry books the old amounts and is not changed. */
+    readonly needsCorrectingEntry: boolean;
+  };
+}
+
+/** What `recomputeTotals` checked and corrected. */
+export interface InvoiceTotalsRepair {
+  readonly dryRun: boolean;
+  readonly checked: number;
+  readonly changed: number;
+  /** How many invoices were written; zero on a dry run. */
+  readonly applied: number;
+  readonly invoices: readonly InvoiceTotalsCorrection[];
+}
+
 /** Open items, payment allocation and purchase approval on invoices. */
 export interface InvoiceOpenItems<I> {
   /**
@@ -223,6 +265,25 @@ export interface InvoiceOpenItems<I> {
     invoiceId: string,
     options?: { readonly comment?: string },
   ): AsyncResult<I>;
+  /**
+   * Recounts the header totals of issued invoices with the credit restriction
+   * of their payment terms, for invoices issued before the totals followed it.
+   * A dry run (the default) only reports the old and new totals. Applying
+   * writes the totals and tax lines of the invoices that differ, never a
+   * number, date or status, and audits each as a system correction. A posted
+   * accounting entry is not changed; the report marks it as needing a
+   * correcting entry. Running it again changes nothing. Needs
+   * `invoices.manage`.
+   */
+  recomputeTotals(
+    organizationId: string,
+    options?: {
+      /** Limits the repair to these invoices; unset checks every issued one. */
+      readonly invoiceIds?: readonly string[];
+      /** Defaults to `true`. */
+      readonly dryRun?: boolean;
+    },
+  ): AsyncResult<InvoiceTotalsRepair>;
 }
 
 function sideOf(value: unknown): OpenItemSide {
@@ -324,6 +385,60 @@ function levelsOf(value: unknown): readonly InvoiceApprovalLevel[] {
       approverId: textOf(row["approverId"]),
     }),
   );
+}
+
+function snapshotOf(value: unknown, currency: string): InvoiceTotalsSnapshot {
+  const row = recordOf(value, "invoice totals");
+
+  const at = (key: string): Money =>
+    moneyOf(row[key], currency, `invoice totals ${key}`);
+
+  return compact<InvoiceTotalsSnapshot>({
+    listTotal: row["listTotal"] === undefined ? undefined : at("listTotal"),
+    discountTotal:
+      row["discountTotal"] === undefined ? undefined : at("discountTotal"),
+    subtotal: at("subtotal"),
+    taxTotal: at("taxTotal"),
+    total: at("total"),
+  });
+}
+
+function repairOf(value: unknown): InvoiceTotalsRepair {
+  const row = recordOf(value, "invoice totals repair");
+
+  return {
+    dryRun: row["dryRun"] === true,
+    checked: Number(row["checked"]),
+    changed: Number(row["changed"]),
+    applied: Number(row["applied"]),
+    invoices: recordsOf(row["invoices"], "invoice totals corrections").map(
+      (entry) => {
+        const currency = textOf(entry["currency"]);
+        const ledger = recordOf(entry["ledger"], "invoice totals ledger");
+
+        return compact<InvoiceTotalsCorrection>({
+          invoiceId: textOf(entry["invoiceId"]),
+          identifier: optionalText(entry["identifier"]),
+          status: textOf(entry["status"]),
+          old: snapshotOf(entry["old"], currency),
+          new: snapshotOf(entry["new"], currency),
+          balance: moneyOf(entry["balance"], currency, "invoice balance"),
+          balanceAfter: moneyOf(
+            entry["balanceAfter"],
+            currency,
+            "invoice balance after",
+          ),
+          ledger: compact({
+            posted: ledger["posted"] === true,
+            entryId: optionalText(ledger["entryId"]),
+            entryNumber: optionalText(ledger["entryNumber"]),
+            periodStatus: optionalText(ledger["periodStatus"]),
+            needsCorrectingEntry: ledger["needsCorrectingEntry"] === true,
+          }),
+        });
+      },
+    ),
+  };
 }
 
 function approvalOf(value: unknown): InvoiceApproval {
@@ -467,5 +582,15 @@ export function invoiceOpenItems<I>(
         invoice: invoiceId,
         comment: options.comment ?? null,
       }),
+    recomputeTotals: (organizationId, options = {}) =>
+      call(
+        "recompute_invoice_totals",
+        {
+          tenant: organizationId,
+          invoice_ids: options.invoiceIds ?? null,
+          dry_run: options.dryRun ?? true,
+        },
+        repairOf,
+      ),
   };
 }
