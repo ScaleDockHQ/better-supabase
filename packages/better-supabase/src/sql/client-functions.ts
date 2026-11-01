@@ -152,7 +152,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   meetings:
     "add_meeting_action_item cancel_meeting create_meeting decide_meeting_decision delete_meeting delete_meeting_agenda_item get_meeting hold_meeting list_meetings record_meeting_decision remove_meeting_attendee save_meeting_agenda_item set_meeting_attendee start_meeting update_meeting",
   inventory:
-    "adjust_stock allocate_stock cancel_purchase_order cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_purchase_requisition list_allocations open_stock_count place_purchase_order post_stock_count purchase_order_from_requisitions receive_purchase_order receive_transfer record_count_line release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
+    "adjust_stock allocate_stock cancel_purchase_order cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_purchase_requisition inventory_overview list_allocations open_stock_count place_purchase_order post_stock_count purchase_order_from_requisitions receive_purchase_order receive_transfer record_count_line release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
@@ -239,7 +239,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
     "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
-  sessions: "end_my_session list_my_sessions",
+  sessions: "end_my_session list_my_sessions sessions_overview",
   settings:
     "get_organization_settings get_platform_settings get_user_settings reset_organization_setting reset_platform_setting reset_user_setting set_organization_setting set_platform_setting set_user_setting",
   "share-links":

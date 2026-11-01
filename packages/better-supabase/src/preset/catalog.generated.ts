@@ -396,7 +396,31 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "sessions"
+      "manifest": "sessions",
+      "reads": [
+        {
+          "name": "overview",
+          "function": "sessions_overview",
+          "args": {},
+          "result": {
+            "count": "number",
+            "currentId": "text?",
+            "sessions": [
+              {
+                "id": "text",
+                "createdAt": "text?",
+                "lastActiveAt": "text?",
+                "userAgent": "text?",
+                "ip": "text?",
+                "aal": "text?",
+                "current": "bool"
+              }
+            ]
+          },
+          "summary": "The caller's security page in one call: every unexpired session, most recently active first, the current one marked, and how many there are.",
+          "tables": []
+        }
+      ]
     },
     {
       "name": "webhooks-in",
@@ -2688,6 +2712,57 @@ export const PRESET_CATALOG: PresetCatalog = {
         "accounting",
         "approvals",
         "imports"
+      ],
+      "reads": [
+        {
+          "name": "overview",
+          "function": "inventory_overview",
+          "args": {
+            "organizationId": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "limit": {
+              "param": "row_limit",
+              "type": "int",
+              "optional": true
+            },
+            "expiryDays": {
+              "param": "expiry_days",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": {
+            "levelCount": "number",
+            "lowStockCount": "number",
+            "lowStock": [
+              {
+                "variantId": "text",
+                "locationId": "text",
+                "onHand": "text",
+                "available": "text",
+                "reorderPoint": "text"
+              }
+            ],
+            "expiring": [
+              {
+                "lotId": "text",
+                "code": "text",
+                "variantId": "text",
+                "locationId": "text",
+                "expiresOn": "text",
+                "onHand": "text"
+              }
+            ]
+          },
+          "summary": "The stock page in one call: how many levels exist, the levels at or below their reorder point and the lots that expire soon.",
+          "tables": [
+            "levels",
+            "lots",
+            "buckets"
+          ]
+        }
       ],
       "extraColumns": "locations",
       "entities": {

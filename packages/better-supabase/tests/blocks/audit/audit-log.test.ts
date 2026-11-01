@@ -191,6 +191,23 @@ describe("createAudit", () => {
     expect(counted.total).toBe(3);
   });
 
+  it("page returns the total and each entry's actor name", async () => {
+    const { transport, calls } = fake([
+      [entry("3", { actorLabel: "Ada" }), entry("2")],
+    ]);
+
+    const page = await createAudit({ transport })
+      .page({ organizationId: "org", limit: 2 })
+      .orThrow();
+
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "list_audit_events",
+      "count_audit_events",
+    ]);
+    expect(page.total).toBe(3);
+    expect(page.entries.map((each) => each.actorName)).toEqual(["Ada", null]);
+  });
+
   it("opens page N by offset, with a total, and starts an export there", async () => {
     const { transport, calls } = fake([[entry("3")], [entry("2")], []]);
     const audit = createAudit({ transport });

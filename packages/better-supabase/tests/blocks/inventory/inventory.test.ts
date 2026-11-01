@@ -23,6 +23,36 @@ function recorder(...results: unknown[]) {
 }
 
 describe("inventory block", () => {
+  it("reads the overview in one call", async () => {
+    const { calls, transport } = recorder({
+      levelCount: 4,
+      lowStockCount: 2,
+      lowStock: [
+        {
+          variantId: "v1",
+          locationId: "l1",
+          onHand: "2.000000",
+          available: "1.000000",
+          reorderPoint: "5.000000",
+        },
+      ],
+      expiring: [],
+    });
+
+    const overview = await createInventory({ transport })
+      .overview({ organizationId: "o", limit: 5, expiryDays: 14 })
+      .orThrow();
+
+    expect(calls).toEqual([
+      {
+        fn: "inventory_overview",
+        args: { tenant: "o", row_limit: 5, expiry_days: 14 },
+      },
+    ]);
+    expect(overview.lowStockCount).toBe(2);
+    expect(overview.lowStock[0]?.reorderPoint).toBe("5.000000");
+  });
+
   it("saves locations and adjusts stock", async () => {
     const { calls, transport } = recorder(
       { id: "l1", code: "WH-1", active: true },

@@ -24,3 +24,5 @@ export {
 } from "./sessions.ts";
 
 export { sessionsBlock } from "./manifest.ts";
+
+export type { SessionsOverview, SessionsOverviewEntry } from "./overview.ts";

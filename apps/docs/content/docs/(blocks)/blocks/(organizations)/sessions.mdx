@@ -27,3 +27,13 @@ await db.$blocks.sessions.endOthers().orThrow();
 ```
 
 `listMine` returns the unexpired sessions, most recently active first, with `current` on the one behind the token. `end` returns `false` when the caller has no such session. `endOthers` ends every session except the current one through `end`, so your `end` hooks see each one, and returns the ids it ended.
+
+## Security page in one call
+
+`overview()` reads the security page from the SQL function `sessions_overview`: `sessions` (the same rows as `listMine`, with typed timestamps), their `count`, and `currentId`, the id of the session behind the token, or `null` for a token without one. The function runs as the caller and wraps `list_my_sessions`, so it sees only the caller's unexpired sessions.
+
+```ts
+const { sessions, count, currentId } = await db.$blocks.sessions
+  .overview()
+  .orThrow();
+```

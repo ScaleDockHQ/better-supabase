@@ -3879,6 +3879,30 @@ export type BankingReconciliationBoardResult = {
   }[];
 };
 
+/** The arguments of `reads.inventory.overview`. @public */
+export type InventoryOverviewArgs = { readonly organizationId: string; readonly limit?: number; readonly expiryDays?: number };
+
+/** What `reads.inventory.overview` returns. @public */
+export type InventoryOverviewResult = {
+  readonly levelCount: number;
+  readonly lowStockCount: number;
+  readonly lowStock: readonly {
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly onHand: string;
+    readonly available: string;
+    readonly reorderPoint: string;
+  }[];
+  readonly expiring: readonly {
+    readonly lotId: string;
+    readonly code: string;
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly expiresOn: string;
+    readonly onHand: string;
+  }[];
+};
+
 /** The arguments of `reads.orders.board`. @public */
 export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
 
@@ -3928,6 +3952,24 @@ export type OrganizationsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.sessions.overview`. @public */
+export type SessionsOverviewArgs = {  };
+
+/** What `reads.sessions.overview` returns. @public */
+export type SessionsOverviewResult = {
+  readonly count: number;
+  readonly currentId: string | null;
+  readonly sessions: readonly {
+    readonly id: string;
+    readonly createdAt: string | null;
+    readonly lastActiveAt: string | null;
+    readonly userAgent: string | null;
+    readonly ip: string | null;
+    readonly aal: string | null;
+    readonly current: boolean;
+  }[];
+};
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -3940,10 +3982,16 @@ export const reads = {
   banking: {
     reconciliationBoard: blockRead<BankingReconciliationBoardArgs, BankingReconciliationBoardResult>("bank_reconciliation_board", { accountId: "account_id", limit: "line_limit" }, ["accounts", "transactions", "matches"], "api"),
   },
+  inventory: {
+    overview: blockRead<InventoryOverviewArgs, InventoryOverviewResult>("inventory_overview", { organizationId: "tenant", limit: "row_limit", expiryDays: "expiry_days" }, ["levels", "lots", "buckets"], "api"),
+  },
   orders: {
     board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "api"),
   },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
+  },
+  sessions: {
+    overview: blockRead<SessionsOverviewArgs, SessionsOverviewResult>("sessions_overview", {  }, [], "api"),
   },
 } as const;

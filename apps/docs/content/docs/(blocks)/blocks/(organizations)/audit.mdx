@@ -477,6 +477,16 @@ export function AuditLog(props: { organizationId: string }) {
 }
 ```
 
+## A page with the total and actor names
+
+`page(options)` is `list` with the total for the same filters, shaped for an audit screen: `entries`, `next` and `total`, with an `actorName` on each entry. `actorName` is the entry's `actorLabel`, the name or service the writer recorded when the entry was made, so it needs no join and stays correct after the member is renamed or removed; it is `null` for an entry without a label. `page` calls `list` with `count: true`, so `list` hooks run and the read policy decides which entries are counted. It takes the same filters as `list`, except `count`.
+
+```ts
+const { entries, total, next } = await audit
+  .page({ organizationId, category: "billing", limit: 25 })
+  .orThrow();
+```
+
 ## Reverting changes
 
 `audit.revert(entryIds)` writes the old values of row changes back, newest

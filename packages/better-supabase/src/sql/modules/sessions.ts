@@ -6,6 +6,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";
+import { SESSIONS_OVERVIEW_SQL, SESSIONS_READS } from "./sessions-reads.ts";
 
 /** The `schema.table` names `blocks['sessions'].options.policies` covers. */
 export function sessionPolicyTables(
@@ -386,6 +387,7 @@ export const SESSIONS: BlockSqlDefinition = {
   internal: ["session_active", "session_end_reason"],
   name: "sessions",
   names: {
+    reads: SESSIONS_READS,
     tables: {},
     options: ["authzVersions", "bootstrap", "exclude", "policies"],
   },
@@ -519,6 +521,7 @@ $$;
 
 revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
 grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+${SESSIONS_OVERVIEW_SQL}
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:

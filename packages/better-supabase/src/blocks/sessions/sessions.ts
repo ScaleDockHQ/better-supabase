@@ -1,6 +1,7 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { SessionsOverview } from "./overview.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -12,6 +13,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { decodeSessionsOverview } from "./overview.ts";
 
 export interface SessionsOptions extends BlockOptions {
   /** `withBlockHooks` hooks around the client's methods. */
@@ -35,6 +37,11 @@ export interface UserSession {
 export interface Sessions {
   /** The caller's unexpired sessions, most recently active first. */
   listMine(): AsyncResult<readonly UserSession[]>;
+  /**
+   * The caller's security page in one `sessions_overview` call: the sessions,
+   * how many there are and the id of the current one.
+   */
+  overview(): AsyncResult<SessionsOverview>;
   /**
    * Ends one of the caller's sessions. Its refresh tokens stop working at once;
    * an access token it holds lasts until it expires, unless a policy calls
@@ -73,6 +80,7 @@ export function createSessions(options: SessionsOptions): Sessions {
       call("list_my_sessions", {}, (value) =>
         recordsOf(value, "list_my_sessions").map(sessionOf),
       ),
+    overview: () => call("sessions_overview", {}, decodeSessionsOverview),
     end: ({ sessionId }) =>
       call("end_my_session", { session: sessionId }, (value) => value === true),
     endOthers: () =>

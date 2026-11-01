@@ -280,6 +280,20 @@ export interface Quotes<
     input: QuoteInput<F> & { readonly title: string };
     lines?: readonly QuoteLineInput[] | undefined;
   }): AsyncResult<Quote<F>>;
+  /**
+   * Starts a new draft from a quote you already hold (the result of `create`,
+   * `update`, `revise` or a read of the table): the same customer, owner,
+   * currency, pricing, terms, note, extra columns and lines, titled `<title>
+   * (copy)` unless `title` says otherwise. It does not copy the validity date,
+   * the origin, the status, the number or the history, so the copy takes the
+   * next number and starts as a draft. `input` overrides any field. It composes
+   * `create`, so `create` hooks and checks apply.
+   */
+  duplicate(input: {
+    quote: Quote<F>;
+    title?: string | undefined;
+    input?: QuoteInput<F> | undefined;
+  }): AsyncResult<Quote<F>>;
   /** Changes a draft, or a quote with changes requested. */
   update(input: {
     quoteId: string;
@@ -701,6 +715,36 @@ export function createQuotes<
         ),
       );
     },
+    duplicate: ({ quote: source, title, input: overrides }) =>
+      hooked.create({
+        organizationId: source.organizationId,
+        input: {
+          currency: source.currency,
+          ...(source.company === undefined ? {} : { company: source.company }),
+          ...(source.contact === undefined ? {} : { contact: source.contact }),
+          ...(source.ownerId === undefined ? {} : { ownerId: source.ownerId }),
+          ...(source.terms === undefined ? {} : { terms: source.terms }),
+          ...(source.note === undefined ? {} : { note: source.note }),
+          pricesIncludeTax: source.pricing.pricesIncludeTax,
+          discountBps: source.pricing.discountBps,
+          discountAmount: source.pricing.discountAmount,
+          ...(source.pricing.depositBps === undefined
+            ? {}
+            : { depositBps: source.pricing.depositBps }),
+          ...(source.pricing.depositAmount === undefined
+            ? {}
+            : { depositAmount: source.pricing.depositAmount }),
+          depositRequired: source.pricing.depositRequired,
+          ...(Object.keys(source.fields).length === 0
+            ? {}
+            : { fields: source.fields }),
+          ...overrides,
+          title: title ?? overrides?.title ?? `${source.title} (copy)`,
+        },
+        lines: source.lines.map(
+          ({ position: _position, versionLineId: _version, ...line }) => line,
+        ),
+      }),
     update: ({ quoteId, input }) =>
       input.currency !== undefined &&
       amountsError(input.currency, []) !== undefined

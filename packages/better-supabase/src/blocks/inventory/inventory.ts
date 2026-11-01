@@ -8,6 +8,7 @@ import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { InventoryCounts } from "./counts.ts";
 import type { InventoryProcurement } from "./procurement.ts";
+import type { InventoryReads } from "./reads.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
 import { detailArg } from "../../commerce/stock-detail.ts";
@@ -28,6 +29,7 @@ import {
 } from "../shared.ts";
 import { inventoryCounts } from "./counts.ts";
 import { inventoryProcurement } from "./procurement.ts";
+import { inventoryReads } from "./reads.ts";
 import { inventoryTracking } from "./tracking.ts";
 
 export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
@@ -201,7 +203,11 @@ export interface Receipt {
 
 /** `F` types the locations' extra columns, from the `fields` schema. */
 export interface Inventory<F extends object = Record<never, never>>
-  extends InventoryTracking, InventoryProcurement, InventoryCounts {
+  extends
+    InventoryTracking,
+    InventoryProcurement,
+    InventoryCounts,
+    InventoryReads {
   saveLocation(input: {
     organizationId: string;
     input: LocationInput<F>;
@@ -409,6 +415,7 @@ export function createInventory<
     ...inventoryTracking(call),
     ...inventoryCounts(call),
     ...inventoryProcurement(call),
+    ...inventoryReads(call),
     adjustStock: ({ variantId, locationId, quantity, reason, note, detail }) =>
       call(
         "adjust_stock",

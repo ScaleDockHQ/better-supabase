@@ -647,6 +647,8 @@ the period is closed, so the books are corrected with an entry of your own.
 
 `aging(organizationId, currency, asOf?, direction?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices. `direction` is `sales` by default; `purchase` sums the open bills.
 
+Aging has no separate read to add: `aging` already returns the buckets for sales invoices and, with `direction: "purchase"`, for payables, in one call per currency. `accounting.trialBalance` and the other [reports](/docs/blocks/accounting#reports) cover the finance pages the same way.
+
 ## Events
 
 | Event                                                                                                                              | Data                                                                                                                                          |

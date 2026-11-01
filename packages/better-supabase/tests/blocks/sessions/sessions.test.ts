@@ -42,6 +42,26 @@ describe("createSessions", () => {
     expect(list[1]?.userAgent).toBe("Safari");
   });
 
+  it("reads the overview in one call and maps the timestamps", async () => {
+    const t = transport(() => ({
+      count: 2,
+      currentId: "a",
+      sessions: [row("a", true), row("b", false)],
+    }));
+
+    const overview = await createSessions({ transport: t })
+      .overview()
+      .orThrow();
+
+    expect(t.calls).toEqual([["sessions_overview", {}]]);
+    expect(overview.count).toBe(2);
+    expect(overview.currentId).toBe("a");
+    expect(overview.sessions[0]?.lastActiveAt?.toString()).toBe(
+      "2026-10-02T00:00:00Z",
+    );
+    expect(overview.sessions[1]?.current).toBe(false);
+  });
+
   it("endOthers ends every session but the current one, through the hooks", async () => {
     const seen: string[] = [];
 

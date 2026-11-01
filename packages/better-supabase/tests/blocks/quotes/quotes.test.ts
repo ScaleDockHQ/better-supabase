@@ -73,6 +73,57 @@ const ROW = {
 };
 
 describe("quotes block", () => {
+  it("duplicates a quote into a new draft through create", async () => {
+    const t = transport({
+      create_quote: () => ({ ...ROW, id: "q2", status: "draft" }),
+    });
+
+    const quotes = createQuotes({ transport: t });
+
+    const source = await quotes
+      .create({ organizationId: "o", input: { title: "Rollout" } })
+      .orThrow();
+
+    t.calls.length = 0;
+
+    const copy = await quotes.duplicate({ quote: source }).orThrow();
+
+    expect(copy.id).toBe("q2");
+    expect(t.calls).toHaveLength(1);
+
+    const [fn, args] = t.calls[0]!;
+    const attrs = args["attrs"] as Record<string, unknown>;
+
+    expect(fn).toBe("create_quote");
+    expect(args["tenant"]).toBe("o");
+    expect(attrs).toMatchObject({
+      title: "Rollout (copy)",
+      currency: "EUR",
+      terms: "Net 30",
+    });
+    expect(attrs).not.toHaveProperty("validUntil");
+    expect(attrs).not.toHaveProperty("origin");
+    expect(args["lines"]).toEqual([
+      expect.objectContaining({
+        description: "Licences",
+        unitAmount: "100000",
+        currency: "EUR",
+      }),
+    ]);
+    expect((args["lines"] as Record<string, unknown>[])[0]).not.toHaveProperty(
+      "position",
+    );
+
+    await quotes
+      .duplicate({ quote: source, title: "Second", input: { note: "again" } })
+      .orThrow();
+
+    expect(t.calls[1]![1]["attrs"]).toMatchObject({
+      title: "Second",
+      note: "again",
+    });
+  });
+
   it("creates with lines and dates as the database reads them", async () => {
     const t = transport({ create_quote: () => ROW });
 

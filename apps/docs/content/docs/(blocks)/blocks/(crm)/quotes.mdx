@@ -312,6 +312,19 @@ await db.quotes.portalRespond(quoteId, "accepted", { selected: [2] }).orThrow();
 
 `fromDeal(dealId)` makes a draft from the deal's name, company, primary contact, currency, owner and lines, or one line for its amount when it has none. It returns the same quote when called again, and with the [relations](/docs/blocks/relations) module installed, it links the quote to the deal with `created_from`, so `lineage` shows deal, quote, invoice.
 
+## Duplicate a quote
+
+`duplicate({ quote, title?, input? })` starts a new draft from a quote you hold, such as the result of `create`, `update` or `revise`, or a row read from the table. It composes `create`: the copy keeps the customer, owner, currency, pricing, terms, note, extra columns and lines, and is titled `<title> (copy)` unless `title` says otherwise. It leaves out the validity date, the origin, the status, the number and the history, so the copy takes the next number and starts as a draft. `input` overrides any field. There is no database function behind it and no separate quote getter: load the quote with the method or table read you already use, then pass it in. `create` hooks and checks run for the copy.
+
+```ts
+const copy = await db.$blocks.quotes
+  .duplicate({
+    quote,
+    input: { validUntil: Temporal.PlainDate.from("2026-12-31") },
+  })
+  .orThrow();
+```
+
 ## Events
 
 | Event                                                             | Data                                                                      |
