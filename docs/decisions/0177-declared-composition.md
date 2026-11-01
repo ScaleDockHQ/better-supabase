@@ -30,7 +30,7 @@ constants.
    recorded twice. The `@bsb audit`, `audit-reads`, `events` and `expose` tags
    become real, and `history` and `lifecycle` tags are added.
 3. **Automations from one source.** The manifest `automations` field is the
-   single source. The SQL modules that ship `rule_defaults` read it, the action
+   single source. The SQL modules that ship `automation_defaults` read it, the action
    registry is built from manifests, and the catalog lists automations, links,
    contributions and every port.
 4. **Composite blocks.** `defineBlock` gains `composes`, `defaults`, an

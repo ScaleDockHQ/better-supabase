@@ -67,6 +67,14 @@ import {
   withAdoptableTables,
 } from "./adoptable-tables.ts";
 import { blockHints, formatBlockHints } from "./block-hints.ts";
+import {
+  AUTOMATIONS_PAGE,
+  MATRIX_PAGE,
+  moduleMatrix,
+  defaultAutomations,
+  withDefaultAutomations,
+  withModuleMatrix,
+} from "./composition-docs.ts";
 
 /**
  * The blocks a block works with: what it integrates and the generic blocks it
@@ -817,7 +825,8 @@ export function formatPresetCatalog(catalog: PresetCatalog): string {
 
 if (import.meta.main) {
   try {
-    const preset = formatPresetCatalog(buildPresetCatalog());
+    const presetCatalog = buildPresetCatalog();
+    const preset = formatPresetCatalog(presetCatalog);
     const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
     const hints = formatBlockHints(blockHints(BLOCK_MANIFESTS, BLOCKS_SRC));
 
@@ -849,6 +858,31 @@ if (import.meta.main) {
         );
         exit(1);
       }
+
+      const matrix = readFileSync(MATRIX_PAGE, "utf-8");
+
+      if (
+        withModuleMatrix(matrix, presetCatalog) !== matrix ||
+        !matrix.includes(moduleMatrix(presetCatalog))
+      ) {
+        console.error(
+          "build-catalog: the module matrix on blocks/index.mdx is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+
+      const automationsPage = readFileSync(AUTOMATIONS_PAGE, "utf-8");
+
+      if (
+        withDefaultAutomations(automationsPage, presetCatalog) !==
+          automationsPage ||
+        !automationsPage.includes(defaultAutomations(presetCatalog))
+      ) {
+        console.error(
+          "build-catalog: the default automations on automations.mdx are stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
       writeFileSync(NAME_REGISTRY_FILE, nameSets);
@@ -865,6 +899,19 @@ if (import.meta.main) {
       }
 
       writeFileSync(OWN_SCHEMAS_PAGE, page);
+
+      for (const [file, build] of [
+        [MATRIX_PAGE, withModuleMatrix],
+        [AUTOMATIONS_PAGE, withDefaultAutomations],
+      ] as const) {
+        const updated = build(readFileSync(file, "utf-8"), presetCatalog);
+
+        if (updated === undefined) {
+          throw new Error(`build-catalog: ${file} lost its generated markers.`);
+        }
+
+        writeFileSync(file, updated);
+      }
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

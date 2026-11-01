@@ -210,8 +210,9 @@ export function createActionRegistry(
 
 /**
  * An automation a block ships (`defineBlock({ automations })`). Its SQL module
- * writes the row to `rule_defaults`, and every organization gets its own copy
- * the first time its rules run or are listed, which it may turn off or edit.
+ * writes the row to `automation_defaults`, and every organization gets its own
+ * copy the first time its rules run or are listed, which it may turn off or
+ * edit.
  */
 export interface DefaultAutomation {
   /** Unique across blocks, such as `inbox.conversation_to_task`. */

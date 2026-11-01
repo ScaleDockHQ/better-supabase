@@ -43,7 +43,7 @@ export interface PresetCatalogBlock {
   readonly contributes?: readonly string[];
 }
 
-/** An automation a block ships as a default `rule_defaults` row. */
+/** An automation a block ships as a default `automation_defaults` row. */
 export interface PresetCatalogAutomation {
   readonly key: string;
   readonly name: string;
