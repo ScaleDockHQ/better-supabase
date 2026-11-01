@@ -102,11 +102,19 @@ may be your own enum or domain.
   - `better_supabase.ai_run_steps`: `id`, `run_id`, `chat_id`, `owner_id`, `step_key`, `label`, `status`, `started_at`, `ended_at`; typed: `status`
   - `better_supabase.ai_sandboxes`: `id`, `organization_id`, `user_id`, `chat_id`, `harness_id`, `provider`, `sandbox_id`, `status`, `idle_seconds`, `last_used_at`, `expires_at`, `stopped_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.ai_harness_sessions`: `chat_id`, `harness_id`, `owner_id`, `resume_state`, `status`, `lock_holder`, `locked_until`, `last_active_at`, `updated_at`; typed: `status`
+- `ai-evals`
+  - `better_supabase.eval_datasets`: `id`, `organization_id`, `name`, `description`, `created_at`
+  - `better_supabase.eval_items`: `id`, `dataset_id`, `input`, `expected`, `metadata`, `source_chat_id`, `source_message_id`, `created_at`
+  - `better_supabase.eval_runs`: `id`, `dataset_id`, `organization_id`, `prompt_name`, `prompt_version`, `model`, `scorers`, `status`, `summary`, `created_at`, `finished_at`
+  - `better_supabase.eval_results`: `run_id`, `item_id`, `output`, `scores`, `passed`, `error`, `latency_ms`, `created_at`
 - `ai-files`
   - `better_supabase.ai_files`: `id`, `organization_id`, `owner_id`, `chat_id`, `bucket`, `path`, `media_type`, `filename`, `byte_size`, `status`, `created_at`; typed: `status`, `source`
   - `better_supabase.ai_provider_files`: `file_id`, `provider`, `reference`
   - `better_supabase.ai_documents`: `id`, `organization_id`, `owner_id`, `chat_id`, `kind`, `title`, `current_version`; typed: `kind`
   - `better_supabase.ai_suggestions`: `id`, `document_id`, `version`, `original_text`, `suggested_text`, `resolved_at`, `accepted`
+- `ai-guardrails`
+  - `better_supabase.guardrail_policies`: `id`, `organization_id`, `agent`, `stage`, `config`, `enabled`, `updated_at`
+  - `better_supabase.guardrail_decisions`: `id`, `organization_id`, `agent`, `stage`, `decision`, `reasons`, `chat_id`, `content_hash`, `created_at`
 - `ai-keys`
   - `better_supabase.ai_provider_keys`: `id`, `organization_id`, `provider`, `name`, `credential_ref`
   - `better_supabase.ai_batches`: `id`, `organization_id`, `user_id`, `provider`, `reference`, `status`, `results_saved`, `next_poll_at`, `created_at`; typed: `status`

@@ -4,11 +4,13 @@
     "catalog-ai",
     "vector-search",
     "ai-chat",
+    "ai-evals",
     "ai-files",
     "knowledge",
     "memory",
     "agents",
     "ai-schedules",
+    "ai-guardrails",
     "ai-cache",
     "prompts",
     "ai-keys"

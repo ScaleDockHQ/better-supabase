@@ -10375,6 +10375,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "prompts"
     },
     {
+      "name": "ai-evals",
+      "title": "AI evals",
+      "category": "ai",
+      "requires": [],
+      "integrates": [
+        "ai-chat"
+      ],
+      "manifest": "ai-evals"
+    },
+    {
+      "name": "ai-guardrails",
+      "title": "AI guardrails",
+      "category": "ai",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "ai-guardrails"
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -11062,6 +11083,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "ai-evals",
+      "sql": [
+        "ai-evals"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "aiEvalsBlock",
+        "subpath": "better-supabase/blocks/ai-evals"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
       "name": "ai-files",
       "sql": [
         "ai-files"
@@ -11095,6 +11129,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "NewAiDocument"
         }
       ]
+    },
+    {
+      "name": "ai-guardrails",
+      "sql": [
+        "ai-guardrails"
+      ],
+      "category": "ai",
+      "client": {
+        "export": "aiGuardrailsBlock",
+        "subpath": "better-supabase/blocks/ai-guardrails"
+      },
+      "consumes": {},
+      "provides": [],
+      "events": {
+        "type": "AiGuardrailsEvents",
+        "types": [
+          "guardrail.blocked"
+        ]
+      }
     },
     {
       "name": "ai-keys",

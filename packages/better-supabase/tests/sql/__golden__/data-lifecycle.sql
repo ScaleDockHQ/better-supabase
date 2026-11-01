@@ -1211,7 +1211,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@8 managed
--- @bsb-hash sha256:5ee45f50e8dc1e65ccc2ad820a9c65e057ef6eb122453be9c30682256ea642d0
+-- @bsb-hash sha256:d9f5e250e9d4edf54ba3cbb6504fe4c7568178bccae14def4e4d6fd24871cdbf
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2383,7 +2383,11 @@ as $$
     ('organization', 'better_supabase.care_rules', '"better_supabase"."care_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prompt_versions', '"better_supabase"."prompt_versions"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.prompt_labels', '"better_supabase"."prompt_labels"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.prompt_labels', '"better_supabase"."prompt_labels"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.eval_datasets', '"better_supabase"."eval_datasets"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.eval_runs', '"better_supabase"."eval_runs"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.guardrail_policies', '"better_supabase"."guardrail_policies"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.guardrail_decisions', '"better_supabase"."guardrail_decisions"', 'organization_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 

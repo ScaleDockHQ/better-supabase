@@ -69,6 +69,8 @@ const entries = [
   "blocks/ai-schedules/index",
   "blocks/ai-cache/index",
   "blocks/prompts/index",
+  "blocks/ai-evals/index",
+  "blocks/ai-guardrails/index",
   "blocks/ai-keys/index",
   "blocks/numbering/index",
   "blocks/teams/index",

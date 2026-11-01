@@ -294,6 +294,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
 - 0178: Prompts are versioned templates behind labels, read as the service role.
+- 0182: `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs; ai-chat feedback feeds datasets.
+- 0183: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
 
 ## Pre-release pins
 

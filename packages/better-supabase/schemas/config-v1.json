@@ -1629,7 +1629,9 @@
               "agents",
               "ai-cache",
               "ai-chat",
+              "ai-evals",
               "ai-files",
+              "ai-guardrails",
               "ai-keys",
               "ai-schedules",
               "announcements",
@@ -1735,6 +1737,7 @@
               "posts",
               "profiles",
               "promotions",
+              "prompts",
               "push",
               "qualifications",
               "queue",
@@ -1811,7 +1814,9 @@
                   "agents",
                   "ai-cache",
                   "ai-chat",
+                  "ai-evals",
                   "ai-files",
+                  "ai-guardrails",
                   "ai-keys",
                   "ai-schedules",
                   "announcements",
@@ -1917,6 +1922,7 @@
                   "posts",
                   "profiles",
                   "promotions",
+                  "prompts",
                   "push",
                   "qualifications",
                   "queue",
@@ -2000,8 +2006,14 @@
             "ai-chat": {
               "$ref": "#/$defs/blocks/ai-chat"
             },
+            "ai-evals": {
+              "$ref": "#/$defs/blocks/ai-evals"
+            },
             "ai-files": {
               "$ref": "#/$defs/blocks/ai-files"
+            },
+            "ai-guardrails": {
+              "$ref": "#/$defs/blocks/ai-guardrails"
             },
             "ai-keys": {
               "$ref": "#/$defs/blocks/ai-keys"
@@ -2317,6 +2329,9 @@
             },
             "promotions": {
               "$ref": "#/$defs/blocks/promotions"
+            },
+            "prompts": {
+              "$ref": "#/$defs/blocks/prompts"
             },
             "push": {
               "$ref": "#/$defs/blocks/push"
@@ -3995,6 +4010,21 @@
           }
         }
       },
+      "ai-evals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxItems": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
       "ai-files": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4026,6 +4056,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "ai-guardrails": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retention": {
+                "type": "string"
               }
             }
           }
@@ -6820,6 +6865,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              }
+            }
+          }
+        }
+      },
+      "prompts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBytes": {
+                "type": "number"
               }
             }
           }

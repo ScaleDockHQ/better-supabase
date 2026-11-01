@@ -600,6 +600,16 @@
       "types": "./dist/blocks/prompts/index.d.ts",
       "default": "./dist/blocks/prompts/index.js"
     },
+    "./blocks/ai-evals": {
+      "@better-supabase/source": "./src/blocks/ai-evals/index.ts",
+      "types": "./dist/blocks/ai-evals/index.d.ts",
+      "default": "./dist/blocks/ai-evals/index.js"
+    },
+    "./blocks/ai-guardrails": {
+      "@better-supabase/source": "./src/blocks/ai-guardrails/index.ts",
+      "types": "./dist/blocks/ai-guardrails/index.d.ts",
+      "default": "./dist/blocks/ai-guardrails/index.js"
+    },
     "./blocks/ai-keys": {
       "@better-supabase/source": "./src/blocks/ai-keys/index.ts",
       "types": "./dist/blocks/ai-keys/index.d.ts",
@@ -1693,6 +1703,14 @@
       "./blocks/prompts": {
         "types": "./dist/blocks/prompts/index.d.ts",
         "default": "./dist/blocks/prompts/index.js"
+      },
+      "./blocks/ai-evals": {
+        "types": "./dist/blocks/ai-evals/index.d.ts",
+        "default": "./dist/blocks/ai-evals/index.js"
+      },
+      "./blocks/ai-guardrails": {
+        "types": "./dist/blocks/ai-guardrails/index.d.ts",
+        "default": "./dist/blocks/ai-guardrails/index.js"
       },
       "./blocks/ai-keys": {
         "types": "./dist/blocks/ai-keys/index.d.ts",

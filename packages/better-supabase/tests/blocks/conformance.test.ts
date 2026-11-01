@@ -43,6 +43,10 @@ const NO_FIELDS: readonly string[] = [
   "acknowledgements",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
+  // Datasets, items, runs and results are fixed records the block writes.
+  "ai-evals",
+  // Policies and the decision log are written by the block only.
+  "ai-guardrails",
   // Provider keys and batch jobs the block writes itself.
   "ai-keys",
   // Cycles, appraisals, reviews and calibrations are fixed records; app data

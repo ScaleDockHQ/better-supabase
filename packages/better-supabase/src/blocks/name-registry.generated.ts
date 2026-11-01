@@ -135,6 +135,20 @@ export interface BlockNameRegistry {
     readonly primary: "ai_chat";
     readonly formerKeys: "chat" | "project";
   };
+  readonly "ai-evals": {
+    readonly tables: {
+      readonly "datasets": "id" | "tenant" | "name" | "description" | "createdAt";
+      readonly "items": "id" | "dataset" | "input" | "expected" | "metadata" | "sourceChat" | "sourceMessage" | "createdAt";
+      readonly "runs": "id" | "dataset" | "tenant" | "promptName" | "promptVersion" | "model" | "scorers" | "status" | "summary" | "createdAt" | "finishedAt";
+      readonly "results": "run" | "item" | "output" | "scores" | "passed" | "error" | "latencyMs" | "createdAt";
+    };
+    readonly functions: "add_eval_items" | "add_eval_items_from_feedback" | "compare_eval_runs" | "create_eval_dataset" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_run" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "record_eval_result";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
+  };
   readonly "ai-files": {
     readonly tables: {
       readonly "files": "id" | "tenant" | "owner" | "chat" | "project" | "bucket" | "path" | "mediaType" | "filename" | "size" | "sha256" | "status" | "source" | "createdAt" | "uploadedAt" | "expiresAt";
@@ -150,6 +164,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "ai_document";
     readonly formerKeys: "document";
+  };
+  readonly "ai-guardrails": {
+    readonly tables: {
+      readonly "policies": "id" | "tenant" | "agent" | "stage" | "config" | "enabled" | "updatedAt";
+      readonly "decisions": "id" | "tenant" | "agent" | "stage" | "decision" | "reasons" | "chat" | "contentHash" | "createdAt";
+    };
+    readonly functions: "get_guardrail_policy" | "list_guardrail_decisions" | "purge_guardrail_decisions" | "record_guardrail_decision" | "set_guardrail_policy";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
   };
   readonly "ai-keys": {
     readonly tables: {
