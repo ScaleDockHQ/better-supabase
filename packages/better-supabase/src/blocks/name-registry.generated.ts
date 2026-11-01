@@ -874,6 +874,19 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "e-prescribing": {
+    readonly tables: {
+      readonly "prescriptions": "id" | "tenant" | "order" | "subjectType" | "subjectId" | "prescriber" | "prescriberName" | "status" | "snapshot" | "signedBy" | "signedAt" | "gateway" | "gatewayReference" | "sentAt" | "deliveryError" | "dispensedAt" | "cancelledAt" | "cancelReason" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "cancel_prescription" | "create_prescription" | "get_prescription" | "list_prescriptions" | "prescription_order_snapshot" | "record_prescription_delivery" | "record_prescription_dispense" | "sign_prescription";
+    readonly actions: "read" | "write" | "sign" | "manage";
+    readonly hooks: "before_prescription_sign" | "after_prescription_sign";
+    readonly entities: {
+      readonly "prescription": "id" | "tenant_id" | "order_id" | "subject_type" | "subject_id" | "prescriber_id" | "prescriber_name" | "status" | "snapshot" | "signed_by" | "signed_at" | "gateway" | "gateway_reference" | "sent_at" | "delivery_error" | "dispensed_at" | "cancelled_at" | "cancel_reason" | "created_at" | "updated_at";
+    };
+    readonly primary: "prescription";
+    readonly formerKeys: never;
+  };
   readonly "employees": {
     readonly tables: {
       readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt" | "firstName" | "lastName";
@@ -1264,7 +1277,7 @@ export interface BlockNameRegistry {
       readonly "approvalLevels": "id" | "tenant" | "legalEntity" | "level" | "minAmount" | "currency" | "approver" | "createdAt";
       readonly "approvals": "id" | "tenant" | "invoice" | "level" | "approver" | "comment" | "decidedAt";
     };
-    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_deliveries" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "record_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly functions: "add_invoice_charge" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "hand_over_to_collection" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_deliveries" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_party_credits" | "open_item_ageing" | "open_items_for_party" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "recompute_invoice_totals" | "record_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
@@ -1412,21 +1425,21 @@ export interface BlockNameRegistry {
   };
   readonly "maintenance": {
     readonly tables: {
-      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "rrule" | "dtstart" | "tz" | "requiredQualifications" | "createdBy" | "createdAt" | "updatedAt";
       readonly "parts": "id" | "tenant" | "plan" | "name" | "quantity" | "variant";
       readonly "meters": "id" | "tenant" | "name" | "unit" | "asset" | "reading" | "readAt" | "createdAt";
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
-      readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy";
+      readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_work_order_closed" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
+    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "maintenance_rule_starts" | "maintenance_work_order_closed" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
-      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "created_by" | "created_at" | "updated_at";
+      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "rrule" | "dtstart" | "tz" | "required_qualifications" | "created_by" | "created_at" | "updated_at";
       readonly "maintenance_plan_part": "id" | "tenant_id" | "plan_id" | "name" | "quantity" | "variant_id";
       readonly "maintenance_meter": "id" | "tenant_id" | "name" | "unit" | "asset_id" | "reading" | "read_at" | "created_at";
       readonly "maintenance_meter_reading": "id" | "tenant_id" | "meter_id" | "value" | "read_at" | "read_by";
-      readonly "maintenance_calibration": "id" | "tenant_id" | "asset_id" | "instrument" | "performed_at" | "due_at" | "result" | "reference" | "performed_by";
+      readonly "maintenance_calibration": "id" | "tenant_id" | "asset_id" | "instrument" | "performed_at" | "due_at" | "result" | "reference" | "performed_by" | "qualifications";
     };
     readonly primary: "maintenance_plan";
     readonly formerKeys: never;
@@ -2177,7 +2190,7 @@ export interface BlockNameRegistry {
       readonly "packages": "id" | "tenant" | "shipment" | "position" | "weight" | "length" | "width" | "height" | "reference";
       readonly "trackingEvents": "id" | "tenant" | "shipment" | "externalId" | "status" | "occurredAt" | "description" | "location" | "source" | "createdAt";
       readonly "lines": "id" | "tenant" | "shipment" | "position" | "direction" | "variant" | "location" | "quantity" | "allocation" | "detail" | "disposition" | "movement" | "movedAt" | "createdAt";
-      readonly "intrastatLines": "id" | "tenant" | "period" | "flow" | "source" | "shipmentLine" | "variant" | "tradeCode" | "country" | "netMass" | "quantity" | "value" | "currency" | "createdAt" | "updatedAt";
+      readonly "intrastatLines": "id" | "tenant" | "period" | "flow" | "source" | "shipmentLine" | "receiptLine" | "variant" | "tradeCode" | "country" | "netMass" | "quantity" | "value" | "currency" | "createdAt" | "updatedAt";
     };
     readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "receive_shipment_return" | "record_tracking_events" | "set_shipment_label" | "set_shipment_lines";
     readonly actions: "read" | "manage";

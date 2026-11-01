@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:fb5243ff24bad86b6bf10af7373a881aa659dfd3905a990de18b373b064da7a8
+-- @bsb-hash sha256:dec268ad9c9b236514766b93985c7569f1fc79cf4e1f9957143604d6d5783b81
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2714,7 +2714,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -2763,7 +2763,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop
@@ -3499,7 +3499,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:3c361d301ee332394c0e64fc29f2ef6002d6587cc33e695210e538d32842b158
+-- @bsb-hash sha256:3da75b1ca436ff8dc42854a672f06fd6927a9b8fcd1da5a85878d00ddb7408fa
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6243,7 +6243,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -6292,7 +6292,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop
@@ -7072,7 +7072,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:a334bec5eedf03b8869e44a33d8633420d1c0702be532a4489af6ef01e969124
+-- @bsb-hash sha256:6dceb9c5a29bd88cf51b3c97efbc92a8d9068a5f019c25c37ab2338514b20dda
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9790,7 +9790,7 @@ grant execute on function "app_private"."place_purchase_order"(uuid) to authenti
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -9839,7 +9839,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "app_private"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop
@@ -10575,7 +10575,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:a47d55e8ab491b889e28d018b6493a8956686bf72f7349294de2f59c4fca0ace
+-- @bsb-hash sha256:1225996ff9eb95b2e63fff7cf3c583a135bc62cd79bb54c8be505a056d10e0e0
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13288,7 +13288,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -13337,7 +13337,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop
@@ -14470,7 +14470,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:ebf1fbe345f8fd8493e446e220c41da080886ca1bc38be9265b75f0fa5f6f2d5
+-- @bsb-hash sha256:7e46db9d24a50a4914b76001a7c8a7434d1a28492e0e9696e43de24116e274a8
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17142,7 +17142,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -17191,7 +17191,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop
@@ -17927,7 +17927,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:772b9681bc83dbb40a177b6c1c105fcd9d1e148a4f34d19d3e1a214f5bd0c474
+-- @bsb-hash sha256:f0506e3f464f5c9ef14d69f7ce1e6214b67a88f46788d68c31707c4924165d56
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20640,7 +20640,7 @@ grant execute on function "better_supabase"."place_purchase_order"(uuid) to auth
 
 -- Receives some or all of a placed order's lines into stock.
 -- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
--- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- "lotId"?, "binId"?, "serials"?, "country"?, "netMassKg"? }]; the line's unit cost feeds the
 -- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder, plus receiptId: the goods receipt of
@@ -20689,7 +20689,7 @@ begin
   for v_line in
     select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
-      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = receive_purchase_order.purchase_order
   loop

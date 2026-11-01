@@ -92,6 +92,7 @@
   "blocks/donations",
   "blocks/drive",
   "blocks/drive-documents",
+  "blocks/e-prescribing",
   "blocks/employees",
   "blocks/enrichment",
   "blocks/enrollments",

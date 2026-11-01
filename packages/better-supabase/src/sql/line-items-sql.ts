@@ -863,7 +863,12 @@ export function documentTotals(
 function documentRecountSql(
   ctx: BlockSqlContext,
   items: LineItems,
-  options: { readonly setter: string; readonly recount: string },
+  options: {
+    readonly setter: string;
+    readonly recount: string;
+    /** The function that returns the recount without writing it. */
+    readonly values?: string;
+  },
 ): string {
   const t = ctx.table(items.lines);
   const p = ctx.table(items.parent);
@@ -946,19 +951,7 @@ function documentRecountSql(
   select v_tenant, ${parent}, r.rate${taxValue("taxCode", "r.code")}, r.net, r.tax, r.gross${taxValue("discount", "r.discount")}
   from jsonb_to_recordset(v_groups) r(rate integer, code text, net bigint, tax bigint, gross bigint, discount bigint);`;
 
-  return `
--- Writes a record's totals from its counted lines: an optional line counts
--- only when the customer took it. The record discount is spread over the tax
--- rates in proportion to their amounts, and tax is counted once per rate, so
--- the totals and the tax per rate always add up.
-create or replace function ${options.recount}(parent uuid)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
+  const declarations = `  v_tenant ${ctx.idType};
   v_inclusive boolean;
   v_record_bps integer;
   v_record_amount bigint;
@@ -972,8 +965,9 @@ declare
   v_subtotal bigint;
   v_tax bigint;
   v_total bigint;
-begin
-  select x.${pc("tenant")}, ${recordValue("pricesIncludeTax", "false")}, ${recordValue("discountBps", "0")}, ${recordValue("discountAmount", "0")}, ${items.creditRestriction === undefined ? "0" : items.creditRestriction("x")}
+`;
+
+  const computed = `  select x.${pc("tenant")}, ${recordValue("pricesIncludeTax", "false")}, ${recordValue("discountBps", "0")}, ${recordValue("discountAmount", "0")}, ${items.creditRestriction === undefined ? "0" : items.creditRestriction("x")}
     into v_tenant, v_inclusive, v_record_bps, v_record_amount, v_restriction
   from ${p} x where x.${pc("id")} = ${parent};
   select coalesce(sum(${amount}), 0), coalesce(sum(${discount}), 0)
@@ -1015,10 +1009,79 @@ begin
   select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
     into v_subtotal, v_tax, v_total
   from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
-  v_discount := v_line_discount + v_record_discount;${writeTaxLines}
+`;
+
+  const writeSql = `  v_discount := v_line_discount + v_record_discount;${writeTaxLines}
   update ${p} x set
     ${totalsSet}${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
-  where x.${pc("id")} = ${parent};
+  where x.${pc("id")} = ${parent};`;
+
+  if (options.values === undefined) {
+    return `
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
+create or replace function ${options.recount}(parent uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+${declarations}begin
+${computed}${writeSql}
+end;
+$$;
+revoke execute on function ${options.recount}(uuid) from public, anon, authenticated;
+`;
+  }
+
+  // The recount of a record without writing it, for a repair that compares it
+  // with the stored totals; the recount itself runs on its result.
+  return `
+-- The totals a record's counted lines give, as jsonb: tenant, list, discount,
+-- subtotal, tax, total and the groups per rate. Writes nothing.
+create or replace function ${options.values}(parent uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+${declarations}begin
+${computed.replaceAll(parent, `${options.values.split(".").pop()?.replaceAll('"', "")}.parent`)}  v_discount := v_line_discount + v_record_discount;
+  return jsonb_build_object('tenant', v_tenant, 'list', v_list, 'discount', v_discount, 'subtotal', v_subtotal, 'tax', v_tax, 'total', v_total, 'groups', v_groups);
+end;
+$$;
+revoke execute on function ${options.values}(uuid) from public, anon, authenticated;
+
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
+create or replace function ${options.recount}(parent uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+${declarations}  v_values jsonb;
+begin
+  v_values := ${options.values}(${parent});
+  if v_values is null then
+    return;
+  end if;
+  v_tenant := (v_values ->> 'tenant')::${ctx.idType};
+  v_list := (v_values ->> 'list')::bigint;
+  v_discount := (v_values ->> 'discount')::bigint;
+  v_subtotal := (v_values ->> 'subtotal')::bigint;
+  v_tax := (v_values ->> 'tax')::bigint;
+  v_total := (v_values ->> 'total')::bigint;
+  v_groups := v_values -> 'groups';
+${writeSql}
 end;
 $$;
 revoke execute on function ${options.recount}(uuid) from public, anon, authenticated;

@@ -73,6 +73,7 @@ import {
   openItemContract,
 } from "./invoices-open-items.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
+import { repairContract } from "./invoices-repair.ts";
 import {
   LINE_SOURCES_TABLE,
   lineSourcesTableSql,
@@ -116,6 +117,18 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
   "invoice.uncollected": {
     subject: "invoices",
     payload: [...INVOICE, "balance"],
+  },
+  "invoice.totals_corrected": {
+    subject: "invoices",
+    payload: [
+      ...INVOICE,
+      "currency",
+      "oldTotal",
+      "newTotal",
+      "oldTaxTotal",
+      "newTaxTotal",
+      "needsCorrectingEntry",
+    ],
   },
   "invoice.charged": {
     subject: "invoices",
@@ -179,6 +192,7 @@ const NAMES: BlockSqlNames = {
     "purchasePrefix",
     "purchaseCreditPrefix",
     "matchTolerance",
+    "correctionEvents",
   ],
   tables: {
     invoices: {
@@ -758,6 +772,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...sourceContract(ctx),
     ...deliveryContract(ctx),
     ...approvalContract(ctx),
+    ...repairContract(ctx),
   ];
 }
 

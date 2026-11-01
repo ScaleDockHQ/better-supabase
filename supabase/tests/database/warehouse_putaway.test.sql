@@ -1,4 +1,4 @@
--- Putaway, slotting and pick routes (ADR 0177). The Acme admin (…a1) sets up
+-- Putaway, slotting and pick routes (ADR 0179). The Acme admin (…a1) sets up
 -- bins with walk ranks and capacities, a rule for one variant and a variant
 -- size, asks where a receipt's stock goes, picks stock in a far bin and asks
 -- where it should live, orders a pick list and completes it so that its work

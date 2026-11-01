@@ -9265,7 +9265,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "assets",
         "inventory",
         "outbox",
-        "audit"
+        "audit",
+        "qualifications"
       ],
       "manifest": "maintenance",
       "scopes": [
@@ -9320,6 +9321,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "lastDoneValue": "last_done_value",
               "nextDueAt": "next_due_at",
               "workOrder": "work_order_id",
+              "rrule": "rrule",
+              "dtstart": "dtstart",
+              "tz": "tz",
+              "requiredQualifications": "required_qualifications",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -9371,7 +9376,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dueAt": "due_at",
               "result": "result",
               "reference": "reference",
-              "performedBy": "performed_by"
+              "performedBy": "performed_by",
+              "qualifications": "qualifications"
             }
           }
         },
@@ -10411,6 +10417,67 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "clinical_decision_support.read",
           "write": "clinical_decision_support.write",
           "manage": "clinical_decision_support.manage"
+        }
+      }
+    },
+    {
+      "name": "e-prescribing",
+      "title": "E-prescribing",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "medications"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "e-prescribing",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "prescription": {
+            "table": "prescriptions",
+            "singular": "prescription",
+            "primary": true
+          }
+        },
+        "tables": {
+          "prescriptions": {
+            "name": "prescriptions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "order": "order_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "prescriber": "prescriber_id",
+              "prescriberName": "prescriber_name",
+              "status": "status",
+              "snapshot": "snapshot",
+              "signedBy": "signed_by",
+              "signedAt": "signed_at",
+              "gateway": "gateway",
+              "gatewayReference": "gateway_reference",
+              "sentAt": "sent_at",
+              "deliveryError": "delivery_error",
+              "dispensedAt": "dispensed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "e_prescribing.read",
+          "write": "e_prescribing.write",
+          "sign": "e_prescribing.sign",
+          "manage": "e_prescribing.manage"
         }
       }
     },
@@ -20818,7 +20885,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "enum",
                 "values": [
                   "time",
-                  "meter"
+                  "meter",
+                  "rrule"
                 ]
               },
               "everyDays": {
@@ -20835,6 +20903,28 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "description": "A meter plan falls due this many units after the last one."
+              },
+              "rrule": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 500,
+                "description": "An rrule plan's RFC 5545 rule, for example `FREQ=MONTHLY;BYDAY=1MO`."
+              },
+              "dtstart": {
+                "kind": "instant",
+                "optional": true,
+                "description": "An rrule plan's first occurrence."
+              },
+              "tz": {
+                "kind": "string",
+                "optional": true,
+                "description": "The IANA time zone of the rule. Default UTC."
+              },
+              "requiredQualifications": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "description": "Qualification type keys the technician of the work order must hold."
               },
               "assetId": {
                 "kind": "uuid",
@@ -20872,7 +20962,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "enum": [
                     "time",
-                    "meter"
+                    "meter",
+                    "rrule"
                   ]
                 },
                 "everyDays": {
@@ -20887,6 +20978,27 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "everyValue": {
                   "type": "string",
                   "description": "A meter plan falls due this many units after the last one."
+                },
+                "rrule": {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "An rrule plan's RFC 5545 rule, for example `FREQ=MONTHLY;BYDAY=1MO`."
+                },
+                "dtstart": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "An rrule plan's first occurrence."
+                },
+                "tz": {
+                  "type": "string",
+                  "description": "The IANA time zone of the rule. Default UTC."
+                },
+                "requiredQualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Qualification type keys the technician of the work order must hold."
                 },
                 "assetId": {
                   "type": [
@@ -20952,6 +21064,12 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true,
                 "maxLength": 200
+              },
+              "qualifications": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "description": "Qualification type keys the signed-in person must hold on performedAt."
               }
             },
             "jsonSchema": {
@@ -20994,6 +21112,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "null"
                   ],
                   "maxLength": 200
+                },
+                "qualifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Qualification type keys the signed-in person must hold on performedAt."
                 }
               },
               "required": [
@@ -21607,6 +21732,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "BinSlot"
+        },
+        {
+          "name": "BinSlotInput"
+        },
+        {
           "name": "CountPlan"
         },
         {
@@ -21653,6 +21784,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PickWaveStatus"
+        },
+        {
+          "name": "PutawayRule"
+        },
+        {
+          "name": "PutawayRuleInput"
         }
       ],
       "entitySchemas": {
@@ -22407,6 +22544,59 @@ export const PRESET_CATALOG: PresetCatalog = {
           "care_rule.created",
           "care_rule.updated",
           "care_rule.deleted"
+        ]
+      }
+    },
+    {
+      "name": "e-prescribing",
+      "sql": [
+        "e-prescribing"
+      ],
+      "category": "people",
+      "client": {
+        "export": "ePrescribingBlock",
+        "subpath": "better-supabase/blocks/e-prescribing"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Prescription"
+        },
+        {
+          "name": "PrescriptionCancellation"
+        },
+        {
+          "name": "PrescriptionDelivery"
+        },
+        {
+          "name": "PrescriptionEventData"
+        },
+        {
+          "name": "PrescriptionGateway"
+        },
+        {
+          "name": "PrescriptionListOptions"
+        },
+        {
+          "name": "PrescriptionReceipt"
+        },
+        {
+          "name": "PrescriptionRequest"
+        },
+        {
+          "name": "PrescriptionStatus"
+        }
+      ],
+      "events": {
+        "type": "EPrescribingEvents",
+        "types": [
+          "prescription.created",
+          "prescription.signed",
+          "prescription.sent",
+          "prescription.delivery_failed",
+          "prescription.dispensed",
+          "prescription.cancelled"
         ]
       }
     },
@@ -26570,6 +26760,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceStatus"
         },
         {
+          "name": "InvoiceTotalsCorrection"
+        },
+        {
+          "name": "InvoiceTotalsRepair"
+        },
+        {
+          "name": "InvoiceTotalsSnapshot"
+        },
+        {
           "name": "InvoiceWarning"
         },
         {
@@ -26592,6 +26791,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.voided",
           "invoice.uncollected",
           "invoice.charged",
+          "invoice.totals_corrected",
           "invoice.charge_removed",
           "invoice.payment_reversed",
           "invoice.match_checked",

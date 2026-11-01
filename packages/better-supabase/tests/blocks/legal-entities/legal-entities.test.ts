@@ -299,3 +299,118 @@ describe("legalEntitiesBlock", () => {
     expect(validate({ code: 5 }).issues).toBeDefined();
   });
 });
+
+describe("LegalEntities.disableCheck", () => {
+  it("reports the numbers that stop a kind from going back to one series", async () => {
+    const t = fieldsTransport({
+      legal_entities_disable_check: () => ({
+        ok: false,
+        collisions: [
+          {
+            kind: "invoices",
+            column: "number",
+            value: "1",
+            documents: 2,
+            legalEntityIds: ["le1", "le2"],
+          },
+        ],
+        defaultCollisions: [],
+      }),
+    });
+
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+    const check = await entities.disableCheck().orThrow();
+
+    expect(check.ok).toBe(false);
+    expect(check.collisions).toEqual([
+      {
+        kind: "invoices",
+        column: "number",
+        value: "1",
+        documents: 2,
+        legalEntityIds: ["le1", "le2"],
+      },
+    ]);
+    expect(check.defaultCollisions).toEqual([]);
+    expect(t.calls[0]).toEqual([
+      "legal_entities_disable_check",
+      { tenant: "org-1" },
+    ]);
+  });
+
+  it("passes a clean answer and entries without entity ids", async () => {
+    const t = fieldsTransport({
+      legal_entities_disable_check: () => ({
+        ok: true,
+        collisions: [],
+        defaultCollisions: [
+          { kind: "quotes", column: "number", value: "7", documents: 2 },
+        ],
+      }),
+    });
+
+    const check = await createLegalEntities({ transport: t, tenant: "org-1" })
+      .disableCheck()
+      .orThrow();
+
+    expect(check.ok).toBe(true);
+    expect(check.defaultCollisions).toEqual([
+      { kind: "quotes", column: "number", value: "7", documents: 2 },
+    ]);
+  });
+});
+
+describe("createLegalEntities with every field", () => {
+  it("sends the address, numbers and logo, and null for the rest", async () => {
+    const t = fieldsTransport({ create_legal_entity: () => ENTITY });
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+
+    await entities.create({ code: "NL01", name: "Acme" }).orThrow();
+    await entities
+      .create({
+        code: "NL02",
+        name: "Beta",
+        address: { city: "Utrecht" },
+        vatNumber: "NL1",
+        cocNumber: "123",
+        iban: "NL91",
+        bic: "ABNANL2A",
+        logoAttachmentId: "att1",
+      })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      address: null,
+      vat_number: null,
+      coc_number: null,
+      bic: null,
+      logo_attachment_id: null,
+    });
+    expect(t.calls[1]?.[1]).toMatchObject({
+      vat_number: "NL1",
+      coc_number: "123",
+      bic: "ABNANL2A",
+      logo_attachment_id: "att1",
+    });
+  });
+});
+
+describe("createLegalEntities with a logger", () => {
+  it("wraps the client in hooks and keeps the logger", async () => {
+    const t = fieldsTransport({
+      legal_entities_disable_check: () => ({
+        ok: true,
+        collisions: [],
+        defaultCollisions: [],
+      }),
+    });
+
+    const entities = createLegalEntities({
+      transport: t,
+      tenant: "org-1",
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+
+    expect((await entities.disableCheck().orThrow()).ok).toBe(true);
+  });
+});

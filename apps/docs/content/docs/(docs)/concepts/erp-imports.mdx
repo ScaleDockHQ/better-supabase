@@ -49,7 +49,10 @@ imports without duplicate contacts or documents
 When `options.on` of the legal entities block lists invoices, quotes or orders,
 their numbers are unique per legal entity, so two entities can both hold
 `INV-0001`. With the option off, numbers stay unique per organization
-(`erp_import_03_cloned_administrations`).
+(`erp_import_03_cloned_administrations`). A document without an entity and a
+document of the default entity are one series: they can't hold the same number
+(`LEGAL_ENTITY_NUMBER_TAKEN`), also with a fixed import number
+(`erp_known_gaps_01_entity_numbers`).
 
 ## 4. Numbering
 
@@ -97,7 +100,12 @@ See [Custom fields](/docs/blocks/custom-fields).
 
 ## Known gaps
 
-- Intrastat arrival lines are manual, and the Intrastat functions are exposed to
-  an API schema only when you list them in `blocks.shipments.api.functions`.
+- Intrastat arrival lines come from purchase receipts that name a member state
+  (`country` on the receipt line); a manual line for the same variant and
+  country wins. See [Shipments](/docs/blocks/shipments#intrastat).
+- Invoices issued before the credit restriction followed the header total keep
+  their stored totals until you run `invoices.recomputeTotals` (a dry run by
+  default). A booked invoice is reported as needing a correcting entry, never
+  changed in the ledger. See [Invoices](/docs/blocks/invoices#repair-stored-totals).
 - Order payments are `payments` rows, so import them through the payments
   entity of the source.
