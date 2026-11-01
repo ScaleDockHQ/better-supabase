@@ -464,7 +464,10 @@ export default defineConfig({
     inspections: { options: { calendar: "Audits" } },
     // Meetings with an agenda, minutes, votes on decisions and action items
     // that open as tasks; planned meetings mirror to the "Meetings" calendar.
-    meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
+    meetings: {
+      options: { calendar: "Meetings", extraColumns: { room_code: "text" } },
+      uses: { tasks: "tasks" },
+    },
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
     maintenance: {},

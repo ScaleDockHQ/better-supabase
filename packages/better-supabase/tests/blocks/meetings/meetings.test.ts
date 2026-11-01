@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -31,6 +32,8 @@ const DECISION = {
   status: "proposed",
   createdAt: AT,
 };
+
+const Fields = v.object({ room_code: v.optional(v.string()) });
 
 const validate = (
   schema: { "~standard": { validate: (value: unknown) => unknown } },
@@ -77,6 +80,62 @@ describe("createMeetings", () => {
       ["start_meeting", { meeting_id: "m1" }],
       ["hold_meeting", { meeting_id: "m1", summary: "Done" }],
     ]);
+  });
+
+  it("validates, sends and parses custom fields", async () => {
+    const t = fieldsTransport({
+      create_meeting: () => ({ ...MEETING, fields: { room_code: "B-12" } }),
+      update_meeting: () => ({ ...MEETING, fields: { room_code: "C-3" } }),
+      get_meeting: () => ({ ...MEETING, fields: { room_code: 7 } }),
+      list_meetings: () => [{ ...MEETING, fields: { room_code: "B-12" } }],
+    });
+
+    const meetings = createMeetings({
+      transport: t,
+      tenant: "org-1",
+      fields: Fields,
+    });
+
+    const created = await meetings
+      .create({
+        title: "Quarterly board",
+        startsAt: temporal().Instant.from(AT),
+        fields: { room_code: "B-12" },
+      })
+      .orThrow();
+
+    const updated = await meetings
+      .update("m1", { fields: { room_code: "C-3" } })
+      .orThrow();
+
+    const refused = await meetings.update("m1", {
+      // SAFETY: a value the schema refuses, to prove the client checks it.
+      fields: { room_code: 1 } as unknown as { room_code: string },
+    });
+
+    const listed = await meetings.list().orThrow();
+
+    expect(created.fields.room_code).toBe("B-12");
+    expect(updated.fields.room_code).toBe("C-3");
+    expect(refused.ok).toBe(false);
+    expect(listed[0]?.fields.room_code).toBe("B-12");
+    expect((await meetings.get("m1")).ok).toBe(false);
+    expect(t.calls[0]).toEqual([
+      "create_meeting",
+      {
+        tenant: "org-1",
+        input: {
+          title: "Quarterly board",
+          startsAt: "2026-10-29T10:00:00Z",
+          fields: { room_code: "B-12" },
+        },
+      },
+    ]);
+    expect(t.calls[1]).toEqual([
+      "update_meeting",
+      { meeting_id: "m1", changes: { fields: { room_code: "C-3" } } },
+    ]);
+    expect(t.calls.filter(([fn]) => fn === "update_meeting")).toHaveLength(1);
   });
 
   it("records a decision and lets the votes decide it", async () => {

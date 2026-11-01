@@ -1,8 +1,15 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -40,8 +47,8 @@ export type MeetingAgendaStatus = (typeof MEETING_AGENDA_STATUSES)[number];
 /** Where a decision stands. */
 export type MeetingDecisionStatus = (typeof MEETING_DECISION_STATUSES)[number];
 
-/** A meeting. */
-export interface Meeting {
+/** A meeting. `F` types the extra columns. */
+export interface Meeting<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   /** One of `options.kinds`. */
@@ -57,6 +64,8 @@ export interface Meeting {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 /** Who is invited to a meeting. */
@@ -118,14 +127,16 @@ export interface MeetingActionItem {
 }
 
 /** A meeting with its attendees, agenda, decisions and action items. */
-export interface MeetingDetail extends Meeting {
+export interface MeetingDetail<
+  F extends object = Record<never, never>,
+> extends Meeting<F> {
   readonly attendees: readonly MeetingAttendee[];
   readonly agenda: readonly MeetingAgendaItem[];
   readonly decisions: readonly MeetingDecision[];
   readonly actionItems: readonly MeetingActionItem[];
 }
 
-export interface MeetingInput {
+export interface MeetingInput<F extends object = Record<never, never>> {
   /** One of `options.kinds`. Default: the first one. */
   readonly kind?: string;
   readonly title: string;
@@ -144,11 +155,13 @@ export interface MeetingInput {
     readonly notes?: string | null;
     readonly presenterId?: string | null;
   }[];
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 /** What `update` changes; keys left out keep their value. */
-export type MeetingChange = Partial<
-  Omit<MeetingInput, "attendees" | "agenda"> & {
+export type MeetingChange<F extends object = Record<never, never>> = Partial<
+  Omit<MeetingInput<F>, "attendees" | "agenda"> & {
     readonly summary: string | null;
   }
 >;
@@ -198,20 +211,20 @@ export interface MeetingListOptions {
   readonly offset?: number;
 }
 
-export interface Meetings {
+export interface Meetings<F extends object = Record<never, never>> {
   /** Plans a meeting; needs `meetings.write`. */
-  create(input: MeetingInput): AsyncResult<Meeting>;
+  create(input: MeetingInput<F>): AsyncResult<Meeting<F>>;
   /**
    * Changes a meeting, as its creator, chair or secretary or with
    * `meetings.manage`.
    */
-  update(meetingId: string, change: MeetingChange): AsyncResult<Meeting>;
-  start(meetingId: string): AsyncResult<Meeting>;
+  update(meetingId: string, change: MeetingChange<F>): AsyncResult<Meeting<F>>;
+  start(meetingId: string): AsyncResult<Meeting<F>>;
   /** Closes the meeting as held, with an optional summary. */
-  hold(meetingId: string, summary?: string): AsyncResult<Meeting>;
-  cancel(meetingId: string, reason?: string): AsyncResult<Meeting>;
+  hold(meetingId: string, summary?: string): AsyncResult<Meeting<F>>;
+  cancel(meetingId: string, reason?: string): AsyncResult<Meeting<F>>;
   /** Deletes a planned or cancelled meeting. */
-  delete(meetingId: string): AsyncResult<Meeting>;
+  delete(meetingId: string): AsyncResult<Meeting<F>>;
   /** Invites a user or changes their role or attendance. */
   setAttendee(
     meetingId: string,
@@ -249,14 +262,22 @@ export interface Meetings {
     meetingId: string,
     input: MeetingActionItemInput,
   ): AsyncResult<Readonly<Record<string, unknown>>>;
-  get(meetingId: string): AsyncResult<MeetingDetail>;
-  list(options?: MeetingListOptions): AsyncResult<readonly Meeting[]>;
+  get(meetingId: string): AsyncResult<MeetingDetail<F>>;
+  list(options?: MeetingListOptions): AsyncResult<readonly Meeting<F>[]>;
 }
 
 /** Options for {@link createMeetings}. */
-export interface MeetingsOptions extends BlockOptions {
+export interface MeetingsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
+  /**
+   * A Standard Schema for the meeting's extra columns
+   * (`blocks.meetings.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create` and `update`.
+   */
+  readonly fields?: S;
   /** `before` and `after` hooks per method (ADR 0015). */
-  readonly hooks?: NoInfer<BlockHooks<Meetings>>;
+  readonly hooks?: NoInfer<BlockHooks<Meetings<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -299,6 +320,7 @@ function meetingOf(value: unknown, fn: string): Meeting {
     ...optional("heldAt", optionalInstant(row["heldAt"])),
     ...optional("summary", optionalText(row["summary"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -404,14 +426,16 @@ function detailOf(value: unknown, fn: string): MeetingDetail {
   };
 }
 
-/** The `create_meeting` and `update_meeting` input. */
+/** The `create_meeting` and `update_meeting` input, with checked fields. */
 function meetingArgs(
-  input: Partial<MeetingInput> & { readonly summary?: string | null },
+  input: Partial<MeetingInput<object>> & { readonly summary?: string | null },
+  checked: Readonly<Record<string, unknown>> | undefined,
 ): Record<string, unknown> {
   return definedOf({
     ...input,
     startsAt: instantArg(input.startsAt),
     endsAt: instantArg(input.endsAt),
+    fields: checked,
   });
 }
 
@@ -419,46 +443,69 @@ function meetingArgs(
  * Meetings: an agenda with minutes, attendees with roles, decisions the
  * attendees vote on, and action items that become tasks.
  */
-export function createMeetings(options: MeetingsOptions): Meetings {
+export function createMeetings<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: MeetingsOptions<S>): Meetings<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
+  const fields: BlockFields<F> = blockFields(options.fields, "meeting fields");
+
   const one = (fn: string) => (value: unknown) => meetingOf(value, fn);
   const decision = (fn: string) => (value: unknown) => decisionOf(value, fn);
   const attendee = (fn: string) => (value: unknown) => attendeeOf(value, fn);
   const agendaItem = (fn: string) => (value: unknown) => agendaOf(value, fn);
 
-  const client: Meetings = {
+  const client: Meetings<F> = {
     create: (input) =>
       tenant().andThen((organizationId) =>
-        call(
-          "create_meeting",
-          { tenant: organizationId, input: meetingArgs(input) },
-          one("create_meeting"),
-        ),
+        fields
+          .args(input.fields)
+          .andThen((checked) =>
+            call(
+              "create_meeting",
+              { tenant: organizationId, input: meetingArgs(input, checked) },
+              one("create_meeting"),
+            ).andThen(fields.row),
+          ),
       ),
     update: (meetingId, change) =>
-      call(
-        "update_meeting",
-        { meeting_id: meetingId, changes: meetingArgs(change) },
-        one("update_meeting"),
-      ),
+      fields
+        .args(change.fields)
+        .andThen((checked) =>
+          call(
+            "update_meeting",
+            { meeting_id: meetingId, changes: meetingArgs(change, checked) },
+            one("update_meeting"),
+          ).andThen(fields.row),
+        ),
     start: (meetingId) =>
-      call("start_meeting", { meeting_id: meetingId }, one("start_meeting")),
+      call(
+        "start_meeting",
+        { meeting_id: meetingId },
+        one("start_meeting"),
+      ).andThen(fields.row),
     hold: (meetingId, summary) =>
       call(
         "hold_meeting",
         { meeting_id: meetingId, summary: summary ?? null },
         one("hold_meeting"),
-      ),
+      ).andThen(fields.row),
     cancel: (meetingId, reason) =>
       call(
         "cancel_meeting",
         { meeting_id: meetingId, reason: reason ?? null },
         one("cancel_meeting"),
-      ),
+      ).andThen(fields.row),
     delete: (meetingId) =>
-      call("delete_meeting", { meeting_id: meetingId }, one("delete_meeting")),
+      call(
+        "delete_meeting",
+        { meeting_id: meetingId },
+        one("delete_meeting"),
+      ).andThen(fields.row),
     setAttendee: (meetingId, userId, change = {}) =>
       call(
         "set_meeting_attendee",
@@ -515,7 +562,7 @@ export function createMeetings(options: MeetingsOptions): Meetings {
     get: (meetingId) =>
       call("get_meeting", { meeting_id: meetingId }, (value) =>
         detailOf(value, "get_meeting"),
-      ),
+      ).andThen(fields.row),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -537,7 +584,7 @@ export function createMeetings(options: MeetingsOptions): Meetings {
             recordsOf(value, "list_meetings").map((row) =>
               meetingOf(row, "list_meetings"),
             ),
-        ),
+        ).andThen(fields.rows),
       ),
   };
 

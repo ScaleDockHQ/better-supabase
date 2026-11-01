@@ -127,9 +127,6 @@ const NO_FIELDS: readonly string[] = [
   // Plans, meters and calibrations are fixed records; app data goes on the
   // dispatch work orders and the assets.
   "maintenance",
-  // Meetings, attendees, agendas and decisions are fixed records; app data
-  // goes on the linked tasks and documents.
-  "meetings",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.
