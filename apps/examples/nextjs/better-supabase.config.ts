@@ -208,7 +208,7 @@ export default defineConfig({
     sequences: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
-    usage: {},
+    usage: { options: { history: true } },
     // Cmd+K over customers, and the customers card on the dashboard.
     search: {},
     metrics: { options: { metrics } },

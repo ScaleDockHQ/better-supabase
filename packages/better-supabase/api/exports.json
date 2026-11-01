@@ -3734,6 +3734,7 @@
       "StripeSource",
       "Usage",
       "UsageBatchRecorded",
+      "UsageBilled",
       "UsageBreakdownEntry",
       "UsageEntry",
       "UsageHistoryEntry",

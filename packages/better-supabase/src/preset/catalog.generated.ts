@@ -516,7 +516,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "entitlements",
-        "data-lifecycle"
+        "data-lifecycle",
+        "invoices"
       ],
       "manifest": "usage",
       "scopes": [

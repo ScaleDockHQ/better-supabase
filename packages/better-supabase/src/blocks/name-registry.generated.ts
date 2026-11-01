@@ -2442,6 +2442,8 @@ export interface BlockNameRegistry {
       readonly "events": "tenant" | "meter" | "key" | "quantity" | "recordedAt";
       readonly "history": "id" | "tenant" | "meter" | "quantity" | "actor" | "source" | "metadata" | "recordedAt";
       readonly "distinct": "tenant" | "meter" | "periodStart" | "subject" | "firstSeen";
+      readonly "prices": "meter" | "currency" | "unitAmount" | "included" | "label";
+      readonly "billed": "tenant" | "periodStart" | "periodEnd" | "invoice" | "billedAt";
       readonly "quotas": "id" | "tenant" | "plan" | "meter" | "limit" | "period" | "createdAt";
     };
     readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";

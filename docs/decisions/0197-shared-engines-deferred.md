@@ -92,3 +92,25 @@ Deferred, with the reason:
   transition tables for the outbox and metrics rollups: both change the
   delivery contract of the outbox and need their own change with an
   integration test against the stack.
+||||||| 53705a3ce
+
+
+## Deferred: money engine (feat/engine-money)
+
+Shipped: usage to invoice. `usage.billPeriod` and `usage.setPrice` (SQL
+`bill_usage_period` and `set_usage_price` in the `usage` module) rate
+`usage_history` by a per-meter price table into a draft invoice, once per tenant and period.
+
+Not shipped, each needing its own change because it touches several blocks, a public API and
+migrations that must be reviewed together:
+
+- Native subscription rows in `billing` with `prorate_change()` posting to `ledger`. The `billing`
+  block adopts the app's Stripe-synced `subscriptions` table today, so native rows need an
+  ownership decision first.
+- `saas.billPeriod`. The `saas` composite has no `usage` or `invoices` part, so the helper stays
+  on the `usage` client until the composite lists them.
+- Notification digest (`notification_preferences`, `digest_run`) through the `mailer` port.
+- The consent gate (`requires_consent`) and `consents.purposes` contributions.
+- Revenue recognition schedules and `post_recognition(period_end)`, which wait for the period
+  engine.
+- The `commissions` and `referrals` blocks.
