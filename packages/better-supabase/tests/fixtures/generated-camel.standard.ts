@@ -806,6 +806,20 @@ export const organizationMembersArgs: TableSchema<{ organization: string }> = ta
   },
 });
 
+export const rsFinanceOverviewArgs: TableSchema<{ p: Json }> = tableSchema({
+  title: "rs_finance_overview arguments",
+  fields: {
+    p: {"kind":"json"},
+  },
+});
+
+export const rsPipelineOverviewArgs: TableSchema<{ p: Json }> = tableSchema({
+  title: "rs_pipeline_overview arguments",
+  fields: {
+    p: {"kind":"json"},
+  },
+});
+
 export const rsWorkspaceSummaryArgs: TableSchema<{ p: Json }> = tableSchema({
   title: "rs_workspace_summary arguments",
   fields: {

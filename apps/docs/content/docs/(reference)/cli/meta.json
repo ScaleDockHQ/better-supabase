@@ -17,6 +17,7 @@
     "agent-mode",
     "mcp",
     "completion",
+    "login",
     "errors",
     "---Config---",
     "config"

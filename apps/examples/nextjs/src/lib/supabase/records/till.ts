@@ -5,8 +5,10 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
+import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { donationsBlock } from "better-supabase/blocks/donations";
+import { driveBlock } from "better-supabase/blocks/drive";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { leasesBlock } from "better-supabase/blocks/leases";
@@ -14,10 +16,12 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { passesBlock } from "better-supabase/blocks/passes";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
+import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
+import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { tasksBlock } from "better-supabase/blocks/tasks";
@@ -34,6 +38,7 @@ export const tillRecord = defineRecordType({
   blocks: {
     attachments: attachmentsBlock,
     comments: commentsBlock,
+    customFields: customFieldsBlock,
     ledger: ledgerBlock,
     assets: assetsBlock,
     scores: scoresBlock,
@@ -47,6 +52,9 @@ export const tillRecord = defineRecordType({
     dispatch: dispatchBlock,
     shipments: shipmentsBlock,
     contracts: contractsBlock,
+    drive: driveBlock,
+    signatures: signaturesBlock,
+    reactions: reactionsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

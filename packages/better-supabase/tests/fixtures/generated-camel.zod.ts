@@ -576,6 +576,14 @@ export const organizationMembersArgs: z.ZodType<{ organization: string }> = z.ob
   organization: z.guid(),
 }).meta({ title: "organization_members arguments" });
 
+export const rsFinanceOverviewArgs: z.ZodType<{ p: Json }> = z.object({
+  p: z.json(),
+}).meta({ title: "rs_finance_overview arguments" });
+
+export const rsPipelineOverviewArgs: z.ZodType<{ p: Json }> = z.object({
+  p: z.json(),
+}).meta({ title: "rs_pipeline_overview arguments" });
+
 export const rsWorkspaceSummaryArgs: z.ZodType<{ p: Json }> = z.object({
   p: z.json(),
 }).meta({ title: "rs_workspace_summary arguments" });
@@ -603,5 +611,9 @@ export const importCustomerResult: z.ZodType<Json> = z.json();
 export const importCustomerUpdatedAtResult: z.ZodType<string | null> = z.iso.datetime({ offset: true }).nullable();
 
 export const islandCountsResult: z.ZodType<Json> = z.json();
+
+export const rsFinanceOverviewResult: z.ZodType<Json> = z.json();
+
+export const rsPipelineOverviewResult: z.ZodType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodType<Json> = z.json();

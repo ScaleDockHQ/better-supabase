@@ -745,12 +745,16 @@ export const initCommand: AnyCommand = defineCliCommand({
 function designKeys(
   resolved: ResolvedPreset,
   design: CreateDesign | undefined,
-): Pick<FlatConfig, "appTables" | "blocks"> {
+): Pick<FlatConfig, "appTables" | "blocks" | "seed"> {
   if (design === undefined) {
     return {};
   }
 
-  const { blocks, appTables } = designConfig(resolved, design);
+  const { blocks, appTables, seed } = designConfig(resolved, design);
 
-  return { blocks, ...(appTables === undefined ? {} : { appTables }) };
+  return {
+    blocks,
+    ...(appTables === undefined ? {} : { appTables }),
+    ...(seed === undefined ? {} : { seed }),
+  };
 }

@@ -161,6 +161,10 @@ function effectText(effect: CommandEffect): string {
             return "downloads from GitHub";
           }
 
+          case "cloud": {
+            return "calls the Better Supabase cloud";
+          }
+
           default: {
             const never: never = effect.target;
 

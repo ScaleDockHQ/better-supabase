@@ -253,6 +253,7 @@
   "cli/errors",
   "cli/gen",
   "cli/init",
+  "cli/login",
   "cli/mcp",
   "cli/migrate",
   "cli/powersync",

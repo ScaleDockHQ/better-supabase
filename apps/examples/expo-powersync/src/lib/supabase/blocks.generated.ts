@@ -2,6 +2,7 @@
 
 import {
   type AppTableEventData,
+  blockRead,
   defineEvents,
   event,
   type Events,
@@ -19,6 +20,7 @@ import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
@@ -110,6 +112,8 @@ export const blocks = {
   /** Needs the network on native. */
   organizations: organizationsBlockInstance,
   profiles: profilesBlockInstance,
+  /** Needs the network on native. */
+  sessions: sessionsBlockInstance,
   /** Needs the network on native. */
   subjects: subjectsBlockInstance,
   /** Needs the network on native. */
@@ -338,4 +342,60 @@ export const urls = {
 export const topics = {
   messaging: () => "messages",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
+} as const;
+
+/** The arguments of `reads.organizations.overview`. @public */
+export type OrganizationsOverviewArgs = { readonly organizationId: string };
+
+/** What `reads.organizations.overview` returns. @public */
+export type OrganizationsOverviewResult = {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string | null;
+  readonly role: string;
+  readonly seats: number | null;
+  readonly members: readonly {
+    readonly userId: string;
+    readonly role: string;
+    readonly roles: readonly string[];
+    readonly disabledAt: string | null;
+  }[];
+  readonly invitations: readonly {
+    readonly id: string;
+    readonly email: string;
+    readonly role: string;
+    readonly expiresAt: string | null;
+  }[];
+};
+
+/** The arguments of `reads.sessions.overview`. @public */
+export type SessionsOverviewArgs = {  };
+
+/** What `reads.sessions.overview` returns. @public */
+export type SessionsOverviewResult = {
+  readonly count: number;
+  readonly currentId: string | null;
+  readonly sessions: readonly {
+    readonly id: string;
+    readonly createdAt: string | null;
+    readonly lastActiveAt: string | null;
+    readonly userAgent: string | null;
+    readonly ip: string | null;
+    readonly aal: string | null;
+    readonly current: boolean;
+  }[];
+};
+
+/**
+ * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
+ * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
+ * @public
+ */
+export const reads = {
+  organizations: {
+    overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
+  },
+  sessions: {
+    overview: blockRead<SessionsOverviewArgs, SessionsOverviewResult>("sessions_overview", {  }, [], "api"),
+  },
 } as const;

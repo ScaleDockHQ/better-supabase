@@ -12,6 +12,7 @@ import {
   DesignTooLongError,
   encodeDesign,
   isDesignCode,
+  parseDesign,
   MAX_DESIGN_CODE_LENGTH,
   namedPreset,
   presetAndDesignOf,
@@ -104,9 +105,9 @@ describe("design codes", () => {
       ),
     ).toEqual(formatted);
     await expect(
-      decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
+      decodeDesign(await deflated(JSON.stringify({ version: 10 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 8; update better-supabase",
+      "design: the code needs format 10, and this better-supabase reads up to 9; update better-supabase",
     );
   });
 
@@ -322,7 +323,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ tables: {} }))),
     ).rejects.toThrow(
-      'design: unknown key "tables"; a design has preset, appTables, extraColumns and positions',
+      'design: unknown key "tables"; a design has preset, appTables, extraColumns, positions and seeds',
     );
   });
 
@@ -463,7 +464,22 @@ describe("designOf", () => {
         preset: { blocks: ["tags"], instances: { labels: { block: "tags" } } },
       }),
     ).toBe(8);
-    expect(DESIGN_FORMAT).toBe(8);
+    expect(DESIGN_FORMAT).toBe(9);
+  });
+
+  it("writes format 9 for seeds and carries them to the config", async () => {
+    const seeded: CreateDesign = {
+      preset: "crm",
+      seeds: { variants: { cases: "iso9001" }, locale: "nl" },
+    };
+
+    expect(designFormat(seeded)).toBe(9);
+    expect(await decodeDesign(await encodeDesign(seeded))).toEqual(seeded);
+    expect(parseDesign({ seeds: { locale: "nl-BE" } })).toEqual({
+      seeds: { locale: "nl-BE" },
+    });
+    expect(() => parseDesign({ seeds: { locale: "Dutch" } })).toThrow("seeds");
+    expect(() => parseDesign({ seeds: { extra: 1 } })).toThrow("seeds");
   });
 
   it("writes format 7 for a design with a preset", async () => {

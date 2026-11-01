@@ -60,6 +60,9 @@ const PAGES: Readonly<Record<string, string>> = {
   skills: "for-ai-agents.mdx",
   codemod: "cli/codemod.mdx",
   completion: "cli/completion.mdx",
+  login: "cli/login.mdx",
+  logout: "cli/login.mdx",
+  whoami: "cli/login.mdx",
   config: "cli/config.mdx",
 };
 
