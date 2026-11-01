@@ -15,6 +15,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "activities_of amend_activity complete_activity delete_activity log_activity mark_activity_error next_activity open_activities update_activity",
   agents:
     "delete_agent get_agent install_agent list_agents publish_agent rate_agent save_agent set_agent_skills",
+  prompts:
+    "create_prompt_version get_prompt list_prompt_versions set_prompt_label",
   "ai-cache": "ai_cache_delete ai_cache_get ai_cache_set purge_ai_cache",
   "ai-chat":
     "add_ai_chat_participant ai_message_path ai_message_siblings ai_sandbox_for ai_tool_policies_for allowed_ai_models answer_ai_pending_input append_ai_user_message attach_ai_run claim_ai_chat_stream create_ai_chat decide_ai_tool_approval delete_ai_chat delete_ai_project finish_ai_sandbox_stop get_ai_chat get_ai_run get_ai_tool_approvals get_shared_ai_chat idle_ai_sandboxes list_ai_chat_participants list_ai_chat_shares list_ai_chats list_ai_moderation_events list_ai_projects list_ai_run_steps list_ai_runs list_ai_sandboxes list_pending_ai_tool_approvals load_ai_harness_session lock_ai_harness_session open_ai_pending_input purge_ai_chats rate_ai_message record_ai_moderation_event record_ai_run_step record_ai_tool_approval register_ai_sandbox release_ai_chat_stream remove_ai_chat_participant request_ai_chat_stop revoke_ai_chat_share save_ai_assistant_message save_ai_harness_session save_ai_project set_ai_run_cost set_ai_tool_policy share_ai_chat switch_ai_branch touch_ai_sandbox unlock_ai_harness_session update_ai_chat upsert_ai_models",

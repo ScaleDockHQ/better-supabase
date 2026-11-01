@@ -134,3 +134,4 @@ warehouse
 rfqs
 tills
 clinical-decision-support
+prompts

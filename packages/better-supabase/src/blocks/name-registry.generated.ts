@@ -1810,6 +1810,18 @@ export interface BlockNameRegistry {
     readonly primary: "promotion";
     readonly formerKeys: never;
   };
+  readonly "prompts": {
+    readonly tables: {
+      readonly "versions": "id" | "tenant" | "name" | "version" | "template" | "variables" | "createdAt";
+      readonly "labels": "tenant" | "name" | "label" | "version" | "updatedAt";
+    };
+    readonly functions: "create_prompt_version" | "get_prompt" | "list_prompt_versions" | "set_prompt_label";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
+  };
   readonly "push": {
     readonly tables: {
       readonly "devices": "id" | "user" | "token" | "platform" | "provider" | "deviceName" | "appVersion" | "createdAt" | "lastSeenAt";

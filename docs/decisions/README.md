@@ -176,3 +176,4 @@ add one, and link it from the code or config it explains.
 | [0174](0174-payroll-reads-approved-timesheets.md)             | Payroll runs count only the time entries of weeks with an approved timesheet                                                                                 |
 | [0175](0175-einvoice-deliveries.md)                           | Sent e-invoices keep the channel's reference in `invoice_deliveries`                                                                                         |
 | [0176](0176-tills-example-cash-account.md)                    | The tills example creates each till with a cash account, mapped from or added to the accounting chart                                                        |
+| [0178](0178-prompts-block.md)                                 | Prompts are versioned templates behind labels, read as the service role                                                                                      |

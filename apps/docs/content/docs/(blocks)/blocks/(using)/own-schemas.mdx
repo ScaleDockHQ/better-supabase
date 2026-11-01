@@ -591,6 +591,9 @@ may be your own enum or domain.
   - `better_supabase.promotion_codes`: `id`, `tenant_id`, `promotion_id`, `code`, `usage_limit`, `redemptions`, `created_at`
   - `better_supabase.cart_promotion_codes`: `tenant_id`, `cart_id`, `code_id`, `created_at`
   - `better_supabase.promotion_redemptions`: `id`, `tenant_id`, `promotion_id`, `code_id`, `order_id`, `customer_id`, `currency`, `amount`, `status`, `created_at`; typed: `status`
+- `prompts`
+  - `better_supabase.prompt_versions`: `id`, `organization_id`, `name`, `version`, `template`, `variables`
+  - `better_supabase.prompt_labels`: `organization_id`, `name`, `label`, `version`
 - `push`
   - `better_supabase.push_devices`: `id`, `user_id`, `token`, `platform`, `provider`; typed: `platform`, `provider`
   - `better_supabase.push_tickets`: `id`, `delivery_id`, `token`, `ticket_id`, `status`, `created_at`, `checked_at`; typed: `status`

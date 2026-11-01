@@ -293,6 +293,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0174: Payroll runs count only the time entries of weeks with an approved timesheet.
 - 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
+- 0178: Prompts are versioned templates behind labels, read as the service role.
 
 ## Pre-release pins
 

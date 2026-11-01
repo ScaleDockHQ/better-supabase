@@ -108,6 +108,7 @@ import type { pipelinesBlock } from "../../src/blocks/pipelines/manifest.ts";
 import type { postsBlock } from "../../src/blocks/posts/manifest.ts";
 import type { profilesBlock } from "../../src/blocks/profiles/manifest.ts";
 import type { promotionsBlock } from "../../src/blocks/promotions/manifest.ts";
+import type { promptsBlock } from "../../src/blocks/prompts/manifest.ts";
 import type { pushBlock } from "../../src/blocks/push/manifest.ts";
 import type { qualificationsBlock } from "../../src/blocks/qualifications/manifest.ts";
 import type {
@@ -180,6 +181,7 @@ export type AllBlocks = {
   readonly actor: typeof createdByBlock;
   readonly agents: typeof agentsBlock;
   readonly aiCache: typeof aiCacheBlock;
+  readonly prompts: typeof promptsBlock;
   readonly aiChat: typeof aiChatBlock;
   readonly aiFiles: typeof aiFilesBlock;
   readonly aiProviders: typeof aiKeysBlock;
