@@ -201,6 +201,7 @@ export type { TestSupportSessionStoreOptions } from "./kits/support-session-stor
 export {
   testAiTaskRunner,
   testBuilderStarter,
+  testClinicalDecisionSupport,
   testEmbedder,
   testEveDocumentBackend,
   testFundingClaimChannel,
@@ -218,6 +219,7 @@ export type {
   TestEmbedderOptions,
   TestEveDocumentBackendOptions,
   TestFundingClaimChannelOptions,
+  TestClinicalDecisionSupportOptions,
   TestFundingClaimFormatOptions,
   TestGraphCompilerOptions,
   TestMedicationCatalogOptions,

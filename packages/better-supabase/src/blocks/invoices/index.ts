@@ -92,5 +92,8 @@ export {
   type EInvoiceDocument,
   type EInvoiceFormat,
   type EInvoiceStatus,
+  type InvoiceDelivery,
+  type InvoiceDeliveryInput,
+  type InvoiceEInvoices,
   type SendEInvoiceOptions,
 } from "./e-invoice.ts";

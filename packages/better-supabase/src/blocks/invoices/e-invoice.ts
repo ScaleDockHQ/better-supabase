@@ -1,6 +1,14 @@
+import type { BlockCall } from "../shared.ts";
 import type { Invoice } from "./invoices.ts";
 
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import {
+  instantOf,
+  optionalText,
+  recordOf,
+  recordsOf,
+  textOf,
+} from "../shared.ts";
 
 /** What a format and a channel get next to the invoice. */
 export interface EInvoiceContext {
@@ -86,11 +94,87 @@ export function eInvoiceChannelOf(channel: EInvoiceChannel): EInvoiceChannel {
   return channel;
 }
 
+/** An e-invoice an invoice was sent as, with the channel's reference. */
+export interface InvoiceDelivery {
+  readonly id: string;
+  readonly invoiceId: string;
+  readonly channel: string;
+  readonly format: string;
+  /** The channel's reference; ask `channel.status` with it later. */
+  readonly externalRef: string;
+  readonly filename?: string;
+  readonly sentAt: Temporal.Instant;
+}
+
+/** What `recordEInvoice` keeps. */
+export interface InvoiceDeliveryInput {
+  readonly channel: string;
+  readonly format: string;
+  readonly externalRef: string;
+  readonly filename?: string;
+}
+
+/** The e-invoice deliveries of the invoices client. */
+export interface InvoiceEInvoices {
+  /**
+   * Keeps the reference a channel returned for an issued invoice. The same
+   * channel and reference return the first row, so a retry changes nothing.
+   * `sendEInvoice` calls it.
+   */
+  recordEInvoice(
+    invoiceId: string,
+    input: InvoiceDeliveryInput,
+  ): AsyncResult<InvoiceDelivery>;
+  /** The e-invoices an invoice was sent as, newest first. */
+  eInvoiceDeliveries(
+    invoiceId: string,
+  ): AsyncResult<readonly InvoiceDelivery[]>;
+}
+
+function deliveryOf(value: unknown): InvoiceDelivery {
+  const row = recordOf(value, "invoice delivery");
+  const filename = optionalText(row["filename"]);
+
+  return {
+    id: textOf(row["id"]),
+    invoiceId: textOf(row["invoiceId"]),
+    channel: textOf(row["channel"]),
+    format: textOf(row["format"]),
+    externalRef: textOf(row["externalRef"]),
+    ...(filename === undefined ? {} : { filename }),
+    sentAt: instantOf(row["sentAt"]),
+  };
+}
+
+/** The e-invoice delivery methods of the invoices client. */
+export function invoiceEInvoices(call: BlockCall): InvoiceEInvoices {
+  return {
+    recordEInvoice: (invoiceId, input) =>
+      call(
+        "record_invoice_delivery",
+        {
+          invoice: invoiceId,
+          channel: input.channel,
+          format: input.format,
+          external_ref: input.externalRef,
+          filename: input.filename ?? null,
+        },
+        deliveryOf,
+      ),
+    eInvoiceDeliveries: (invoiceId) =>
+      call("list_invoice_deliveries", { invoice: invoiceId }, (value) =>
+        recordsOf(value, "invoice deliveries").map(deliveryOf),
+      ),
+  };
+}
+
 export interface SendEInvoiceOptions {
   /** An issued invoice or credit note, as `invoices.issue` returns it. */
   readonly invoice: Invoice;
   readonly format: EInvoiceFormat;
   readonly channel: EInvoiceChannel;
+  /** The invoices client, which keeps the channel's `externalRef`. */
+  readonly invoices: Pick<InvoiceEInvoices, "recordEInvoice">;
   readonly signal?: AbortSignal;
 }
 
@@ -98,17 +182,21 @@ export interface EInvoiceDelivery {
   readonly invoiceId: string;
   readonly format: string;
   readonly channel: string;
-  /** The channel's reference; keep it to ask `status` later. */
+  /** The channel's reference; `invoices.eInvoiceDeliveries` lists it later. */
   readonly externalRef: string;
+  /** The row `recordEInvoice` kept. */
+  readonly deliveryId: string;
   readonly document: EInvoiceDocument;
 }
 
 /**
- * Renders the invoice with `format` and sends it through `channel`. Drafts and
- * void invoices are refused with `EINVOICE_NOT_ISSUED`, and a format or channel
- * that throws (or targets another API version) comes back as an error result,
- * never as an exception. The call does not record anything: the app keeps the
- * `externalRef`.
+ * Renders the invoice with `format`, sends it through `channel` and keeps the
+ * channel's `externalRef` on the invoice through `invoices.recordEInvoice`.
+ * Drafts and void invoices are refused with `EINVOICE_NOT_ISSUED`, and a format
+ * or channel that throws (or targets another API version) comes back as an
+ * error result, never as an exception. When the channel accepted the document
+ * but keeping the reference failed, the error names the `externalRef`: record
+ * it with `recordEInvoice` instead of sending again.
  */
 export function sendEInvoice(
   options: SendEInvoiceOptions,
@@ -138,11 +226,26 @@ export function sendEInvoice(
 
     const sent = await channel.send(document, { ...context, invoice });
 
+    const recorded = await options.invoices.recordEInvoice(invoice.id, {
+      channel: channel.key,
+      format: format.key,
+      externalRef: sent.externalRef,
+      filename: document.filename,
+    });
+
+    if (!recorded.ok) {
+      return err({
+        ...recorded.error,
+        message: `the document was sent (externalRef ${sent.externalRef}) but it was not recorded: ${recorded.error.message}`,
+      });
+    }
+
     return ok({
       invoiceId: invoice.id,
       format: format.key,
       channel: channel.key,
       externalRef: sent.externalRef,
+      deliveryId: recorded.data.id,
       document,
     });
   });

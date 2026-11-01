@@ -1,4 +1,4 @@
-# 0175: The tills example creates each till with a cash account
+# 0176: The tills example creates each till with a cash account
 
 - Status: accepted
 - Date: 2026-11-01

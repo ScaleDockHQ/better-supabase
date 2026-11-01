@@ -24,3 +24,6 @@ account is saved.
 
 Format and channel packages ship separately and need no new dependency here. A
 breaking change to either port needs a new `apiVersion`.
+
+ADR 0175 amends this: `sendEInvoice` keeps the channel's `externalRef` in
+`invoice_deliveries` through the invoices client.

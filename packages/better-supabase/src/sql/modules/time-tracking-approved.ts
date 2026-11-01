@@ -12,7 +12,7 @@ export interface ApprovedWeekNames {
 /**
  * `time_week_approved(tenant, user_id, at)`: whether the week an instant falls
  * in has an approved timesheet. Payroll runs read only the entries of such
- * weeks (ADR 0172).
+ * weeks (ADR 0174).
  */
 export function approvedWeekFunction(
   ctx: BlockSqlContext,

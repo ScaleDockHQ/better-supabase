@@ -32,6 +32,7 @@ breaking ones.
   [care plans](/docs/blocks/care-plans),
   [observations](/docs/blocks/observations),
   [medications](/docs/blocks/medications) with signatures and guest reads,
+  [clinical decision support](/docs/blocks/clinical-decision-support) alerts,
   [funding](/docs/blocks/funding), [shifts](/docs/blocks/shifts) and
   [FHIR R4 mappers](/docs/concepts/fhir). See
   [ADR 0134](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0134-record-teams-access-and-read-logging.md)
@@ -267,9 +268,6 @@ packages that live outside this repository.
 
 ### Care
 
-- **Clinical decision support:** checks such as interaction and allergy
-  alerts on medications and care plans. The care blocks record and sign; they
-  don't advise yet.
 - **E-prescribing:** sending a prescription to a pharmacy. Medications keep
   the medication list and its administration records only.
 - **Funding on the ledger and approvals:** awards and claims that post to

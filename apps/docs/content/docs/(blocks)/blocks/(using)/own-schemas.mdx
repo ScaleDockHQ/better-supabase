@@ -231,6 +231,9 @@ may be your own enum or domain.
   - `better_supabase.chat_state_lists`: `id`, `key_prefix`, `list_key`, `value`, `expires_at`
   - `better_supabase.chat_state_queues`: `id`, `key_prefix`, `thread_id`, `value`, `expires_at`
   - `better_supabase.chat_installations`: `id`, `tenant_id`, `adapter`, `external_id`, `credential_ref`, `installed_at`, `uninstalled_at`
+- `clinical-decision-support`
+  - `better_supabase.care_rules`: `id`, `tenant_id`, `kind`, `medication_ids`, `min_dose`, `max_dose`, `max_per_day`, `severity`, `message`, `active`, `created_at`, `updated_at`
+  - `better_supabase.care_alerts`: `id`, `tenant_id`, `subject_type`, `subject_id`, `kind`, `severity`, `source`, `rule_id`, `order_ids`, `message`, `details`, `fingerprint`, `status`, `decided_by`, `decided_at`, `decision_reason`, `created_at`, `updated_at`
 - `collections`
   - `better_supabase.subject_collections`: `id`, `tenant_id`, `subject_type`, `scope`, `owner_id`, `team_id`, `name`, `archived_at`, `created_at`; typed: `scope`
   - `better_supabase.subject_collection_entries`: `collection_id`, `tenant_id`, `subject_type`, `subject_id`, `rank`
@@ -438,6 +441,7 @@ may be your own enum or domain.
   - `better_supabase.invoice_dunning_history`: `id`, `tenant_id`, `invoice_id`, `kind`, `level`, `fee`, `balance`, `created_at`
   - `better_supabase.invoice_allocations`: `id`, `tenant_id`, `reference`, `party_id`, `invoice_id`, `source`, `amount`, `discount`, `payment_id`, `discount_payment_id`, `allocated_on`, `unallocated_at`, `created_by`, `created_at`
   - `better_supabase.invoice_line_sources`: `id`, `tenant_id`, `invoice_id`, `position`, `source`, `source_id`, `quantity`, `created_at`
+  - `better_supabase.invoice_deliveries`: `id`, `tenant_id`, `invoice_id`, `channel`, `format`, `external_ref`, `sent_at`
   - `better_supabase.invoice_approval_levels`: `id`, `tenant_id`, `legal_entity_id`, `level`, `min_amount`, `currency`, `approver_id`, `created_at`
   - `better_supabase.invoice_approvals`: `id`, `tenant_id`, `invoice_id`, `level`, `approver_id`, `comment`, `decided_at`
 - `knowledge`

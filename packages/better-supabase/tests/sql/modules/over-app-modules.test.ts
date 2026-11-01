@@ -118,6 +118,7 @@ const MODULES = [
   "warehouse",
   "rfqs",
   "tills",
+  "clinical-decision-support",
   "manufacturing",
   "legal-entities",
   "document-templates",

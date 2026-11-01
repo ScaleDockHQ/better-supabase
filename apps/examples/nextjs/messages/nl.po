@@ -103,6 +103,16 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "De evenementen van je organisatie per maand."
 
+#: src/app/[locale]/(app)/care-alerts/page.tsx
+msgctxt "care-alerts.FuvPAW"
+msgid "Care alerts"
+msgstr "Zorgmeldingen"
+
+#: src/app/[locale]/(app)/care-alerts/page.tsx
+msgctxt "care-alerts.X4g2aN"
+msgid "Dose range, duplicate therapy and interaction alerts on medication orders."
+msgstr "Meldingen over doseerbereik, dubbele therapie en interacties bij medicatieopdrachten."
+
 #: src/app/[locale]/(app)/care-plans/page.tsx
 msgctxt "care-plans.y10hgk"
 msgid "Care plans"
@@ -4164,6 +4174,111 @@ msgstr "Lees bij zonder elk antwoord te lezen."
 msgctxt "chat.IQWhFZ"
 msgid "Summarize"
 msgstr "Samenvatten"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.2pzTGC"
+msgid "Critical"
+msgstr "Kritiek"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.3SVI5p"
+msgid "Warning"
+msgstr "Waarschuwing"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.we4Lby"
+msgid "Info"
+msgstr "Info"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.FnKIAW"
+msgid "Acknowledged"
+msgstr "Gezien"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.QGpThC"
+msgid "Overridden"
+msgstr "Genegeerd"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.vCAhII"
+msgid "Severity"
+msgstr "Ernst"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.frsrZ8"
+msgid "Alert"
+msgstr "Melding"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.7Y6Yvq"
+msgid "Record"
+msgstr "Dossier"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.a-0Mbo"
+msgid "Acknowledge"
+msgstr "Markeer als gezien"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.9zub-u"
+msgid "Alerts"
+msgstr "Meldingen"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.wE7p5Z"
+msgid "Evaluating a record checks its active medication orders. Critical alerts need an override reason."
+msgstr "Bij het beoordelen van een dossier worden de actieve medicatieopdrachten gecontroleerd. Voor een kritieke melding is een reden nodig om die te negeren."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.hFb_iK"
+msgid "The alerts didn't load"
+msgstr "De meldingen zijn niet geladen"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.27THl1"
+msgid "No alerts"
+msgstr "Geen meldingen"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.H9ne16"
+msgid "Add dose range, duplicate therapy or interaction rules, then evaluate a record after prescribing."
+msgstr "Voeg regels toe voor doseerbereik, dubbele therapie of interacties en beoordeel een dossier na het voorschrijven."
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.1A8Z_l"
+msgid "Check again"
+msgstr "Opnieuw controleren"
+
+#: src/features/clinical-decision-support/components/care-alerts.tsx
+msgctxt "care-alerts.wJrzbz"
+msgid "Read the decision support guide"
+msgstr "Lees de gids over beslissingsondersteuning"
 
 #: src/features/community/components/post-board.tsx
 msgctxt "community.yUcWBK"
@@ -10792,6 +10907,11 @@ msgstr "Observaties"
 msgctxt "navigation.gOuYI7"
 msgid "Medications"
 msgstr "Medicatie"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.FuvPAW"
+msgid "Care alerts"
+msgstr "Zorgmeldingen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y10hgk"
