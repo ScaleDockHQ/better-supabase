@@ -4185,3 +4185,8 @@ GRANT SELECT ON TABLE "better_supabase"."moderation_statements" TO "authenticate
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."moderation_statements" TO "service_role";
 
+CREATE INDEX IF NOT EXISTS moderation_notices_item_idx ON better_supabase.moderation_notices USING btree (item_id);
+
+CREATE INDEX IF NOT EXISTS moderation_flaggers_user_idx ON better_supabase.moderation_flaggers USING btree (user_id);
+
+CREATE INDEX IF NOT EXISTS moderation_appeals_appellant_idx ON better_supabase.moderation_appeals USING btree (appellant_id);
