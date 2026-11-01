@@ -490,6 +490,11 @@
       "types": "./dist/audit-files/index.d.ts",
       "default": "./dist/audit-files/index.js"
     },
+    "./verifiable-credentials": {
+      "@better-supabase/source": "./src/verifiable-credentials/index.ts",
+      "types": "./dist/verifiable-credentials/index.d.ts",
+      "default": "./dist/verifiable-credentials/index.js"
+    },
     "./e-invoicing": {
       "@better-supabase/source": "./src/e-invoicing/index.ts",
       "types": "./dist/e-invoicing/index.d.ts",
@@ -1605,6 +1610,10 @@
       "./audit-files": {
         "types": "./dist/audit-files/index.d.ts",
         "default": "./dist/audit-files/index.js"
+      },
+      "./verifiable-credentials": {
+        "types": "./dist/verifiable-credentials/index.d.ts",
+        "default": "./dist/verifiable-credentials/index.js"
       },
       "./e-invoicing": {
         "types": "./dist/e-invoicing/index.d.ts",

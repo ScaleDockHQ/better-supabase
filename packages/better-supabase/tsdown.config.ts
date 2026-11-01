@@ -207,6 +207,7 @@ const entries = [
   "yjs/index",
   "e-invoicing/index",
   "audit-files/index",
+  "verifiable-credentials/index",
   "better-result/index",
   "fhir/index",
   "blocks/inbox/index",

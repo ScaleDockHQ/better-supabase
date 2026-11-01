@@ -154,6 +154,30 @@ export const SPEC_PINS: {
    * follow.
    */
   readonly shadcnRegistry: "4.21.4";
+  /** RFC 6350 vCard 4.0 that the contacts block imports and exports. */
+  readonly rfc6350: "2011-08";
+  /**
+   * OpenID for Verifiable Credential Issuance, the verifiable-credentials
+   * issuer.
+   */
+  readonly openid4vci: "1.0";
+  /** OpenID for Verifiable Presentations, the verifiable-credentials verifier. */
+  readonly openid4vp: "1.0";
+  /**
+   * RFC 9901 Selective Disclosure for JWTs, as the verifiable-credentials block
+   * writes and reads.
+   */
+  readonly sdJwt: "RFC 9901";
+  /** SD-JWT-based Verifiable Credentials (`dc+sd-jwt`). */
+  readonly sdJwtVc: "draft-19";
+  /** IETF Token Status List the SD-JWT VC status reference points at. */
+  readonly tokenStatusList: "draft-21";
+  /** W3C Verifiable Credentials Data Model, the `jwt_vc_json` payload. */
+  readonly vcDataModel: "2.0";
+  /** W3C Bitstring Status List, the revocation list of a W3C credential. */
+  readonly bitstringStatusList: "1.0";
+  /** W3C Web Authentication Level 3, the passkey factor of the mfa block. */
+  readonly webauthn: "3";
   /**
    * The TypeScript 7.1 content mapper protocol version (7.1.0-beta) that
    * `better-supabase/mapper` speaks.
@@ -224,5 +248,14 @@ export const SPEC_PINS: {
   rfc9700: "2025-01",
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
+  rfc6350: "2011-08",
+  openid4vci: "1.0",
+  openid4vp: "1.0",
+  sdJwt: "RFC 9901",
+  sdJwtVc: "draft-19",
+  tokenStatusList: "draft-21",
+  vcDataModel: "2.0",
+  bitstringStatusList: "1.0",
+  webauthn: "3",
   typescriptContentMapper: "1",
 };
