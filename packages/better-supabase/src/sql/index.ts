@@ -247,3 +247,11 @@ export {
 } from "./table-features.ts";
 
 export type { TableFeature } from "./table-features.ts";
+
+export { declareRead, readArgSource, readArgSqlType } from "./reads.ts";
+
+export type {
+  BlockSqlRead,
+  BlockSqlReadArg,
+  BlockSqlReadArgType,
+} from "./reads.ts";

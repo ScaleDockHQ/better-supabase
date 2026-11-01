@@ -5,14 +5,17 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { DealBoard } from "../../sql/modules/deals-reads.ts";
 import type { DealForecast } from "../deal-forecast.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { DEAL_BOARD_RESULT as BOARD } from "../../sql/modules/deals-reads.ts";
 import { forecastOf } from "../deal-forecast.ts";
 import {
   amountsError,
@@ -234,6 +237,8 @@ export interface DealHealth {
 }
 
 /** `F` types the deals' extra columns, from the `fields` schema. */
+export type { DealBoard };
+
 export interface Deals<F extends object = Record<never, never>> {
   create(input: {
     organizationId: string;
@@ -288,6 +293,11 @@ export interface Deals<F extends object = Record<never, never>> {
     };
   }): AsyncResult<DealForecast>;
   health(pipelineId: string): AsyncResult<DealHealth[]>;
+  /**
+   * A pipeline's stages with their deals, totals and weighted forecast, in one
+   * call.
+   */
+  board(args: { pipelineId: string }): AsyncResult<DealBoard>;
 }
 
 export interface DealsOptions<
@@ -699,6 +709,10 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           )
         : AsyncResult.err(invalid);
     },
+    board: ({ pipelineId }) =>
+      call("deal_board", { pipeline: pipelineId }, (value) =>
+        decodeRead<DealBoard>(BOARD, value, "deal_board"),
+      ),
     health: (pipelineId) =>
       call("deal_health", { pipeline: pipelineId }, (value) =>
         recordsOf(value, "deal_health").map((row) => ({

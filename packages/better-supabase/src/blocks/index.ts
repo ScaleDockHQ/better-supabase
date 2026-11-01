@@ -187,3 +187,7 @@ export type {
   FieldsOf,
   WithExtraFields,
 } from "../core/block-fields.ts";
+
+export { blockRead } from "../core/block-reads.ts";
+
+export type { BlockRead } from "../core/block-reads.ts";

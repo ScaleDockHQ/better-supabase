@@ -756,7 +756,7 @@ export interface BlockNameRegistry {
       readonly "members": "tenant" | "deal" | "user" | "role";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
     };
-    readonly functions: "archive_deal" | "close_deal" | "create_deal" | "deal_forecast" | "deal_health" | "delete_deal" | "reopen_deal" | "set_deal_contacts" | "set_deal_lines" | "set_deal_lines_recount" | "set_deal_members" | "update_deals";
+    readonly functions: "archive_deal" | "close_deal" | "create_deal" | "deal_board" | "deal_forecast" | "deal_health" | "delete_deal" | "reopen_deal" | "set_deal_contacts" | "set_deal_lines" | "set_deal_lines_recount" | "set_deal_members" | "update_deals";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_deal_create" | "after_deal_create" | "before_deal_update" | "after_deal_update";
     readonly entities: {

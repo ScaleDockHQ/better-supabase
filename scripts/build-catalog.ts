@@ -704,6 +704,12 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
     block = { ...block, links };
   }
 
+  const reads = module.names?.reads ?? [];
+
+  if (reads.length > 0) {
+    block = { ...block, reads };
+  }
+
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
   }

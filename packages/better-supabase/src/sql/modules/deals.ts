@@ -26,6 +26,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { DEAL_COLUMNS, dealFunctions } from "./deals-functions.ts";
+import { DEAL_READS } from "./deals-reads.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const DEAL = [
@@ -68,6 +69,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
+  reads: DEAL_READS,
   hooks: [
     "before_deal_create",
     "after_deal_create",
@@ -493,6 +495,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "deal_health", args: ["uuid"], returns: "jsonb" },
+    { name: "deal_board", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

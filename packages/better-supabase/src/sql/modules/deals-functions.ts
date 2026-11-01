@@ -223,6 +223,12 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
 
   const has = (column: string): boolean => n.has("deals", column);
 
+  const probability = has("probability")
+    ? `coalesce(x.${d("probability")}, ${pipelines.has("stages", "probability") ? `st.${s("probability")}` : "null"})`
+    : pipelines.has("stages", "probability")
+      ? `st.${s("probability")}`
+      : "null";
+
   const int8Columns = [
     "number",
     "amount",
@@ -842,5 +848,63 @@ begin
 end;
 $$;
 ${userGrant(`${fn("deal_health")}(uuid)`)}
+
+-- A pipeline's board in one call: every stage with its deals ordered by
+-- rank, the count and the total per currency, and the forecast weighted by
+-- the deal's probability (or its stage's). Runs as the caller, so it holds
+-- the deals they can see.
+create or replace function ${fn("deal_board")}(pipeline uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return (with cards as (
+    select x.${d("stage")} as stage_id,
+      x.${d("rank")} as rank,
+      x.${d("id")} as id,
+      x.${d("outcome")} as outcome,
+      x.${d("currency")}::text as currency,
+      x.${d("amount")} as amount,
+      ${probability} as prob,
+      jsonb_build_object(
+        'id', x.${d("id")}, 'identifier', x.${d("identifier")}, 'name', x.${d("name")},
+        'amount', x.${d("amount")}::text, 'currency', x.${d("currency")}::text,
+        'ownerId', x.${d("owner")}, 'closeOn', x.${d("closeOn")},
+        'probability', ${probability},
+        'daysInStage', (extract(epoch from now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")})) / 86400)::integer,
+        'rotting', ${rotting},
+        'nextStep', ${has("nextStep") ? `x.${d("nextStep")}` : "null"},
+        'nextAt', ${has("nextAt") ? `x.${d("nextAt")}` : "null"},
+        'rank', x.${d("rank")}
+      ) as card
+    from ${t("deals")} x
+    left join ${stages} st on st.${s("id")} = x.${d("stage")}
+    where x.${d("pipeline")} = deal_board.pipeline and x.${d("archivedAt")} is null
+  )
+  select jsonb_build_object(
+    'pipelineId', deal_board.pipeline,
+    'stages', coalesce((select jsonb_agg(jsonb_build_object(
+      'id', st.${s("id")}, 'key', st.${s("key")}, 'name', st.${s("name")}, 'category', st.${s("category")},
+      'probability', ${pipelines.has("stages", "probability") ? `st.${s("probability")}` : "null"},
+      'rottingAfterDays', ${pipelines.has("stages", "rottingAfterDays") ? `st.${s("rottingAfterDays")}` : "null"},
+      'wipLimit', ${pipelines.has("stages", "wipLimit") ? `st.${s("wipLimit")}` : "null"},
+      'count', (select count(*) from cards c where c.stage_id = st.${s("id")}),
+      'totals', coalesce((select jsonb_agg(jsonb_build_object('currency', t.currency, 'amount', t.amount::text, 'weighted', t.weighted::text) order by t.currency)
+        from (select c.currency, sum(c.amount) as amount, round(sum(c.amount * coalesce(c.prob, 0) / 100.0))::bigint as weighted
+          from cards c where c.stage_id = st.${s("id")} group by c.currency) t), '[]'::jsonb),
+      'deals', coalesce((select jsonb_agg(c.card order by c.rank, c.id) from cards c where c.stage_id = st.${s("id")}), '[]'::jsonb)
+    ) order by st.${s("rank")}, st.${s("id")})
+      from ${stages} st
+      where st.${s("pipeline")} = deal_board.pipeline and st.${s("archivedAt")} is null), '[]'::jsonb),
+    'weighted', coalesce((select jsonb_agg(jsonb_build_object('currency', t.currency, 'amount', t.amount::text) order by t.currency)
+      from (select c.currency, round(sum(c.amount * coalesce(c.prob, 0) / 100.0))::bigint as amount
+        from cards c where c.outcome = 'open' group by c.currency) t), '[]'::jsonb)
+  ));
+end;
+$$;
+${userGrant(`${fn("deal_board")}(uuid)`)}
 `;
 }

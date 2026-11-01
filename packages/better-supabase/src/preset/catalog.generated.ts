@@ -3644,6 +3644,64 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
+      "reads": [
+        {
+          "name": "board",
+          "function": "deal_board",
+          "args": {
+            "pipelineId": {
+              "param": "pipeline",
+              "type": "id"
+            }
+          },
+          "result": {
+            "pipelineId": "text",
+            "stages": [
+              {
+                "id": "text",
+                "key": "text",
+                "name": "text",
+                "category": "text",
+                "probability": "number?",
+                "rottingAfterDays": "number?",
+                "wipLimit": "number?",
+                "count": "number",
+                "totals": [
+                  {
+                    "currency": "text",
+                    "amount": "text",
+                    "weighted": "text"
+                  }
+                ],
+                "deals": [
+                  {
+                    "id": "text",
+                    "identifier": "text",
+                    "name": "text",
+                    "amount": "text",
+                    "currency": "text",
+                    "ownerId": "text?",
+                    "closeOn": "text",
+                    "probability": "number?",
+                    "daysInStage": "number",
+                    "rotting": "bool",
+                    "nextStep": "text?",
+                    "nextAt": "text?",
+                    "rank": "text"
+                  }
+                ]
+              }
+            ],
+            "weighted": [
+              {
+                "currency": "text",
+                "amount": "text"
+              }
+            ]
+          },
+          "summary": "A pipeline's stages with their deals, counts, totals per currency and the weighted forecast."
+        }
+      ],
       "extraColumns": "deals",
       "entities": {
         "specs": {

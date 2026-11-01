@@ -13,8 +13,8 @@ import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
-import type { BlockSqlLink } from "./links.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
+import type { BlockSqlComposition } from "./reads.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 import type { BlockSqlValueMethods } from "./value-maps.ts";
@@ -180,7 +180,7 @@ export interface BlockSqlEntitySpec {
   readonly subject?: BlockSqlEntitySubject;
 }
 
-export interface BlockSqlNames {
+export interface BlockSqlNames extends BlockSqlComposition {
   readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
   readonly entities?: Readonly<Record<string, BlockSqlEntitySpec>>;
   /**
@@ -200,12 +200,9 @@ export interface BlockSqlNames {
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**
    * Tables and columns the module renamed between versions. `upgrade` renames
-   * them on installs below `from + 1`, after the config's entity and table
-   * renames, so a declared move needs no hand-written upgrade step.
+   * them on installs below `from + 1`, after the config's renames.
    */
   readonly migrations?: readonly BlockSqlNameMigration[];
-  /** The links this module declares to other blocks' entities (ADR 0177). */
-  readonly links?: readonly BlockSqlLink[];
 }
 
 /**

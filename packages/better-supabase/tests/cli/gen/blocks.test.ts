@@ -541,6 +541,32 @@ describe("blocks.generated.ts", () => {
   });
 });
 
+describe("block reads in blocks.generated.ts", () => {
+  it("writes a typed read and its result type for each block that ships one", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          permissions: {},
+          subjects: {},
+          pipelines: {},
+          deals: {},
+        },
+      },
+      "/project",
+    );
+
+    const file = emitBlockConfig(config);
+
+    expect(file?.contents).toContain("export const reads = {");
+    expect(file?.contents).toContain(
+      'board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" })',
+    );
+    expect(file?.contents).toContain("export type DealsBoardResult = {");
+    expect(file?.contents).toContain("readonly weighted: readonly {");
+  });
+});
+
 describe("schemaExtensions", () => {
   it("lists the repository extension of each installed block", () => {
     expect(

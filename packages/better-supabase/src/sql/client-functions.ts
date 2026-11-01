@@ -90,7 +90,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "data-lifecycle":
     "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions expired_data_exports fail_data_export forget_data_exports get_data_export list_data_exports list_legal_holds list_retention_policies organization_credential_refs organization_deletion place_legal_hold purge_organization release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy",
   deals:
-    "archive_deal close_deal create_deal deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
+    "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
     "create_work_order dispatch_board get_work_order list_work_order_parts list_work_orders plan_dispatch_route record_work_order_part remove_work_order_part schedule_work_order set_work_order_status technician_day unschedule_work_order update_work_order",
   documents:

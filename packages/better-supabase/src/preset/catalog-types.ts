@@ -9,6 +9,7 @@ import type { ActionDescriptor, BlockSchedule } from "../core/automation.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { BlockSqlEntitySpec, BlockSqlTableSpec } from "../sql/context.ts";
 import type { BlockSqlLink } from "../sql/links.ts";
+import type { BlockSqlRead } from "../sql/reads.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
 /** One SQL module in the preset catalog: a key of `blocks` in the config. */
@@ -44,6 +45,8 @@ export interface PresetCatalogBlock {
   readonly contributes?: readonly string[];
   /** The links it declares to other blocks' entities (ADR 0177). */
   readonly links?: readonly BlockSqlLink[];
+  /** The composed reads the block ships (ADR 0177). */
+  readonly reads?: readonly BlockSqlRead[];
 }
 
 /** An automation a block ships as a default `automation_defaults` row. */

@@ -114,3 +114,67 @@ export function readTypeSource(type: ReadType, indent = ""): string {
     )
     .join("\n")}\n${indent}}`;
 }
+
+function describe(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+
+  return Array.isArray(value) ? "array" : typeof value;
+}
+
+function decodeAt(type: ReadType, value: unknown, path: string): unknown {
+  if (typeof type === "string") {
+    const nullable = type.endsWith("?");
+    const name = nullable ? type.slice(0, -1) : type;
+
+    if (value === null || value === undefined) {
+      if (nullable || name === "json") {
+        return null;
+      }
+
+      throw new TypeError(`${path} is ${describe(value)}, expected ${name}`);
+    }
+
+    const expected = SCALAR_TYPE[isScalar(name) ? name : "json"];
+
+    if (name !== "json" && typeof value !== expected) {
+      throw new TypeError(`${path} is ${describe(value)}, expected ${name}`);
+    }
+
+    return value;
+  }
+
+  if (isItemType(type)) {
+    if (!Array.isArray(value)) {
+      throw new TypeError(`${path} is ${describe(value)}, expected an array`);
+    }
+
+    return value.map((each, index) =>
+      decodeAt(type[0], each, `${path}[${index}]`),
+    );
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${path} is ${describe(value)}, expected an object`);
+  }
+
+  const record: Record<string, unknown> = { ...value };
+  const out: Record<string, unknown> = {};
+
+  for (const [key, each] of Object.entries(type)) {
+    out[key] = decodeAt(each, record[key], `${path}.${key}`);
+  }
+
+  return out;
+}
+
+/**
+ * Checks a read's JSON against its declared type and returns it typed. Throws a
+ * `TypeError` naming the path that differs, which the block client reports as
+ * an error result.
+ */
+export function decodeRead<T>(type: ReadType, value: unknown, name: string): T {
+  // SAFETY: decodeAt rebuilt the value from `type`; the caller names `T` from the same descriptor.
+  return decodeAt(type, value, name) as T;
+}
