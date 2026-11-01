@@ -177,7 +177,11 @@ export interface Consents {
    * otherwise fails with a `forbidden` error whose `permission` is
    * `consent:<purposeKey>`.
    */
-  require(input: { subject: RecordRef; purposeKey: string }): AsyncResult<true>;
+  // A property, not a method signature: the WinterTC check flags `require(` as a CommonJS call.
+  require: (input: {
+    subject: RecordRef;
+    purposeKey: string;
+  }) => AsyncResult<true>;
 }
 
 export interface ConsentsOptions extends BlockOptions {

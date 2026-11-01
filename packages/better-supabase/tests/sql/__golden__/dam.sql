@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:062e8d211de49ea932899fed4b7f4a7ce7bbac37bae1fce4fa9156bdee0e8343
+-- @bsb-hash sha256:d544787f846d00211b91543ad63f517fdd9f53719bf04205f5dd1a820a7ea7a1
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -971,6 +971,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.dam_usage_rights', target_type => 'dam_usage_right', event_prefix => 'dam_usage_right', deferred => true);
+  perform better_supabase.audit('better_supabase.dam_renditions', target_type => 'dam_rendition', event_prefix => 'dam_rendition', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -987,15 +995,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
--- @bsb-hash sha256:07b7ff0a13da4c61ddfc371dcc06e2f965a1fc6c13c3f7e2901e9936582d93b6
+-- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.dam_usage_rights', target_type => 'dam_usage_right', event_prefix => 'dam_usage_right', deferred => true);
-select better_supabase.audit('better_supabase.dam_renditions', target_type => 'dam_rendition', event_prefix => 'dam_rendition', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('dam', 1, 'managed')

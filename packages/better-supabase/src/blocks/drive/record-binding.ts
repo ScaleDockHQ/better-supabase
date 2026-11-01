@@ -11,7 +11,7 @@ export interface DriveRevisionInput {
 }
 
 /** The input schema of the drive binding's `restore`. */
-export const driveRevisionInput: EntitySchema<DriveRevisionInput> =
+const driveRevisionInput: EntitySchema<DriveRevisionInput> =
   entitySchema<DriveRevisionInput>({
     title: "DriveRevisionInput",
     fields: { revisionId: { kind: "uuid" } },

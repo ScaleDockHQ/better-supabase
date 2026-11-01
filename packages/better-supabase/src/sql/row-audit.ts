@@ -12,7 +12,7 @@ export type RowAuditScope = "all" | "entities" | "none";
  */
 const NOT_AUDITED = new Set(["audit", "audit-chain", "outbox"]);
 
-export function rowAuditScope(
+function rowAuditScope(
   layout: BlockSqlLayout,
   installed: readonly string[],
 ): RowAuditScope {
@@ -36,6 +36,7 @@ export function rowAuditData(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
   installed: readonly string[],
+  inSchema = false,
 ): string {
   const scope = rowAuditScope(layout, installed);
 
@@ -81,7 +82,16 @@ export function rowAuditData(
     }
   }
 
-  return lines.length === 0
-    ? ""
-    : `-- Row audit for the module's tables (blocks.audit.options.blockTables)\n${lines.join("\n")}`;
+  if (lines.length === 0) {
+    return "";
+  }
+
+  const comment =
+    "-- Row audit for the module's tables (blocks.audit.options.blockTables)";
+
+  // A top-level `select` is a statement a schema diff skips; inside `do` it
+  // runs when the schema is applied, so the triggers stay in the diff.
+  return inSchema
+    ? `${comment}\ndo $$\nbegin\n${lines.map((line) => `  perform ${line.slice("select ".length)}`).join("\n")}\nend;\n$$;`
+    : `${comment}\n${lines.join("\n")}`;
 }

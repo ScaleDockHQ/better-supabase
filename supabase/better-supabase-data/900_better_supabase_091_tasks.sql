@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:eecfb8553cd55c3effdf5a38bbc7b033ea15ab082b37125b279f34508c37b05b
+-- @bsb-hash sha256:d41c6be9606f2599e7035c384844d1120a3bb1321e0b99507a730ed5e6f6cdec
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -10,12 +10,6 @@
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
 from "better_supabase"."work_projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.work_items', target_type => 'task', event_prefix => 'task', deferred => true);
-select better_supabase.audit('better_supabase.work_projects', target_type => 'project', event_prefix => 'project', deferred => true);
-select better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
-select better_supabase.audit('better_supabase.work_item_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
 
 -- Realtime for the module's entities (subject.realtime)
 select better_supabase.track_realtime('better_supabase.work_items', tenant_column => 'tenant_id');

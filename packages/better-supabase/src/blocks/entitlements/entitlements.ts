@@ -91,7 +91,11 @@ export interface Entitlements {
    * error whose `permission` is `entitlement:<key>`, so a route or action can
    * answer "upgrade your plan" with `.orThrow()` or a plain return.
    */
-  require(input: { organizationId: string; key: string }): AsyncResult<true>;
+  // A property, not a method signature: the WinterTC check flags `require(` as a CommonJS call.
+  require: (input: {
+    organizationId: string;
+    key: string;
+  }) => AsyncResult<true>;
   /**
    * The seats the tenant's plan leaves: its numeric `key` entitlement (default
    * `seats`) minus `used`, never below 0. `undefined` when the plan sets no

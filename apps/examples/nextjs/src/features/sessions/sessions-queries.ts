@@ -42,7 +42,8 @@ export interface OtherSession {
 
 /**
  * The caller's sessions on other devices, newest activity first
- * (`sessions.listMine`, which reads `auth.sessions` for the caller only).
+ * (`sessions.overview`, which reads `auth.sessions` for the caller only and
+ * marks the current one in the same call).
  */
 export async function getOtherSessions(): Promise<readonly OtherSession[]> {
   "use cache: private";
@@ -52,7 +53,7 @@ export async function getOtherSessions(): Promise<readonly OtherSession[]> {
     return [];
   }
 
-  const sessions = await db.$blocks.sessions.listMine().orThrow();
+  const { sessions } = await db.$blocks.sessions.overview().orThrow();
 
   return sessions
     .filter((session) => !session.current)

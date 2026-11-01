@@ -14447,7 +14447,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "commentsBlock",
         "subpath": "better-supabase/blocks/comments"
       },
-      "consumes": {},
+      "consumes": {
+        "attachments": "optional"
+      },
       "provides": [],
       "composedBy": [
         "collaboration"
@@ -14512,7 +14514,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/custom-fields"
       },
       "consumes": {},
-      "provides": [],
+      "provides": [
+        "customFields"
+      ],
       "entityTypes": [
         {
           "name": "CustomFields"
@@ -15790,6 +15794,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PassScan"
+        },
+        {
+          "name": "PassScanOutcome"
         },
         {
           "name": "PassSectionInput"
@@ -27628,6 +27635,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ScheduledInboxMessage"
+        },
+        {
+          "name": "SetupInboxInput"
+        },
+        {
+          "name": "SetupInboxResult"
         }
       ],
       "events": {
@@ -30365,6 +30378,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
+          "name": "ReactionActors"
+        },
+        {
           "name": "ReactionCount"
         },
         {
@@ -31357,6 +31373,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "TemplateOccurrence"
         },
         {
+          "name": "TemplatePreview"
+        },
+        {
           "name": "TemplateRecurPayload"
         },
         {
@@ -31401,6 +31420,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TemplateType"
+        },
+        {
+          "name": "TemplateVariable"
         },
         {
           "name": "TemplateVersion"
@@ -31735,7 +31757,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "tasksBlock",
         "subpath": "better-supabase/blocks/tasks"
       },
-      "consumes": {},
+      "consumes": {
+        "customFields": "optional"
+      },
       "provides": [
         "sink"
       ],

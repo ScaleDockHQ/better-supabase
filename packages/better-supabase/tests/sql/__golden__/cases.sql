@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:2cb2bdfd033ce69d5178648da1a4bf9f66f437c41662b81d371e9ece9f3316c5
+-- @bsb-hash sha256:9a7b52e839069446d2aefb88822f7427252a74a4ece8b140af3656c4c487811e
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3119,6 +3119,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."case_actions" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.cases', target_type => 'case', event_prefix => 'case', deferred => true);
+  perform better_supabase.audit('better_supabase.case_kinds', target_type => 'case_kind', event_prefix => 'case_kind', deferred => true);
+  perform better_supabase.audit('better_supabase.case_actions', target_type => 'case_action', event_prefix => 'case_action', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3135,16 +3144,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block-data cases
--- @bsb-hash sha256:c35f9f117664486d222ee7c239990212bfa05568b858028b5621537641ec3332
+-- @bsb-hash sha256:7afd439d1b21eec44b1f4de82df17f086b4ae6d4cad1aa229d975cec46001b05
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.cases', target_type => 'case', event_prefix => 'case', deferred => true);
-select better_supabase.audit('better_supabase.case_kinds', target_type => 'case_kind', event_prefix => 'case_kind', deferred => true);
-select better_supabase.audit('better_supabase.case_actions', target_type => 'case_action', event_prefix => 'case_action', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('cases', 1, 'managed')

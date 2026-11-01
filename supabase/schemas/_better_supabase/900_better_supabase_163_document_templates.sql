@@ -1,6 +1,6 @@
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:753c9fa1bd8735f040680886a26df66ac5dc9cb4741dedecca71ac2e48c4a5c8
+-- @bsb-hash sha256:52e9d86e1d3f358ff81603c4c02c3781059019a29b49979807aaa01a00b86f50
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1698,6 +1698,15 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_doc
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.document_templates', target_type => 'document_template', event_prefix => 'document_template', deferred => true);
+  perform better_supabase.audit('better_supabase.document_text_blocks', target_type => 'document_text_block', event_prefix => 'document_text_block', deferred => true);
+  perform better_supabase.audit('better_supabase.rendered_documents', target_type => 'document_snapshot', event_prefix => 'document_snapshot', deferred => true);
+end;
+$$;
 
 -- blocks.document-templates.api: entry points for the Data API.
 create schema if not exists "api";

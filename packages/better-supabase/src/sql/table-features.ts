@@ -137,7 +137,7 @@ export function tableTagComments(
  * file's diff, and `expose` grants the Data API privileges (row level security
  * still decides the rows). Other features are read from the tag alone.
  */
-export function featureStatement(
+function featureStatement(
   feature: TableFeature,
   schema: string,
   table: string,

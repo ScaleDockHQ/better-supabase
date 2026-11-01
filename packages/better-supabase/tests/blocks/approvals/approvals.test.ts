@@ -556,3 +556,63 @@ describe("approvals client", () => {
     expect((await approvals.cancel("r1")).ok).toBe(false);
   });
 });
+
+describe("approvals.requestAndWait", () => {
+  it("polls until the request leaves pending", async () => {
+    let reads = 0;
+
+    const fake = transport({
+      request_approval: () => REQUEST,
+      get_approval: () => {
+        reads += 1;
+
+        return {
+          ...REQUEST,
+          status: reads < 3 ? "pending" : "approved",
+          canDecide: false,
+          decisions: [],
+        };
+      },
+    });
+
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
+    const done = await approvals
+      .requestAndWait({
+        subject: INVOICE,
+        input: { action: "send" },
+        intervalMs: 1,
+      })
+      .orThrow();
+
+    expect(done.status).toBe("approved");
+    expect(reads).toBe(3);
+  });
+
+  it("fails with a timeout and leaves the request pending", async () => {
+    const fake = transport({
+      request_approval: () => REQUEST,
+      get_approval: () => ({ ...REQUEST, canDecide: false, decisions: [] }),
+    });
+
+    const result = await createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    }).requestAndWait({
+      subject: INVOICE,
+      input: { action: "send" },
+      timeoutMs: 5,
+      intervalMs: 2,
+    });
+
+    expect(result.ok ? undefined : result.error).toMatchObject({
+      kind: "timeout",
+      hint: "APPROVAL_WAIT_TIMEOUT",
+    });
+  });
+});

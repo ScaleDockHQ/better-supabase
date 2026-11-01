@@ -1631,7 +1631,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:ed9fb3da765513235f5a62945e8944f5de085b87df8138eaf65ce3e09e5b4c9d
+-- @bsb-hash sha256:5adeb56b44bff083b686529697306656d247ff374f6bb9f9e911310167de0b00
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3540,6 +3540,17 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluation
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.care_plans', target_type => 'care_plan', event_prefix => 'care_plan', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_problems', target_type => 'care_plan_problem', event_prefix => 'care_plan_problem', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_goals', target_type => 'care_plan_goal', event_prefix => 'care_plan_goal', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_actions', target_type => 'care_plan_action', event_prefix => 'care_plan_action', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_evaluations', target_type => 'care_plan_evaluation', event_prefix => 'care_plan_evaluation', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3556,18 +3567,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
--- @bsb-hash sha256:f16daa3b5a35edb939ff9ca2e6a94f3c0bb55fbdc6d71a6e1aeceb2dbfb2389a
+-- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.care_plans', target_type => 'care_plan', event_prefix => 'care_plan', deferred => true);
-select better_supabase.audit('better_supabase.care_plan_problems', target_type => 'care_plan_problem', event_prefix => 'care_plan_problem', deferred => true);
-select better_supabase.audit('better_supabase.care_plan_goals', target_type => 'care_plan_goal', event_prefix => 'care_plan_goal', deferred => true);
-select better_supabase.audit('better_supabase.care_plan_actions', target_type => 'care_plan_action', event_prefix => 'care_plan_action', deferred => true);
-select better_supabase.audit('better_supabase.care_plan_evaluations', target_type => 'care_plan_evaluation', event_prefix => 'care_plan_evaluation', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('care-plans', 1, 'managed')

@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:12306a3fd8cdcfac27d6ad5b7d3a7257f3b237dfb31526588c6568f8c7ac4b34
+-- @bsb-hash sha256:6c2e792bdcc5932f098d46c57f1abed037f6f3035a26cd1c0a0634deff5e7245
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,6 +349,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments"
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.enrichments', target_type => 'enrichment', event_prefix => 'enrichment', deferred => true);
+end;
+$$;
 
 -- blocks.enrichment.api: entry points for the Data API.
 create schema if not exists "api";

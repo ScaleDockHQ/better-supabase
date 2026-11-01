@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:7d192fe676a362aaba4b5d103e3ef54de2c713c44ffd51ec70bb3734b7fdcb1e
+-- @bsb-hash sha256:e0621557a4e74ee4836d29e3ff625e5f71fef2bf4a36fed546574bcffac24137
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -791,6 +791,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_documents', target_type => 'ai_document', event_prefix => 'ai_document', deferred => true);
+end;
+$$;
 
 -- blocks.ai-files.api: entry points for the Data API.
 create schema if not exists "api";

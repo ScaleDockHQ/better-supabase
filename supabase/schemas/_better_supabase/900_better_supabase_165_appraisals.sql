@@ -1,6 +1,6 @@
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:67ad36f30c7fca7ee11d413e391675f5e74a07c4d33f6b48311b58177f9ab4c8
+-- @bsb-hash sha256:04fcf8398c69b534d0ffadf3e101f1459f07a5caf49282bf087634a962c5632f
 -- Performance appraisals: review cycles that can follow an enrollment program, one appraisal per person with self, peer and manager reviews, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1016,6 +1016,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_go
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.appraisals', target_type => 'appraisal', event_prefix => 'appraisal', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_cycles', target_type => 'appraisal_cycle', event_prefix => 'appraisal_cycle', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_reviews', target_type => 'appraisal_review', event_prefix => 'appraisal_review', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_calibrations', target_type => 'appraisal_calibration', event_prefix => 'appraisal_calibration', deferred => true);
+  perform better_supabase.audit('better_supabase.appraisal_goals', target_type => 'appraisal_goal', event_prefix => 'appraisal_goal', deferred => true);
+end;
+$$;
 
 -- blocks.appraisals.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block-data observations
--- @bsb-hash sha256:66751fff920e238e938902e8a21ddd2c486ad2e4e8c05e0f5c833e236bf83f16
+-- @bsb-hash sha256:15b68d26cf29d7a6ab506771f194c4125667d9ec17bcc98190ed785ca39060fc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -20,10 +20,6 @@ values
   (null, 'pain_score', 'Pain score', 'integer', '{score}', 'http://loinc.org', '72514-3', null, null, 0, 10, null, 3, null, null),
   (null, 'blood_glucose', 'Blood glucose', 'number', 'mmol/L', 'http://loinc.org', '15074-8', null, 1, 0, 60, 4, 7.8, 3, 20)
 on conflict ("tenant_id", "key") do nothing;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.observations', target_type => 'observation', event_prefix => 'observation', deferred => true);
-select better_supabase.audit('better_supabase.observation_definitions', target_type => 'observation_definition', event_prefix => 'observation_definition', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('observations', 1, 'managed')

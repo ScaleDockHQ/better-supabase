@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:5fc0ab4c1827e0a7bbfbe413714cd277723ac053bd7292e2665036d6091c2066
+-- @bsb-hash sha256:5b0526f0c035c5de1d66b0024cdf3ea6a1cd35885145a7b19e456397af48630d
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -999,6 +999,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_p
 create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.controls', target_type => 'control', event_prefix => 'control', deferred => true);
+  perform better_supabase.audit('better_supabase.control_frameworks', target_type => 'control_framework', event_prefix => 'control_framework', deferred => true);
+  perform better_supabase.audit('better_supabase.evidence_tasks', target_type => 'evidence_task', event_prefix => 'evidence_task', deferred => true);
+  perform better_supabase.audit('better_supabase.compliance_policies', target_type => 'compliance_policy', event_prefix => 'compliance_policy', deferred => true);
+end;
+$$;
 
 -- blocks.compliance.api: entry points for the Data API.
 create schema if not exists "api";

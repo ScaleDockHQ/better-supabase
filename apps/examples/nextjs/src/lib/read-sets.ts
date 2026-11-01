@@ -41,3 +41,22 @@ export const pipelineOverview = defineReadSet(
     board: s.blocks.deals.board({ pipelineId: p.pipelineId }),
   }),
 );
+
+/**
+ * One bank account's reconciliation page and the stock watch list in one round
+ * trip: `s.blocks.banking.reconciliationBoard` and
+ * `s.blocks.inventory.overview` are the blocks' own read functions, so the page
+ * doesn't await them one after the other.
+ */
+export const financeOverview = defineReadSet(
+  betterSupabase,
+  "finance_overview",
+  { params: { accountId: "uuid", organizationId: "uuid" }, blocks: reads },
+  (s, p) => ({
+    reconciliation: s.blocks.banking.reconciliationBoard({
+      accountId: p.accountId,
+      limit: 100,
+    }),
+    stock: s.blocks.inventory.overview({ organizationId: p.organizationId }),
+  }),
+);

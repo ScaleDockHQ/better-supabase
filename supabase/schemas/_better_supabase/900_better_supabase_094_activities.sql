@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@3 managed
--- @bsb-hash sha256:b1ef47a9a9f1d26a88486ec1d3f5e0cc81d9023c8750e7b6f0827adeb9f73eba
+-- @bsb-hash sha256:8d1da03d53cfbff8c249b3b65cbf620fc9dda1c2411360f4d7abb9f9ac574417
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1254,6 +1254,13 @@ drop trigger if exists "bsb_search_activity_index" on "better_supabase"."activit
 create trigger "bsb_search_activity_index"
   after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."activities"
   for each row execute function "better_supabase"."search_index_row"('activity', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.activities', target_type => 'activity', event_prefix => 'activity', deferred => true);
+end;
+$$;
 
 -- blocks.activities.api: entry points for the Data API.
 create schema if not exists "api";

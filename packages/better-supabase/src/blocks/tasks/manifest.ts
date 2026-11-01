@@ -19,13 +19,14 @@ export const tasksBlock: BlockOf<
   "tasks",
   typeof createTasks,
   TasksEvents,
-  Record<never, never>,
+  { readonly customFields: "optional" },
   "sink",
   typeof taskChecklistBinding
 > = defineBlock({
   name: "tasks",
   sql: ["tasks"],
   options: { tasks: tasksSqlOptions },
+  consumes: { customFields: "optional" },
   events: tasksEvents,
   provides: { sink: (client) => workItemRecurrenceSink(client) },
   create: createTasks,

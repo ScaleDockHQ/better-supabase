@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:11d5561812c9b5df3934ddfc6488184186bbdf294d009b2693045fde4bfcb40f
+-- @bsb-hash sha256:620286d5acfeff8dc79bbc73e1ae88aaa5b2f458c7bdd119b0756eceafef4b87
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -747,6 +747,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_clocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.sla_policies', target_type => 'sla_policy', event_prefix => 'sla_policy', deferred => true);
+end;
+$$;
 
 -- blocks.sla.api: entry points for the Data API.
 create schema if not exists "api";

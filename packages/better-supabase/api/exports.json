@@ -3981,7 +3981,8 @@
       "ScannedObject",
       "ScanVerdict",
       "SweepQueuedOptions",
-      "SweepResult"
+      "SweepResult",
+      "UploadProgress"
     ]
   },
   "./blocks/data-lifecycle": {
@@ -4814,6 +4815,8 @@
       "RpcClient",
       "ScheduledInboxMessage",
       "ScheduledMessageInput",
+      "SetupInboxInput",
+      "SetupInboxResult",
       "StartConversationInput",
       "StoredInboundEvent",
       "TemplateInput"
@@ -6657,7 +6660,9 @@
       "ImportPreview",
       "ImportRowError",
       "ImportRun",
+      "ImportRunEntity",
       "ImportRunError",
+      "ImportRunResult",
       "ImportRunStatus",
       "Imports",
       "ImportScopeAlias",
@@ -6668,6 +6673,7 @@
       "PreviewImportResult",
       "ResolvedImportKey",
       "RunImportResult",
+      "RunImportsOptions",
       "StartImportRunOptions",
       "UpsertBatchResult"
     ]
@@ -7166,6 +7172,7 @@
       "BlockTransport",
       "CustomEmoji",
       "CustomEmojiInput",
+      "ReactionActors",
       "ReactionCount",
       "Reactions",
       "ReactionsActions",
@@ -7632,6 +7639,7 @@
       "TemplateInput",
       "TemplateJobs",
       "TemplateOccurrence",
+      "TemplatePreview",
       "TemplateRecurPayload",
       "TemplateRecurring",
       "TemplateRunStart",
@@ -7647,6 +7655,7 @@
       "TemplateStarter",
       "TemplateSubject",
       "TemplateType",
+      "TemplateVariable",
       "TemplateVersion",
       "TemplateWorkflow",
       "TemplateWorkflowInput"
@@ -9182,6 +9191,7 @@
       "PassRejection",
       "PassRevokedEventData",
       "PassScan",
+      "PassScanOutcome",
       "PassSectionInput",
       "PassStatus",
       "PassTokenClaims",

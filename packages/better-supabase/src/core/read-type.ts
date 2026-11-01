@@ -57,23 +57,6 @@ function isItemType(type: ReadType): type is readonly [ReadType] {
   return Array.isArray(type);
 }
 
-/** Whether `value` is a well-formed type. */
-export function isReadType(value: unknown): value is ReadType {
-  if (typeof value === "string") {
-    return isScalar(value.endsWith("?") ? value.slice(0, -1) : value);
-  }
-
-  if (Array.isArray(value)) {
-    return value.length === 1 && isReadType(value[0]);
-  }
-
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    Object.values(value).every((each) => isReadType(each))
-  );
-}
-
 const KEY = /^[A-Za-z_$][\w$]*$/;
 
 /** The TypeScript source of a type, for generated result types. */

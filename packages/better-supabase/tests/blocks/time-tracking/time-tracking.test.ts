@@ -540,3 +540,66 @@ describe("time-tracking client", () => {
     ]);
   });
 });
+
+describe("time-tracking helpers", () => {
+  it("logOn logs the entry on the record", async () => {
+    const fake = transport({ log_time: () => ENTRY });
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+
+    await time
+      .logOn({
+        subject: { type: "project", id: "apollo" },
+        startedAt: Temporal.Instant.from(AT),
+        endedAt: Temporal.Instant.from("2026-10-06T11:00:00Z"),
+      })
+      .orThrow();
+
+    expect(fake.calls[0]?.[1]).toMatchObject({
+      subject_type: "project",
+      subject_id: "apollo",
+    });
+  });
+
+  it("switchTo stops every running timer, then starts one on the record", async () => {
+    const fake = transport({
+      running_timers: () => [RUNNING, { ...RUNNING, id: "e3" }],
+      stop_timer: () => ENTRY,
+      start_timer: () => RUNNING,
+    });
+
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+
+    const moved = await time
+      .switchTo({ subject: { type: "project", id: "apollo" } })
+      .orThrow();
+
+    expect(moved.stopped).toHaveLength(2);
+    expect(fake.calls.map((each) => each[0])).toEqual([
+      "running_timers",
+      "stop_timer",
+      "stop_timer",
+      "start_timer",
+    ]);
+  });
+
+  it("submitAndRequest submits, then reads the locked week", async () => {
+    const fake = transport({
+      submit_timesheet: () => SHEET,
+      get_timesheet: () => ({
+        ...SHEET,
+        entries: [ENTRY],
+        totals: { seconds: 7200, billableSeconds: 7200, amounts: [] },
+      }),
+    });
+
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    const sheet = await time.submitAndRequest({ week: WEEK }).orThrow();
+
+    expect(sheet).toMatchObject({ status: "submitted", approvalId: "a1" });
+    expect(sheet.entries).toHaveLength(1);
+    expect(fake.calls.map((each) => each[0])).toEqual([
+      "submit_timesheet",
+      "get_timesheet",
+    ]);
+  });
+});

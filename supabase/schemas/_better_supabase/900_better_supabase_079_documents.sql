@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:77a1d61e6df9cf8bd6154f8a136f5034c55187f48d1d2f57866e10d89435d78b
+-- @bsb-hash sha256:4c8ab40e544353eb918a8e6d6f67e9290a3fcb8a49e200e8dc6428b8f108f458
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2447,6 +2447,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.documents', target_type => 'document', event_prefix => 'document', deferred => true);
+  perform better_supabase.audit('better_supabase.document_suggestions', target_type => 'document_suggestion', event_prefix => 'document_suggestion', deferred => true);
+end;
+$$;
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";

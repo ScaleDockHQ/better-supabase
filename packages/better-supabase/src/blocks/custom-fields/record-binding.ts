@@ -12,18 +12,17 @@ import { entitySchema } from "../entity-schema.ts";
 import { defineRecordBinding } from "../record-bindings.ts";
 
 /** The input schema of the custom-fields binding's `set`. */
-export const setFieldInput: EntitySchema<SetFieldInput> =
-  entitySchema<SetFieldInput>({
-    title: "SetFieldInput",
-    fields: {
-      key: { kind: "string", minLength: 1 },
-      label: { kind: "string", minLength: 1 },
-      type: { kind: "string", minLength: 1 },
-      value: { kind: "json" },
-      rank: { kind: "string", optional: true, minLength: 1 },
-      ifAbsent: { kind: "boolean", optional: true },
-    },
-  });
+const setFieldInput: EntitySchema<SetFieldInput> = entitySchema<SetFieldInput>({
+  title: "SetFieldInput",
+  fields: {
+    key: { kind: "string", minLength: 1 },
+    label: { kind: "string", minLength: 1 },
+    type: { kind: "string", minLength: 1 },
+    value: { kind: "json" },
+    rank: { kind: "string", optional: true, minLength: 1 },
+    ifAbsent: { kind: "boolean", optional: true },
+  },
+});
 
 /** The writes of the custom-fields binding. */
 export type CustomFieldsWrites = {

@@ -122,3 +122,27 @@ each part and drift from them, so no new SQL and no new pgTAP test came with the
 the combining. `qualifications.matrix` shows a holder's id when no gap names it, because the block
 stores no member names, and `documents.page` reads versions and suggestions after `open` because
 opening creates the document.
+
+## Addendum: row audit registration lives in the schema file
+
+The `audit()` registration of block tables sits in each module's schema file, inside a `do` block, not
+only in its data file. A data-only registration is invisible to a schema diff, which then generates
+`drop trigger` for every block table. A module installed before `audit` still registers from its
+data file, because `audit()` does not exist yet when its schema file runs.
+
+## Addendum: steps 3 and 4 helpers
+
+`attachments.uploadFile` reports only start and end through `onProgress`, because supabase-js gives no
+byte progress. `approvals.requestAndWait` polls `get` and returns a `timeout` error
+(`APPROVAL_WAIT_TIMEOUT`) while the request stays pending; a long decision belongs to a workflow resume.
+`timeTracking.switchTo` stops every running timer before it starts one, and `submitAndRequest` is
+`submit` followed by reading the week, because the submission already opens the approval request.
+`tasks.create({ custom })` writes values through a new optional `customFields` port that the
+`custom-fields` block provides, and removes the task again when a value is refused. `enrollments.pause`
+and `resume` are `pause_enrollment` and `resume_enrollment`, user functions over the `paused_at` column
+that mirror `cancel_enrollment`.
+
+`shareLinks.update` is not built. The SQL has to repeat the subject access check, the expiry and
+`max_uses` validation, the password hash and the pinned version across every share-links variant, and a
+change of those fields on a live token is a security decision the module has not made. `rotate` already
+replaces a link and revokes the old one, so an app that must change a link's role or expiry uses it.

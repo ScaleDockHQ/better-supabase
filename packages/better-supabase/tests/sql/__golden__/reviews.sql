@@ -566,7 +566,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:f8edef2e30607ddc18aad6174919578757b8ab17cf19073e4a2343ba76f9a331
+-- @bsb-hash sha256:60cf35fef49273aa58242067ec570e2cf9132a7a069c4e33986e7a2ae9f24065
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1208,6 +1208,13 @@ $$;
 revoke execute on function "better_supabase"."review_summary"(uuid, text, text[]) from public;
 grant execute on function "better_supabase"."review_summary"(uuid, text, text[]) to anon, authenticated, service_role;
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.reviews', target_type => 'review', event_prefix => 'review', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1224,7 +1231,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:6eb202b9bb07ad4356da995e62fab66697917ae8c07e217a7f5a515d17873954
+-- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1237,9 +1244,6 @@ insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
-
--- Row audit for the module's tables (blocks.audit.options.blockTables)
-select better_supabase.audit('better_supabase.reviews', target_type => 'review', event_prefix => 'review', deferred => true);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('reviews', 2, 'managed')

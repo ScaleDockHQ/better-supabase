@@ -106,7 +106,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:
-    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps reset_enrollment_step save_enrollment_program set_enrollment_dates",
+    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
   entitlements: "entitlement_value has_entitlement",
   expenses:
     "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",
@@ -163,7 +163,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
   leave:
-    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
+    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
   ledger:
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "legal-entities":

@@ -129,6 +129,7 @@ export function leaveContract(
       ],
       returns: "jsonb",
     },
+    { name: "leave_working_days", args: ["date", "date"], returns: "integer" },
     { name: "cancel_leave_request", args: ["uuid"], returns: "jsonb" },
     {
       name: "update_leave_request",

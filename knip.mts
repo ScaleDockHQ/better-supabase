@@ -110,6 +110,9 @@ const config: KnipConfig = {
         "src/image-loader.ts",
         "public/sw.js",
         "tests/**/*.test-d.ts",
+        // The composite actions are the runnable example the docs link to; no
+        // page calls them yet.
+        "src/features/composites/composite-actions.ts",
       ],
     },
     "apps/examples/vite-react": browserExample,

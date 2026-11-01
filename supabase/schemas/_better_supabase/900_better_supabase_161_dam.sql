@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:8ed5755d9ca4e29fd23a5a74c9a72d9f4d4255a21873ea9e4ee1cf4ea280dc5d
+-- @bsb-hash sha256:5d43a1ab9e43e051532ce682bfb12f118ad04bddba0ce7c0f8b66554afb6b064
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,6 +512,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditio
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.dam_usage_rights', target_type => 'dam_usage_right', event_prefix => 'dam_usage_right', deferred => true);
+  perform better_supabase.audit('better_supabase.dam_renditions', target_type => 'dam_rendition', event_prefix => 'dam_rendition', deferred => true);
+end;
+$$;
 
 -- blocks.dam.api: entry points for the Data API.
 create schema if not exists "api";

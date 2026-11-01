@@ -7,6 +7,10 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type {
+  Attachments,
+  UploadProgress,
+} from "../attachments/attachments.ts";
+import type {
   Message,
   MessageEdit,
   MessageEdition,
@@ -54,6 +58,12 @@ export interface CommentsOptions<
    */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The `attachments` port: the attachments block over the same transport and
+   * storage, which `createWithFiles` uploads through. `createBlocks` passes
+   * it.
+   */
+  readonly attachments?: Pick<Attachments, "uploadFile" | "remove">;
   /**
    * The user ids (or mention groups) a comment mentions when the call passes no
    * `mentionIds`, such as the mention nodes of a rich-text `document`. Default
@@ -146,6 +156,21 @@ export interface Comments<F extends object = Record<never, never>> {
   create(input: {
     subject: RecordRef;
     comment: NewComment<F>;
+  }): AsyncResult<Comment<F>>;
+  /**
+   * Posts a comment with files: opens the record's conversation, uploads each
+   * file to it (`attachments.uploadFile`) and posts the comment with their ids.
+   * When an upload or the post fails, the files already uploaded are removed
+   * again, so no orphan stays on the conversation. Needs the `attachments` port
+   * (`INVALID_INPUT` hint `COMMENTS_ATTACHMENTS_MISSING` without it).
+   */
+  createWithFiles(input: {
+    subject: RecordRef;
+    comment: Omit<NewComment<F>, "attachmentIds">;
+    files: readonly (Blob & { readonly name?: string })[];
+    onProgress?:
+      | ((progress: UploadProgress & { readonly index: number }) => void)
+      | undefined;
   }): AsyncResult<Comment<F>>;
   /** One comment, or `not_found` when the caller can't read it. */
   get(id: string): AsyncResult<Comment<F>>;
@@ -330,6 +355,67 @@ export function createComments<
             ).andThen(fields.row),
           ),
       ),
+    createWithFiles: ({ subject, comment, files, onProgress }) => {
+      const { attachments } = options;
+
+      if (attachments === undefined) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_input",
+            "createComments needs the attachments port to upload files",
+            { hint: "COMMENTS_ATTACHMENTS_MISSING" },
+          ),
+        );
+      }
+
+      return AsyncResult.from(async () => {
+        const opened = await hooked.conversation({ subject, open: true });
+
+        if (!opened.ok) {
+          return opened;
+        }
+
+        if (opened.data === undefined) {
+          return AsyncResult.err(notFound());
+        }
+
+        const target = { type: "conversation", id: opened.data };
+        const uploaded: string[] = [];
+
+        const undo = async (): Promise<void> => {
+          for (const id of uploaded) {
+            await attachments.remove(id);
+          }
+        };
+
+        for (const [index, file] of files.entries()) {
+          const stored = await attachments.uploadFile({
+            subject: target,
+            file,
+            onProgress: (progress) => onProgress?.({ ...progress, index }),
+          });
+
+          if (!stored.ok) {
+            await undo();
+
+            return stored;
+          }
+
+          uploaded.push(stored.data.id);
+        }
+
+        const posted = await hooked.create({
+          subject,
+          comment: { ...comment, attachmentIds: uploaded },
+        });
+
+        if (!posted.ok) {
+          await undo();
+        }
+
+        return posted;
+      });
+    },
     get,
     edit: ({ id, edit }) =>
       fields
