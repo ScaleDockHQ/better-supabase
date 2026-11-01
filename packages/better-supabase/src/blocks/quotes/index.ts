@@ -44,7 +44,18 @@ export { quotesEvents } from "./events.ts";
 
 export type { QuotesEvents } from "./events.ts";
 
-export { QUOTE_TO_ORDER, QUOTES_AUTOMATIONS } from "./automations.ts";
+export {
+  type QuoteFromDealClients,
+  type QuoteFromDealOptions,
+  quoteFromDealAction,
+  quoteFromDealFactory,
+} from "./actions.ts";
+
+export {
+  DEAL_TO_QUOTE,
+  QUOTE_TO_ORDER,
+  QUOTES_AUTOMATIONS,
+} from "./automations.ts";
 
 export type {
   DocumentVariant,

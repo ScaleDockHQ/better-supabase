@@ -1,5 +1,6 @@
 import type {
   ActionDescriptor,
+  ActionFactory,
   BlockSchedule,
   DefaultAutomation,
 } from "../core/automation.ts";
@@ -134,6 +135,12 @@ export interface BlockDefinition<
    */
   readonly actions?: readonly ActionDescriptor[];
   /**
+   * The factory for each action kind in `actions`, which the automations
+   * block's `blockActions` builds the action registry from. A kind without a
+   * factory stays in the app's registry by hand.
+   */
+  readonly handlers?: Readonly<Record<string, ActionFactory>>;
+  /**
    * The automations the block ships. Its SQL module writes them as default
    * rows, which each organization may turn off or edit.
    */
@@ -188,6 +195,8 @@ export interface Block<
   readonly extension: string | undefined;
   /** The action kinds the block ships. */
   readonly actions: readonly ActionDescriptor[];
+  /** The factory for each action kind, by kind. */
+  readonly handlers: Readonly<Record<string, ActionFactory>>;
   /** The automations the block ships as default rows. */
   readonly automations: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
@@ -241,6 +250,7 @@ export interface AnyBlock {
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
   readonly actions?: readonly ActionDescriptor[];
+  readonly handlers?: Readonly<Record<string, ActionFactory>>;
   readonly automations?: readonly DefaultAutomation[];
   readonly schedules?: readonly BlockSchedule[];
   readonly env?: readonly BlockEnvKey[];
@@ -350,6 +360,7 @@ function blockOf<
     record: parts.record,
     extension: parts.extension,
     actions: parts.actions ?? [],
+    handlers: parts.handlers ?? {},
     automations: parts.automations ?? [],
     schedules: parts.schedules ?? [],
     env: parts.env ?? [],

@@ -2,6 +2,7 @@ import type {
   Action,
   ActionCall,
   ActionContext,
+  ActionFactory,
   ActionOrigin,
 } from "../../core/automation.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
@@ -302,4 +303,40 @@ export function workflowAction(workflows: RuleWorkflows): Action {
       });
     },
   });
+}
+
+/** What `blockActions` reads from a manifest. */
+export interface ActionManifest {
+  readonly handlers?: Readonly<Record<string, ActionFactory>>;
+}
+
+/**
+ * The actions the installed blocks ship, built from their manifests'
+ * `handlers`, ready for `createActionRegistry`. `clients` returns the block
+ * clients for one organization over a service connection. Add the actions the
+ * app writes itself, such as `setFieldAction`, next to the result:
+ *
+ * ```ts
+ * createActionRegistry([
+ *   ...blockActions(blocks, { clients }),
+ *   setFieldAction(setTaskField),
+ * ]);
+ * ```
+ */
+export function blockActions(
+  blocks: Readonly<Record<string, ActionManifest>>,
+  options: { readonly clients: (tenant: string) => unknown },
+): readonly Action[] {
+  const byKind = new Map<string, ActionFactory>();
+
+  for (const manifest of Object.values(blocks)) {
+    for (const [kind, factory] of Object.entries(manifest.handlers ?? {})) {
+      // A renamed copy of a block ships the same kinds; the first one wins.
+      if (!byKind.has(kind)) {
+        byKind.set(kind, factory);
+      }
+    }
+  }
+
+  return [...byKind.values()].map((factory) => factory(options));
 }

@@ -9,6 +9,7 @@ import type { Result } from "../../core/result.ts";
 
 import { defineAction } from "../../core/automation.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { err, ok } from "../../core/result.ts";
 
 /** A record a conversion reads from or creates: its subject type and id. */
@@ -221,4 +222,44 @@ export function defineConversionAction<
       return ok({ status: "created", target });
     },
   });
+}
+
+function hasMethod(value: unknown, path: string): boolean {
+  let at: unknown = value;
+
+  for (const key of path.split(".")) {
+    if (!isRecord(at) || !(key in at)) {
+      return false;
+    }
+
+    at = at[key];
+  }
+
+  return typeof at === "function";
+}
+
+/**
+ * Narrows the `clients` an action factory receives to the clients the action
+ * calls: every dotted `methods` path must be a function on them. A missing one
+ * throws `ACTION_CLIENTS_MISSING` for `kind`, which the dispatcher reports on
+ * the action's run.
+ */
+export function narrowClients<C extends ConversionClients>(
+  kind: string,
+  methods: readonly string[],
+  clients: (tenant: string) => unknown,
+): (tenant: string) => Promise<C> {
+  return async (tenant) => {
+    const value = await clients(tenant);
+    const missing = methods.filter((path) => !hasMethod(value, path));
+
+    if (missing.length > 0) {
+      throw new TypeError(
+        `ACTION_CLIENTS_MISSING: ${kind} needs ${missing.join(", ")} on the clients`,
+      );
+    }
+
+    // SAFETY: every method the action calls was checked on the value above.
+    return value as C;
+  };
 }

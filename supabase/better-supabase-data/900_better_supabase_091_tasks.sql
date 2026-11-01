@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:44d10cb245867faf34d16fc66d7eb20c469963326f5b7ec4337194785be8bd62
+-- @bsb-hash sha256:eecfb8553cd55c3effdf5a38bbc7b033ea15ab082b37125b279f34508c37b05b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -16,6 +16,9 @@ select better_supabase.audit('better_supabase.work_items', target_type => 'task'
 select better_supabase.audit('better_supabase.work_projects', target_type => 'project', event_prefix => 'project', deferred => true);
 select better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
 select better_supabase.audit('better_supabase.work_item_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
+
+-- Realtime for the module's entities (subject.realtime)
+select better_supabase.track_realtime('better_supabase.work_items', tenant_column => 'tenant_id');
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 4, 'managed')

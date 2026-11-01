@@ -1,4 +1,4 @@
-import type { Action } from "../../core/automation.ts";
+import type { Action, ActionFactory } from "../../core/automation.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   ConversionClients,
@@ -9,7 +9,10 @@ import type { WorkItem, WorkItemInput } from "./tasks.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
-import { defineConversionAction } from "../automations/conversion.ts";
+import {
+  defineConversionAction,
+  narrowClients,
+} from "../automations/conversion.ts";
 import { workItemInputSchema } from "./schemas.ts";
 
 /** `blocks.inbox`, `blocks.tasks` and `blocks.relations` for one organization. */
@@ -101,3 +104,18 @@ export function taskFromConversationAction(
     },
   });
 }
+
+/** The `tasks.from_conversation` factory for the action registry. */
+export const taskFromConversationFactory: ActionFactory = ({ clients }) =>
+  taskFromConversationAction({
+    clients: narrowClients<TaskFromConversationClients>(
+      "tasks.from_conversation",
+      [
+        "relations.link",
+        "relations.convertedInto",
+        "inbox.conversations.get",
+        "tasks.create",
+      ],
+      clients,
+    ),
+  });

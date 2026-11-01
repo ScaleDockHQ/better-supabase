@@ -2,6 +2,7 @@ import type { RuleFieldSetter } from "better-supabase/blocks/automations";
 
 import { dbError, err } from "better-supabase";
 import {
+  blockActions,
   createActionRegistry,
   createRuleDispatcher,
   createRuleSink,
@@ -11,14 +12,13 @@ import {
   setFieldAction,
 } from "better-supabase/blocks/automations";
 import { driveOffboardingSink } from "better-supabase/blocks/drive";
-import { taskFromConversationAction } from "better-supabase/blocks/tasks";
 import { wakeOnApproval } from "better-supabase/workflow-sdk";
 import { connection } from "next/server";
 import * as v from "valibot";
 
 import { env } from "@/env";
 import { driveTextOf } from "@/features/drive/drive-client";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig, blocks } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
 const TASK_STATUSES = ["todo", "doing", "done"] as const;
@@ -68,11 +68,10 @@ export async function GET(request: Request): Promise<Response> {
   const admin = bsb.admin();
   const schema = blockConfig.automations.api;
 
-  // The inbox's default automation runs `tasks.from_conversation`: a work
-  // item linked `created_from` the conversation, once per conversation.
+  // The blocks ship their conversion actions (the inbox's `tasks.from_conversation`,
+  // the quotes' `quotes.from_deal`); the app adds the ones only it can write.
   const actions = createActionRegistry([
-    setFieldAction(setTaskField),
-    taskFromConversationAction({
+    ...blockActions(blocks, {
       clients: (tenant) => {
         const scoped = admin.$with({ tenant });
 
@@ -80,9 +79,13 @@ export async function GET(request: Request): Promise<Response> {
           inbox: scoped.inbox,
           relations: scoped.relations,
           tasks: scoped.$blocks.tasks,
+          quotes: scoped.$blocks.quotes,
+          orders: scoped.$blocks.orders,
+          employees: scoped.$blocks.employees,
         };
       },
     }),
+    setFieldAction(setTaskField),
   ]);
 
   const sink = createRuleSink({

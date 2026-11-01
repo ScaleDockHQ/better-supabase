@@ -73,3 +73,10 @@ constants.
   (breaking, with a codemod).
 - Apps run `upgrade` and generate a migration for the new foreign keys and
   triggers.
+
+## Addendum: actions come from manifests
+
+A manifest's `handlers` field holds an `ActionFactory` per conversion. `blockActions(blocks, { clients })`
+builds the registry from the installed blocks, so an app no longer lists each conversion by hand.
+`quotes.from_deal` ships as a default automation that is off. Doctor reports BS507 when installed blocks
+ship actions and no source builds a registry.

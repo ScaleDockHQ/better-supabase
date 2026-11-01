@@ -108,3 +108,29 @@ describe("BS505", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("BS507", () => {
+  it("reports shipped actions until a source builds a registry", async () => {
+    const missing = await rule("BS507").check(
+      context({ tasks: "tasks" }, { sources: [] }),
+    );
+
+    expect(missing.map((finding) => finding.target)).toEqual(["actions"]);
+
+    const registered = await rule("BS507").check(
+      context(
+        { tasks: "tasks" },
+        {
+          sources: [
+            {
+              path: "route.ts",
+              text: "createActionRegistry([...blockActions(blocks, { clients })]);",
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(registered).toEqual([]);
+  });
+});

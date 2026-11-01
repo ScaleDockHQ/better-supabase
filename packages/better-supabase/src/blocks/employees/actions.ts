@@ -1,4 +1,4 @@
-import type { Action } from "../../core/automation.ts";
+import type { Action, ActionFactory } from "../../core/automation.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   ConversionClients,
@@ -7,7 +7,10 @@ import type {
 import type { Employee, EmployeeInput } from "./employees.ts";
 
 import { ok } from "../../core/result.ts";
-import { defineConversionAction } from "../automations/conversion.ts";
+import {
+  defineConversionAction,
+  narrowClients,
+} from "../automations/conversion.ts";
 
 /** `blocks.employees` and `blocks.relations` for one organization. */
 export interface EmployeeFromApplicationClients extends ConversionClients {
@@ -61,3 +64,17 @@ export function employeeFromApplicationAction(
     linksItself: true,
   });
 }
+
+/** The `employees.from_application` factory for the action registry. */
+export const employeeFromApplicationFactory: ActionFactory = ({ clients }) =>
+  employeeFromApplicationAction({
+    clients: narrowClients<EmployeeFromApplicationClients>(
+      "employees.from_application",
+      [
+        "relations.link",
+        "relations.convertedInto",
+        "employees.fromApplication",
+      ],
+      clients,
+    ),
+  });

@@ -1,4 +1,4 @@
-import type { Action } from "../../core/automation.ts";
+import type { Action, ActionFactory } from "../../core/automation.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   ConversionClients,
@@ -8,7 +8,10 @@ import type { OrderDocuments } from "./documents.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
-import { defineConversionAction } from "../automations/conversion.ts";
+import {
+  defineConversionAction,
+  narrowClients,
+} from "../automations/conversion.ts";
 import { isRecord } from "../shared.ts";
 
 /** Clients with an orders client, so the action can call `fromQuote`. */
@@ -74,3 +77,13 @@ export function orderFromQuoteAction<C extends ConversionClients>(
     create: (_, context) => create(context),
   });
 }
+
+/** The `orders.from_quote` factory for the action registry. */
+export const orderFromQuoteFactory: ActionFactory = ({ clients }) =>
+  orderFromQuoteAction({
+    clients: narrowClients<OrderFromQuoteClients>(
+      "orders.from_quote",
+      ["relations.link", "relations.convertedInto", "orders.fromQuote"],
+      clients,
+    ),
+  });

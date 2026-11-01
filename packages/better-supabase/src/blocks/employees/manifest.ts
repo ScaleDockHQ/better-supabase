@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { EmployeesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { employeeFromApplicationFactory } from "./actions.ts";
 import { createEmployees } from "./employees.ts";
 import { employeesEvents } from "./events.ts";
 import { employeesSqlOptions } from "./options.ts";
@@ -26,6 +27,7 @@ export const employeesBlock: BlockOf<
       title: "Preboard the hired candidate",
     },
   ],
+  handlers: { "employees.from_application": employeeFromApplicationFactory },
   schemas: {
     employee: { input: employeeInputSchema, change: employeeChangeSchema },
   },

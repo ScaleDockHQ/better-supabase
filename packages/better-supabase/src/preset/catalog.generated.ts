@@ -3788,7 +3788,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "identifier",
                   "body"
                 ]
-              }
+              },
+              "realtime": true
             }
           },
           "project": {
@@ -29216,6 +29217,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "quote.withdrawn"
         ]
       },
+      "actions": [
+        {
+          "kind": "quotes.from_deal",
+          "title": "Draft a quote for the won deal"
+        }
+      ],
       "automations": [
         {
           "key": "quotes.quote_to_order",
@@ -29228,6 +29235,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "enabled": false,
           "requires": [
             "orders"
+          ]
+        },
+        {
+          "key": "quotes.deal_to_quote",
+          "name": "Draft a quote for each won deal",
+          "trigger": "deal.closed",
+          "subjectType": "deal",
+          "actions": [
+            "quotes.from_deal"
+          ],
+          "enabled": false,
+          "requires": [
+            "deals"
           ]
         }
       ]

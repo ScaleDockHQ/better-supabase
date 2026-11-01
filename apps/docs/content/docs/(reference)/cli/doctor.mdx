@@ -1983,6 +1983,16 @@ mail-sync needs its `MailProvider`s. No app source passes the instance one with
 `...providers` into `defineBlocks(blockConfig, { ...blocks, ...providers })`.
 Comments don't count, so the finding stays until the stub is real code.
 
+### BS507
+
+**Warning: block actions are not registered.** An installed block ships
+automation actions, such as the conversions `tasks.from_conversation` or
+`quotes.from_deal`, but no app source calls `blockActions(...)` or
+`createActionRegistry(...)`. A default automation that you turn on then names an
+action the rules consumer can't run. Build the registry with
+`createActionRegistry([...blockActions(blocks, { clients })])` from
+`better-supabase/blocks/automations` in the outbox route.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets
