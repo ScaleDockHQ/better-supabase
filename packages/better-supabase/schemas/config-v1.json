@@ -4609,6 +4609,10 @@
               "defaultAlarms": {
                 "type": "boolean",
                 "default": false
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4885,6 +4889,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -5120,6 +5128,10 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -5290,7 +5302,11 @@
               },
               "quota": {},
               "control": {},
-              "sync": {}
+              "sync": {},
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -5468,7 +5484,12 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              }
+            }
           }
         }
       },
@@ -5956,6 +5977,10 @@
               "discountMatrix": {
                 "type": "boolean",
                 "default": false
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6041,6 +6066,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6689,6 +6718,10 @@
               "creditRefundBefore": {
                 "type": "string",
                 "default": "12 hours"
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -7668,6 +7701,10 @@
               },
               "actionPath": {
                 "type": "string"
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

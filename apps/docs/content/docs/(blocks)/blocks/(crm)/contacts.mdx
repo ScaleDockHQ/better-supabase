@@ -52,6 +52,14 @@ import { useContacts } from "@/lib/supabase/hooks";
 const rows = useContacts({ limit: 50 });
 ```
 
+## Search column
+
+`searchColumn: true` adds a stored `search_tsv` tsvector column and a GIN index
+to companies and people. The `deals`, `tasks`, `invoices` and `drive` blocks
+take the same option (on the deals, task items, invoices and extracted drive
+texts). It is off by default. Query it with
+`search_tsv @@ websearch_to_tsquery('simple', 'term')`.
+
 ## Companies and people
 
 `saveCompany` and `savePerson` create a record when the input has no `id`, and change the keys the input names otherwise: a key left out keeps its value, and `null` clears it. A new record needs a `name` (`PARTY_NAME_REQUIRED`). Domains and emails are stored in lower case, and an active record can't share its domain or email with another in the organization (`PARTY_DOMAIN_TAKEN`, `PARTY_EMAIL_TAKEN`), so an import finds the existing record instead of a duplicate.

@@ -23,6 +23,7 @@ import {
 } from "../line-items-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { searchColumnSql } from "../search-column.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { invoiceAccountingSources } from "./invoices-accounting.ts";
 import {
@@ -198,6 +199,7 @@ const NAMES: BlockSqlNames = {
     "linePositionKey",
     "paymentsAfterWriteOff",
     "depositKind",
+    "searchColumn",
     "depositLine",
     "quoteLineValues",
     "discountMatrix",
@@ -451,7 +453,7 @@ ${uniqueNumber === false ? "" : `  unique (${numberKey.map(i).join(", ")}),\n`} 
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
 );
-${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
+${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
 ${lockModuleTable(ctx, "invoices", { read: true })}
 ${renderPolicy(
   makePolicy({

@@ -485,6 +485,25 @@
               }
             ]
           },
+          "search": {
+            "anyOf": [
+              {
+                "const": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "columns": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
           "scope": {
             "enum": ["inherit", "user", "none"],
             "type": "string"

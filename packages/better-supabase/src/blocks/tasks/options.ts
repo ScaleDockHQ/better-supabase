@@ -11,6 +11,12 @@ export type TasksSqlOptions = {
   readonly authorCanDelete?: boolean;
   readonly notify?: boolean;
   readonly actionPath?: string;
+  /**
+   * Adds a stored `search_tsv` column and a GIN index to work items, so queries
+   * match with `search_tsv @@ websearch_to_tsquery('simple', ...)`. Default
+   * `false`.
+   */
+  readonly searchColumn?: boolean;
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
@@ -21,4 +27,5 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
     authorCanDelete: option.boolean({ default: true }),
     notify: option.boolean({ default: true }),
     actionPath: option.string(),
+    searchColumn: option.boolean({ default: false }),
   });

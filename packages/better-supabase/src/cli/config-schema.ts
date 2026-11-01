@@ -494,6 +494,12 @@ const appTableEntries = {
       }),
     ]),
   ),
+  search: v.optional(
+    v.union([
+      v.literal(true),
+      v.strictObject({ columns: v.optional(strings) }),
+    ]),
+  ),
 };
 
 const appTableOwner = v.optional(v.picklist(["inherit", "user", "none"]));

@@ -12,6 +12,12 @@ export type ContactsSqlOptions = {
    */
   readonly roles?: readonly string[];
   readonly extraColumns?: ExtraColumns;
+  /**
+   * Adds a stored `search_tsv` column and a GIN index to companies and people,
+   * so queries match with `search_tsv @@ websearch_to_tsquery('simple', ...)`.
+   * Default `false`.
+   */
+  readonly searchColumn?: boolean;
 };
 
 export const contactsSqlOptions: BlockOptionsSchema<ContactsSqlOptions> =
@@ -20,4 +26,5 @@ export const contactsSqlOptions: BlockOptionsSchema<ContactsSqlOptions> =
     personLifecycles: option.unknown(),
     roles: option.strings(),
     extraColumns: option.extraColumns(),
+    searchColumn: option.boolean({ default: false }),
   });

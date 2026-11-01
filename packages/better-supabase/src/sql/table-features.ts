@@ -14,6 +14,7 @@ export const TABLE_FEATURES = [
   "lookup",
   "server",
   "events",
+  "search",
   "vector-search",
   "history",
   "lifecycle",

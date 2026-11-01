@@ -51,6 +51,7 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | `encrypted`     | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.              |
 | `lookup`        | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.           |
 | `server`        | Names the columns signed-in users can't select, so `gen` types them as not selectable.                   |
+| `search`        | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.              |
 | `events`        | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`. |
 
 ### The subject tag
@@ -116,6 +117,15 @@ create table public.patients (
 [outbox](/docs/blocks/outbox) from a trigger, named after the subject type.
 `events include="status, project_id"` keeps only those columns in the event
 data. Rules and workflows consume the events through sinks.
+
+## Search column
+
+`search` adds a stored `search_tsv` tsvector column and a GIN index to the
+table. Without arguments it covers every plain `text` column that isn't
+encrypted; `search columns="name, notes"` names the columns instead. Query it
+with `search_tsv @@ websearch_to_tsquery('simple', 'term')`. The column uses
+the `simple` configuration, so it needs no language setting and stays
+immutable, which Postgres requires for a generated column.
 
 ## History
 

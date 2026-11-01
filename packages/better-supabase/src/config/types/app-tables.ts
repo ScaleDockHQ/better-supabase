@@ -177,6 +177,12 @@ export interface AppTableConfig {
    */
   readonly events?: true | AppTableEvents;
   /**
+   * A stored `search_tsv` column and a GIN index (`@bsb search`, ADR 0198).
+   * `true` indexes every plain `text` column; `columns` names the text columns
+   * to index instead.
+   */
+  readonly search?: true | { readonly columns?: readonly string[] };
+  /**
    * Writes an audit log entry in the `read` category for each call of
    * `public.<table>_reveal`: who read which rows and when, one entry per tenant
    * per call. Needs an `encrypted` column and the `audit` block.

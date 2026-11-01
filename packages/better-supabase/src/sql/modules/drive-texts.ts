@@ -2,6 +2,7 @@ import type { DriveKit } from "./drive-kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { searchColumnStatements } from "../search-column.ts";
 import { lockTable, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
 const MIN_TEXT_BYTES = 1024;
@@ -48,7 +49,15 @@ create table if not exists ${X} (
   ${x("content")} text not null,
   ${x("extractedAt")} timestamptz not null default now()
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("texts").name}_tenant_idx`)} on ${X} (${x("tenant")});
+create index if not exists ${sqlIdent(`${ctx.tableName("texts").name}_tenant_idx`)} on ${X} (${x("tenant")});${
+          ctx.flag("searchColumn", false)
+            ? searchColumnStatements(
+                X,
+                `${ctx.tableName("texts").name}_search_tsv_idx`,
+                [`left(${x("content")}, ${String(SEARCH_TEXT_CHARS)})`],
+              )
+            : ""
+        }
 ${lockTable(X, { read: true })}
 ${renderPolicy(makePolicy({ table: X, name: ctx.naming.rename("drive_node_texts_read"), command: "select", roles: ["authenticated"], using: `${fn("drive_can")}(${x("node")}, ${sqlString(roles.read)})` }), { drop: true, target: X })}
 `
