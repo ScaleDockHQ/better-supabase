@@ -14,7 +14,11 @@ import type {
   InvoiceCollection,
   InvoicePaymentTerms,
 } from "./collections.ts";
-import type { InvoiceEInvoices } from "./e-invoice.ts";
+import type {
+  EInvoiceDelivery,
+  InvoiceEInvoices,
+  SendEInvoiceOptions,
+} from "./e-invoice.ts";
 import type { InvoiceOpenItems } from "./open-items.ts";
 import type { InvoiceSources } from "./sources.ts";
 
@@ -50,7 +54,7 @@ import {
   invoiceCollections,
   paymentTermsOf,
 } from "./collections.ts";
-import { invoiceEInvoices } from "./e-invoice.ts";
+import { invoiceEInvoices, sendEInvoice } from "./e-invoice.ts";
 import { invoiceOpenItems } from "./open-items.ts";
 import { invoiceSources } from "./sources.ts";
 
@@ -339,6 +343,47 @@ export interface Invoices<F extends object = Record<never, never>>
       readonly reason?: string;
     };
   }): AsyncResult<Invoice<F>>;
+  /**
+   * Creates a draft and issues it: `create` then `issue`. When issuing fails
+   * the draft stays; the error carries the issue failure.
+   */
+  createAndIssue(input: {
+    organizationId: string;
+    input: InvoiceInput<F>;
+    lines?: readonly LineInput[] | undefined;
+    issuedOn?: Temporal.PlainDate | undefined;
+    dueOn?: Temporal.PlainDate | undefined;
+    actor?: TransitionActor | undefined;
+  }): AsyncResult<Invoice<F>>;
+  /**
+   * Records a payment for the invoice's whole `balance` (as `issue` or
+   * `recordPayment` returned it). The `reference` defaults to
+   * `paid:<invoiceId>`, so repeating the call adds the payment once.
+   */
+  markPaid(input: {
+    invoice: Pick<Invoice<F>, "id" | "balance">;
+    method?: string | undefined;
+    reference?: string | undefined;
+    paidAt?: Temporal.Instant | undefined;
+    actor?: TransitionActor | undefined;
+  }): AsyncResult<Invoice<F>>;
+  /**
+   * Issues a draft and sends it as an e-invoice: `issue` then `sendEInvoice`
+   * with the format and channel. The invoice stays issued when sending fails;
+   * resend it with `sendEInvoice`.
+   */
+  issueAndSend(input: {
+    invoiceId: string;
+    issuedOn?: Temporal.PlainDate | undefined;
+    dueOn?: Temporal.PlainDate | undefined;
+    actor?: TransitionActor | undefined;
+    format: SendEInvoiceOptions["format"];
+    channel: SendEInvoiceOptions["channel"];
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<{
+    readonly invoice: Invoice<F>;
+    readonly delivery: EInvoiceDelivery;
+  }>;
   /** A draft credit note for the whole invoice, or for the given lines. */
   credit(
     input: { invoiceId: string } & {
@@ -842,6 +887,60 @@ export function createInvoices<
             },
           )
         : AsyncResult.err(unknownCurrency(currency)),
+    createAndIssue: ({
+      organizationId,
+      input,
+      lines,
+      issuedOn,
+      dueOn,
+      actor,
+    }) =>
+      hooked
+        .create({ organizationId, input, lines })
+        .andThen((draft) =>
+          hooked.issue({
+            invoiceId: draft.id,
+            ...(issuedOn === undefined ? {} : { issuedOn }),
+            ...(dueOn === undefined ? {} : { dueOn }),
+            ...(actor === undefined ? {} : { actor }),
+          }),
+        ),
+    markPaid: ({ invoice: open, method, reference, paidAt, actor }) =>
+      hooked.recordPayment({
+        invoiceId: open.id,
+        payment: {
+          amount: open.balance,
+          reference: reference ?? `paid:${open.id}`,
+          ...(method === undefined ? {} : { method }),
+          ...(paidAt === undefined ? {} : { paidAt }),
+          ...(actor === undefined ? {} : { actor }),
+        },
+      }),
+    issueAndSend: ({
+      invoiceId,
+      issuedOn,
+      dueOn,
+      actor,
+      format,
+      channel,
+      signal,
+    }) =>
+      hooked
+        .issue({
+          invoiceId,
+          ...(issuedOn === undefined ? {} : { issuedOn }),
+          ...(dueOn === undefined ? {} : { dueOn }),
+          ...(actor === undefined ? {} : { actor }),
+        })
+        .andThen((issued) =>
+          sendEInvoice({
+            invoice: issued,
+            format,
+            channel,
+            invoices: hooked,
+            ...(signal ? { signal } : {}),
+          }).map((delivery) => ({ invoice: issued, delivery })),
+        ),
     ...invoiceCollections(call, invoice),
     ...invoiceOpenItems(call, invoice),
     ...invoiceSources(call),
@@ -870,8 +969,11 @@ export function createInvoices<
       }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Invoices<F> = withBlockHooks(client, options.hooks, {
     block: "invoices",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

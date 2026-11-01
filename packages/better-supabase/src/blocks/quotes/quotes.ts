@@ -346,6 +346,19 @@ export interface Quotes<
   }): AsyncResult<QuoteVersion<F>>;
   /** A draft quote from a deal, once per deal. Needs the deals module. */
   fromDeal(dealId: string): AsyncResult<Quote<F>>;
+  /**
+   * `fromDeal` and then, when `title`, `validUntil` or `lines` are given, the
+   * draft's title and validity and its lines in one call. It calls `fromDeal`,
+   * `update` and `setLines`, so their hooks see each step, and returns the
+   * quote as it ends up. A deal that already has a quote fails like
+   * `fromDeal`.
+   */
+  draftFromDeal(input: {
+    dealId: string;
+    title?: string | undefined;
+    validUntil?: Temporal.PlainDate | undefined;
+    lines?: readonly QuoteLineInput[] | undefined;
+  }): AsyncResult<Quote<F>>;
   /** The quote behind a link, for the customer's page. Marks it viewed. */
   view(token: string): AsyncResult<PublicQuote>;
   /** The customer's answer through the link. */
@@ -782,6 +795,39 @@ export function createQuotes<
         })),
       ),
     fromDeal: (dealId) => quote("quote_from_deal", { deal: dealId }, quoteOf),
+    draftFromDeal: ({ dealId, title, validUntil, lines }) =>
+      AsyncResult.from(async () => {
+        const drafted = await hooked.fromDeal(dealId);
+
+        if (
+          !drafted.ok ||
+          (title === undefined &&
+            validUntil === undefined &&
+            lines === undefined)
+        ) {
+          return drafted;
+        }
+
+        if (lines !== undefined) {
+          const set = await hooked.setLines({
+            quoteId: drafted.data.id,
+            lines,
+          });
+
+          if (!set.ok) {
+            return set;
+          }
+        }
+
+        // `update` returns the whole quote, so it also reads the lines back.
+        return hooked.update({
+          quoteId: drafted.data.id,
+          input: {
+            ...(title === undefined ? {} : { title }),
+            ...(validUntil === undefined ? {} : { validUntil }),
+          },
+        });
+      }),
     view: (token) => call("public_quote", { token }, publicOf),
     respond: ({ token, decision, answer }) =>
       call(
@@ -816,8 +862,11 @@ export function createQuotes<
     expire: () => call("expire_quotes", {}, (value) => Number(value ?? 0)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Quotes<F> = withBlockHooks(client, options.hooks, {
     block: "quotes",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

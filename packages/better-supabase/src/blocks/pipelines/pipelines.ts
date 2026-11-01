@@ -21,7 +21,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
@@ -169,6 +169,30 @@ export interface Pipelines<F extends object = Record<never, never>> {
   upsert(input: {
     organizationId: string;
     input: PipelineInput<F>;
+  }): AsyncResult<Pipeline<F>>;
+  /**
+   * The organization's default pipeline of a subject type (and scope), or
+   * `undefined` when it has none. It reads `list`.
+   */
+  default(input: {
+    organizationId: string;
+    subjectType: string;
+    scopeId?: string | undefined;
+  }): AsyncResult<Pipeline<F> | undefined>;
+  /**
+   * The pipeline with this `key` and scope, created when it does not exist (the
+   * first of a type and scope becomes the default). With `stages`, a new
+   * pipeline gets those stages added in order and an existing one is left as it
+   * is, so calling it on every start is safe. It calls `list`, `upsert` and
+   * `saveStage`, so their hooks see each step.
+   */
+  ensure(input: {
+    organizationId: string;
+    subjectType: string;
+    key: string;
+    name: string;
+    scopeId?: string | undefined;
+    stages?: readonly PipelineStageInput[] | undefined;
   }): AsyncResult<Pipeline<F>>;
   /** Archives a pipeline that holds no records. */
   archive(pipelineId: string): AsyncResult<boolean>;
@@ -380,6 +404,66 @@ export function createPipelines<
           pipelineOf,
         ),
       ).andThen((pipeline) => readFields(fields, pipeline)),
+    default: ({ organizationId, subjectType, scopeId }) =>
+      hooked
+        .list({ organizationId, subjectType })
+        .map((pipelines) =>
+          pipelines.find(
+            (pipeline) => pipeline.isDefault && pipeline.scopeId === scopeId,
+          ),
+        ),
+    ensure: ({ organizationId, subjectType, key, name, scopeId, stages }) =>
+      AsyncResult.from(async () => {
+        const existing = await hooked.list({ organizationId, subjectType });
+
+        if (!existing.ok) {
+          return existing;
+        }
+
+        const found = existing.data.find(
+          (pipeline) => pipeline.key === key && pipeline.scopeId === scopeId,
+        );
+
+        if (found !== undefined) {
+          return ok(found);
+        }
+
+        const created = await hooked.upsert({
+          organizationId,
+          input: {
+            subjectType,
+            key,
+            name,
+            ...(scopeId === undefined ? {} : { scopeId }),
+          },
+        });
+
+        if (!created.ok || stages === undefined || stages.length === 0) {
+          return created;
+        }
+
+        for (const stage of stages) {
+          const saved = await hooked.saveStage({
+            pipelineId: created.data.id,
+            input: stage,
+          });
+
+          if (!saved.ok) {
+            return saved;
+          }
+        }
+
+        const reread = await hooked.list({ organizationId, subjectType });
+
+        if (!reread.ok) {
+          return reread;
+        }
+
+        return ok(
+          reread.data.find((pipeline) => pipeline.id === created.data.id) ??
+            created.data,
+        );
+      }),
     archive: (pipelineId) =>
       call(
         "archive_pipeline",
@@ -456,8 +540,11 @@ export function createPipelines<
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Pipelines<F> = withBlockHooks(client, options.hooks, {
     block: "pipelines",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

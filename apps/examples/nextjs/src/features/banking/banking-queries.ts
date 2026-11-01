@@ -83,27 +83,16 @@ async function loadReconciliation(): Promise<
 
   return Promise.all(
     accounts.map(async (account) => {
-      const [status, transactions] = await Promise.all([
+      const [status, transactions, queue] = await Promise.all([
         banking.reconciliation({ accountId: account.id }).orThrow(),
         banking.transactions({ accountId: account.id, limit: 100 }).orThrow(),
+        banking
+          .reviewQueue({ accountId: account.id, limit: SUGGESTED })
+          .orThrow(),
       ]);
 
-      const open = transactions
-        .filter((transaction) => transaction.status === "unmatched")
-        .slice(0, SUGGESTED);
-
       const suggestions = new Map(
-        await Promise.all(
-          open.map(
-            async (transaction) =>
-              [
-                transaction.id,
-                (await banking.suggestMatches(transaction.id).orThrow()).find(
-                  (suggestion) => suggestion.targetType === "invoice",
-                ),
-              ] as const,
-          ),
-        ),
+        queue.map((item) => [item.transaction.id, item.suggestion] as const),
       );
 
       return {

@@ -206,3 +206,7 @@ export const promotions = createPromotions({
   transport: sqlTransport(ctx.postgres),
 });
 ```
+
+## Promotion with a code
+
+`createWithCode({ organizationId, input, code, usageLimit })` saves the promotion and creates its code. If the code can't be created, a promotion that was new is deleted again and the error comes back.

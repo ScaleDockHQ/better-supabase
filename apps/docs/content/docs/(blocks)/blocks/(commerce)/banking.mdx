@@ -286,3 +286,7 @@ const banking = createBanking({ transport, tenant: organizationId });
 
 const status = await banking.reconciliation(accountId).orThrow();
 ```
+
+## Review queue
+
+`reviewQueue({ accountId, limit })` returns the unmatched transactions, each with its best invoice suggestion when there is one. It makes one `suggestMatches` call per transaction. `acceptBestMatch({ transactionId, minScore })` records the top invoice match, or fails with the hint `BANK_NO_MATCH` when no candidate reaches `minScore`.

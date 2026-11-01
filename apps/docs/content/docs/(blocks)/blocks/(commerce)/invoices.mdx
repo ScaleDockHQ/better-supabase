@@ -803,3 +803,7 @@ result.skipped; // sources that were already invoiced
 | `INVOICE_SOURCE_QUANTITY`    | a line is invoiced for more than is delivered and not yet invoiced                              |
 | `INVOICE_SOURCE_PARTY`       | an order was placed by another buyer than the party                                             |
 | `INVOICE_SOURCES_IMPORTING`  | the call ran in import mode                                                                     |
+
+## Invoice helpers
+
+`createAndIssue({ organizationId, input, lines, issuedOn, dueOn })` creates a draft with its lines and issues it. `markPaid({ invoice, method, reference })` records a payment for the invoice's whole `balance`; the reference defaults to `paid:<id>`, so retries are safe. `issueAndSend({ invoiceId, format, channel })` issues the invoice, then sends it as an e-invoice, and returns `{ invoice, delivery }`.

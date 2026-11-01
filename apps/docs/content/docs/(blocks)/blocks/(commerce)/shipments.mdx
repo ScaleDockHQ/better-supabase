@@ -353,3 +353,7 @@ const labeled = await shipments
   })
   .orThrow();
 ```
+
+## Ship cheapest
+
+`shipCheapest({ id, currency, maxDays })` reads the rates, buys the label for the cheapest one that fits, and returns the shipment. It fails with the hint `SHIPMENT_NO_RATE` when no rate qualifies.

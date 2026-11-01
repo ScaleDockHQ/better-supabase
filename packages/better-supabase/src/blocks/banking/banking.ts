@@ -21,7 +21,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   BATCH_ITEM_STATUSES,
@@ -323,6 +323,21 @@ export interface BankFeedSync {
   readonly since: BankDate;
 }
 
+/** An unmatched transaction and the invoice it most likely pays. */
+export interface BankReviewItem {
+  readonly transaction: BankTransaction;
+  readonly suggestion?: BankMatchSuggestion;
+}
+
+const bestInvoice = (
+  suggestions: readonly BankMatchSuggestion[],
+  minScore: number,
+): BankMatchSuggestion | undefined =>
+  suggestions.find(
+    (suggestion) =>
+      suggestion.targetType === "invoice" && suggestion.score >= minScore,
+  );
+
 export interface Banking<F extends object = Record<never, never>> {
   saveAccount(input: {
     input: BankAccountInput<F>;
@@ -363,6 +378,25 @@ export interface Banking<F extends object = Record<never, never>> {
   match(input: {
     transactionId: string;
     matches: readonly BankMatchInput[];
+  }): AsyncResult<BankTransaction>;
+  /**
+   * The unmatched transactions of an account (newest first, `limit` default 20)
+   * each with the best open invoice it may pay, from `suggestMatches`. One read
+   * per transaction runs behind it, so the reconciliation page reads once.
+   * `suggestion` is missing when nothing scored.
+   */
+  reviewQueue(input: {
+    accountId: string;
+    limit?: number | undefined;
+  }): AsyncResult<readonly BankReviewItem[]>;
+  /**
+   * Matches the transaction to its best open invoice, when that invoice scored
+   * at least `minScore` (default 1). Without a candidate it fails with
+   * `BANK_NO_MATCH` and changes nothing.
+   */
+  acceptBestMatch(input: {
+    transactionId: string;
+    minScore?: number | undefined;
   }): AsyncResult<BankTransaction>;
   /** Undoes the matches: invoice payments are refunded, a rule's entry reversed. */
   unmatch(transactionId: string): AsyncResult<BankTransaction>;
@@ -1038,6 +1072,53 @@ export function createBanking<
             .accounts({ includeArchived: true })
             .andThen((accounts) => sepaFile(batch, accounts, sepa)),
         ),
+    reviewQueue: ({ accountId, limit }) =>
+      hooked
+        .transactions({ accountId, status: "unmatched", limit: limit ?? 20 })
+        .andThen((open) =>
+          AsyncResult.from(async () => {
+            const items: BankReviewItem[] = [];
+
+            const found = await Promise.all(
+              open.map((transaction) => hooked.suggestMatches(transaction.id)),
+            );
+
+            for (const [index, transaction] of open.entries()) {
+              const suggestions = found[index];
+
+              if (suggestions === undefined) {
+                continue;
+              }
+
+              if (!suggestions.ok) {
+                return suggestions;
+              }
+
+              const suggestion = bestInvoice(suggestions.data, 0);
+
+              items.push(
+                suggestion ? { transaction, suggestion } : { transaction },
+              );
+            }
+
+            return ok(items);
+          }),
+        ),
+    acceptBestMatch: ({ transactionId, minScore }) =>
+      hooked.suggestMatches(transactionId).andThen((suggestions) => {
+        const best = bestInvoice(suggestions, minScore ?? 1);
+
+        return best
+          ? hooked.match({
+              transactionId,
+              matches: [{ targetType: "invoice", targetId: best.targetId }],
+            })
+          : AsyncResult.err<BankTransaction>(
+              dbError("not_found", "no open invoice matches the transaction", {
+                hint: "BANK_NO_MATCH",
+              }),
+            );
+      }),
     syncFeed: ({ accountId, feed, sync }) =>
       AsyncResult.ok(bankFeedOf(feed))
         .andThen((checked) => checked.transactions(sync.accountRef, sync.since))
@@ -1054,8 +1135,11 @@ export function createBanking<
         ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Banking<F> = withBlockHooks(client, options.hooks, {
     block: "banking",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

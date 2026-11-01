@@ -123,3 +123,7 @@ The hooks are `before_rfq_create`, `after_rfq_create`,
 `decline_rfq_supplier`, `open_rfq`, `record_rfq_quote`, `withdraw_rfq_quote`,
 `close_rfq`, `compare_rfq`, `award_rfq` and `cancel_rfq` are plain SQL
 functions. In custom mode you implement them over your own tables.
+
+## Award the best quote
+
+`awardBest({ rfqId, location })` compares the quotes and awards the cheapest one that covers every line, creating the draft purchase order. It fails with the hint `RFQ_NO_COMPLETE_QUOTE` when no supplier quoted every line.

@@ -418,3 +418,7 @@ block: `accounting_account` (key: the account code), `accounting_journal`
 items name accounts and journals by code. Debits and credits that differ fail
 that item with `IMPORT_ITEM_INVALID`; the other items go on. Running the same
 file again writes nothing, because equal content is skipped.
+
+## Initialize and year to date
+
+`initialize({ organizationId, fiscalYear, input })` runs `setup` and opens the first fiscal year. `yearToDate({ organizationId, asOf, dimensions })` reads the settings, starts at the fiscal year's first month and returns `{ since, until, report }` from the profit and loss report. It fails with the hint `ACCOUNTING_NOT_SET_UP` before `initialize`.

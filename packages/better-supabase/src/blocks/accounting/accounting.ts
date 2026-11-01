@@ -15,7 +15,9 @@ import type { AccountingPostings } from "./postings.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import { applyTemporal, blockCall, textOf } from "../shared.ts";
 import {
   accountOf,
@@ -443,6 +445,33 @@ export interface Accounting<F extends object = Record<never, never>>
     organizationId: string;
     input?: AccountingSetupInput | undefined;
   }): AsyncResult<AccountingSettings>;
+  /**
+   * Sets accounting up and opens the periods of `fiscalYear`: `setup` then
+   * `openFiscalYear`. Both need `accounting.manage`; when opening fails the
+   * settings stay in place and a repeat call continues from there.
+   */
+  initialize(input: {
+    organizationId: string;
+    fiscalYear: number;
+    input?: AccountingSetupInput | undefined;
+  }): AsyncResult<{
+    readonly settings: AccountingSettings;
+    readonly periods: readonly AccountingPeriod[];
+  }>;
+  /**
+   * The profit and loss from the start of the fiscal year (from the settings'
+   * `fiscalYearStartMonth`) to `asOf` (default today). Without settings it
+   * fails with `ACCOUNTING_NOT_SET_UP`.
+   */
+  yearToDate(input: {
+    organizationId: string;
+    asOf?: Temporal.PlainDate | undefined;
+    dimensions?: Readonly<Record<string, string>> | undefined;
+  }): AsyncResult<{
+    readonly since: Temporal.PlainDate;
+    readonly until: Temporal.PlainDate;
+    readonly report: ProfitAndLoss;
+  }>;
   settings(organizationId: string): AsyncResult<AccountingSettings | undefined>;
   /** Nothing posts on or before `lockDate`. Needs `accounting.close`. */
   setLockDate(input: {
@@ -586,6 +615,44 @@ export function createAccounting<
   const period = (fn: string) => (value: unknown) => periodOf(value, fn);
 
   const client: Accounting<F> = {
+    initialize: ({ organizationId, fiscalYear, input }) =>
+      hooked
+        .setup({ organizationId, input })
+        .andThen((settings) =>
+          hooked
+            .openFiscalYear({ organizationId, fiscalYear })
+            .map((periods) => ({ settings, periods })),
+        ),
+    yearToDate: ({ organizationId, asOf, dimensions }) =>
+      hooked.settings(organizationId).andThen((settings) => {
+        if (settings === undefined) {
+          return AsyncResult.err(
+            dbError("not_found", "accounting isn't set up", {
+              hint: "ACCOUNTING_NOT_SET_UP",
+            }),
+          );
+        }
+
+        return AsyncResult.from(async () => {
+          const until = asOf ?? temporal().Now.plainDateISO();
+          const start = settings.fiscalYearStartMonth;
+
+          const since = temporal().PlainDate.from({
+            year: until.month >= start ? until.year : until.year - 1,
+            month: start,
+            day: 1,
+          });
+
+          const report = await hooked.profitAndLoss({
+            organizationId,
+            since,
+            until,
+            ...(dimensions === undefined ? {} : { dimensions }),
+          });
+
+          return report.ok ? ok({ since, until, report: report.data }) : report;
+        });
+      }),
     ...accountingPostings(call),
     ...accountingLedger(call),
     setup: ({ organizationId, input = {} }) =>
@@ -852,8 +919,11 @@ export function createAccounting<
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Accounting<F> = withBlockHooks(client, options.hooks, {
     block: "accounting",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

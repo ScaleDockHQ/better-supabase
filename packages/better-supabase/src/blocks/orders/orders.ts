@@ -64,6 +64,7 @@ import {
   transactionToJson,
 } from "./codecs.ts";
 import { orderDocuments } from "./documents.ts";
+import { orderHelpers } from "./helpers.ts";
 import { orderKitchen } from "./kitchen.ts";
 
 export interface OrdersOptions<
@@ -220,7 +221,7 @@ export interface Invoice<F extends object = Record<never, never>> {
 }
 
 export interface Orders<F extends object = Record<never, never>>
-  extends OrderDocuments<F>, OrderVariants {
+  extends OrderDocuments<F>, ReturnType<typeof orderHelpers>, OrderVariants {
   saveShippingRate(input: {
     organizationId: string;
     input: ShippingRateInput;
@@ -1222,13 +1223,17 @@ export function createOrders<
     job: async (payload) => {
       await expireOrders(maxRowsOf(payload)).orThrow();
     },
+    ...orderHelpers(() => hooked, afterPayment),
     kitchen: orderKitchen(call),
     ...orderDocuments(call, parsed),
     ...orderVariants(call),
   };
 
-  return withBlockHooks(orders, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Orders<F> = withBlockHooks(orders, options.hooks, {
     block: "orders",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

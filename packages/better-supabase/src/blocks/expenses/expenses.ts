@@ -265,6 +265,19 @@ export interface Expenses<F extends object = Record<never, never>> {
   }): AsyncResult<readonly ExpenseCategory[]>;
   /** A draft report of the caller. Needs `expenses.submit`. */
   create(input: ExpenseReportInput<F>): AsyncResult<ExpenseReport<F>>;
+  /**
+   * Files a report in one call: `create`, one `addLine` per line in order, then
+   * `submit` unless `submit` is `false`. It returns the report as it ends up. A
+   * failing step stops the chain and leaves the draft with the lines added so
+   * far, for the caller to fix and `submit`. Needs `expenses.submit`.
+   */
+  file(input: {
+    title: string;
+    currency: string;
+    note?: string | undefined;
+    lines: readonly ExpenseLineInput[];
+    submit?: boolean | undefined;
+  }): AsyncResult<ExpenseReport<F>>;
   addLine(input: {
     reportId: string;
     line: ExpenseLineInput;
@@ -580,6 +593,24 @@ export function createExpenses<
   );
 
   const client: Expenses<F> = {
+    file: ({ title, currency, note, lines, submit }) =>
+      hooked
+        .create({ title, currency, ...(note === undefined ? {} : { note }) })
+        .andThen((report) =>
+          AsyncResult.from(async () => {
+            for (const line of lines) {
+              const added = await hooked.addLine({ reportId: report.id, line });
+
+              if (!added.ok) {
+                return added;
+              }
+            }
+
+            return submit === false
+              ? hooked.get(report.id)
+              : hooked.submit(report.id);
+          }),
+        ),
     saveCategory: (input) => {
       const currency = input.limit?.currency ?? input.receiptOver?.currency;
 
@@ -864,8 +895,11 @@ export function createExpenses<
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Expenses<F> = withBlockHooks(client, options.hooks, {
     block: "expenses",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

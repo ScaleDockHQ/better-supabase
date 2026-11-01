@@ -7,6 +7,8 @@ import type { BlockOptions } from "../shared.ts";
 import { money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   RFQ_QUOTE_STATUSES,
@@ -256,6 +258,16 @@ export interface Rfqs {
   award(
     input: { rfqId: string; quoteId: string } & { readonly location?: string },
   ): AsyncResultType<Rfq>;
+  /**
+   * Awards the request to its cheapest quote that prices every line: `compare`
+   * then `award`, with the optional `location` for the purchase order. Without
+   * such a quote it fails with `RFQ_NO_COMPLETE_QUOTE` and changes nothing.
+   * Needs `rfqs.manage`.
+   */
+  awardBest(input: {
+    rfqId: string;
+    location?: string | undefined;
+  }): AsyncResultType<Rfq>;
   /** Cancels a request that is not awarded; needs `rfqs.manage`. */
   cancelRfq(input: { rfqId: string; reason: string }): AsyncResultType<Rfq>;
 }
@@ -479,6 +491,22 @@ export function createRfqs(options: RfqsOptions): Rfqs {
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
   const client: Rfqs = {
+    awardBest: ({ rfqId, location }) =>
+      hooked.compare(rfqId).andThen((comparison) => {
+        const best = comparison.quotes.find((quote) => quote.complete);
+
+        return best
+          ? hooked.award({
+              rfqId,
+              quoteId: best.quoteId,
+              ...(location === undefined ? {} : { location }),
+            })
+          : AsyncResult.err<Rfq>(
+              dbError("not_found", "no quote prices every line", {
+                hint: "RFQ_NO_COMPLETE_QUOTE",
+              }),
+            );
+      }),
     createRfq: ({ input, lines = [] }) =>
       tenant().andThen((organizationId) =>
         call(
@@ -581,8 +609,11 @@ export function createRfqs(options: RfqsOptions): Rfqs {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Rfqs = withBlockHooks(client, options.hooks, {
     block: "rfqs",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

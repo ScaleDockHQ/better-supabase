@@ -461,3 +461,7 @@ picked.variants; // every variant of the group, with isSelected
 | `QUOTE_VARIANT_LABEL_TAKEN`    | another variant of the quote has that label                |
 | `QUOTE_VARIANT_NOT_SELECTABLE` | a withdrawn, rejected or expired variant can't be selected |
 | `QUOTE_VARIANT_NOT_SELECTED`   | the quote is one of several variants and wasn't selected   |
+
+## Draft from a deal
+
+`draftFromDeal({ dealId, title, validUntil, lines })` creates the quote from the deal, then sets the lines and the header you pass. With only `dealId` it is `fromDeal`. If setting the lines fails, the draft stays and the error comes back.

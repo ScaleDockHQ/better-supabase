@@ -39,6 +39,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { catalogDiscounts } from "./discounts.ts";
+import { catalogHelpers } from "./helpers.ts";
 import { catalogRankKey } from "./rank.ts";
 import { catalogSupply } from "./supply.ts";
 
@@ -360,6 +361,25 @@ export interface Catalog<F extends object = Record<never, never>>
     organizationId: string;
     input: ProductInput & Partial<F>;
   }): AsyncResult<SavedProduct & F>;
+  /**
+   * A product with one variant and a base price: `createProduct`,
+   * `createVariant`, `setPrice` and, with `publish`, `setProductStatus` to
+   * `active`. Each step runs on its own, so a failure leaves the earlier ones
+   * (a draft product) in place.
+   */
+  createSimpleProduct(input: {
+    organizationId: string;
+    title: string;
+    price: Money;
+    sku?: string | undefined;
+    slug?: string | undefined;
+    description?: string | undefined;
+    publish?: boolean | undefined;
+  }): AsyncResult<{
+    readonly product: SavedProduct;
+    readonly variant: SavedVariant;
+    readonly price: SavedPrice;
+  }>;
   updateProduct(input: {
     organizationId: string;
     productId: string;
@@ -789,6 +809,7 @@ export function createCatalog<
   };
 
   const catalog: Catalog<F> = {
+    ...catalogHelpers(() => hooked),
     ...catalogSupply(call),
     ...catalogDiscounts(call),
     createProduct: ({ organizationId, input }) =>
@@ -1189,8 +1210,11 @@ export function createCatalog<
       ),
   };
 
-  return withBlockHooks(catalog, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Catalog<F> = withBlockHooks(catalog, options.hooks, {
     block: "catalog",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

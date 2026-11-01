@@ -17,7 +17,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { PROMOTION_KINDS } from "../orders/codecs.ts";
 import {
   applyTemporal,
@@ -143,6 +143,21 @@ export interface Promotions<F extends object = Record<never, never>> {
     organizationId: string;
     input: PromotionInput<F>;
   }): AsyncResult<SavedPromotion<F>>;
+  /**
+   * A promotion with one code: `savePromotion` then `createCodes` with `code`.
+   * When the code is refused (`PROMOTIONS_CODE_TAKEN`) and the promotion was
+   * new (no `input.id`), it deletes the promotion again, so a retry starts
+   * clean.
+   */
+  createWithCode(input: {
+    organizationId: string;
+    input: PromotionInput<F>;
+    code: string;
+    usageLimit?: number | undefined;
+  }): AsyncResult<{
+    readonly promotion: SavedPromotion<F>;
+    readonly code: PromotionCode;
+  }>;
   setPromotionActive(input: {
     promotionId: string;
     active: boolean;
@@ -237,6 +252,32 @@ export function createPromotions<
   );
 
   const promotions: Promotions<F> = {
+    createWithCode: ({ organizationId, input, code, usageLimit }) =>
+      hooked.savePromotion({ organizationId, input }).andThen((promotion) =>
+        AsyncResult.from(async () => {
+          const created = await hooked.createCodes({
+            promotionId: promotion.id,
+            input: {
+              codes: [code],
+              ...(usageLimit === undefined ? {} : { usageLimit }),
+            },
+          });
+
+          if (!created.ok) {
+            if (input.id === undefined) {
+              await hooked.deletePromotion(promotion.id);
+            }
+
+            return created;
+          }
+
+          const [saved] = created.data;
+
+          return saved
+            ? ok({ promotion, code: saved })
+            : err(dbError("unexpected", "the code wasn't created"));
+        }),
+      ),
     savePromotion: ({ organizationId, input }) => {
       const data = promotionData(input);
 
@@ -295,8 +336,11 @@ export function createPromotions<
       call("remove_promotion_code", { cart: cartId, code }, isTrue),
   };
 
-  return withBlockHooks(promotions, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Promotions<F> = withBlockHooks(promotions, options.hooks, {
     block: "promotions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

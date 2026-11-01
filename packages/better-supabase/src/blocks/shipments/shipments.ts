@@ -201,6 +201,18 @@ export interface Shipments<
     input: { id: string } & { readonly currency?: string },
   ): AsyncResult<readonly ShipmentRate[]>;
   /**
+   * Quotes every carrier (`rates`) and buys the label of the cheapest one
+   * (`buyLabel`). With `currency` only quotes in it count; with `maxDays` only
+   * those estimated to arrive within that many days (a quote without an
+   * estimate is skipped). Without a quote it fails with `SHIPMENT_NO_RATE` and
+   * buys nothing. The shipment id keeps a retry from buying twice.
+   */
+  shipCheapest(input: {
+    id: string;
+    currency?: string | undefined;
+    maxDays?: number | undefined;
+  }): AsyncResult<Shipment<F>>;
+  /**
    * Buys the label from the carrier and stores it on the draft shipment. The
    * shipment id is the idempotency key, so a retry doesn't buy twice.
    */
@@ -471,6 +483,40 @@ export function createShipments<
     );
 
   const client: Shipments<F> = {
+    shipCheapest: ({ id, currency, maxDays }) =>
+      hooked
+        .rates({ id, ...(currency === undefined ? {} : { currency }) })
+        .andThen((rates) => {
+          const cheapest = rates
+            .filter(
+              (rate) =>
+                (currency === undefined || rate.amount.currency === currency) &&
+                (maxDays === undefined ||
+                  (rate.estimatedDays !== undefined &&
+                    rate.estimatedDays <= maxDays)),
+            )
+            .reduce<ShipmentRate | undefined>(
+              (best, rate) =>
+                best === undefined || rate.amount.amount < best.amount.amount
+                  ? rate
+                  : best,
+              undefined,
+            );
+
+          return cheapest
+            ? hooked.buyLabel({
+                id,
+                choice: {
+                  carrier: cheapest.carrier,
+                  service: cheapest.service,
+                },
+              })
+            : AsyncResult.err<Shipment<F>>(
+                dbError("not_found", "no carrier quoted a matching rate", {
+                  hint: "SHIPMENT_NO_RATE",
+                }),
+              );
+        }),
     ...shipmentsIntrastat(call, tenant),
     create: (input) =>
       tenant().andThen((organizationId) =>
@@ -743,8 +789,11 @@ export function createShipments<
       ).andThen(fields.row),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Shipments<F> = withBlockHooks(client, options.hooks, {
     block: "shipments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

@@ -872,3 +872,7 @@ await catalog
   .setProductStatus({ productId: shirt.id, status: "active" })
   .orThrow();
 ```
+
+## Simple products
+
+`createSimpleProduct({ organizationId, title, price, sku, slug, description, publish })` creates a product with one variant and its price, and sets it to `active` when `publish` is true. It returns `{ product, variant, price }`.
