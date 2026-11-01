@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:92a3d5581f0e5e70cdd703e167d59fc376ba6b91c7e96db028182c4f49b8a7c5
+-- @bsb-hash sha256:be8b6d0b27aaa3d4786f43e6959e82bda5e4cf7fa73d6bd746008aca2370ffd8
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -966,6 +966,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
+
+
+-- Seeds the rows every organization starts with for leave. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_leave_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""", """allowance""")
+  select p_tenant, 'annual', 'Annual leave', 'days', true, true, 20
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'annual');
+  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""")
+  select p_tenant, 'sick', 'Sick leave', 'days', true, false
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'sick');
+  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""")
+  select p_tenant, 'unpaid', 'Unpaid leave', 'days', false, false
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'unpaid');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_leave_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

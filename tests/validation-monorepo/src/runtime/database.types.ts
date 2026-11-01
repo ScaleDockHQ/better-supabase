@@ -894,6 +894,8 @@ export type Database = {
           user_id: string
         }[]
       }
+      rs_finance_overview: { Args: { p: Json }; Returns: Json }
+      rs_pipeline_overview: { Args: { p: Json }; Returns: Json }
       rs_workspace_summary: { Args: { p: Json }; Returns: Json }
       search_notes: {
         Args: { k?: number; query: string }

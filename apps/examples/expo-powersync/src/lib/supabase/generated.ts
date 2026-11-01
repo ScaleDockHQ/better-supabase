@@ -849,6 +849,18 @@ export type Functions = {
     };
     Returns: { "avatar_path": string | null; "avatar_url": string | null; "email": string | null; "full_name": string | null; "joined_at": string | null; "role": string | null; "user_id": string | null }[];
   };
+  rs_finance_overview: {
+    Args: {
+      p: Json | null;
+    };
+    Returns: Json;
+  };
+  rs_pipeline_overview: {
+    Args: {
+      p: Json | null;
+    };
+    Returns: Json;
+  };
   rs_workspace_summary: {
     Args: {
       p: Json | null;

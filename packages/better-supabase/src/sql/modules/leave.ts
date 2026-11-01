@@ -50,6 +50,7 @@ import {
   leaveOwner,
   leaveParts,
 } from "./leave-owner.ts";
+import { leaveSeeds } from "./leave-seeds.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -1086,4 +1087,5 @@ export const LEAVE: BlockSqlDefinition = {
   names: LEAVE_NAMES,
   contract: leaveContract,
   build,
+  seeds: leaveSeeds,
 };

@@ -11,6 +11,7 @@ import { schemaPreamble } from "../shared.ts";
 import { taxCompute } from "./tax-compute.ts";
 import { taxFunctions, taxImportTargets } from "./tax-functions.ts";
 import { taxReturns } from "./tax-returns.ts";
+import { taxSeeds } from "./tax-seeds.ts";
 import { taxTables } from "./tax-tables.ts";
 
 const CODE = ["organizationId", "id", "code", "type", "legalEntityId"] as const;
@@ -227,4 +228,5 @@ export const TAX: BlockSqlDefinition = {
   contract,
   build,
   contributes: { imports: taxImportTargets },
+  seeds: taxSeeds,
 };
