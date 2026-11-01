@@ -85,3 +85,18 @@ Two conversions stay out of the registry. An invoice from an order has no `fromO
 invoices client, and a conversation to ticket has no ticket block to create into. Each needs its own
 block change first. Doctor also reports BS508 when blocks declare timers and no source calls
 `blockTickHandler`.
+
+## Addendum: record verbs
+
+The server-level accessor for one record is `bsb.recordAt(type, id)`, because `bsb.record(type)` already
+names the whole record type and the subjects block already has `record(subject)`. It offers `can`,
+`copyTo`, `trash` and `restore`.
+
+`copyTo` is TypeScript over an optional `copy` hook on each record binding, not a SQL function as the
+plan first said. The hook reuses the block's own idempotent reads and writes (`tags.attach`,
+`comments.copy`, `customFields.setField`), which keep their row level security and events, and a copy
+that stops halfway can run again. `trash` and `restore` call the trash block's existing SQL functions.
+Versions, signatures, drive revisions and field history have no `copy`: copying them would forge a
+history. The record bindings for `custom-fields`, `field-history`, `reactions`, `drive` and
+`signatures` ship with this change; the signatures client takes the request tenant like the other
+tenant blocks.

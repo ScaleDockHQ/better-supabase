@@ -14253,6 +14253,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "SetFieldInput"
         }
       ],
+      "record": [
+        "set"
+      ],
       "events": {
         "type": "CustomFieldsEvents",
         "types": [
@@ -26074,6 +26077,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DriveNodeKind"
         }
       ],
+      "record": [
+        "restore"
+      ],
       "events": {
         "type": "DriveEvents",
         "types": [
@@ -27110,6 +27116,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "SignatureRequestStatus"
         }
       ],
+      "record": [],
       "events": {
         "type": "SignaturesEvents",
         "types": [
@@ -28738,7 +28745,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composedBy": [
         "governance"
-      ]
+      ],
+      "record": []
     },
     {
       "name": "forecasts",
@@ -30067,6 +30075,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "ReactionsSnapshot"
         }
+      ],
+      "record": [
+        "toggle"
       ],
       "events": {
         "type": "ReactionsEvents",

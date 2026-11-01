@@ -2,6 +2,7 @@ import type { EntitySchema } from "../entity-schema.ts";
 import type { RecordBinding, RecordBindingWrite } from "../record-bindings.ts";
 import type { Tag, Tags } from "./tags.ts";
 
+import { ok } from "../../core/result.ts";
 import { entitySchema } from "../entity-schema.ts";
 import { defineRecordBinding } from "../record-bindings.ts";
 
@@ -65,6 +66,18 @@ export const tagsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "apply" },
   load: (client: Tags, subject) => client.list({ on: subject }),
+  copy: (client: Tags, from, to) =>
+    client.list({ on: from }).andThen(async (tags) => {
+      for (const tag of tags) {
+        const attached = await client.attach({ record: to, tagId: tag.id });
+
+        if (!attached.ok) {
+          return attached;
+        }
+      }
+
+      return ok(tags.length);
+    }),
   events: ["subject.tagged", "subject.untagged", "tag.*"],
   optimistic: tagsOptimistic,
   writes: {

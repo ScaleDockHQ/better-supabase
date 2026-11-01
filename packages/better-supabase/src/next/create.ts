@@ -93,7 +93,7 @@ import {
   syncMiddlewareSetCookie,
   serverTimingValue,
 } from "./proxy.ts";
-import { recordServer } from "./record.ts";
+import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
 import { resourceRoutes } from "./resources.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
@@ -1242,6 +1242,8 @@ export function createNext<
     },
 
     record: (type) => recordServer(next, type),
+
+    recordAt: (type, id) => recordAtServer(next, type, id),
   });
 
   return next;

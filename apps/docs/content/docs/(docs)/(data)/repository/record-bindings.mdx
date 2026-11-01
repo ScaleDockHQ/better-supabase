@@ -322,3 +322,27 @@ export const workNotesBlock = defineBlock({
 
 `testRecordBinding` in `better-supabase/testing` checks a binding against this
 contract ([Conformance](/docs/extending/conformance)).
+
+## Copy, trash and restore a record
+
+`bsb.recordAt(type, id)` returns the verbs that act on one record. It is separate from `bsb.record(type)`,
+which loads and writes through the bindings. Call it from a Server Component or inside your own Server
+Action, outside `"use cache"`.
+
+```ts
+const customer = bsb.recordAt(customerRecord, id);
+
+const copied = await customer.copyTo(newId);
+// { ok: true, data: { tags: 2, comments: 5, customFields: 4 } }
+
+const trashed = await customer.trash();
+if (trashed.ok) await customer.restore(trashed.data.id);
+```
+
+`copyTo` runs the `copy` hook of each binding that has one: `tags`, `comments` and `customFields`. Pass
+`{ bindings: ["tags"] }` to copy fewer. It stops at the first binding that fails and returns its
+error, and running it again is safe. Versions, signatures, drive revisions and field history have no
+`copy`, because copying them would forge a history. `trash` needs an active tenant.
+
+The `custom-fields`, `field-history`, `reactions`, `drive` and `signatures` blocks also bind to a
+record now. `drive` binds to a `drive_node` and loads its revisions.

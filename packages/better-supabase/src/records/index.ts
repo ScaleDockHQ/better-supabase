@@ -110,6 +110,8 @@ export { defineRecordList } from "./list.ts";
 
 export { loadTimeline, timelineBindings } from "./timeline.ts";
 
+export { copyBindings, copyableBindings } from "./copy.ts";
+
 export { loadMyWork } from "./my-work.ts";
 
 export { recordForm } from "./record-form.ts";

@@ -1122,6 +1122,8 @@
     "values": [
       "bindingCan",
       "can",
+      "copyableBindings",
+      "copyBindings",
       "countBinding",
       "createRecordController",
       "defineRecordBinding",

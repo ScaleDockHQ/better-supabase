@@ -51,7 +51,7 @@ import type {
 } from "../server/server-types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
-import type { RecordServer } from "./record.ts";
+import type { RecordAt, RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
 
 export interface NextOptions extends ServerOptions {
@@ -500,6 +500,22 @@ export interface BetterNext<
   >(
     type: RecordType<T, RB> & { readonly bindings: readonly N[] },
   ): RecordServer<T, RB, N>;
+  /**
+   * One record's server verbs: `can`, `copyTo`, `trash` and `restore`. It is
+   * named `recordAt` because `bsb.record` is the whole record type (ADR 0177).
+   *
+   * ```ts
+   * const copied = await bsb.recordAt(customerRecord, id).copyTo(newId);
+   * ```
+   */
+  recordAt<
+    T extends string,
+    RB extends RecordTypeBlocks,
+    N extends BindingName<RB>,
+  >(
+    type: RecordType<T, RB> & { readonly bindings: readonly N[] },
+    id: string,
+  ): RecordAt<N>;
   /**
    * For Server Components: the caller's context, or the Next.js interrupt for a
    * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls

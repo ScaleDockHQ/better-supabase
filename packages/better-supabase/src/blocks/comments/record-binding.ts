@@ -76,6 +76,7 @@ export const commentsBinding: RecordBinding<
   load: (client: Comments, subject, options?: ListCommentsOptions) =>
     client.list({ subject, ...options }),
   count: (client: Comments, subjects) => client.counts(subjects),
+  copy: (client: Comments, from, to) => client.copy({ from, to }),
   timeline: (comments) =>
     comments.flatMap((comment) =>
       comment.sentAt === undefined
