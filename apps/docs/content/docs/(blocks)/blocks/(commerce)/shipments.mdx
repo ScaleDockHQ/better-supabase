@@ -259,7 +259,7 @@ const carrier = flatRateCarrier({
 
 ## Intrastat
 
-With the inventory block installed, `intrastat_lines` holds the monthly Intrastat declaration. `prepareIntrastat("2026-10-01")` derives a line from every shipment line that moved in the month between two EU member states (the shipment's `from` and `to` country differ and the destination is a member state). An outbound line is a dispatch and a return is an arrival. Each line carries the variant's `trade_code`, the partner country, the net mass in kilograms (the variant weight times the quantity, or `detail.netMassKg`), the value in minor units (`detail.value`, else the variant's catalog price) and the currency. It deletes the month's derived lines first, so preparing a period again gives the same lines, and it keeps the lines you added by hand.
+With the inventory block installed, `intrastat_lines` holds the monthly Intrastat declaration. `prepareIntrastat("2026-10-01")` derives a line from every shipment line that moved in the month between two EU member states (the shipment's `from` and `to` country differ and the destination is a member state). An outbound line is a dispatch and a return is an arrival. It derives an `arrival` line, with `source: "receipt"`, from every purchase receipt line received in the month whose detail names the member state the goods came from. Each line carries the variant's `trade_code`, the partner country, the net mass in kilograms (the variant weight times the quantity, or `detail.netMassKg`), the value in minor units (`detail.value`, else the variant's catalog price) and the currency. It deletes the month's derived lines first, so preparing a period again gives the same lines, and it keeps the lines you added by hand.
 
 ```ts
 const { lines, exceptions } = await db.shipments
@@ -267,7 +267,13 @@ const { lines, exceptions } = await db.shipments
   .orThrow();
 ```
 
-`exceptions` lists what the declaration still misses, one entry per line and code: `INTRASTAT_TRADE_CODE_MISSING`, `INTRASTAT_COUNTRY_MISSING`, `INTRASTAT_NET_MASS_MISSING` and `INTRASTAT_VALUE_MISSING`. Set the code with `setVariantTradeCode` and prepare the month again. `saveIntrastatLine` and `deleteIntrastatLine` manage manual lines, for example for goods received on a purchase order. Receipts are not derived: add them as `arrival` lines. The Intrastat functions exist only when inventory is installed, so list `prepare_intrastat`, `save_intrastat_line` and `delete_intrastat_line` in `blocks.shipments.api.functions` to expose them over an API schema.
+`exceptions` lists what the declaration still misses, one entry per line and code: `INTRASTAT_TRADE_CODE_MISSING`, `INTRASTAT_COUNTRY_MISSING`, `INTRASTAT_NET_MASS_MISSING` and `INTRASTAT_VALUE_MISSING`. Set the code with `setVariantTradeCode` and prepare the month again. `saveIntrastatLine` and `deleteIntrastatLine` manage manual lines.
+
+A receipt line is an arrival when the `country` of its detail (else `supplierCountry`, else `countryOfOrigin`) is a member state. Pass `country` and, when you know it, `netMassKg` on the lines of `receivePurchaseOrder`. The trade code comes from the variant, the net mass from `netMassKg` or the variant weight, and the value from `detail.value` or the unit cost in the purchase order's currency. A receipt line without a country is not an arrival. One without a trade code is listed in `exceptions` like any other line.
+
+A manual `arrival` line for the same variant and country wins over the receipt line. The receipt line is left out, the manual line lists it in `supersedes`, and `prepareIntrastat` returns the pairs in `superseded`, so a figure you corrected by hand is never counted twice. Receipt lines carry `receiptLineId` and exceptions name it.
+
+The Intrastat functions are in the shipments block's `api` schema automatically when inventory is installed, so they need no entry in `blocks.shipments.api.functions`.
 
 ## UI recipes
 

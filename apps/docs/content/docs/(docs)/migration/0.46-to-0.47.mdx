@@ -627,11 +627,34 @@ With the legal entities block and `options.on` listing `invoices`, `quotes` or
 generated migration drops the old constraints and creates unique indexes of the
 same name over the tenant, the number and the entity. Two entities can then
 hold the same number. Without the option, nothing changes. A row without an
-entity and a row of the default entity count as different keys.
+entity and a row of the default entity are one series: a trigger on each of
+those tables (`bsb_<table>_entity_numbers`) refuses a second document with the
+same number, kind and direction in that series (`LEGAL_ENTITY_NUMBER_TAKEN`),
+and `set_default_legal_entity` refuses a switch that would make two documents
+share a number (`LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT`). If your data already
+holds such a pair, `upgrade` reports a `LEGAL_ENTITY_NUMBER_DUPLICATE` warning
+and keeps the rows: renumber one of them before it matters.
+
+To turn the option off again, call `db.legalEntities.disableCheck()`
+(`legal_entities_disable_check(tenant)`) first. It lists the numbers that two
+entities share, which can't return to one key per organization. With an empty
+list, remove the kind from `options.on` and run `upgrade`: the per-organization
+key comes back and the data is unchanged. With a collision, the restore stops
+with the hint `LEGAL_ENTITIES_DISABLE_COLLISION` before anything is changed;
+renumber the listed documents and run it again. The migration that drops the
+`legal_entity_id` column is a data-loss change that `db diff` asks you to
+confirm.
 
 An issued invoice's header total now includes the payment-term credit
 restriction, as its tax lines already did. Invoices issued before the upgrade
-keep their stored totals.
+keep their stored totals until you repair them: `db.invoices.recomputeTotals`
+(`recompute_invoice_totals`) lists the differences in a dry run and writes them
+only with `dryRun: false`. It never changes a number or an issue date, and
+leaves a posted accounting entry as it is (see
+[Invoices](/docs/blocks/invoices#repair-stored-totals)).
+
+A receipt line of a purchase order can carry `country` and `netMassKg`, which
+`prepare_intrastat` turns into Intrastat arrival lines.
 
 ## Custom field entities
 
