@@ -23,18 +23,9 @@ const CLIENT_FUNCTION_NAMES: ReadonlySet<string> = new Set(
  * and the example moving onto it (ADR 0177).
  */
 const BASELINE: ReadonlySet<string> = new Set([
-  "nextjs/src/app/api/workflows/tick/route.ts:organization_members",
   "nextjs/src/features/billing/invoice-queries.ts:billing_invoices",
-  "nextjs/src/features/flags/components/feature-flag-list.tsx:flag_enabled",
-  "nextjs/src/features/organization/organization-actions.ts:organization_members",
-  "nextjs/src/features/organization/organization-queries.ts:organization_invitations",
-  "nextjs/src/features/organization/organization-queries.ts:organization_members",
-  "nextjs/src/features/people/people-queries.ts:list_jobs",
   "nextjs/src/features/people/people-queries.ts:list_pipelines",
-  "nextjs/src/features/sessions/sessions-actions.ts:end_my_session",
-  "nextjs/src/features/sessions/sessions-queries.ts:list_my_sessions",
   "nextjs/src/features/user/user-actions.ts:my_profile",
-  "nextjs/src/features/user/user-actions.ts:set_my_avatar_path",
   "nextjs/src/features/user/user-actions.ts:update_my_profile",
   "nextjs/src/features/user/user-queries.ts:my_profile",
 ]);
