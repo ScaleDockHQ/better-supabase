@@ -26,6 +26,27 @@ export interface ConsentPurposeEventData {
   readonly version: string;
 }
 
+/** `consent_signal.recorded`: a Sec-GPC, TCF or GPP signal was stored. */
+export interface ConsentSignalRecordedEventData {
+  readonly organizationId: string;
+  readonly signalId: string;
+  /** `gpc`, `tcf` or `gpp`. */
+  readonly kind: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+/** `consent_receipt.issued`. */
+export interface ConsentReceiptIssuedEventData {
+  readonly organizationId: string;
+  readonly receiptId: string;
+  readonly consentId: string;
+  /** The consent's status the receipt records. */
+  readonly status: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
 /** The events of the `consents` block: type to data. */
 export type ConsentsEvents = {
   readonly "consent.granted": ConsentEventData;
@@ -34,6 +55,8 @@ export type ConsentsEvents = {
   readonly "consent.expired": ConsentEventData;
   readonly "consent_purpose.created": ConsentPurposeEventData;
   readonly "consent_purpose.updated": ConsentPurposeEventData;
+  readonly "consent_signal.recorded": ConsentSignalRecordedEventData;
+  readonly "consent_receipt.issued": ConsentReceiptIssuedEventData;
 };
 
 /** The `consents` block's event types, for its manifest and `onBlockEvent`. */
@@ -44,4 +67,6 @@ export const consentsEvents: Events<ConsentsEvents> = defineEvents({
   "consent.expired": event<ConsentEventData>(),
   "consent_purpose.created": event<ConsentPurposeEventData>(),
   "consent_purpose.updated": event<ConsentPurposeEventData>(),
+  "consent_signal.recorded": event<ConsentSignalRecordedEventData>(),
+  "consent_receipt.issued": event<ConsentReceiptIssuedEventData>(),
 });

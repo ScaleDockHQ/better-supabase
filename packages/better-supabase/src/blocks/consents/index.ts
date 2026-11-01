@@ -5,6 +5,10 @@ export {
   type ConsentGivenBy,
   type ConsentPurpose,
   type ConsentPurposeInput,
+  type ConsentReceipt,
+  type ConsentSignal,
+  type ConsentSignalInput,
+  type ConsentSignalKind,
   type Consents,
   type ConsentsOptions,
   type ConsentStatus,
@@ -40,5 +44,7 @@ export { consentsEvents } from "./events.ts";
 export type {
   ConsentEventData,
   ConsentPurposeEventData,
+  ConsentReceiptIssuedEventData,
   ConsentsEvents,
+  ConsentSignalRecordedEventData,
 } from "./events.ts";

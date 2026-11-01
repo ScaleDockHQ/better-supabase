@@ -108,4 +108,33 @@ describe("consents module", () => {
       ]),
     );
   });
+
+  describe("signals and receipts", () => {
+    const sql = render();
+
+    it("records Sec-GPC as a refused consent for each purpose", () => {
+      expect(sql).toContain("record_consent_signal");
+      expect(sql).toContain("'refused'");
+    });
+
+    it("parses TCF v2 core segments and GPP headers in the database", () => {
+      expect(sql).toContain("parse_tc_string");
+      expect(sql).toContain("parse_gpp_string");
+      expect(sql).toContain(
+        "a TC string is base64url text of at least 36 characters",
+      );
+    });
+
+    it("issues one receipt per consent and status, with a digest", () => {
+      expect(sql).toContain("better-supabase/consent-receipt@1");
+      expect(sql).toContain("sha256");
+    });
+
+    it("keeps the parsers out of the contract and is a version 2 module", () => {
+      expect(CONSENTS.version).toBe(2);
+      expect(CONSENTS.internal).toEqual(
+        expect.arrayContaining(["parse_tc_string", "parse_gpp_string"]),
+      );
+    });
+  });
 });
