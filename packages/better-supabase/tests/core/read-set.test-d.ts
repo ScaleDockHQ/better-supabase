@@ -72,3 +72,22 @@ describe("db.$many", () => {
     ).toEqualTypeOf<AsyncResult<[number, { id: string }[]]>>();
   });
 });
+
+describe("function reads", () => {
+  it("type each entry as the function's result", async () => {
+    const withFunctions = defineReadSet(
+      betterSupabase,
+      "with_functions",
+      {},
+      (s) => ({
+        total: s.customers.count(),
+        counts: s.$fn.customer_note_counts({ p_customer_ids: ["c1"] }),
+      }),
+    );
+
+    const result = await db.$many(withFunctions, {}).orThrow();
+
+    expectTypeOf(result.total).toEqualTypeOf<number>();
+    expectTypeOf(result.counts).not.toBeAny();
+  });
+});

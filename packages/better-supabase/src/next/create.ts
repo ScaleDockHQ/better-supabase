@@ -49,6 +49,7 @@ import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { isReadSet } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
+import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
@@ -1169,7 +1170,7 @@ export function createNext<
 
     tags(target, tagOptions = {}) {
       const specs = isReadSet(target)
-        ? Object.values(target.specs)
+        ? Object.values(target.specs).filter((spec) => isQuerySpec(spec))
         : isList(target)
           ? target
           : [target];

@@ -1,15 +1,18 @@
 import type { SqlQuery } from "../compile/sql.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Placeholder, ReadSet } from "../core/read-set.ts";
+import type { FunctionSpec } from "../core/spec.ts";
 import type { Operation } from "../ir/types.ts";
 
-import { compileSql } from "../compile/sql.ts";
+import { compileSql, quoteIdent } from "../compile/sql.ts";
 import {
+  containsPlaceholder,
   hasPlaceholder,
   placeholderOf,
   splitPlaceholders,
 } from "../core/read-set.ts";
 import { ok } from "../core/result.ts";
+import { isFunctionSpec } from "../core/spec.ts";
 import { sqlString } from "../core/template.ts";
 import { temporalText } from "../core/temporal.ts";
 
@@ -26,6 +29,10 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
   const ops = new Map<string, Operation>();
 
   for (const [key, spec] of Object.entries(set.specs)) {
+    if (isFunctionSpec(spec)) {
+      continue;
+    }
+
     const seen: Operation[] = [];
 
     const capture: Executor = {
@@ -269,6 +276,51 @@ function entry(set: ReadSet, op: Operation): string {
   return `jsonb_build_object('rows', ${rows}, 'count', ${count})`;
 }
 
+/** A function argument: plain objects go in as `jsonb`, the rest as literals. */
+function argument(set: ReadSet, value: unknown): string {
+  const plain =
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype;
+
+  if (!plain) {
+    return literal(set, value);
+  }
+
+  if (containsPlaceholder(value)) {
+    throw new TypeError(
+      `Read set "${set.name}": a parameter cannot sit inside an object argument; pass it as its own argument`,
+    );
+  }
+
+  return `${sqlString(JSON.stringify(value))}::jsonb`;
+}
+
+/**
+ * A function call as one entry: the result as `jsonb`, a set as an array. The
+ * call uses named arguments, like PostgREST does.
+ */
+function functionEntry(set: ReadSet, spec: FunctionSpec): string {
+  const meta = set.definition.meta.functions[spec.name];
+
+  if (!meta) {
+    throw new TypeError(
+      `Read set "${set.name}": unknown function "${spec.name}"`,
+    );
+  }
+
+  const args = Object.entries(spec.args)
+    .filter(([, value]) => value !== undefined)
+    .map(([name, value]) => `${quoteIdent(name)} => ${argument(set, value)}`);
+
+  const call = `${quoteIdent(meta.schema)}.${quoteIdent(spec.name)}(${args.join(", ")})`;
+
+  return meta.returnsSet
+    ? `(select coalesce(jsonb_agg(to_jsonb(f)), '[]'::jsonb) from ${call} f)`
+    : `to_jsonb(${call})`;
+}
+
 /**
  * The function for a read set: `stable`, `security invoker` (RLS applies to the
  * caller) and with an empty `search_path`. Parameters are read from the `p
@@ -277,9 +329,13 @@ function entry(set: ReadSet, op: Operation): string {
 export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   const ops = await operations(set);
 
-  const entries = [...ops].map(
-    ([key, op]) => `    ${sqlString(key)}, ${entry(set, op)}`,
-  );
+  const entries = Object.entries(set.specs).map(([key, spec]) => {
+    if (isFunctionSpec(spec)) {
+      return `    ${sqlString(key)}, ${functionEntry(set, spec)}`;
+    }
+
+    return `    ${sqlString(key)}, ${entry(set, ops.get(key)!)}`;
+  });
 
   const body = `  select jsonb_build_object(\n${entries.join(",\n")}\n  )`;
 

@@ -2,10 +2,15 @@ import type { AnyFunctions, AnyModels, SchemaMeta } from "../schema/types.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
-import type { InferResult, QuerySpec, Specs } from "./spec.ts";
+import type { InferEntryResult, ReadSetEntry, ReadSetSpecs } from "./spec.ts";
 
 import { dbError } from "./errors.ts";
-import { isQuerySpec, specTables } from "./spec.ts";
+import {
+  createFunctionSpecs,
+  isFunctionSpec,
+  isQuerySpec,
+  specTables,
+} from "./spec.ts";
 
 type ScalarParamType =
   | "uuid"
@@ -77,8 +82,8 @@ type ReadSetRole = "anon" | "authenticated";
 export interface ReadSet<
   N extends string = string,
   P extends ReadSetParamTypes = ReadSetParamTypes,
-  S extends Readonly<Record<string, QuerySpec>> = Readonly<
-    Record<string, QuerySpec>
+  S extends Readonly<Record<string, ReadSetEntry>> = Readonly<
+    Record<string, ReadSetEntry>
   >,
 > {
   readonly kind: "read-set";
@@ -96,7 +101,7 @@ export interface ReadSet<
 /** What `db.$many(readSet, params)` resolves to. */
 export type ReadSetResult<S> =
   S extends ReadSet<string, ReadSetParamTypes, infer Q>
-    ? { readonly [K in keyof Q]: InferResult<Q[K]> }
+    ? { readonly [K in keyof Q]: InferEntryResult<Q[K]> }
     : never;
 
 /** The parameters `db.$many(readSet, params)` takes. */
@@ -178,12 +183,16 @@ export function defineReadSet<
   E,
   const N extends string,
   const P extends ReadSetParamTypes,
-  const S extends Readonly<Record<string, QuerySpec>>,
+  const S extends Readonly<Record<string, ReadSetEntry>>,
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
   name: N,
   options: ReadSetOptions<P>,
-  build: (specs: Specs<M, E>, params: ReadSetParams<P>, auth: ReadSetAuth) => S,
+  build: (
+    specs: ReadSetSpecs<M, F, E>,
+    params: ReadSetParams<P>,
+    auth: ReadSetAuth,
+  ) => S,
 ): ReadSet<N, P, S> {
   if (!NAME.test(name)) {
     throw new TypeError(
@@ -213,7 +222,13 @@ export function defineReadSet<
 
   // SAFETY: the loop above filled a placeholder for every parameter in P.
   const specs = build(
-    betterSupabase.spec,
+    // SAFETY: $fn builds a call for any name; the entries are checked below
+    // against the schema's functions.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- $fn is a proxy over the schema's function names.
+    {
+      ...betterSupabase.spec,
+      $fn: createFunctionSpecs(),
+    } as unknown as ReadSetSpecs<M, F, E>,
     placeholders as ReadSetParams<P>,
     AUTH,
   );
@@ -227,7 +242,21 @@ export function defineReadSet<
   }
 
   for (const [key, spec] of entries) {
-    if (!isQuerySpec(spec)) {
+    if (isFunctionSpec(spec)) {
+      const fn = betterSupabase.meta.functions[spec.name];
+
+      if (!fn) {
+        throw new TypeError(
+          `better-supabase: read set "${name}" entry "${key}" calls unknown function "${spec.name}"`,
+        );
+      }
+
+      if (fn.volatility === "volatile") {
+        throw new TypeError(
+          `better-supabase: read set "${name}" entry "${key}" calls ${spec.name}(), which is volatile; a read set function is stable`,
+        );
+      }
+    } else if (!isQuerySpec(spec)) {
       throw new TypeError(
         `better-supabase: read set "${name}" entry "${key}" is not a spec from betterSupabase.spec`,
       );
@@ -257,7 +286,7 @@ export function defineReadSet<
 function warnUnscopedReads(
   betterSupabase: Pick<BetterSupabase, "plugins" | "events" | "meta">,
   name: string,
-  specs: Readonly<Record<string, QuerySpec>>,
+  specs: Readonly<Record<string, ReadSetEntry>>,
 ): void {
   const filtering = betterSupabase.plugins.filter(
     (plugin) =>
@@ -280,7 +309,11 @@ function warnUnscopedReads(
   };
 
   const read = [
-    ...new Set(Object.values(specs).flatMap((spec) => specTables(meta, spec))),
+    ...new Set(
+      Object.values(specs).flatMap((spec) =>
+        isFunctionSpec(spec) ? [] : specTables(meta, spec),
+      ),
+    ),
   ];
 
   const tables = read.filter((key) =>
@@ -429,7 +462,7 @@ export function bindParams(
   values: Readonly<Record<string, unknown>> | undefined,
   context: { readonly claims?: Readonly<Record<string, unknown>> },
 ): {
-  readonly specs: Readonly<Record<string, QuerySpec>>;
+  readonly specs: Readonly<Record<string, ReadSetEntry>>;
   readonly noCaller: DbError | undefined;
 } {
   const sub = context.claims?.["sub"];
@@ -479,7 +512,14 @@ export function bindParams(
   const specs = Object.fromEntries(
     Object.entries(set.specs).map(([key, spec]) => [
       key,
-      { ...spec, args: spec.args.map(bind) },
+      isFunctionSpec(spec)
+        ? {
+            ...spec,
+            args: Object.fromEntries(
+              Object.entries(spec.args).map(([name, arg]) => [name, bind(arg)]),
+            ),
+          }
+        : { ...spec, args: spec.args.map(bind) },
     ]),
   );
 
@@ -500,7 +540,9 @@ export function readSetTables(set: ReadSet, meta?: SchemaMeta): string[] {
 
   return [
     ...new Set(
-      Object.values(set.specs).flatMap((spec) => specTables(schema, spec)),
+      Object.values(set.specs).flatMap((spec) =>
+        isFunctionSpec(spec) ? [] : specTables(schema, spec),
+      ),
     ),
   ];
 }

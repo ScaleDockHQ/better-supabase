@@ -607,3 +607,68 @@ async function captureOp(): Promise<Operation> {
 
   return seen!;
 }
+
+describe("function reads in a read set", () => {
+  const overview = defineReadSet(
+    betterSupabase,
+    "customer_overview",
+    { params: { status: "text" } },
+    (s, p) => ({
+      total: s.customers.count(),
+      byStatus: s.$fn.customers_by_status({ p_limit: 5, p_status: p.status }),
+      counts: s.$fn.customer_note_counts({ p_customer_ids: ["c1"] }),
+    }),
+  );
+
+  it("compiles a call into the function with named arguments", async () => {
+    const { sql } = await compileReadSet(overview);
+
+    expect(sql).toContain(
+      `'byStatus', (select coalesce(jsonb_agg(to_jsonb(f)), '[]'::jsonb) from "public"."customers_by_status"("p_limit" => 5, "p_status" => ((p->>'status')::text)) f)`,
+    );
+    expect(sql).toContain(`'counts', (select coalesce(jsonb_agg(to_jsonb(f))`);
+  });
+
+  it("refuses a volatile function and an unknown one", () => {
+    expect(() =>
+      defineReadSet(betterSupabase, "bad_write", {}, (s) => ({
+        // SAFETY: the test passes arguments of the wrong shape on purpose.
+        write: s.$fn.import_customer({} as never),
+      })),
+    ).toThrow(/volatile/);
+
+    expect(() =>
+      defineReadSet(betterSupabase, "bad_name", {}, (s) => ({
+        // SAFETY: the test calls a function the schema lacks on purpose.
+        nope: s.$fn["nope" as keyof typeof s.$fn]({} as never),
+      })),
+    ).toThrow(/unknown function "nope"/);
+  });
+
+  it("decodes each function result like db.$rpc over PostgREST", async () => {
+    const { client, requests } = capturingClient(() => ({
+      body: {
+        total: { rows: [], count: 2 },
+        byStatus: [{ id: "c1", organization_id: USER, name: "Acme" }],
+        counts: [{ customer_id: "c1", last_note_at: null, note_count: 3 }],
+      },
+    }));
+
+    const result = await betterSupabase
+      .connect(client)
+      .$many(overview, { status: "active" });
+
+    expect(requests).toHaveLength(1);
+    expect(result.ok && result.data.total).toBe(2);
+    expect(result.ok && result.data.byStatus[0]).toMatchObject({
+      organizationId: USER,
+    });
+    expect(result.ok && result.data.counts).toEqual([
+      { customerId: "c1", lastNoteAt: null, noteCount: 3 },
+    ]);
+  });
+
+  it("leaves the tables of a function call out of readSetTables", () => {
+    expect(readSetTables(overview)).toEqual(["customers"]);
+  });
+});

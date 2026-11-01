@@ -7,6 +7,7 @@ import type {
   Payload,
 } from "../ir/args.ts";
 import type {
+  AnyFunctions,
   AnyModels,
   SchemaMeta,
   TableKey,
@@ -55,6 +56,44 @@ export interface QuerySpec<
   /** Type-only: the result `db.$run(spec)` resolves to. */
   readonly [resultType]?: R;
 }
+
+declare const functionResultType: unique symbol;
+
+/**
+ * A call of a SQL function the caller may execute, for a read set: build it
+ * with `s.$fn.<name>(args)`. The function runs inside the set's own function,
+ * as the caller, so RLS applies as it does for `db.$rpc`.
+ */
+export interface FunctionSpec<N extends string = string, R = unknown> {
+  readonly v: 1;
+  readonly kind: "function";
+  readonly name: N;
+  /** Named arguments; placeholders stand for read set parameters. */
+  readonly args: Readonly<Record<string, unknown>>;
+  /** Type-only: the result of the call. */
+  readonly [functionResultType]?: R;
+}
+
+/** The function calls `s.$fn` offers: one per function in the schema. */
+export type FunctionSpecs<F extends AnyFunctions> = {
+  readonly [N in keyof F & string]: [F[N]["Args"]] extends [never]
+    ? () => FunctionSpec<N, F[N]["Returns"]>
+    : (args: F[N]["Args"]) => FunctionSpec<N, F[N]["Returns"]>;
+};
+
+/** What a read set entry holds: a table read or a function call. */
+export type ReadSetEntry = QuerySpec | FunctionSpec;
+
+/** The result of a read set entry. */
+export type InferEntryResult<S> =
+  S extends FunctionSpec<string, infer R> ? R : InferResult<S>;
+
+/** The builders a read set gets: the table specs and `$fn`. */
+export type ReadSetSpecs<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+> = Specs<M, E> & { readonly $fn: FunctionSpecs<F> };
 
 /** The result type of a `QuerySpec`. */
 export type InferResult<S> =
@@ -115,6 +154,40 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
   }
 
   return specs;
+}
+
+/** `s.$fn`: any property is a builder; the read set checks the name. */
+export function createFunctionSpecs(): Record<string, unknown> {
+  return new Proxy(
+    {},
+    {
+      get: (_target, name) =>
+        typeof name === "string"
+          ? (args?: Readonly<Record<string, unknown>>): FunctionSpec => ({
+              v: 1,
+              kind: "function",
+              name,
+              args: args ?? {},
+            })
+          : undefined,
+    },
+  );
+}
+
+export function isFunctionSpec(value: unknown): value is FunctionSpec {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  // SAFETY: value is a non-null object here, and every field is checked below.
+  const spec = value as Partial<FunctionSpec>;
+
+  return (
+    spec.v === 1 &&
+    spec.kind === "function" &&
+    typeof spec.name === "string" &&
+    typeof spec.args === "object"
+  );
 }
 
 function trimUndefined(args: readonly unknown[]): unknown[] {
