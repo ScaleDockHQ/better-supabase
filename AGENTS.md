@@ -286,16 +286,16 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0169: Warehouse makes pick waves and lists from stock allocations, picking tasks and cycle count plans that hold large variances for review.
 - 0170: `rfqs` sends requests for quotation to suppliers, compares their quotes and awards one into a draft purchase order.
 - 0171: Tills run shifts with a float, cash movements and an end-of-day count that books its variance, then deposit and reconcile in banking.
-- 0172: Payroll runs count only the time entries of weeks with an approved timesheet.
-  ||||||| 550ced2a5
-- 0172: Payroll runs count only the time entries of weeks with an approved timesheet.
+- 0172: Meetings take custom fields through `extraColumns`.
 - 0173: Clinical decision support raises dose range, duplicate therapy and interaction alerts from built-in rules and a versioned `ClinicalDecisionSupport` port.
 - 0174: Payroll runs count only the time entries of weeks with an approved timesheet.
-- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159).
+- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159; superseded by 0182).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
+- 0177: Maintenance plans take RFC 5545 calendar rules and required qualifications, checked on technician assignment and calibration.
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
 - 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
+- 0182: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
 
 ## Pre-release pins
 

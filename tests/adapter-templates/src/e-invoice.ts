@@ -1,7 +1,7 @@
 import type {
   EInvoiceChannel,
   EInvoiceFormat,
-} from "better-supabase/blocks/invoices";
+} from "better-supabase/e-invoicing";
 
 import type { HttpOptions } from "./http.ts";
 
@@ -15,7 +15,7 @@ const escapeXml = (value: string): string =>
     .replaceAll('"', "&quot;");
 
 /**
- * An `EInvoiceFormat` for one network's layout (ADR 0159). It reads the issued
+ * An `EInvoiceFormat` for one network's layout (ADR 0182). It reads the issued
  * invoice and returns the document; a real format maps the lines, the tax
  * breakdown and the parties. `render` throws for a draft, which has no number.
  */
@@ -27,24 +27,27 @@ export const exampleEInvoiceFormat: EInvoiceFormat = {
       throw new TypeError("only an issued invoice can be sent as an e-invoice");
     }
 
+    const type = invoice.kind === "credit_note" ? "CreditNote" : "Invoice";
+
     return {
-      filename: `${invoice.identifier}.xml`,
-      contentType: "application/xml",
-      body: [
-        "<Invoice>",
+      type,
+      id: invoice.identifier,
+      xml: [
+        `<${type}>`,
         `  <ID>${escapeXml(invoice.identifier)}</ID>`,
         `  <IssueDate>${invoice.issuedOn.toString()}</IssueDate>`,
         `  <DocumentCurrencyCode>${escapeXml(invoice.currency)}</DocumentCurrencyCode>`,
-        "</Invoice>",
+        `</${type}>`,
       ].join("\n"),
     };
   },
 };
 
 /**
- * An `EInvoiceChannel` over an access point's API (ADR 0172). `send` returns
- * the network's reference, which the block keeps in `invoice_deliveries`;
- * `status` answers later what the network says about it.
+ * An `EInvoiceChannel` over an access point's API (ADR 0182). `send` returns
+ * the access point's message id, which the block keeps in
+ * `invoice_e_deliveries`; `status` answers later what the network says about
+ * it.
  */
 export function createEInvoiceChannel(options: HttpOptions): EInvoiceChannel {
   return {
@@ -54,10 +57,13 @@ export function createEInvoiceChannel(options: HttpOptions): EInvoiceChannel {
       const body = await requestJson(options, "/documents", {
         method: "POST",
         body: {
-          filename: document.filename,
-          contentType: document.contentType,
-          body: document.body,
-          invoice: context.invoice.identifier,
+          type: document.type,
+          id: document.id,
+          xml: document.xml,
+          recipient: {
+            scheme: context.recipient.scheme,
+            id: context.recipient.id,
+          },
         },
         // A retry of the same invoice must not send a second document.
         headers: { "idempotency-key": context.invoice.id },
@@ -68,12 +74,12 @@ export function createEInvoiceChannel(options: HttpOptions): EInvoiceChannel {
         throw new Error(body.error.message);
       }
 
-      return { externalRef: text(record(body.data, "document").id, "id") };
+      return { messageId: text(record(body.data, "document").id, "id") };
     },
-    async status(externalRef, context) {
+    async status(messageId, context) {
       const body = await requestJson(
         options,
-        `/documents/${encodeURIComponent(externalRef)}`,
+        `/documents/${encodeURIComponent(messageId)}`,
         context.signal === undefined ? {} : { signal: context.signal },
       );
 

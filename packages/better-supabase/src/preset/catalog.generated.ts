@@ -3962,7 +3962,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase": "invoices.purchase",
           "overrideMatch": "invoices.override_match",
           "collect": "invoices.collect",
-          "approve": "invoices.approve"
+          "approve": "invoices.approve",
+          "send": "invoices.send"
         }
       }
     },
@@ -26730,22 +26731,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "EInvoiceChannel"
-        },
-        {
-          "name": "EInvoiceContext"
-        },
-        {
           "name": "EInvoiceDelivery"
         },
         {
-          "name": "EInvoiceDocument"
+          "name": "EInvoiceDeliveryRecord"
         },
         {
-          "name": "EInvoiceFormat"
+          "name": "EInvoiceDeliveryState"
         },
         {
-          "name": "EInvoiceStatus"
+          "name": "EInvoiceEndpoints"
+        },
+        {
+          "name": "EInvoicePartyKind"
+        },
+        {
+          "name": "EInvoiceReceipt"
+        },
+        {
+          "name": "EInvoiceSync"
         },
         {
           "name": "Invoice",
@@ -26782,12 +26786,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCollections"
         },
         {
-          "name": "InvoiceDelivery"
-        },
-        {
-          "name": "InvoiceDeliveryInput"
-        },
-        {
           "name": "InvoiceDirection"
         },
         {
@@ -26812,7 +26810,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceDunningRunItem"
         },
         {
-          "name": "InvoiceEInvoices"
+          "name": "InvoiceEDelivery"
         },
         {
           "name": "InvoiceInput",
@@ -26872,6 +26870,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceWarning"
         },
         {
+          "name": "ReceiveEInvoicesOptions"
+        },
+        {
           "name": "SendEInvoiceOptions"
         },
         {
@@ -26902,7 +26903,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.allocated",
           "invoice.unallocated",
           "invoice.discount_applied",
-          "invoice.approved"
+          "invoice.approved",
+          "invoice.e_invoice_sent",
+          "invoice.e_invoice_delivered",
+          "invoice.e_invoice_rejected",
+          "invoice.e_invoice_received"
         ]
       },
       "schedules": [

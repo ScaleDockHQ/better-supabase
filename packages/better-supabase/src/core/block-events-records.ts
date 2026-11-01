@@ -273,6 +273,10 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly discount?: string;
   /** For `invoice.approved`: the status after the approval. */
   readonly approvalStatus?: string;
+  /** For the `invoice.e_invoice_*` events: the channel's key. */
+  readonly channel?: string;
+  /** For the `invoice.e_invoice_*` events: the channel's id for the document. */
+  readonly messageId?: string;
   /** For `invoice.totals_corrected`: the stored and the recounted total. */
   readonly oldTotal?: string;
   readonly newTotal?: string;

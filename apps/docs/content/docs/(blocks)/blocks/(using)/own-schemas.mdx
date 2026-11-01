@@ -445,9 +445,10 @@ may be your own enum or domain.
   - `better_supabase.invoice_dunning_history`: `id`, `tenant_id`, `invoice_id`, `kind`, `level`, `fee`, `balance`, `created_at`
   - `better_supabase.invoice_allocations`: `id`, `tenant_id`, `reference`, `party_id`, `invoice_id`, `source`, `amount`, `discount`, `payment_id`, `discount_payment_id`, `allocated_on`, `unallocated_at`, `created_by`, `created_at`
   - `better_supabase.invoice_line_sources`: `id`, `tenant_id`, `invoice_id`, `position`, `source`, `source_id`, `quantity`, `created_at`
-  - `better_supabase.invoice_deliveries`: `id`, `tenant_id`, `invoice_id`, `channel`, `format`, `external_ref`, `sent_at`
   - `better_supabase.invoice_approval_levels`: `id`, `tenant_id`, `legal_entity_id`, `level`, `min_amount`, `currency`, `approver_id`, `created_at`
   - `better_supabase.invoice_approvals`: `id`, `tenant_id`, `invoice_id`, `level`, `approver_id`, `comment`, `decided_at`
+  - `better_supabase.invoice_e_endpoints`: `id`, `tenant_id`, `party_kind`, `party_id`, `scheme`, `endpoint_id`, `created_at`, `updated_at`
+  - `better_supabase.invoice_e_deliveries`: `id`, `tenant_id`, `invoice_id`, `direction`, `format`, `channel`, `message_id`, `state`, `reason`, `document_hash`, `created_at`, `updated_at`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
   - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`

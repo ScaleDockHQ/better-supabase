@@ -455,7 +455,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:6130affa33d1ad460eea40c172bd98a3014837037fb22a27d5d61000f9ee5860
+-- @bsb-hash sha256:866e972d9e958d8751ad40808ec95d79fba7ff6b59e14c412264efebe4cae38a
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -779,6 +779,7 @@ as $$
     when 'invoices.overrideMatch' then 'invoices.override_match'
     when 'invoices.purchase' then 'invoices.purchase'
     when 'invoices.read' then 'invoices.read'
+    when 'invoices.send' then 'invoices.send'
     when 'invoices.write' then 'invoices.write'
     when 'knowledge.manage' then 'knowledge.manage'
     when 'knowledge.read' then 'knowledge.read'
