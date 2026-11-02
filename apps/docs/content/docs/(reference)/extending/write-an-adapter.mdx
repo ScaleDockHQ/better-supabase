@@ -17,11 +17,13 @@ test runs it.
 | Port                                                                                            | Template                           | Conformance block                      |
 | ----------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------- |
 | `BankFeed` ([banking](/docs/blocks/banking))                                                    | `src/bank-feed.ts`                 | Contract checks in the template's test |
-| `RouteOptimizer` ([dispatch](/docs/blocks/dispatch))                                            | `src/route-optimizer.ts`           | Contract checks in the template's test |
+| `RouteOptimizer` ([dispatch](/docs/blocks/dispatch))                                            | `src/route-optimizer.ts`           | `testRouteOptimizer`                   |
 | `ShippingProvider` ([shipments](/docs/blocks/shipments))                                        | `src/shipping-provider.ts`         | `testShippingProvider`                 |
 | `PayrollExportFormat` ([payroll export](/docs/blocks/payroll-export))                           | `src/payroll-format.ts`            | Contract checks in the template's test |
 | `EInvoiceFormat`, `EInvoiceChannel` ([invoices](/docs/blocks/invoices))                         | `src/e-invoice.ts`                 | `testEInvoiceChannel`                  |
 | `AccountingChartFormat` ([accounting](/docs/blocks/accounting))                                 | `src/chart-format.ts`              | Contract checks in the template's test |
+| `TaxReportFormat` ([tax](/docs/blocks/tax))                                                     | `src/tax-report-format.ts`         | Contract checks in the template's test |
+| `AuditFileAdapter` ([audit files](/docs/concepts/audit-files))                                  | `src/audit-file-adapter.ts`        | Contract checks in the template's test |
 | `ClinicalDecisionSupport` ([clinical decision support](/docs/blocks/clinical-decision-support)) | `src/clinical-decision-support.ts` | `testClinicalDecisionSupport`          |
 | `PrescriptionGateway` ([e-prescribing](/docs/blocks/e-prescribing))                             | `src/prescription-gateway.ts`      | `testPrescriptionGateway`              |
 
@@ -39,6 +41,16 @@ test runs it.
 5. Run the conformance block against a provider test account before the first
    release.
 
+## Tax and audit ports
+
+`TaxReportFormat.render(report)` returns a `Result` with the filing file, and
+it is pure: the same report gives the same bytes, so a filed return can be
+checked later. `AuditFileAdapter` has `parse(source)`, which yields one record
+at a time and reports elements it does not map as `warning` records, and
+`export(books)`, which yields chunks of XML. Set `version` to the version of the
+format the adapter follows. Parsed records reach the ledger through an
+`AuditImportPort`; the imports block's `upsertBatch` fits as is.
+
 ## What every adapter keeps
 
 - **Version.** Set `apiVersion: 1`. A breaking change to a port ships a new
@@ -55,8 +67,8 @@ test runs it.
 - **Stable identifiers.** A bank transaction keeps its `externalId` and an
   alert keeps its `fingerprint` between calls, because the block uses them to
   skip a repeat or keep a member's decision.
-- **Pure renderers.** `PayrollExportFormat.render` and
-  `AccountingChartFormat.parse` give the same output for the same input. The
+- **Pure renderers.** `PayrollExportFormat.render`,
+  `TaxReportFormat.render` and `AccountingChartFormat.parse` give the same output for the same input. The
   payroll block hashes the file and locks the run behind that hash.
 - **Nothing bundled.** Keep credentials and provider SDKs in the adapter
   package, never in the library or the app's shared code.

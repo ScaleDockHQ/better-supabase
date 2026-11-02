@@ -173,3 +173,7 @@ The hooks are `before_pick_list_create` and `after_pick_list_create`.
 
 Putaway and slotting suggest bins and never move stock, and route optimization
 orders the lines of one list; it does not batch lists across a wave.
+
+## Write an adapter
+
+The warehouse block calls ports that your own packages implement, such as a route optimizer for pick routes. [Write an adapter](/docs/extending/write-an-adapter) has tested templates, and [Extension interfaces](/docs/extending/interfaces) lists every port.
