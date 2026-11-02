@@ -19,7 +19,7 @@ import {
   applyTemporal,
   blockCall,
   enumOrThrow,
-  injectableOf,
+  portOf,
   optionalInstant,
   optionalText,
   recordOf,
@@ -136,7 +136,7 @@ export interface PrescriptionRequest {
  */
 export interface PrescriptionGateway {
   /** The port contract version. Omitted means 1. */
-  readonly apiVersion?: 1;
+  readonly apiVersion: 1;
   /** Stored on the prescription as `gateway`, 1 to 100 characters. */
   readonly key: string;
   deliver(
@@ -316,7 +316,11 @@ function prescriptionOf(value: unknown, fn: string): Prescription {
 }
 
 function gatewayOf(gateway: PrescriptionGateway): PrescriptionGateway {
-  injectableOf("prescription gateway", gateway);
+  portOf(
+    `prescription gateway "${gateway.key}"`,
+    "prescription gateway",
+    gateway,
+  );
 
   if (gateway.key.trim() === "" || gateway.key.length > KEY_LENGTH) {
     throw new TypeError(

@@ -3,10 +3,10 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import { TAX_CODE_TYPES } from "../../sql/modules/tax-sql.ts";
 import { amountText, amountsError, moneyOf } from "../money-codec.ts";
 import {
@@ -223,14 +223,6 @@ export interface TaxOptions extends BlockOptions {
 const dateText = (value: TaxDate | undefined): string | undefined =>
   value === undefined ? undefined : value.toString();
 
-const plainDate = (value: unknown): Temporal.PlainDate =>
-  temporal().PlainDate.from(textOf(value).slice(0, 10));
-
-const optionalDate = (value: unknown): Temporal.PlainDate | undefined =>
-  typeof value === "string" && value !== ""
-    ? temporal().PlainDate.from(value.slice(0, 10))
-    : undefined;
-
 const defined = (value: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
@@ -238,14 +230,14 @@ const defined = (value: Record<string, unknown>): Record<string, unknown> =>
 
 function rateOf(value: unknown, fn: string): TaxRate {
   const row = recordOf(value, fn);
-  const validTo = optionalDate(row["validTo"]);
+  const validTo = optionalPlainDateOf(row["validTo"]);
 
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     taxCodeId: textOf(row["taxCodeId"]),
     rateBps: Number(row["rateBps"]),
-    validFrom: plainDate(row["validFrom"]),
+    validFrom: plainDateOf(row["validFrom"]),
     ...(validTo ? { validTo } : {}),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
@@ -326,8 +318,8 @@ function returnOf(value: unknown, fn: string): TaxReturn {
     organizationId: textOf(row["organizationId"]),
     ...(legalEntityId ? { legalEntityId } : {}),
     period: textOf(row["period"]),
-    periodStart: plainDate(row["periodStart"]),
-    periodEnd: plainDate(row["periodEnd"]),
+    periodStart: plainDateOf(row["periodStart"]),
+    periodEnd: plainDateOf(row["periodEnd"]),
     status: row["status"] === "filed" ? "filed" : "prepared",
     ...(currency ? { currency } : {}),
     boxes: recordsOf(boxes["boxes"] ?? [], fn).map((box) => ({

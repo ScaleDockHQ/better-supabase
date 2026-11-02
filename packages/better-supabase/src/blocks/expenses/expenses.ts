@@ -19,7 +19,7 @@ import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { amountText, moneyOf } from "../money-codec.ts";
+import { amountText, moneyOf, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -369,16 +369,6 @@ function optionalInstant(
     : requiredInstant(value, field);
 }
 
-function optionalMoney(
-  value: unknown,
-  currency: unknown,
-  field: string,
-): Money | undefined {
-  return value === null || value === undefined
-    ? undefined
-    : moneyOf(value, currency, field);
-}
-
 function categoryOf(value: unknown, fn: string): ExpenseCategory {
   const row = recordOf(value, fn);
   const currency = row["currency"];
@@ -390,10 +380,13 @@ function categoryOf(value: unknown, fn: string): ExpenseCategory {
     name: textOf(row["name"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("limit", optionalMoney(row["limitAmount"], currency, "limit")),
+    ...optional(
+      "limit",
+      optionalMoneyOf(row["limitAmount"], currency, "limit"),
+    ),
     ...optional(
       "receiptOver",
-      optionalMoney(row["receiptOver"], currency, "receiptOver"),
+      optionalMoneyOf(row["receiptOver"], currency, "receiptOver"),
     ),
     ...optional("archivedAt", optionalInstant(row["archivedAt"], "archivedAt")),
     ...optional("fields", isRecord(row["fields"]) ? row["fields"] : undefined),

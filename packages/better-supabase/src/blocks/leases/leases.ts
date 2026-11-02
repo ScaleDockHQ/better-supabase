@@ -14,12 +14,12 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
@@ -211,16 +211,6 @@ function optional<K extends string, V>(
   };
 }
 
-function dateOf(value: unknown): Temporal.PlainDate {
-  return temporal().PlainDate.from(textOf(value));
-}
-
-function optionalDate(value: unknown): Temporal.PlainDate | undefined {
-  const text = optionalText(value);
-
-  return text === undefined ? undefined : temporal().PlainDate.from(text);
-}
-
 function optionalInstant(
   value: unknown,
   field: string,
@@ -251,7 +241,7 @@ function leaseOf(value: unknown, fn: string): Lease {
     title: textOf(row["title"]),
     // SAFETY: the SQL check constraint limits status to these values.
     status: textOf(row["status"]) as LeaseStatus,
-    startsOn: dateOf(row["startsOn"]),
+    startsOn: plainDateOf(row["startsOn"]),
     rent: moneyOf(row["rent"], currency, "rent"),
     // SAFETY: the SQL check constraint limits frequency to these values.
     frequency: textOf(row["frequency"]) as RentFrequency,
@@ -262,10 +252,10 @@ function leaseOf(value: unknown, fn: string): Lease {
     fields: isRecord(row["fields"]) ? row["fields"] : {},
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("endsOn", optionalDate(row["endsOn"])),
+    ...optional("endsOn", optionalPlainDateOf(row["endsOn"])),
     ...optional("depositHoldId", optionalText(row["depositHoldId"])),
     ...optional("renewedAt", optionalInstant(row["renewedAt"], "renewedAt")),
-    ...optional("terminatedOn", optionalDate(row["terminatedOn"])),
+    ...optional("terminatedOn", optionalPlainDateOf(row["terminatedOn"])),
     ...optional("terminationReason", optionalText(row["terminationReason"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
   };
@@ -278,8 +268,8 @@ function chargeOf(value: unknown): LeaseCharge {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     leaseId: textOf(row["leaseId"]),
-    periodStart: dateOf(row["periodStart"]),
-    periodEnd: dateOf(row["periodEnd"]),
+    periodStart: plainDateOf(row["periodStart"]),
+    periodEnd: plainDateOf(row["periodEnd"]),
     amount: moneyOf(row["amount"], row["currency"], "amount"),
     transactionId: textOf(row["transactionId"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),

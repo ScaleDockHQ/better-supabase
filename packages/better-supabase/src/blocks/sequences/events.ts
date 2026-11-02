@@ -1,5 +1,4 @@
 import type { Events } from "../../core/event-map.ts";
-import type { EnrollmentEventData } from "../enrollments/events.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
@@ -11,15 +10,6 @@ export interface SequenceEventData {
   readonly key: string;
   readonly status: string;
 }
-
-/**
- * A recipient's run now emits the `enrollment.*` events, with the program
- * `sequence:<sequence id>`.
- *
- * @deprecated Use `EnrollmentEventData` from `better-supabase/blocks/enrollments`.
- * Removed in 0.48.
- */
-export type SequenceEnrollmentEventData = EnrollmentEventData;
 
 /** The events of the `sequences` block: type to data. */
 export type SequencesEvents = {

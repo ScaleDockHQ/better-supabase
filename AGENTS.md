@@ -116,203 +116,208 @@ The rows for each area are in `.agents/rules/also-update-library.mdc`,
 
 One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 
-- 0001: the library profile of the repo standard.
-- 0002: the deviations and lint backlogs, each with what ends it (CI shape, Ask AI tools,
-  the support-storage rehearsal, `tracedFetch`).
-- 0003: the CLI runs on citty (package split superseded by 0007).
-- 0004: maintainer skills in `.agents/skills` are committed.
-- 0005: the public API uses Temporal.
-- 0006: the fixture schema diffs with pg-delta.
-- 0007: the CLI ships inside `better-supabase`, dependencies inlined.
-- 0008: the server and adapters run on `@supabase/middleware`.
-- 0009: `stripe` is a lazy optional peer; OpenFeature is typed structurally.
-- 0010: AI blocks stay SDK-neutral; SDK adapters own no tables.
-- 0011: authorization is a versioned `AuthorizationProvider`.
-- 0012: kits are blocks, imported from `better-supabase/blocks/<name>`.
-- 0013: SDK adapters that need Node are Node-only entries.
-- 0014: `better-supabase/nestjs` loads `@nestjs/common` with `createRequire`.
-- 0015: blocks extend through `fields`, `hooks`, middleware and `extendBlock`.
-- 0016: `@supabase/postgrest-typegen` is a peer range; the pin stays exact.
-- 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version.
-- 0018: a subject binding can name the adopted table it lives in.
-- 0019: security definer writes refuse read-only support sessions.
-- 0020: subject types are declared once in `config.subjects`.
-- 0021: rows are ordered by base-62 fractional rank keys.
-- 0022: Yjs documents are an update log and a snapshot in Postgres.
-- 0023: the bookings block installs `btree_gist`.
-- 0024: money is `bigint` minor units; payments and tax are versioned providers.
-- 0025: the drive is two modules on attachments.
-- 0026: delegated tokens are narrowed in the access functions (`OPERATIONS`).
-- 0027: the fixture migrations are one pg-delta baseline.
-- 0028: record stages run on tenant-editable pipelines.
-- 0029: every block is one `defineBlock` manifest wired by `createBlocks`.
-- 0030: block client state lives in headless controllers.
-- 0031: presets install blocks; UI ships as recipes over the app's shadcn components.
-- 0032: the fixture runs on the CLI's stack engine with ports per branch.
-- 0033: signing keys live in Vault; signing runs in TypeScript with WebCrypto.
-- 0034: retention policies and legal holds; a hash-chained, partitionable audit log.
-- 0035: the Flags SDK adapter is structural; brands are custom flag contexts.
-- 0036: every SDK integration is an optional peer with a tested range.
-- 0037: every amount is `Money`; block SQL returns int8 as text, decoded strictly.
-- 0038: outbox, usage history, webhook deliveries and notification delivery events partition by month on opt-in.
-- 0039: the Create page names PermDock as one optional auth choice.
-- 0040: `appTables` renders the app's own tables; a Create design rides on the URL as `&design=`.
-- 0041: Create deploys a preset through a Supabase OAuth app; tokens live in a sealed cookie.
-- 0042: app table columns take a format, options and bounds; tables take composite keys and an id type.
-- 0043: an app table becomes a subject through `appTables.<name>.subject`.
-- 0044: app table rollups and lookups render as a `security_invoker` view, from structured keys only.
-- 0045: the CLI runs from one command tree, with one JSON envelope, agent mode and the `bsb` short name.
-- 0046: tenant rules are filter trees with `{ kind, config }` action references, evaluated in TS and SQL.
-- 0047: the CLI contract is published for other CLIs: codes, envelope, help document, consent.
-- 0048: app tables emit outbox events from a trigger; rules and workflows consume them through sinks.
-- 0049: `better-supabase mcp` serves the CLI on stdio; write tools need a consent token.
-- 0050: doctor lints unapplied migrations for locking statements (BS229 to BS235).
-- 0051: app table columns restrict access to `read` or `server` with Postgres column grants.
-- 0052: billing webhooks keep subscriptions, guarded by `event_at`.
-- 0053: usage meters can count distinct values or compute a value on a schedule.
-- 0054: a Vercel Marketplace block and a Vercel Queues jobs backend, without `@vercel/*` dependencies.
-- 0055: the Create page connects a PermDock Cloud account through OAuth with PKCE.
-- 0056: audit resolves tenants through a path or function and names the acting member.
-- 0057: Create runs in the cloud app at `app.bettersupabase.com`; marketing redirects `/create` there.
-- 0058: a design too large for a URL reaches `init` and `add --preset` as a JSON design file.
-- 0059: `db diff` diffs inside the running stack when the shadow database can't start; `dev stack prune` frees segments.
-- 0060: block entities rename per block (`blocks.<name>.entities`); keys are typed and entities register as subjects.
-- 0061: `gen` writes block schemas, name constants, nuqs parsers and factories; their libraries stay optional peers.
-- 0062: one messaging core; channels first, then comments and the inbox move onto it (breaking).
-- 0063: the activity feed moves out of comments into its own `timeline` block.
-- 0064: blocks compose through sections and flows; library logic, generated bindings and recipe UI.
-- 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
-- 0066: `assets` stores coordinates as numbers; PostGIS geography columns and area lookups are the `postgis` option.
-- 0067: votes are reactions of kind `vote`; `scores` computes versioned scores from tenant-editable models (breaking).
-- 0068: calendar free/busy runs in SQL; appointment schedules are bookings resources with a host.
-- 0069: document suggestions wait outside the update log until an editor accepts them; named versions are version labels.
-- 0070: guests reach granted records through `ctx.scope.guest`, never as members; providers answer through `portalSubjects`.
-- 0071: drive labels are tags; file approvals target one attachment, and both follow the drive grants.
-- 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
-- 0073: admission passes carry a signed token; the database keeps the nonce and decides every scan.
-- 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
-- 0075: record presence, record mentions and saved items build on the subject registry.
-- 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
-- 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
-- 0078: member mailboxes sync into engagements through a versioned `MailProvider` over `fetch`.
-- 0079: segments materialize rules filter trees; assignment queues pick owners by turn, weight and territory.
-- 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
-- 0081: enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over `fetch`.
-- 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
-- 0083: forecast snapshots copy the deals behind each number; field history is a trigger per tracked table.
-- 0084: the public status page is one security definer function anon may call, returning only public fields.
-- 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
-- 0086: recurring bookings place each occurrence through `place_booking`; class credits are a ledger refunded on early cancel.
-- 0087: encrypted fields use per-owner Vault keys and decrypt through scoped definers; reads there can be audited.
-- 0090: confirmed bookings become meeting engagements through a trigger on the bookings table.
-- 0091: sequences run on enrollments and send email steps through a `mailer` port from mail-sync.
-- 0092: posts keep boards and posts; votes, replies and moderation stay in their blocks.
-- 0093: blocks install as named instances behind one data contract; plugins, sections and preset codes go (supersedes 0064).
-- 0094: supported adapters (Next.js, Hono, Expo, SvelteKit, TanStack Start, React Router) get the full test matrix; the rest are community adapters with a smoke test.
-- 0095: one token verification per request across cache scopes, through a session memo keyed by the token.
-- 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast, and `SessionProvider` refreshes on the user's `authz:<uid>` topic.
-- 0097: `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only.
-- 0098: blocks detect the app's tables per table (`ownTables`) and run over them; every block table is adoptable except the `workflow-sdk` world; `ownership: "adopt"` is removed (breaking).
-- 0099: tenant isolation renders as one restrictive `bsb_tenant_scope` policy per tenant table; an app's permissive policy can't widen it.
-- 0100: One project pipeline for the config, the CLI, Create and the cloud; `checkProject` returns one `Issue` type.
-- 0101: Adopt one rung at a time: `init`, helpers for every table, table features, blocks over your tables.
-- 0102: Tables are user-owned SQL; per-table features are `@bsb` tags in the table comment; block SQL defaults to `supabase/schemas` with the `900_better_supabase` prefix.
-- 0103: Block modules emit typed `Policy` values; the tenant scope and actor guard compose on them.
-- 0104: Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on.
-- 0105: The catalog is verified offline and by a generated role by command by table access matrix.
-- 0106: The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss.
-- 0107: `designDataApi` stays in `create/lite`.
-- 0108: `db diff` plans with pg-delta's library on the stack's postgres role; renames and data loss are gated.
-- 0109: Hooks run an affected lint and typecheck, tests run in CI as shards, Next.js builds prerender a few pages outside Vercel production, worktrees set themselves up.
-- 0110: Flags keep revisions in Postgres, roll out on schedules and draw weighted splits from a second bucket.
-- 0111: Workflow SDK start keys are claimed in `workflow_run_keys`; ended runs purge in SQL (`retention`, `db prune-workflows`).
-- 0112: Vercel Sandbox runs chat sandboxes through an optional-peer adapter; credentials reach the VM only at its firewall.
-- 0113: eve tools run as the user through `forContext` with delegated scopes; approvals block approvals and queue schedules drive them.
-- 0114: Authorization libraries get a typed, additive contract: `claims` and `contract` subpaths, request intent and source, typed `versions`, approval ids, `blockTables`.
-- 0115: A page reads its user data in one `bsb.bootstrap` call, private or remote, from a generated `bootstrap_<rpc>` wrapper.
-- 0116: One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`.
-- 0117: Sessions refresh through `@supabase/ssr` on every request; a coalescing fetch makes one Auth call per refresh token.
-- 0118: Calendar alarms are event data in `calendar_event_alarms`; reminders fire on any subject's rule, `at` column or own time, planned by the `reminders.schedule` timer.
-- 0119: Tenant approval policies tighten config floors with conditions and a confirm or authorize mode; manager approvers; approvals consumed once against a fingerprint.
-- 0120: Quotes publish immutable `quote_versions` and revise in place; document discounts, VAT-inclusive prices and deposits count per tax rate into `quote_tax_lines`.
-- 0121: Enrollment steps carry an assignee and a due date, rendered into open `enrollment_steps` rows with `due_at`.
-- 0122: ai-chat runs without a tenant (`tenant: false`), shares chats through `ai_chat_participants`, and `messages` keys a linear list by uuid with native parts (amends 0010).
-- 0123: `transition()` takes `{ reason, actor }`; history keeps the actor's name, email, IP and user agent, or `history: "app"` leaves it to the app. Memory gets a `record` scope, expiry, confidence and soft deletes.
-- 0124: Knowledge collections with a visibility, a priority and user or team grants; system collections and documents have no tenant and every tenant reads them.
-- 0125: `inbox_drafts` keeps one open reply draft per staff member and conversation; the service role suggests AI drafts the team sends or discards.
-- 0126: `workflow_node_kinds` registers the app's own node kinds (`defineNodeKind`, run as steps); definitions take a `purpose` and one default lifecycle workflow per subject type.
-- 0127: Stock is `numeric` with a unit scale and posts base units; lots, serials, bins, average cost, document allocations, orders from lines or a quote, and shipment lines.
-- 0128: Templates gain brand starters and schedules on reminders' rules; a machine reads its edges from a workflow version; timelines add transitions and messages.
-- 0129: Native apps refresh on the authorization version and reconnect PowerSync; bootstrap reports the live version next to the token's.
-- 0130: One naming convention for blocks: entity keys, tables, `<area>.<verb>` permission keys, `<entity>.<past tense>` events, hint codes, functions and docs titles (partly supersedes 0093).
-- 0131: Inbox contacts, sequence enrollments, AI file versions and postmortem actions move onto `contacts`, `enrollments`, `versions` and `tasks`.
-- 0132: Quality management is five cross-cutting blocks (`acknowledgements`, `cases`, `inspections`, `risks`, `qualifications`) linked through `relations` kinds.
-- 0155: Payroll runs collect hours and leave in SQL, lock behind an exported file and render through a versioned `PayrollExportFormat`.
-- 0158: Route stops are ordered in TypeScript behind a versioned `RouteOptimizer`, with a nearest-neighbour fallback that never fails.
-- 0157: The `psa`, `ats` and `intranet` presets reuse existing blocks; HRIS stays `people` and help desk stays `helpdesk`.
-- 0133: Drive gets commenter and upload-only roles, link passwords and download control with previews on their own path, versioned text and preview ports, and controlled documents.
-- 0134: Record teams (`subjects.<type>.team`, `subject_members`) grant per-record actions in `can_subject`; emergency access and read logging build on them.
-- 0135: Care plans, observations, medications, consents and funding are domain-neutral blocks keyed on any subject, with FHIR R4 mappers and ports for national formats.
-- 0136: Double-entry books live in the `accounting` block beside the operational `ledger`: account roles, journals, numbered entries in fiscal periods that close, FX, tax codes and reports.
-- 0139: Manufacturing versions bills of materials, runs production orders over `move_stock` with `consumption` and `production` reasons, and keeps lot genealogy in `stock_lot_links`.
-- 0138: Shifts are their own block; every assignment, request approval and swap runs one SQL check for overlap, approved leave, qualifications and rest.
-- 0140: Drive keeps extracted text in `drive_node_texts`, searched through the `drive_node_search` view and filled from the outbox; `quota` checks `within_quota` on upload.
-- 0141: Imports write through `import_upsert_batch` onto an external record map with content hashes; an import mode skips or tags events and audit and guards side effects.
-- 0142: Legal entities live inside one organization as an opt-in `legal_entity_id` with a settings fallback; contacts stay shared.
-- 0143: A `tax` block owns tax codes, rate history, `compute_document_tax` (margin, credit restriction), invoice tax lines, returns and the EU sales list (breaking).
-- 0144: `accounting` grows into a general ledger (levels, locks, opening balances, open items, payment batches); `better-supabase/audit-files` exchanges SAF-T and XAF.
-- 0145: Document templates read a typed variable contract, look up per legal entity and language, and use tenant-editable text blocks.
-- 0146: Controlled document types can set a `numberFormat` and count from their own numbering entity.
-- 0148: Purchase bills are invoices with `direction = 'purchase'`; receipts are rows, requisitions run on approvals, a three-way match gates payment, contacts credit limits gate orders and sales invoices.
-- 0149: Postmortem `actionItems` and the `action_items` column go in 0.47; an `incidents` upgrade step copies them into tasks first.
-- 0150: The remaining block overlaps are decided pair by pair (all stay separate, three follow-ups) and seven blocks move to the docs group that matches their job.
-- 0151: Party payments keep their rest as ledger credit; dunning levels raise overdue invoices; `better-supabase/e-invoicing` writes UBL for Peppol without a bundled validator.
-- 0152: The task and activity foreign key columns become `task_id` and `activity_id`, renamed by upgrade steps.
-- 0153: Banking imports camt.053 and MT940 statements idempotently, suggests and matches invoices in SQL through `record_invoice_payment`, books rule matches in the bank journal; bank feeds are a versioned `BankFeed` port over `fetch`.
-- 0154: Meetings are one block over subjects, reactions, documents and tasks; votes settle decisions and action items are tasks.
-- 0156: Field definitions name registered subject types; packs install them by pack and key, and values can belong to a legal entity.
-- 0157: Numbers are scoped per legal entity, an import keeps its historical numbers and the sync reports what does not match the format.
-- 0159: E-invoice formats and channels and chart-of-accounts formats are versioned ports; nothing is bundled.
-- 0160: Preventive maintenance plans by time or meter open dispatch work orders with their parts; readings and calibrations are records.
-- 0161: Attachments take per-organization document types with typed metadata, a source and external id index, and metadata-first import records.
-  ||||||| parent of 50dca684f (feat(powersync): sync progress notes, observations and doses offline)
-- 0162: Care blocks sync offline: streams by organization and `read` role, upload routes that replay through block functions, clinical conflicts surface in `connector.rejected`.
-- 0163: Digital asset management is renditions made through the drive preview port and usage rights with territory, channel and expiry on drive files.
-- 0164: `lims` keeps samples, methods with specification limits and results; an out of specification result opens a `cases` nonconformity and blocks release, and instruments are assets with qualifications.
-- 0165: Drive retention sweeps bin files by label, and a changes feed serves sync clients.
-- 0166: Purchase bill lines and expense lines carry `dimensions`; a report books one expense line per dimension set, so project costs split.
-- 0167: Appraisals run review cycles over enrollments, forms, goals and approvals, with calibration and sign-off.
-- 0168: A WOPI host on the check-out lock lets office editors open and save drive files.
-- 0169: Warehouse makes pick waves and lists from stock allocations, picking tasks and cycle count plans that hold large variances for review.
-- 0170: `rfqs` sends requests for quotation to suppliers, compares their quotes and awards one into a draft purchase order.
-- 0171: Tills run shifts with a float, cash movements and an end-of-day count that books its variance, then deposit and reconcile in banking.
-- 0172: Meetings take custom fields through `extraColumns`.
-- 0173: Clinical decision support raises dose range, duplicate therapy and interaction alerts from built-in rules and a versioned `ClinicalDecisionSupport` port.
-- 0174: Payroll runs count only the time entries of weeks with an approved timesheet.
-- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159; superseded by 0182).
-- 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
-- 0177: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
-- 0196: Modules declare tenant defaults in `BlockSql.seeds`; `db seed --defaults` and the cloud `--sample` (Pro) use them.
-- 0197: Shared recurrence, period, money and digest engines are planned, not shipped.
-- 0177: Maintenance plans take RFC 5545 calendar rules and required qualifications, checked on technician assignment and calibration.
-- 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
-- 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
-- 0181: Warehouse suggests putaway and slotting, orders pick routes through the RouteOptimizer port and closes the picking task.
-- 0182: Invoices keep Peppol participant ids and one delivery log behind one `EInvoiceChannel` port in `better-supabase/e-invoicing` (amends 0151, 0159; supersedes 0175).
-- 0183: Prompts are versioned templates behind labels, read as the service role.
-- 0184: `ai-evals` runs datasets against a prompt version and a model, scores with ports and compares runs; ai-chat feedback feeds datasets.
-- 0185: `ai-guardrails` keeps per-agent policies and a hashed decision log, and checks text without touching a `Result`.
-- 0186: `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C credentials over OpenID4VCI behind a store port; mfa gains passkeys and contacts gains vCard.
-- 0187: Moderation, incidents, consents, data-lifecycle and compliance gain DSA, NIS2, DORA, CRA, GPC, TCF, GDPR request and OSCAL workflows.
-- 0188: Advisories tracks products, SBOMs and vulnerabilities (OSV, EPSS and KEV through a versioned feed port) and publishes OpenVEX and CSAF; CVSS 4.0 is parsed, not scored, and exposure matches packages, not version ranges.
-- 0189: `agent-checkout` runs ACP and UCP sessions and AP2 mandates over orders and signing-keys; `agents` serves an A2A card and task endpoint; `better-supabase/webmcp` registers permitted block actions as page tools.
-- 0190: Courses verify LTI 1.3 launches, write xAPI statements and export unsigned Open Badges.
-- 0191: SMART App Launch and CDS Hooks helpers sit in `better-supabase/fhir` behind versioned ports.
-- 0192: Berlin Group XS2A is a `BankFeed` adapter over fetch.
-- 0193: DAM reads C2PA manifests through a port and exports usage rights as ODRL.
-- 0194: Content writes sitemaps, robots.txt and JSON-LD as pure functions.
-- 0195: Maintenance ingests meter telemetry through a Fetch handler.
-- 0196: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
+- 0001: Follow the library profile of the repo standard
+- 0002: Deviations from the repo standard and the lint backlogs
+- 0003: Ship the CLI as @better-supabase/cli on citty
+- 0004: Commit the maintainer skills in `.agents/skills`
+- 0005: Use Temporal for time values in the public API
+- 0006: Diff the fixture schema with pg-delta; the native stack stays opt-in
+- 0007: Ship the CLI inside better-supabase
+- 0008: Build the server and the adapters on @supabase/middleware entries
+- 0009: Load Stripe lazily as an optional peer and type OpenFeature structurally
+- 0010: Keep AI blocks SDK-neutral and bridge each SDK in an adapter subpath
+- 0011: Define a neutral authorization provider and let libraries ship adapters
+- 0012: Rename kits to blocks and import every feature module from `better-supabase/blocks`
+- 0013: Ship SDK adapters whose SDK needs Node as Node-only entries
+- 0014: Load `@nestjs/common` with a synchronous `createRequire`
+- 0015: Extend blocks through fields, hooks and `extendBlock`
+- 0016: Declare postgrest-typegen as a peer range
+- 0017: Render every spec document from one API model
+- 0018: Subject bindings carry their own adopted tables
+- 0019: Read-only actors are refused inside security definer writes
+- 0020: Declare subject types once in config.subjects
+- 0021: Order rows with base-62 fractional rank keys
+- 0022: Store Yjs documents as an update log, with yjs as an optional peer
+- 0023: The bookings block requires the btree_gist extension
+- 0024: Keep money in bigint minor units behind versioned commerce providers
+- 0025: Build the drive on attachments, in two modules that render around the subject checks
+- 0026: Narrow delegated tokens inside the access functions, and name every checked action in one operations table
+- 0027: Squash the fixture migrations into a pg-delta baseline, and use the per-schema layout
+- 0028: Run record stages on tenant-editable pipelines, separate from status
+- 0029: Describe every block with one manifest, wired by what it provides and consumes
+- 0030: Keep block client state in headless controllers with thin framework bindings
+- 0031: Install blocks through presets, ship glue through a shadcn registry, and show UI as recipes
+- 0032: Run the fixture on the Supabase CLI's stack engine
+- 0033: Keep signing keys in Vault and sign in TypeScript
+- 0034: Retention policies, legal holds and a hash-chained audit log in Postgres
+- 0035: A structural Flags SDK adapter, and custom contexts instead of brands
+- 0036: Declare every SDK integration as an optional peer
+- 0037: Send every amount as Money and every int8 as text
+- 0038: Partition the event tables by month when an app opts in
+- 0039: Name PermDock as one optional auth choice on the Create page
+- 0040: Render the app's own tables from `appTables`, and carry a Create design in the URL
+- 0041: Deploy a Create preset through a Supabase OAuth app
+- 0042: App table columns take a format, options and bounds; tables take composite keys and an id type
+- 0043: An app table becomes a subject through `appTables.<name>.subject`
+- 0044: Rollups and lookups render as a `security_invoker` view
+- 0045: Run the CLI from one command tree, with agent mode
+- 0046: Store tenant rules as filter trees with action references
+- 0047: Publish the CLI contract other CLIs follow
+- 0048: App tables emit outbox events from a database trigger
+- 0049: Serve the CLI as a stdio MCP server, with consent for writes
+- 0050: Lint unapplied migrations for locking statements in doctor
+- 0051: App table columns restrict access with Postgres column grants
+- 0052: Billing can store subscriptions from webhooks
+- 0053: Usage meters have a kind: counter, distinct or computed
+- 0054: A Vercel Marketplace block and a Vercel Queues jobs backend
+- 0055: Connect PermDock Cloud on the Create page
+- 0056: Audit resolves tenants itself and names the acting member
+- 0057: Run Create in the cloud app
+- 0058: Hand designs too large for a URL to init as a design file
+- 0059: Diff inside the running stack when the shadow database can't start
+- 0060: Name block entities per block, with typed config keys and automatic subjects
+- 0061: Generate typed helpers for blocks and keep their libraries optional peers
+- 0062: Build one messaging core and move comments and the inbox onto it
+- 0063: Split the activity feed out of comments into its own block
+- 0064: Compose blocks through sections, flows and three layers
+- 0065: Keep balances in one double-entry ledger
+- 0066: Store asset coordinates as numbers, with PostGIS as an option
+- 0067: Votes are reactions, and scores come from tenant-editable models
+- 0068: Compute calendar availability in SQL and build appointment schedules on bookings
+- 0069: Keep document suggestions outside the update log until an editor accepts them
+- 0070: Let guests in through `ctx.scope.guest`, never as members
+- 0071: Drive labels are tags, and file approvals target one attachment
+- 0072: Merge subject records through marked handler functions
+- 0073: Admission passes carry a signed token; the database keeps the nonce
+- 0074: Billable time prices entries from a rate card; billed entries lock
+- 0075: Put record presence, record mentions and saved items on the subject registry
+- 0076: One moderation item per subject, shared by reviews and comments
+- 0077: Enrollments in programs of steps, with onboarding on top
+- 0078: Sync member mailboxes into engagements through a versioned mail provider
+- 0079: Materialize segments from rules filter trees and route records through assignment queues
+- 0080: Post recurring charges on the ledger, once per period
+- 0081: Store enrichment results per record and provider, and fill only empty columns
+- 0082: Ship through a versioned ShipmentCarrier and ingest tracking by webhook
+- 0083: Snapshot the forecast with its deals, and record field changes with a trigger per tracked table
+- 0084: The public status page is one security definer function anon may call
+- 0085: Courses run on enrollments, with quizzes graded by forms
+- 0086: Book series one occurrence at a time, and pay for classes from a credit ledger
+- 0087: Encrypt fields with per-owner Vault keys and audit reads where they decrypt
+- 0090: Log confirmed bookings as engagements with a trigger on the bookings table
+- 0091: Sequences run on enrollments and send through a mailer port
+- 0092: Posts keep only boards and posts; votes, replies and moderation stay in their blocks
+- 0093: Install blocks as named instances behind one data contract
+- 0094: Split the framework adapters into supported and community tiers
+- 0095: Share one token verification across cache scopes through a session memo
+- 0096: Give authorization libraries a version cache slot and a Realtime evictor
+- 0097: Serve the schema types through a TypeScript 7.1 content mapper
+- 0098: Detect the app's tables per table instead of an adopt mode
+- 0099: Render tenant isolation as one restrictive policy per tenant table
+- 0100: One project pipeline for the config, the CLI, Create and the cloud
+- 0101: Adopt better-supabase one rung at a time
+- 0102: Tables are user-owned SQL; features are `@bsb` tags
+- 0103: Block modules emit typed policies
+- 0104: RLS that is safe by default
+- 0105: Verify RLS against the catalog and generate an access matrix
+- 0106: Plan migrations with pg-delta's library plan
+- 0107: `designDataApi` stays in `create/lite`
+- 0108: `db diff` plans with pg-delta's library on the stack's postgres role
+- 0109: Keep hooks, CI and Next.js builds fast
+- 0110: Keep flag revisions in Postgres and draw splits from a second bucket
+- 0111: Claim Workflow SDK start keys in a table and purge ended runs in SQL
+- 0112: Run chat sandboxes on Vercel Sandbox through an optional-peer adapter
+- 0113: Run eve tools as the user, approve them in the approvals block and schedule them on the queue
+- 0114: Give authorization libraries a typed, additive contract
+- 0115: Read a page's user data in one bootstrap call, in a private or remote cache scope
+- 0116: Fetch one JWKS per process; keep one verified-token memo; build clients with createContextClient and createAdminClient
+- 0117: Refresh sessions through `@supabase/ssr` on every request, with one Auth call per refresh token
+- 0118: Store calendar alarms as event data; schedule reminders on any subject from a block timer
+- 0119: Tenant approval policies tighten config floors; approvals are consumed once
+- 0120: Publish quote versions and count document totals per tax rate
+- 0121: Enrollment steps carry an assignee and a due date, rendered into rows
+- 0122: Let ai-chat run without a tenant, share chats with participants and store native parts
+- 0123: Transitions record who made them; memory scopes to records and soft deletes
+- 0124: Knowledge collections with grants; system documents without a tenant
+- 0125: Inbox reply drafts per staff member, and AI drafts for the whole team
+- 0126: A registry of the app's own workflow node kinds; lifecycle definitions with a default
+- 0127: Count stock in numeric units with lots, bins and allocations
+- 0128: Brand starters, template schedules on reminders' rules, machines read from a workflow version
+- 0129: Native apps refresh on the authorization version and reconnect PowerSync; bootstrap reports the live version
+- 0130: Name every block's entities, tables, keys, events and hints by one convention
+- 0131: Move overlapping block tables onto the block that owns the concept
+- 0132: Build quality management from five cross-cutting blocks
+- 0133: Give drive commenter and upload-only roles, link controls, preview and text ports, and controlled documents
+- 0134: Decide per-record access through record teams, and log reads of opted-in types
+- 0135: Keep care records in domain-neutral blocks keyed on any subject
+- 0136: Keep the books in an `accounting` block beside the operational ledger
+- 0138: Plan shifts in their own block, checked against leave, qualifications and rest
+- 0139: BOM versions, production orders over `move_stock`, and lot genealogy in `stock_lot_links`
+- 0140: Store drive text beside the node and check upload quotas in SQL
+- 0141: Import through an external record map and an import mode
+- 0142: Model several legal entities inside one organization
+- 0143: Compute and report tax in a `tax` block
+- 0144: Extend `accounting` into a general ledger and exchange audit files
+- 0145: Give document templates a typed variable contract
+- 0146: Number controlled documents per type
+- 0147: Sign medication records and let guests read them
+- 0148: Cases ask for approval and keep versions; inspections reach the calendar and notifications
+- 0149: Drop postmortem action items before 0.47 ships
+- 0150: Decide the remaining block overlaps and file each block under one docs group
+- 0151: Collect on the ledger and write e-invoices as UBL without a validator
+- 0152: Foreign key columns follow the entity
+- 0153: Reconcile bank statements in SQL against invoices and the books
+- 0154: Meetings are one block over subjects, reactions, documents and tasks
+- 0155: Payroll runs collect in SQL and render through a versioned port
+- 0156: Field definitions name registered subject types, and packs install them
+- 0157: Numbers are scoped per legal entity and an import keeps its historical numbers
+- 0158: Route stops are ordered behind a versioned RouteOptimizer
+- 0159: E-invoice and chart import ports
+- 0160: Preventive maintenance is one block that opens dispatch work orders
+- 0161: Attachments take document types, a source and metadata-first records
+- 0162: Care blocks sync offline through PowerSync
+- 0163: Digital asset management is renditions and usage rights on drive files
+- 0164: Laboratory samples are tested against limits and raise nonconformities
+- 0165: Drive retention per label and a changes feed
+- 0166: Purchase lines and expense lines carry dimensions for project costs
+- 0167: Appraisals are review cycles over enrollments, forms and approvals
+- 0168: A WOPI host for drive files
+- 0169: Warehouse picks from allocations and schedules cycle counts
+- 0170: Requests for quotation award one supplier quote into a purchase order
+- 0171: Tills run shifts and post their counts to accounting and banking
+- 0172: Meetings take custom fields through `extraColumns`
+- 0173: Clinical decision support evaluates rules over medication orders and keeps the port open
+- 0174: Payroll runs read the entries of approved timesheets
+- 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`
+- 0176: The tills example creates each till with a cash account
+- 0177: Maintenance plans take calendar rules and required qualifications
+- 0178: E-prescribing keeps prescriptions in SQL, signed only by their prescriber, and delivers through a port
+- 0179: Adapters start from tested templates in `tests/adapter-templates`
+- 0180: Appraisal rubrics and reviewer anonymity
+- 0181: Warehouse suggests putaway and slotting, orders pick routes and closes the picking task
+- 0182: Invoices keep Peppol participant ids and a delivery log behind one channel port
+- 0183: Prompts are versioned templates behind labels, read as the service role
+- 0184: ai-evals runs datasets against a prompt version and a model
+- 0185: ai-guardrails keeps per-agent policies and a hashed decision log
+- 0186: Verifiable credentials are a pure TypeScript subpath over a store port
+- 0187: Five blocks take on regulatory workflows
+- 0188: Advisories tracks vulnerabilities for a software vendor and publishes CSAF and OpenVEX
+- 0189: Agents buy and call through checkout sessions, A2A and WebMCP
+- 0190: Courses verify LTI 1.3 launches, write xAPI statements and export unsigned Open Badges
+- 0191: SMART App Launch and CDS Hooks helpers live in `better-supabase/fhir`
+- 0192: Berlin Group XS2A is a `BankFeed` adapter over fetch
+- 0193: DAM reads C2PA manifests through a port and exports usage rights as ODRL
+- 0194: Content writes sitemaps, robots.txt and JSON-LD as pure functions
+- 0195: Maintenance ingests meter telemetry through a Fetch handler
+- 0196: Block composition is declared: links, concerns, automations and composite blocks
+- 0197: Shared engines for recurrence, periods, money and digests are planned, not shipped
+- 0198: Postgres features are opt-in options on existing blocks
+- 0199: The Create core is a public subpath
+- 0200: Create validates a design in PGlite
+- 0201: Migrations between designs re-render the app-table file
+- 0202: Remove the deprecated 0.47 wrappers before release
+- 0203: Keep purchase bills on the invoices table
+- 0204: The psa, ats and intranet presets reuse existing blocks
+- 0205: Seeds are declared by modules, with defaults in SQL and sample data in the cloud
 
 ## Pre-release pins
 

@@ -18,7 +18,7 @@ import {
   raise,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
@@ -243,7 +243,7 @@ function build(ctx: BlockSqlContext): string {
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
   const mr = tenant.col("memberships", "role");
-  const hash = (code: string): string => sha256Hex(`upper(trim(${code}))`);
+  const hash = (code: string): string => sha256HexSql(`upper(trim(${code}))`);
 
   const usable = (row: string): string =>
     `${row}.${ck("revokedAt")} is null${hasCode("expiresAt") ? `\n      and (${row}.${ck("expiresAt")} is null or ${row}.${ck("expiresAt")} > now())` : ""}

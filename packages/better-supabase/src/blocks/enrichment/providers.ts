@@ -1,5 +1,6 @@
 import type { Result } from "../../core/result.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -70,13 +71,7 @@ export interface EnrichmentProvider {
 export function enrichmentProviderOf(
   provider: EnrichmentProvider,
 ): EnrichmentProvider {
-  const version: unknown = provider.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `enrichment "${provider.name}" targets enrichment provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  portOf(`enrichment "${provider.name}"`, "enrichment provider", provider);
 
   if (!/^[a-z][a-z0-9_-]{0,62}$/u.test(provider.name)) {
     throw new TypeError(

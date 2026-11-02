@@ -1,6 +1,8 @@
 import type { Invoice } from "../blocks/invoices/invoices.ts";
 import type { EInvoiceEndpoint } from "./party.ts";
 
+import { portOf } from "../core/block-helpers.ts";
+
 /** A UBL document as `toUbl` writes it or a channel receives it. */
 export interface EInvoiceDocument {
   /** `Invoice` or `CreditNote`, the document's root element. */
@@ -94,26 +96,14 @@ export interface EInvoiceChannel {
 
 /** Checks a format's contract version before the app uses it. */
 export function eInvoiceFormatOf(format: EInvoiceFormat): EInvoiceFormat {
-  const version: unknown = format.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `e-invoice format "${format.key}" targets e-invoice format API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the format for API 1.`,
-    );
-  }
+  portOf(`e-invoice format "${format.key}"`, "e-invoice format", format);
 
   return format;
 }
 
 /** Checks a channel's contract version before the app uses it. */
 export function eInvoiceChannelOf(channel: EInvoiceChannel): EInvoiceChannel {
-  const version: unknown = channel.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `e-invoice channel "${channel.key}" targets e-invoice channel API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the channel for API 1.`,
-    );
-  }
+  portOf(`e-invoice channel "${channel.key}"`, "e-invoice channel", channel);
 
   return channel;
 }

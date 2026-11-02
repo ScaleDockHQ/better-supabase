@@ -213,6 +213,6 @@ describe("defineAuditFileAdapter", () => {
     expect(() =>
       // SAFETY: the test passes a version the type forbids, to check the guard.
       defineAuditFileAdapter(adapter as AuditFileAdapter),
-    ).toThrow(/apiVersion 2/);
+    ).toThrow(/API 2/);
   });
 });

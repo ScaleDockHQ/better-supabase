@@ -1,4 +1,6 @@
 /** A place on the map, in decimal degrees (WGS 84). */
+import { portOf } from "./block-helpers.ts";
+
 export interface RoutePoint {
   readonly latitude: number;
   readonly longitude: number;
@@ -42,13 +44,7 @@ export interface RouteOptimizer {
 
 /** Checks the optimizer's `apiVersion` before using it. */
 export function routeOptimizerOf(optimizer: RouteOptimizer): RouteOptimizer {
-  const version: unknown = optimizer.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `route optimizer "${optimizer.name}" targets route optimizer API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the optimizer for API 1.`,
-    );
-  }
+  portOf(`route optimizer "${optimizer.name}"`, "route optimizer", optimizer);
 
   return optimizer;
 }
@@ -340,4 +336,42 @@ export async function planVisits(
   }
 
   return { optimization, visits };
+}
+
+/** What `optimizeLocated` takes besides the stops. */
+export interface LocatedRouteOptions {
+  /** Defaults to `nearestNeighbourOptimizer()`. */
+  readonly optimizer?: RouteOptimizer;
+  readonly start?: RoutePoint;
+  readonly end?: RoutePoint;
+}
+
+export interface LocatedRoute {
+  readonly optimization: OptimizedStops;
+  /** The optimized order, then the ids that have no location, in input order. */
+  readonly order: readonly string[];
+}
+
+/**
+ * Orders the stops that have a location and appends the ids in `allIds` that
+ * don't, so a caller can save one complete order.
+ */
+export async function optimizeLocated(
+  located: readonly RouteStop[],
+  allIds: readonly string[],
+  options: LocatedRouteOptions,
+): Promise<LocatedRoute> {
+  const placed = new Set(located.map((stop) => stop.id));
+  const unplaced = allIds.filter((id) => !placed.has(id));
+
+  const optimization = await optimizeStops(
+    options.optimizer ?? nearestNeighbourOptimizer(),
+    {
+      stops: located,
+      ...(options.start ? { start: options.start } : {}),
+      ...(options.end ? { end: options.end } : {}),
+    },
+  );
+
+  return { optimization, order: [...optimization.order, ...unplaced] };
 }

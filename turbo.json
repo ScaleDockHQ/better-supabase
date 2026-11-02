@@ -196,6 +196,9 @@
         ".agents/skills/**"
       ]
     },
+    "//#check:adrs": {
+      "inputs": ["scripts/check-adrs.ts", "AGENTS.md", "docs/decisions/**"]
+    },
     "//#check:no-permdock": {
       "inputs": [
         "scripts/check-no-permdock.ts",

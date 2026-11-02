@@ -17,7 +17,7 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
 } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
@@ -436,7 +436,7 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ]),
     `${g("status")} = ${status("'invited'")}`,
     `${g("user")} = null`,
-    `${g("tokenHash")} = ${sha256Hex("convert_to(v_token, 'utf8')")}`,
+    `${g("tokenHash")} = ${sha256HexSql("convert_to(v_token, 'utf8')")}`,
     ...assign([
       ["invitedBy", "auth.uid()"],
       ["expiresAt", "invite_guest.expires_at"],
@@ -452,7 +452,7 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       ["name", "invite_guest.name"],
       ["partyType", "invite_guest.party_type"],
       ["partyId", "invite_guest.party_id"],
-      ["tokenHash", sha256Hex("convert_to(v_token, 'utf8')")],
+      ["tokenHash", sha256HexSql("convert_to(v_token, 'utf8')")],
       ["invitedBy", "auth.uid()"],
       ["expiresAt", "invite_guest.expires_at"],
     ] as const
@@ -514,7 +514,7 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const token = "encode(extensions.gen_random_bytes(32), 'hex')";
 
   const hash = (value: string): string =>
-    sha256Hex(`convert_to(${value}, 'utf8')`);
+    sha256HexSql(`convert_to(${value}, 'utf8')`);
 
   return `${guestFunctions([own, representation(ctx, live), providerGuestSource(layout)])}
 -- Whether the caller reaches subject_type/subject_id as a guest for action.

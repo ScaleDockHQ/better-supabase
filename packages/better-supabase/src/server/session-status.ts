@@ -1,6 +1,8 @@
 import type { AuthResolution, AuthState } from "../auth/resolve.ts";
 import type { ActiveSupport } from "./support.ts";
 
+import { sha256Hex } from "../core/sha256.ts";
+
 /**
  * `active`: the session is valid. `expired`: the cookie's token expired and the
  * route may not refresh it; the next navigation through the proxy does. `ended`
@@ -98,17 +100,6 @@ function canonical(value: unknown): string {
   }
 
   return JSON.stringify(value);
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
 }
 
 /**

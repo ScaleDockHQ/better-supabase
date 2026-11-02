@@ -1,3 +1,49 @@
+import { isRecord } from "./block-helpers.ts";
+import { importOptionalPeer, memoized } from "./optional-peer.ts";
+
+/** The part of `fast-xml-parser` that the readers use. */
+export interface XmlParserModule {
+  readonly XMLParser: new (options: Readonly<Record<string, unknown>>) => {
+    parse(xml: string): unknown;
+  };
+}
+
+function isParserModule(value: unknown): value is XmlParserModule {
+  return isRecord(value) && typeof value["XMLParser"] === "function";
+}
+
+// fast-xml-parser is an optional peer: only apps that read XML install it.
+const loadModule = memoized(async (): Promise<XmlParserModule | undefined> => {
+  const module = await importOptionalPeer("fast-xml-parser");
+
+  if (isParserModule(module)) {
+    return module;
+  }
+
+  return isRecord(module) && isParserModule(module["default"])
+    ? module["default"]
+    : undefined;
+});
+
+/**
+ * The `fast-xml-parser` module, loaded on first use. Throws a `TypeError` that
+ * names `caller` when the package is not installed.
+ */
+export async function loadXmlParser(
+  caller: string,
+  hint = "",
+): Promise<XmlParserModule> {
+  const module = await loadModule();
+
+  if (module === undefined) {
+    throw new TypeError(
+      `${caller} needs the fast-xml-parser package: pnpm add fast-xml-parser${hint}`,
+    );
+  }
+
+  return module;
+}
+
 const ENTITIES: Readonly<Record<string, string>> = {
   "&": "&amp;",
   "<": "&lt;",
@@ -18,7 +64,11 @@ const allowed = (character: string): boolean => {
   return code >= 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
 };
 
-function escapeXml(value: string): string {
+/**
+ * Escapes XML text and attribute values; characters XML 1.0 forbids are
+ * dropped.
+ */
+export function escapeXml(value: string): string {
   let kept = "";
 
   for (const character of value) {

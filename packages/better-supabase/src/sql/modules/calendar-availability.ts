@@ -58,7 +58,7 @@ const MAX_USERS = 100;
  * (the recurrence module), which expands the same rules as `expandRule` in
  * TypeScript.
  */
-export function ruleStarts(
+function ruleStarts(
   ctx: BlockSqlContext,
   name = "calendar_rule_starts",
 ): string {

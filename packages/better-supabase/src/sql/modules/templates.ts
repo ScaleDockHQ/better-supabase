@@ -9,7 +9,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
   withExtraFields,
   writeExtraColumns,
@@ -263,7 +263,7 @@ ${also("templates", "settings", () => `        ${ct("settings")} = coalesce(v_st
       where x.${ct("id")} = v_row.${ct("id")}
       returning * into v_row;
     end if;
-    v_hash := ${sha256Hex("(v_starter -> 'body')::text")};
+    v_hash := ${sha256HexSql("(v_starter -> 'body')::text")};
     if v_hash is distinct from (select y.${cv("hash")} from ${ver} y
         where y.${cv("template")} = v_row.${ct("id")} and y.${cv("publishedAt")} is not null
         order by y.${cv("version")} desc limit 1) then
@@ -530,7 +530,7 @@ begin
   end if;
   update ${ver} x set
     ${cv("body")} = save_template_draft.body,
-    ${cv("hash")} = ${sha256Hex("save_template_draft.body::text")}
+    ${cv("hash")} = ${sha256HexSql("save_template_draft.body::text")}
   where x.${cv("template")} = save_template_draft.template_id and x.${cv("publishedAt")} is null
   returning * into v_row;
   if not found then
@@ -539,7 +539,7 @@ begin
       save_template_draft.template_id,
       coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = save_template_draft.template_id), 0) + 1,
       save_template_draft.body,
-      ${sha256Hex("save_template_draft.body::text")}${also(
+      ${sha256HexSql("save_template_draft.body::text")}${also(
         "versions",
         "createdBy",
         () => `,

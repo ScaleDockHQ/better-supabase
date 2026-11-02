@@ -6,6 +6,7 @@ import type {
   AccountingAccountInput,
 } from "./accounting.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 
 /** One account of a chart a format parsed. */
@@ -38,13 +39,7 @@ export interface AccountingChartFormat {
 export function chartFormatOf(
   format: AccountingChartFormat,
 ): AccountingChartFormat {
-  const version: unknown = format.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `accounting chart format "${format.key}" targets chart format API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the format for API 1.`,
-    );
-  }
+  portOf(`accounting chart format "${format.key}"`, "chart format", format);
 
   return format;
 }

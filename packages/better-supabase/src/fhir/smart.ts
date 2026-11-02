@@ -1,6 +1,7 @@
 import type { Result } from "../core/result.ts";
 
 import { toBase64Url } from "../core/base64.ts";
+import { portOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { err, ok } from "../core/result.ts";
@@ -39,13 +40,7 @@ export interface SmartLaunchStore {
 
 /** Checks a store's `apiVersion` before the app uses it. */
 export function smartLaunchStoreOf(store: SmartLaunchStore): SmartLaunchStore {
-  const version: unknown = store.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `SMART launch store targets store API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the store for API 1.`,
-    );
-  }
+  portOf("SMART launch store", "store", store);
 
   return store;
 }

@@ -1324,7 +1324,7 @@ export const fail = (
 ): string => raise(message, errcode, code);
 
 /** The hex SHA-256 of a `text` expression, as tokens and codes are stored. */
-export const sha256Hex = (value: string): string =>
+export const sha256HexSql = (value: string): string =>
   `encode(extensions.digest(${value}, 'sha256'), 'hex')`;
 
 /** A page size: `value`, or `fallback` when null, clamped to `min`..`max`. */

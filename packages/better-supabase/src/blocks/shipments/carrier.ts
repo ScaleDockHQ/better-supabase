@@ -5,6 +5,7 @@ import type { VerifyOptions, WebhookInput } from "../../core/signatures.ts";
 import type { LabelFormat, TrackingStatus } from "./statuses.ts";
 
 import { isMoney, money } from "../../commerce/money.ts";
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { verifyWebhook } from "../../core/signatures.ts";
@@ -143,13 +144,7 @@ export interface ShippingProvider {
 
 /** Checks the carrier's `apiVersion` before a block uses it. */
 export function shipmentCarrierOf(carrier: ShippingProvider): ShippingProvider {
-  const version: unknown = carrier.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `carrier "${carrier.name}" targets shipment carrier API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the carrier for API 1.`,
-    );
-  }
+  portOf(`carrier "${carrier.name}"`, "shipment carrier", carrier);
 
   return carrier;
 }

@@ -20,13 +20,13 @@ import type { BlockOptions } from "../shared.ts";
 
 import { paymentProviderOf } from "../../commerce/payments.ts";
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
-import { amountText, moneyOf } from "../money-codec.ts";
+import { amountText, moneyOf, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -365,16 +365,6 @@ function optional<K extends string, V>(
   };
 }
 
-function dateOf(value: unknown): Temporal.PlainDate {
-  return temporal().PlainDate.from(textOf(value));
-}
-
-function optionalDate(value: unknown): Temporal.PlainDate | undefined {
-  const text = optionalText(value);
-
-  return text === undefined ? undefined : temporal().PlainDate.from(text);
-}
-
 function optionalInstant(
   value: unknown,
   field: string,
@@ -382,16 +372,6 @@ function optionalInstant(
   return value === null || value === undefined
     ? undefined
     : requiredInstant(value, field);
-}
-
-function optionalMoney(
-  value: unknown,
-  currency: unknown,
-  field: string,
-): Money | undefined {
-  return value === null || value === undefined
-    ? undefined
-    : moneyOf(value, currency, field);
 }
 
 function fundOf(value: unknown, fn: string): DonationFund {
@@ -407,10 +387,10 @@ function fundOf(value: unknown, fn: string): DonationFund {
     kind: textOf(row["kind"]) as DonationFund["kind"],
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("goal", optionalMoney(row["goal"], currency, "goal")),
-    ...optional("raised", optionalMoney(row["raised"], currency, "raised")),
-    ...optional("startsOn", optionalDate(row["startsOn"])),
-    ...optional("endsOn", optionalDate(row["endsOn"])),
+    ...optional("goal", optionalMoneyOf(row["goal"], currency, "goal")),
+    ...optional("raised", optionalMoneyOf(row["raised"], currency, "raised")),
+    ...optional("startsOn", optionalPlainDateOf(row["startsOn"])),
+    ...optional("endsOn", optionalPlainDateOf(row["endsOn"])),
     ...optional("archivedAt", optionalInstant(row["archivedAt"], "archivedAt")),
   };
 }
@@ -423,14 +403,14 @@ function giftOf(value: unknown, fn: string): Gift {
     organizationId: textOf(row["organizationId"]),
     donor: { type: textOf(row["donorType"]), id: textOf(row["donorId"]) },
     amount: moneyOf(row["amount"], row["currency"], "amount"),
-    receivedOn: dateOf(row["receivedOn"]),
+    receivedOn: plainDateOf(row["receivedOn"]),
     // SAFETY: the SQL check constraint limits status to these values.
     status: textOf(row["status"]) as GiftStatus,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("fundId", optionalText(row["fundId"])),
     ...optional("pledgeId", optionalText(row["pledgeId"])),
-    ...optional("periodStart", optionalDate(row["periodStart"])),
+    ...optional("periodStart", optionalPlainDateOf(row["periodStart"])),
     ...optional("method", optionalText(row["method"])),
     ...optional("provider", optionalText(row["provider"])),
     ...optional("paymentReference", optionalText(row["paymentReference"])),
@@ -456,13 +436,13 @@ function pledgeOf(value: unknown, fn: string): Pledge {
     amount: moneyOf(row["amount"], row["currency"], "amount"),
     // SAFETY: the SQL check constraint limits frequency to these values.
     frequency: textOf(row["frequency"]) as PledgeFrequency,
-    startsOn: dateOf(row["startsOn"]),
+    startsOn: plainDateOf(row["startsOn"]),
     // SAFETY: the SQL check constraint limits status to these values.
     status: textOf(row["status"]) as PledgeStatus,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("fundId", optionalText(row["fundId"])),
-    ...optional("endsOn", optionalDate(row["endsOn"])),
+    ...optional("endsOn", optionalPlainDateOf(row["endsOn"])),
     ...optional("provider", optionalText(row["provider"])),
     ...optional("providerCustomer", optionalText(row["providerCustomer"])),
     ...optional("note", optionalText(row["note"])),
@@ -475,7 +455,7 @@ function installmentOf(value: unknown): PledgeInstallment {
 
   return {
     pledgeId: textOf(row["pledgeId"]),
-    periodStart: dateOf(row["periodStart"]),
+    periodStart: plainDateOf(row["periodStart"]),
     donor: { type: textOf(row["donorType"]), id: textOf(row["donorId"]) },
     amount: moneyOf(row["amount"], row["currency"], "amount"),
     ...optional("fundId", optionalText(row["fundId"])),

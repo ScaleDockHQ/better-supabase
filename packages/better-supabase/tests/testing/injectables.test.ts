@@ -361,6 +361,7 @@ describe("funding claim ports", () => {
 
     let calls = 0;
 
+    // @ts-expect-error The missing apiVersion is the point of the test.
     const drifting: FundingClaimFormat = {
       key: "Bad Key",
       render: () => {

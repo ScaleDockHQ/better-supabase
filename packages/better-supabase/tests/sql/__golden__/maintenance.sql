@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:e316520fd3e0cc181199d7124b5f558d24ad6000263153891860197b4680b455
+-- @bsb-hash sha256:b07f84fd9b40bb14ba473d7c6c90dfec7bc4abbe423d9abb340571fe04d3808e
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,23 +229,6 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -254,9 +237,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -1099,7 +1082,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:e7208b0d27fa6922ff147ceb42de91aa82e515e7b3ca00bddf9941126a1f1567
+-- @bsb-hash sha256:46fe2c28c1587f814edba0d61bc115fe043c0e559598ce9a99b608f83aae01f7
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1327,23 +1310,6 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -1352,9 +1318,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -2310,7 +2276,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:7a8efff8adb0341598ebf3bcda11ba6e0da3c07d9f8b98ecf43a4c0988d053bc
+-- @bsb-hash sha256:568a6690c45d4777b93ab3a1c9275d3f8059e039a7ef63cfe34cd7fa4e14b4b6
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2543,23 +2509,6 @@ create policy maintenance_calibrations_read on "app_private"."maintenance_calibr
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "app_private"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "app_private"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "app_private"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "app_private"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -2568,9 +2517,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "app_private"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "app_private"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "app_private"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -3413,7 +3362,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:e08d4f1f6ba40a8983d4937e2396024e44056fb3c912668679f32cc6291b23d4
+-- @bsb-hash sha256:fc31b1cc0cf84caa51266f71b8fcc0c30d5d76530bb1c2b9bf06c67b1b0b489a
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3641,23 +3590,6 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -3666,9 +3598,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -4503,15 +4435,6 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language sql
-security invoker
-set search_path = ''
-as $$ select * from "better_supabase"."maintenance_rule_starts"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
 create or replace function "api"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
 returns timestamptz
 language sql
@@ -4641,7 +4564,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:59f616fb047751b3ac347204926afc4f08b2a49be4542b14ace46047b66edfc5
+-- @bsb-hash sha256:bb43de69269f49247b1b517c0955e2e2bd4e1fdba6530af7ea343e2d8cfb2837
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4841,23 +4764,6 @@ create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenanc
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -4866,9 +4772,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -5711,7 +5617,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:62d3edb631219bf7146cf75f7eec6d8fc189c5749c46987b62a0c3233d210fde
+-- @bsb-hash sha256:199e3a51c423282652fd39c93cd68e1a0786e5a8b8fadd6688303ce5e0398314
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5939,23 +5845,6 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -5964,9 +5853,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;

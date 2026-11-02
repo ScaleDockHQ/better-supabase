@@ -1,4 +1,4 @@
-# 0147: Remove the deprecated 0.47 wrappers before release
+# 0202: Remove the deprecated 0.47 wrappers before release
 
 - Status: accepted
 - Date: 2026-10-30

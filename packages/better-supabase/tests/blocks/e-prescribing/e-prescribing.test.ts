@@ -75,6 +75,7 @@ const SENT = {
 const pharmacy = (
   overrides: Partial<PrescriptionGateway> = {},
 ): PrescriptionGateway => ({
+  apiVersion: 1,
   key: "pharmacy",
   deliver: () => ({ reference: "ref-1" }),
   ...overrides,

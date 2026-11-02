@@ -1,6 +1,6 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
-import { raise as raiseWith, sha256Hex } from "../shared.ts";
+import { raise as raiseWith, sha256HexSql } from "../shared.ts";
 import { hasPlatformRoles } from "./permissions-platform.ts";
 
 export const PLATFORM_COLUMNS = {
@@ -65,7 +65,7 @@ export function tokenHash(ctx: BlockSqlContext, token: string): string {
     );
   }
 
-  return sha256Hex(token);
+  return sha256HexSql(token);
 }
 
 /** A table of invitations: the tenant one, or the platform one. */

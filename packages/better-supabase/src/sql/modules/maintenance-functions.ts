@@ -43,9 +43,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from ${ctx.fn("maintenance_rule_starts")}(
-    ${name}.dtstart, ${name}.tz, ${name}.rrule,
-    ${name}.after + interval '1 microsecond', ${name}.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    ${name}.rrule, ${name}.dtstart, ${name}.tz,
+    tstzrange(${name}.after + interval '1 microsecond', ${name}.after + interval '10 years', '[)')) s;
 $$;
 ${userGrant(`${fn}(timestamptz, text, text, timestamptz)`)}
 `;

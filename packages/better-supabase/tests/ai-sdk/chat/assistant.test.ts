@@ -1,4 +1,4 @@
-import { APICallError, jsonSchema, streamText, toUIMessageStream } from "ai";
+import { APICallError, jsonSchema, streamText } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
@@ -389,47 +389,6 @@ describe("createAssistant", () => {
         chatId: "c1",
         streamId: "id1",
         opts: { status: "failed", error: "Error: no key" },
-      },
-    ]);
-  });
-
-  it("still reads a result with only the 0.31 members", async () => {
-    const base = setup();
-
-    const { assistant, context, fake, pending } = setup({
-      run: async (args) => {
-        const result = await base.run(args);
-        const { stream, usage } = result;
-
-        if (stream === undefined || usage === undefined) {
-          throw new Error("streamText returned no stream");
-        }
-
-        return {
-          toUIMessageStream: (options) =>
-            toUIMessageStream({ stream, ...options }),
-          totalUsage: usage,
-          providerMetadata: Promise.resolve({
-            gateway: { generationId: "gen_legacy" },
-          }),
-        };
-      },
-    });
-
-    const response = await assistant.respond(
-      post({ id: "c1", message: userMessage() }),
-      context,
-    );
-
-    expect(await response.text()).toContain('"delta":"Hello there"');
-    await Promise.all(pending);
-    expect(fake.released).toMatchObject([
-      {
-        opts: {
-          status: "completed",
-          usage: { totalTokens: 10 },
-          generationId: "gen_legacy",
-        },
       },
     ]);
   });

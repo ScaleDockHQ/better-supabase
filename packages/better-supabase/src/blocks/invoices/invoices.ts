@@ -23,6 +23,7 @@ import type { InvoiceOpenItems } from "./open-items.ts";
 import type { InvoiceSources } from "./sources.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -33,7 +34,7 @@ import {
   unknownCurrency,
 } from "../money-codec.ts";
 import { lineArg, lineOf, totalsOf } from "../sales-lines.ts";
-import { attrsArg, compact, plainDate, refOf } from "../sales-shared.ts";
+import { attrsArg, compact, refOf } from "../sales-shared.ts";
 import {
   bigintOf,
   applyTemporal,
@@ -623,8 +624,8 @@ function invoiceOf(value: unknown): Invoice {
     currency,
     status: enumOrThrow(row["status"], STATUSES, "invoice status"),
     termsDays: Number(row["terms_days"] ?? 0),
-    issuedOn: plainDate(row["issued_on"]),
-    dueOn: plainDate(row["due_on"]),
+    issuedOn: optionalPlainDateOf(row["issued_on"]),
+    dueOn: optionalPlainDateOf(row["due_on"]),
     overdue: row["overdue"] === true,
     paidTotal: at("paid_total", "paidTotal"),
     creditedTotal: at("credited_total", "creditedTotal"),

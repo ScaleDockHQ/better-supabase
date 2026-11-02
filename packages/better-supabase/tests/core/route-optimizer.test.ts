@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   RouteOptimizer,
   RouteRequest,
-} from "../../../src/blocks/dispatch/index.ts";
+} from "../../src/core/route-optimizer.ts";
 
 import {
   distanceMeters,
@@ -13,7 +13,7 @@ import {
   planVisits,
   routeLengthMeters,
   routeOptimizerOf,
-} from "../../../src/blocks/dispatch/index.ts";
+} from "../../src/core/route-optimizer.ts";
 
 const HOME = { latitude: 52, longitude: 5 };
 

@@ -13,10 +13,6 @@ import type {
   CareDecisionContext,
   ClinicalDecisionSupport,
 } from "../blocks/clinical-decision-support/clinical-decision-support.ts";
-import type {
-  RouteOptimizer,
-  RouteRequest,
-} from "../blocks/dispatch/route-optimizer.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type {
   PrescribedOrder,
@@ -41,6 +37,7 @@ import type {
   BuilderStarter,
   GraphCompiler,
 } from "../blocks/workflow-editor/workflow-editor.ts";
+import type { RouteOptimizer, RouteRequest } from "../core/route-optimizer.ts";
 import type { EveDocumentBackend } from "../eve/eve.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 

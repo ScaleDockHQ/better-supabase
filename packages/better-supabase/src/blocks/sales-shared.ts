@@ -15,11 +15,6 @@ export function compact<T extends object>(value: Loose<T>): T {
   ) as T;
 }
 
-export const plainDate = (value: unknown): Temporal.PlainDate | undefined =>
-  typeof value === "string"
-    ? temporal().PlainDate.from(value.slice(0, 10))
-    : undefined;
-
 export function refOf(type: unknown, id: unknown): RecordRef | undefined {
   const t = optionalText(type);
   const i = optionalText(id);

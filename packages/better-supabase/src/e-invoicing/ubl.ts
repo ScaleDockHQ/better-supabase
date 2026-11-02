@@ -1,11 +1,12 @@
 import type { Invoice, Line } from "../blocks/invoices/invoices.ts";
 import type { Money } from "../commerce/money.ts";
+import type { Child } from "../core/xml.ts";
 import type { EInvoiceDocument } from "./channel.ts";
 import type { EInvoiceParty } from "./party.ts";
-import type { Child } from "./xml.ts";
 
 import { allocateMoney, money, toDecimal } from "../commerce/money.ts";
-import { el } from "./xml.ts";
+import { roundDiv } from "../core/round-div.ts";
+import { el } from "../core/xml.ts";
 
 /** The EN 16931 specification identifier of Peppol BIS Billing 3.0 (BT-24). */
 export const PEPPOL_BIS_CUSTOMIZATION =
@@ -108,15 +109,6 @@ export interface UblOptions {
 }
 
 /** Halves round away from zero, as Postgres rounds `numeric`. */
-function roundDiv(numerator: bigint, denominator: bigint): bigint {
-  const negative = numerator < 0n !== denominator < 0n;
-  const n = numerator < 0n ? -numerator : numerator;
-  const d = denominator < 0n ? -denominator : denominator;
-  const rounded = (n * 2n + d) / (d * 2n);
-
-  return negative ? -rounded : rounded;
-}
-
 /** A quantity as an exact decimal: digits over a power of ten. */
 function decimalOf(value: number): { digits: bigint; scale: bigint } {
   const text = Number.isInteger(value) ? String(value) : value.toFixed(10);

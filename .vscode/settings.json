@@ -16,6 +16,12 @@
     "**/.turbo": true,
     "**/.source": true
   },
+  "files.watcherExclude": {
+    "**/dist/**": true,
+    "**/.next/**": true,
+    "**/.turbo/**": true,
+    "**/.source/**": true
+  },
   "search.exclude": {
     "**/.next": true,
     "**/.source": true,

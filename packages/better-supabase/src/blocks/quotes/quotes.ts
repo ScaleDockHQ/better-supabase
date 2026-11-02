@@ -24,6 +24,7 @@ import {
   readFields,
   writeFields,
 } from "../../core/block-fields.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -33,7 +34,7 @@ import {
   unknownCurrency,
 } from "../money-codec.ts";
 import { lineAmounts, lineArg, lineOf, totalsOf } from "../sales-lines.ts";
-import { attrsArg, compact, plainDate, refOf } from "../sales-shared.ts";
+import { attrsArg, compact, refOf } from "../sales-shared.ts";
 import { quoteVariants } from "../sales-variants.ts";
 import {
   applyTemporal,
@@ -581,7 +582,7 @@ function quoteOf(value: unknown): Quote {
     ownerId: optionalText(row["owner_user_id"]),
     currency,
     status: enumOrThrow(row["status"], STATUSES, "quote status"),
-    validUntil: plainDate(row["valid_until"]),
+    validUntil: optionalPlainDateOf(row["valid_until"]),
     terms: optionalText(row["terms"]),
     note: optionalText(row["note"]),
     origin: refOf(row["origin_type"], row["origin_id"]),
@@ -626,7 +627,7 @@ function publicOf(value: unknown): PublicQuote {
     title: textOf(row["title"]),
     status: enumOrThrow(row["status"], STATUSES, "quote status"),
     currency,
-    validUntil: plainDate(row["validUntil"]),
+    validUntil: optionalPlainDateOf(row["validUntil"]),
     terms: optionalText(row["terms"]),
     pricing: pricingOf(row, currency, true),
     totals: totalsOf(
