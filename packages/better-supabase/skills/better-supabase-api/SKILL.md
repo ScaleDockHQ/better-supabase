@@ -139,6 +139,8 @@ For Expo and React Native, follow [references/expo.md](references/expo.md):
 server loaders for the web, `better-supabase/client/native` on the device.
 To read and write offline, run the same repositories on a PowerSync database
 and upload through `bsb.db`, as in [references/powersync.md](references/powersync.md).
+Care apps (progress notes, vital signs, medication rounds) upload through
+block routes instead: see [references/care-sync.md](references/care-sync.md).
 
 ## Background work (`better-supabase/blocks/queue`, needs `add jobs idempotency webhook-inbox`)
 

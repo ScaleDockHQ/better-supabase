@@ -141,3 +141,7 @@ const prescribing = createEPrescribing({
 });
 const drafts = await prescribing.list({ status: "draft" }).orThrow();
 ```
+
+## Write an adapter
+
+A package for the `PrescriptionGateway` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).

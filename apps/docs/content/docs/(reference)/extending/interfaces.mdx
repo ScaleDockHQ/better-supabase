@@ -29,6 +29,23 @@ has a [conformance kit](/docs/extending/conformance).
 | [`PaymentProvider`](#paymentprovider)                   | `stripePayments(options)`                                     | the commerce blocks                                                                |
 | [`TaxProvider`](#taxprovider)                           | `fixedRates(options)`, `stripeTax(options)`                   | the commerce blocks                                                                |
 | [`ShippingProvider`](#shipmentcarrier)                  | `flatRateCarrier(options)`                                    | `createShipments(client, { carriers })`                                            |
+| [`RouteOptimizer`](#routeoptimizer)                     | `nearestNeighbourOptimizer()`, `fetchRouteOptimizer(options)` | `optimizeRoute(technicianId, day, { optimizer })`                                  |
+| [`BankFeed`](#bankfeed)                                 | none (bring your bank or aggregator)                          | `syncFeed(accountId, feed, sync)`                                                  |
+| [`PayrollExportFormat`](#payrollexportformat)           | `csvPayrollFormat(options)`                                   | `exportRun(runId, format)`                                                         |
+| [`AccountingChartFormat`](#accountingchartformat)       | none (bring your scheme's file layout)                        | `importChart(...)` in the accounting block                                         |
+| [`TaxReportFormat`](#taxreportformat)                   | none (bring your country's return)                            | `taxReportFormatOf(format).render(report)`                                         |
+| [`AuditFileAdapter`](#auditfileadapter)                 | SAF-T OECD 2.00                                               | `better-supabase/audit-files`                                                      |
+| [`PrescriptionGateway`](#prescriptiongateway)           | none (bring your pharmacy or national service)                | `createEPrescribing({ transport, gateway })`                                       |
+| [`ClinicalDecisionSupport`](#clinicaldecisionsupport)   | the block's rules                                             | `createClinicalDecisionSupport({ transport, engines })`                            |
+| [`VulnerabilityFeed`](#vulnerabilityfeed)               | OSV, EPSS and CISA KEV over `fetch`                           | `createAdvisories({ transport, feed })`                                            |
+| [`EnrichmentProvider`](#enrichmentprovider)             | none (bring your data vendor)                                 | `createEnrichment({ transport, providers })`                                       |
+| [`MailProvider`](#mailprovider)                         | none (bring Gmail or Microsoft Graph)                         | `createMailSync({ transport, providers })`                                         |
+| [`C2paReader`](#c2pareader)                             | none (bring c2pa-node or a verifier)                          | `readC2paManifest` in the dam block                                                |
+| [`PreviewRenderer`](#previewrenderer)                   | none (bring a rasterizer)                                     | `renderer` in `createDrive` and the dam kinds                                      |
+| [`WebhookEncoder`](#webhookencoder)                     | the Standard Webhooks and CloudEvents encoders                | `createWebhooks({ encoders })`                                                     |
+| [`ThreadSummarizer`](#threadsummarizer)                 | `summarizeWith(model)` in `/ai-sdk`                           | `summarize(target, summarizer)`                                                    |
+| [`SmartLaunchStore`](#smartlaunchstore)                 | none (cookie, table or cache)                                 | `createSmartLaunch({ store })` in `better-supabase/fhir`                           |
+| [`DataEngine`](#dataengine)                             | `memoryEngine()`, `queryEngine(queryClient)`, PowerSync       | the `engine` option of the client bindings                                         |
 | [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                     | `authorization` in the config                                                      |
 | [`AuthorizationHooks`](#authorizationhooks)             | none (built by your authorization system)                     | `createServer(betterSupabase, { authorization })`                                  |
 | [`Authorizer`](#authorizer)                             | `permissionsAuthorizer()`, `staticAuthorizer()` in `/testing` | `createServer(betterSupabase, { authorizer })`                                     |
@@ -399,6 +416,133 @@ const timed = defineTransportMiddleware({
 
 const transport = wrapTransport(rpcTransport(supabase), timed);
 ```
+
+## RouteOptimizer
+
+Orders the stops of a route for the [dispatch block](/docs/blocks/dispatch).
+It has `apiVersion: 1`, a `name` and `optimize({ start, end, stops })`, which
+resolves with the stop ids in driving order and optional `distanceMeters` and
+`durationSeconds`. The order lists every stop once. `optimizeStops` never
+throws: an optimizer that fails or returns another order gives the
+nearest-neighbour order with `source: "fallback"`. `testRouteOptimizer` from
+`better-supabase/testing` is its conformance kit.
+
+## BankFeed
+
+Reads accounts and booked transactions for the
+[banking block](/docs/blocks/banking). It has `apiVersion: 1`, a `name`,
+`listAccounts()` and `transactions(accountRef, since)`, both returning a
+`Result`. Each transaction keeps its `externalId` between calls, which is how
+`syncFeed` skips one it has. [Write an adapter](/docs/extending/write-an-adapter)
+has a template.
+
+## PayrollExportFormat
+
+Renders an approved payroll run as the import file of one payroll system. It
+has `apiVersion: 1`, a `name` and a pure `render(run)`. The
+[payroll export block](/docs/blocks/payroll-export) hashes the file and locks
+the run behind that hash.
+
+## AccountingChartFormat
+
+Reads a chart of accounts from a reference scheme's file for the
+[accounting block](/docs/blocks/accounting). It has `apiVersion: 1`, a `key`
+and a pure `parse(body)`, which returns accounts or a promise of them.
+
+## TaxReportFormat
+
+Renders a tax report in one filing format. It has `apiVersion: 1`, a `name` and
+`render(report)`, which returns a `Result` with the file. The report boxes come
+from the [tax block](/docs/blocks/tax); the format maps them to its country's
+return. [Write an adapter](/docs/extending/write-an-adapter#tax-and-audit-ports)
+shows how to start one.
+
+## AuditFileAdapter
+
+Reads and writes one audit file format, such as SAF-T (see
+[Audit files](/docs/concepts/audit-files)). It has `apiVersion: 1`, a `key`, a
+`format`, the `version` of the format it follows, `parse(source)`, which
+yields records one at a time so memory stays flat, and `export(books)`, which
+yields chunks of XML. `defineAuditFileAdapter` checks the version. Parsed
+records reach the ledger through an `AuditImportPort`, which the imports
+block's client satisfies with `upsertBatch`.
+
+## PrescriptionGateway
+
+Delivers a signed prescription and its FHIR R4 `MedicationRequest` to a
+pharmacy or a national service for the
+[e-prescribing block](/docs/blocks/e-prescribing). It has a `key`,
+`deliver(delivery, request)`, which returns a receipt with an optional
+reference of at most 200 characters or throws, and an optional `cancel`.
+`testPrescriptionGateway` is its conformance kit.
+
+## ClinicalDecisionSupport
+
+An engine that raises interaction, allergy and contraindication alerts for the
+[clinical decision support block](/docs/blocks/clinical-decision-support). It
+has a `key` (`built-in` is reserved) and `evaluate(context, request)`, which
+returns the alerts it raises now. Alerts it raised before and no longer returns
+are resolved, so a `fingerprint` must stay stable.
+`testClinicalDecisionSupport` is its conformance kit.
+
+## VulnerabilityFeed
+
+Looks vulnerabilities up for the [advisories block](/docs/blocks/advisories).
+It has `apiVersion: 1`, a `name`, `osv(id)`, `epss(cveIds)` and `kev()`, each
+returning a `Result`. `testVulnerabilityFeed` is its conformance kit.
+
+## EnrichmentProvider
+
+Looks up companies and people for the
+[enrichment block](/docs/blocks/enrichment). It has `apiVersion: 1`, a `name`,
+`company(input)` and `person(input)`, which return a profile or `undefined`
+when nothing matches.
+
+## MailProvider
+
+Reads and sends a member's mail with a token from their OAuth grant, for the
+[mail-sync block](/docs/blocks/mail-sync). It has `apiVersion: 1`, a `name`,
+optional `scopes`, `list(input)` and `send(input)`, both returning a `Result`.
+
+## C2paReader
+
+Reads the C2PA manifest of a file for the [dam block](/docs/blocks/dam). It has
+`apiVersion: 1`, a `name` and `read({ bytes, mimeType })`, which resolves with
+the manifest or `undefined` for a file without one.
+
+## PreviewRenderer
+
+Renders the pages of a drive file as images, for the
+[drive block](/docs/blocks/drive). It has `apiVersion: 1`, a `name` and
+`render(file, input)`, which returns the pages, or `undefined` for a file type
+it doesn't handle.
+
+## WebhookEncoder
+
+Turns claimed deliveries, as CloudEvents, into the request one endpoint format
+expects, for the [webhooks block](/docs/blocks/webhooks). It has
+`apiVersion: 1`, a `name`, `signed`, `encode(events, target)` and an optional
+`authorize(token)`.
+
+## ThreadSummarizer
+
+Writes a summary from a thread's messages for the
+[messaging block](/docs/blocks/messaging). It has `apiVersion: 1` and
+`summarize(input)`. The block calls no model itself.
+
+## SmartLaunchStore
+
+Keeps the PKCE verifier and the platform's endpoints between a SMART App
+Launch redirect and its callback. It has `apiVersion: 1`, `save(state,
+pending)` and `take(state)`, which deletes what it returns so a callback works
+once.
+
+## DataEngine
+
+Where the client data hooks keep their reads. It has `apiVersion: 1`,
+`watch(key, load, listener)`, `entry(key)` and `refetch(key)`, plus optional
+`connect(server)` and `sync` for engines over a local database such as
+PowerSync. Every engine passes the same contract suite.
 
 ## Versions of the block injectables
 

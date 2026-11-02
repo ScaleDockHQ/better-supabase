@@ -20,6 +20,8 @@ import type { AcknowledgementsEvents } from "better-supabase/blocks/acknowledgem
 import type { CoursesEvents } from "better-supabase/blocks/courses";
 import type { QualificationsEvents } from "better-supabase/blocks/qualifications";
 import type { CasesEvents } from "better-supabase/blocks/cases";
+import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
+import type { EPrescribingEvents } from "better-supabase/blocks/e-prescribing";
 import type { FundingEvents } from "better-supabase/blocks/funding";
 import type { ShiftsEvents } from "better-supabase/blocks/shifts";
 import type { ConsentsEvents } from "better-supabase/blocks/consents";
@@ -61,6 +63,8 @@ import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-s
 import { coursesBlock as coursesBlockInstance } from "better-supabase/blocks/courses";
 import { qualificationsBlock as qualificationsBlockInstance } from "better-supabase/blocks/qualifications";
 import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
+import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
+import { ePrescribingBlock as ePrescribingBlockInstance } from "better-supabase/blocks/e-prescribing";
 import { fundingBlock as fundingBlockInstance } from "better-supabase/blocks/funding";
 import { shiftsBlock as shiftsBlockInstance } from "better-supabase/blocks/shifts";
 import { consentsBlock as consentsBlockInstance } from "better-supabase/blocks/consents";
@@ -174,6 +178,14 @@ export const blockConfig = {
     options: {},
   },
   cases: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "clinical-decision-support": {
+    schema: "better_supabase",
+    options: {},
+  },
+  "e-prescribing": {
     schema: "better_supabase",
     options: {},
   },
@@ -330,6 +342,8 @@ export const blocks = {
   courses: coursesBlockInstance,
   qualifications: qualificationsBlockInstance,
   cases: casesBlockInstance,
+  "clinical-decision-support": clinicalDecisionSupportBlockInstance,
+  "e-prescribing": ePrescribingBlockInstance,
   funding: fundingBlockInstance,
   shifts: shiftsBlockInstance,
   consents: consentsBlockInstance,
@@ -443,6 +457,11 @@ export const permissions = {
     close: "cases.close",
     manage: "cases.manage",
   },
+  "clinical-decision-support": {
+    read: "clinical_decision_support.read",
+    write: "clinical_decision_support.write",
+    manage: "clinical_decision_support.manage",
+  },
   company: {
     read: "contacts.read",
     write: "contacts.write",
@@ -476,6 +495,12 @@ export const permissions = {
     read: "drive.read",
     create: "drive.create",
     manage: "drive.manage",
+  },
+  "e-prescribing": {
+    read: "e_prescribing.read",
+    write: "e_prescribing.write",
+    sign: "e_prescribing.sign",
+    manage: "e_prescribing.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -603,13 +628,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "care_plans.evaluate" | "care_plans.manage" | "care_plans.publish" | "care_plans.read" | "care_plans.write" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "consents.manage" | "consents.read" | "consents.record" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "data_lifecycle.export" | "drive.create" | "drive.manage" | "drive.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "funding.approve" | "funding.claim" | "funding.manage" | "funding.read" | "funding.register" | "funding.write" | "guests.manage" | "guests.read" | "medications.administer" | "medications.manage" | "medications.prescribe" | "medications.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "observations.manage" | "observations.read" | "observations.record" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "shifts.manage" | "shifts.read" | "shifts.request" | "shifts.write" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "care_plans.evaluate" | "care_plans.manage" | "care_plans.publish" | "care_plans.read" | "care_plans.write" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "clinical_decision_support.manage" | "clinical_decision_support.read" | "clinical_decision_support.write" | "consents.manage" | "consents.read" | "consents.record" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "data_lifecycle.export" | "drive.create" | "drive.manage" | "drive.read" | "e_prescribing.manage" | "e_prescribing.read" | "e_prescribing.sign" | "e_prescribing.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "funding.approve" | "funding.claim" | "funding.manage" | "funding.read" | "funding.register" | "funding.write" | "guests.manage" | "guests.read" | "medications.administer" | "medications.manage" | "medications.prescribe" | "medications.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "observations.manage" | "observations.read" | "observations.record" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "shifts.manage" | "shifts.read" | "shifts.request" | "shifts.write" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CarePlansEvents & DataLifecycleEvents & EnrollmentsEvents & GuestsEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & CasesEvents & FundingEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & ActivitiesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CarePlansEvents & DataLifecycleEvents & EnrollmentsEvents & GuestsEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & CasesEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & FundingEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & ActivitiesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -667,6 +692,9 @@ export const blockEvents: Events<BlockEvents> = {
     "calendar_event.created",
     "calendar_event.deleted",
     "calendar_event.updated",
+    "care_alert.decided",
+    "care_alert.raised",
+    "care_alert.resolved",
     "care_plan.agreed",
     "care_plan.archived",
     "care_plan.created",
@@ -679,6 +707,9 @@ export const blockEvents: Events<BlockEvents> = {
     "care_plan_action.started",
     "care_plan_evaluation.created",
     "care_plan_goal.status_changed",
+    "care_rule.created",
+    "care_rule.deleted",
+    "care_rule.updated",
     "case.cancelled",
     "case.closed",
     "case.created",
@@ -841,6 +872,12 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.updated",
     "platform_setting.reset",
     "platform_setting.updated",
+    "prescription.cancelled",
+    "prescription.created",
+    "prescription.delivery_failed",
+    "prescription.dispensed",
+    "prescription.sent",
+    "prescription.signed",
     "qualification.expired",
     "qualification.expiry_warned",
     "qualification.granted",
@@ -943,6 +980,9 @@ export const blockEventSchemas = {
   "calendar_event.created": true,
   "calendar_event.deleted": true,
   "calendar_event.updated": true,
+  "care_alert.decided": true,
+  "care_alert.raised": true,
+  "care_alert.resolved": true,
   "care_plan.agreed": true,
   "care_plan.archived": true,
   "care_plan.created": true,
@@ -955,6 +995,9 @@ export const blockEventSchemas = {
   "care_plan_action.started": true,
   "care_plan_evaluation.created": true,
   "care_plan_goal.status_changed": true,
+  "care_rule.created": true,
+  "care_rule.deleted": true,
+  "care_rule.updated": true,
   "case.cancelled": true,
   "case.closed": true,
   "case.created": true,
@@ -1117,6 +1160,12 @@ export const blockEventSchemas = {
   "pipeline_stage.updated": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "prescription.cancelled": true,
+  "prescription.created": true,
+  "prescription.delivery_failed": true,
+  "prescription.dispensed": true,
+  "prescription.sent": true,
+  "prescription.signed": true,
   "qualification.expired": true,
   "qualification.expiry_warned": true,
   "qualification.granted": true,

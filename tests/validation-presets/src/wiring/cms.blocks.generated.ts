@@ -12,6 +12,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { ContentEvents } from "better-supabase/blocks/content";
+import type { DamEvents } from "better-supabase/blocks/dam";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -31,6 +32,7 @@ import { billingBlock as billingBlockInstance } from "better-supabase/blocks/bil
 import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { contentBlock as contentBlockInstance } from "better-supabase/blocks/content";
+import { damBlock as damBlockInstance } from "better-supabase/blocks/dam";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
@@ -97,6 +99,10 @@ export const blockConfig = {
     options: {},
   },
   content: {
+    schema: "better_supabase",
+    options: {},
+  },
+  dam: {
     schema: "better_supabase",
     options: {},
   },
@@ -188,6 +194,7 @@ export const blocks = {
   comments: commentsBlockInstance,
   enrollments: enrollmentsBlockInstance,
   content: contentBlockInstance,
+  dam: damBlockInstance,
   entitlements: entitlementsBlockInstance,
   queue: queueBlockInstance,
   messaging: messagingBlockInstance,
@@ -252,6 +259,14 @@ export const permissions = {
     read: "messages.read",
     write: "messages.send",
     upload: "messages.send",
+  },
+  dam: {
+    read: "dam.read",
+    write: "dam.write",
+  },
+  dam_usage_right: {
+    read: "dam.read",
+    write: "dam.write",
   },
   enrollments: {
     read: "enrollments.read",
@@ -323,13 +338,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "dam.read" | "dam.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ContentEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ContentEvents & DamEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -375,6 +390,10 @@ export const blockEvents: Events<BlockEvents> = {
     "conversation.created",
     "conversation.member_added",
     "conversation.member_removed",
+    "dam_rendition.recorded",
+    "dam_usage_right.expiry_notified",
+    "dam_usage_right.granted",
+    "dam_usage_right.revoked",
     "enrollment.cancelled",
     "enrollment.completed",
     "enrollment.created",
@@ -484,6 +503,10 @@ export const blockEventSchemas = {
   "conversation.created": true,
   "conversation.member_added": true,
   "conversation.member_removed": true,
+  "dam_rendition.recorded": true,
+  "dam_usage_right.expiry_notified": true,
+  "dam_usage_right.granted": true,
+  "dam_usage_right.revoked": true,
   "enrollment.cancelled": true,
   "enrollment.completed": true,
   "enrollment.created": true,

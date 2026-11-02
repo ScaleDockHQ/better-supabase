@@ -113,6 +113,8 @@ A block is a feature most apps build by hand. `better-supabase add` installs its
 
 A [preset](https://bettersupabase.com/docs/presets) installs a set of blocks for a product, such as a CRM, a helpdesk or a CMS.
 
+A preset such as `psa` (professional services), `ats` (recruiting), `intranet`, `erp`, `care` or `qms` names its blocks, and `resolvePreset` adds what they require. To list the blocks from code, read `BLOCK_CATALOG` from `better-supabase/preset`: each entry has a title, category, description, requirements, events and a docs link. Blocks call versioned ports that you can implement yourself, such as a route optimizer, an e-invoice channel or a tax report format; [Write an adapter](https://bettersupabase.com/docs/extending/write-an-adapter) has a tested template for each.
+
 ## Subpaths
 
 Each feature is its own entry, so an app only loads what it imports.

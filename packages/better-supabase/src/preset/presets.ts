@@ -214,7 +214,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus pages and posts with locales and scheduled publishing, versions, publish approvals, public media, tags, comments, search and a job queue for the publish timer.",
     group: "products",
-    blocks: [...SAAS, "cms", "tags", "comments", "search", "queue"],
+    blocks: [...SAAS, "cms", "tags", "comments", "search", "queue", "dam"],
     instances: { content: { options: { requireApproval: true } } },
   },
   erp: {
@@ -488,7 +488,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus clients and their representatives as contacts with record teams and a read log, consents, progress notes, care plans, vital signs, medication rounds with double checks, funding awards and claims, shifts, qualifications and training, incidents and complaints as cases, and controlled protocols in the drive.",
     group: "verticals",
-    blocks: [...SAAS, "care"],
+    blocks: [...SAAS, "care", "e-prescribing", "clinical-decision-support"],
   },
   lms: {
     name: "lms",
@@ -662,7 +662,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus controlled documents, cases for nonconformities, complaints and changes, audits and inspections, a risk register, qualifications and acknowledgements.",
     group: "verticals",
-    blocks: [...SAAS, ...QUALITY, "posts"],
+    blocks: [...SAAS, ...QUALITY, "posts", "lims"],
     instances: CONTROLLED_DOCUMENTS,
   },
   ehs: {
@@ -687,6 +687,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "cases",
       "acknowledgements",
       "drive",
+      "advisories",
     ],
   },
   construction: {
@@ -810,6 +811,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "workflows",
       "metrics",
       "queue",
+      "prompts",
+      "ai-evals",
+      "ai-guardrails",
     ],
   },
   "developer-api": {

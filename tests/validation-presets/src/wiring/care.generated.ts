@@ -21,6 +21,8 @@ import { acknowledgementsBlock } from "better-supabase/blocks/acknowledgements";
 import { coursesBlock } from "better-supabase/blocks/courses";
 import { qualificationsBlock } from "better-supabase/blocks/qualifications";
 import { casesBlock } from "better-supabase/blocks/cases";
+import { clinicalDecisionSupportBlock } from "better-supabase/blocks/clinical-decision-support";
+import { ePrescribingBlock } from "better-supabase/blocks/e-prescribing";
 import { fundingBlock } from "better-supabase/blocks/funding";
 import { shiftsBlock } from "better-supabase/blocks/shifts";
 import { consentsBlock } from "better-supabase/blocks/consents";
@@ -70,6 +72,8 @@ export const blockSet = defineBlocks(blockConfig, {
   courses: coursesBlock,
   qualifications: qualificationsBlock,
   cases: casesBlock,
+  clinicalDecisionSupport: clinicalDecisionSupportBlock,
+  ePrescribing: ePrescribingBlock,
   funding: fundingBlock,
   shifts: shiftsBlock,
   consents: consentsBlock,

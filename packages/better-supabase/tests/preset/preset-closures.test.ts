@@ -23,6 +23,14 @@ const ADDED: Readonly<Record<string, readonly string[]>> = {
   helpdesk: ["chat-sdk-state"],
   // The `service` composite adds maintenance plans, cases and SLAs to dispatch.
   "field-service": ["cases", "maintenance", "pipelines", "sla"],
+  // Blocks the presets name since the closures were recorded; each only adds.
+  cms: ["dam"],
+  erp: ["payroll-export", "periods", "rfqs"],
+  manufacturing: ["payroll-export", "periods", "rfqs"],
+  care: ["clinical-decision-support", "e-prescribing"],
+  qms: ["lims"],
+  isms: ["advisories"],
+  "ai-agents": ["ai-evals", "ai-guardrails", "prompts"],
 };
 
 const closureOf = (name: keyof typeof PRESETS): string[] =>

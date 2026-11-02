@@ -19,8 +19,11 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
+import { rfqsBlock } from "better-supabase/blocks/rfqs";
+import { periodsBlock } from "better-supabase/blocks/periods";
 import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
+import { payrollExportBlock } from "better-supabase/blocks/payroll-export";
 import { taxBlock } from "better-supabase/blocks/tax";
 import { documentTemplatesBlock } from "better-supabase/blocks/document-templates";
 import { employeesBlock } from "better-supabase/blocks/employees";
@@ -66,8 +69,11 @@ export const blockSet = defineBlocks(blockConfig, {
   assets: assetsBlock,
   enrollments: enrollmentsBlock,
   expenses: expensesBlock,
+  rfqs: rfqsBlock,
+  periods: periodsBlock,
   banking: bankingBlock,
   legalEntities: legalEntitiesBlock,
+  payrollExport: payrollExportBlock,
   tax: taxBlock,
   documentTemplates: documentTemplatesBlock,
   employees: employeesBlock,
