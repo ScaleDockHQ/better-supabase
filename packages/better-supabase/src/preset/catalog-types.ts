@@ -207,7 +207,20 @@ export interface BlockCatalogEntry {
 }
 
 /** What `scripts/build-catalog.ts` writes to `BLOCK_CATALOG`. */
+/** A named preset, as `scripts/build-catalog.ts` writes it. */
+export interface BlockCatalogPreset {
+  readonly name: string;
+  readonly title: string;
+  readonly description: string;
+  readonly group: string;
+  readonly groupTitle: string;
+  /** Every block it installs, in install order, with the ones it requires. */
+  readonly blocks: readonly string[];
+}
+
 export interface BlockCatalog {
   readonly categories: readonly string[];
   readonly blocks: readonly BlockCatalogEntry[];
+  /** Absent from a catalog generated before presets were added. */
+  readonly presets?: readonly BlockCatalogPreset[];
 }

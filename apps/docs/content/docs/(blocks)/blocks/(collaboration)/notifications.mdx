@@ -1001,26 +1001,74 @@ stored by an earlier version under the plain MD5 id keep that id, and a
 keyed send that matches one still returns it instead of notifying twice. A recipient with in-app off for a type still gets a row,
 stored as dismissed, so other channels can deliver it.
 
+## Digests
+
+A member picks how often a type reaches them on a channel with a `cadence` on
+`notification_preferences`: `immediate` (the default), `daily`, `weekly` or
+`off`. `off` works like a turned-off preference, so no recipient row is
+written for the channel. A `daily` or `weekly` choice holds the delivery
+(status `held`) instead of sending it. In-app delivery is never held.
+
+```sql
+select better_supabase.set_notification_cadence('comment.created', 'email', 'daily');
+```
+
+The `digest_run` housekeeping job calls `run_notification_digests`, which folds
+a member's held deliveries into one `notification_digests` row once the oldest
+is a day (daily) or a week (weekly) old. `createNotificationDigests` sends each
+row as one email through the `mailer` port of the `mail-sync` block.
+
+```ts title="app/api/cron/digests/route.ts"
+import { createNotificationDigests } from "better-supabase/blocks/notifications";
+
+const digests = createNotificationDigests({
+  transport,
+  service: serviceTransport,
+  mailer: db.mailSync,
+  accountId: process.env.DIGEST_MAIL_ACCOUNT_ID!,
+});
+
+export async function GET() {
+  return Response.json(await digests.sendDue({ limit: 50 }).orThrow());
+  // { claimed, sent, failed, skipped }
+}
+```
+
+A send that fails goes back to pending and runs again, until
+`max_attempts` ends it as `failed`. A member without an email address is
+skipped. Every notification a block sends through `send_notification` follows
+the cadence, which covers comments, mentions, approvals, announcements and SLA
+notifications whenever they send on a non-in-app channel. Notifications that a
+block delivers outside `send_notification` are not folded.
+
+## Consent
+
+A notification that names `consentPurpose` sends nothing, and returns `null`
+like a send without recipients, while its `subject` has no consent in force for
+that purpose. The check needs the `consents` block and a `subject`. See
+[Require a consent](/docs/blocks/consents#gate-a-send).
+
 ## Error codes
 
-| `hint`                             | When                                                                |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| `NOTIFICATION_TYPE_REQUIRED`       | `notify` without a type                                             |
-| `NOTIFICATION_TYPE_UNKNOWN`        | `send` with a type that isn't in `types` (checked in TypeScript)    |
-| `NOTIFICATION_DATA_INVALID`        | stored `data` that its type's schema rejects on a read (TypeScript) |
-| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization           |
-| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                       |
-| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                   |
-| `NOTIFICATION_ACTIONS_INVALID`     | `actions` that aren't the shape described under Actions             |
-| `NOTIFICATION_RESOLUTION_INVALID`  | A `resolution` that isn't a JSON object                             |
-| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`  |
-| `NOTIFICATION_CONTACT_EMAIL`       | A `{ email }` recipient whose address isn't valid (TypeScript)      |
-| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know          |
-| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |
-| `NOTIFICATION_SUPPRESSION_ADDRESS` | `suppress` without an address                                       |
-| `NOTIFICATION_SUPPRESSION_REASON`  | A suppression reason other than `bounce`, `complaint` or `manual`   |
-| `NOTIFICATION_DELIVERY_EVENT_KIND` | `recordDeliveryEvent` with a kind the block doesn't know            |
-| `NOTIFICATION_DELIVERY_MESSAGE_ID` | `recordDeliveryEvent` without a provider message id                 |
+| `hint`                             | When                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------- |
+| `NOTIFICATION_TYPE_REQUIRED`       | `notify` without a type                                                |
+| `NOTIFICATION_TYPE_UNKNOWN`        | `send` with a type that isn't in `types` (checked in TypeScript)       |
+| `NOTIFICATION_DATA_INVALID`        | stored `data` that its type's schema rejects on a read (TypeScript)    |
+| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization              |
+| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                          |
+| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                      |
+| `NOTIFICATION_ACTIONS_INVALID`     | `actions` that aren't the shape described under Actions                |
+| `NOTIFICATION_RESOLUTION_INVALID`  | A `resolution` that isn't a JSON object                                |
+| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`     |
+| `NOTIFICATION_CONTACT_EMAIL`       | A `{ email }` recipient whose address isn't valid (TypeScript)         |
+| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery or a digest with a status the block doesn't know |
+| `NOTIFICATION_CADENCE_UNKNOWN`     | A cadence other than `immediate`, `daily`, `weekly` or `off`           |
+| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                           |
+| `NOTIFICATION_SUPPRESSION_ADDRESS` | `suppress` without an address                                          |
+| `NOTIFICATION_SUPPRESSION_REASON`  | A suppression reason other than `bounce`, `complaint` or `manual`      |
+| `NOTIFICATION_DELIVERY_EVENT_KIND` | `recordDeliveryEvent` with a kind the block doesn't know               |
+| `NOTIFICATION_DELIVERY_MESSAGE_ID` | `recordDeliveryEvent` without a provider message id                    |
 
 ## Without the client
 
