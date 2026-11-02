@@ -259,7 +259,10 @@ const withoutComments = (source: string): string =>
  * directory.
  */
 const sourcesOf = (block: AnyBlock): string => {
-  const dir = dirOf(block);
+  // The rate-limit creator lives in `better-supabase/rate-limit`; the queue
+  // directory only holds its manifest.
+  const dir =
+    block.name === "rate-limit" ? join(SRC_DIR, "rate-limit") : dirOf(block);
 
   const files = readdirSync(dir).filter(
     (file) => file.endsWith(".ts") && !OWN_FILES.has(file),
