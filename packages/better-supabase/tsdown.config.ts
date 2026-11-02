@@ -139,6 +139,8 @@ const entries = [
   "blocks/crm/index",
   "blocks/tills/index",
   "blocks/periods/index",
+  "blocks/commissions/index",
+  "blocks/referrals/index",
   "blocks/agent-checkout/index",
   "blocks/clinical-decision-support/index",
   "blocks/e-prescribing/index",

@@ -40,6 +40,7 @@ import { collaborationBlock } from "./collaboration/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
 import { commerceBlock } from "./commerce/manifest.ts";
+import { commissionsBlock } from "./commissions/manifest.ts";
 import { complianceBlock } from "./compliance/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
 import { consentsBlock } from "./consents/manifest.ts";
@@ -143,6 +144,7 @@ import { reactionsBlock } from "./reactions/manifest.ts";
 import { readSetsBlock } from "./read-sets/manifest.ts";
 import { realtimeTablesBlock } from "./realtime-tables/manifest.ts";
 import { recruitingBlock } from "./recruiting/manifest.ts";
+import { referralsBlock } from "./referrals/manifest.ts";
 import { relationsBlock } from "./relations/manifest.ts";
 import { remindersBlock } from "./reminders/manifest.ts";
 import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
@@ -289,6 +291,8 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   rfqsBlock,
   tillsBlock,
   periodsBlock,
+  commissionsBlock,
+  referralsBlock,
   agentCheckoutBlock,
   clinicalDecisionSupportBlock,
   ePrescribingBlock,
