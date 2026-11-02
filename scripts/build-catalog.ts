@@ -599,7 +599,7 @@ function presetManifest(
     }),
   );
 
-  const automations = block.automations.map((each) => ({
+  const automations = (block.automations ?? []).map((each) => ({
     key: each.key,
     name: each.name,
     trigger: each.trigger,
