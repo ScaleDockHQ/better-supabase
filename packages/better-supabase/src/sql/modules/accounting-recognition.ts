@@ -51,7 +51,7 @@ export const RECOGNITION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
 };
 
 /** Whether `options.recognition` turns the schedule engine on. */
-export function recognizes(ctx: BlockSqlContext): boolean {
+function recognizes(ctx: BlockSqlContext): boolean {
   return ctx.mode !== "custom" && ctx.option("recognition") === true;
 }
 

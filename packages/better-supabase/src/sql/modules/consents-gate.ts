@@ -10,7 +10,7 @@ import { consentsSql, LEGAL_BASES, PURPOSE_KEY } from "./consents-sql.ts";
 const KEY = new RegExp(PURPOSE_KEY, "u");
 
 /** The purposes the installed blocks contribute, checked once. */
-export function contributedPurposes(
+function contributedPurposes(
   ctx: BlockSqlContext,
 ): readonly ConsentPurposeContribution[] {
   const list = uniqueContributions(

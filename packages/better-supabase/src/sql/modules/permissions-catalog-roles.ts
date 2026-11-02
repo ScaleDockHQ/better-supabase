@@ -9,7 +9,7 @@ import { accessModel } from "./permissions-model.ts";
  * defaults (`seeds` insert one row set per organization) and live in the
  * module's data step instead.
  */
-export const CATALOG_ROLES = ["owner", "admin", "member"] as const;
+const CATALOG_ROLES = ["owner", "admin", "member"] as const;
 
 /**
  * `owner`, `admin` and `member` in the role catalog, added when missing. A role

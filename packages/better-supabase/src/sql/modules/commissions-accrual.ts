@@ -4,7 +4,7 @@ import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { commissionJson } from "./commissions-tables.ts";
 
 /** The `ctx.record` statements for the events the commission functions write. */
-export function commissionRecords(k: CommissionSql): {
+function commissionRecords(k: CommissionSql): {
   readonly plan: (
     type: "commission_plan.created" | "commission_plan.updated",
   ) => string;

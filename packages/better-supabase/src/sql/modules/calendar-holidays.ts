@@ -35,7 +35,7 @@ export function addDays(date: HolidayDate, days: number): HolidayDate {
 }
 
 /** 0 is Sunday, 6 is Saturday. */
-export function weekday(date: HolidayDate): number {
+function weekday(date: HolidayDate): number {
   return new Date(toUtc(date)).getUTCDay();
 }
 

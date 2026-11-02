@@ -9,7 +9,7 @@ import {
 } from "./accounting-shared.ts";
 
 /** The chart variants `accounting.seeds` offers. */
-export const ACCOUNTING_VARIANTS = ["generic", "nl-rgs"] as const;
+const ACCOUNTING_VARIANTS = ["generic", "nl-rgs"] as const;
 
 interface ChartJournal {
   readonly code: string;
@@ -173,7 +173,7 @@ export const NL_RGS_CHART: readonly ChartAccount[] = [
   },
 ];
 
-export const NL_RGS_JOURNALS: readonly ChartJournal[] = [
+const NL_RGS_JOURNALS: readonly ChartJournal[] = [
   { code: "VK", name: "Verkoop", type: "sales" },
   { code: "IK", name: "Inkoop", type: "purchase" },
   { code: "BNK", name: "Bank", type: "bank", account: "1100" },

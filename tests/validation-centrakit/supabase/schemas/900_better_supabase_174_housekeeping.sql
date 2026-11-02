@@ -1,6 +1,6 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:1046e64035cb9f99d457961e2e8c0d4d32147e947a071fca9d66ccf79f69143f
+-- @bsb-hash sha256:4118df764de64152fe40ea04a1ce2f0c1acd9d34a473e726db98269f4758c21b
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,9 @@ create or replace view "better_supabase"."maintenance_jobs" with (security_invok
   coalesce(s."runs", 0) as runs,
   (s."last_run_at" is null or s."last_run_at" + j.every_interval <= now()) as due
 from (values
+    ('digest_run', '"better_supabase"."run_notification_digests"', interval '1 hour'),
+    ('expire_support_sessions', '"better_supabase"."expire_support_sessions"', interval '5 minutes'),
+    ('purge_webhook_deliveries', '"better_supabase"."purge_webhook_deliveries"', interval '1 day'),
     ('purge_webhooks', 'better_supabase.purge_webhooks', interval '1 day')
   ) j (job, fn, every_interval)
 left join "better_supabase"."maintenance_state" s on s."job" = j.job;

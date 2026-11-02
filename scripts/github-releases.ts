@@ -85,10 +85,10 @@ function gh(args: readonly string[]): string {
 function main(): void {
   // SAFETY: the value is the changesets action's `published-packages` output.
   const published = JSON.parse(
-    argv[2] ?? env.PUBLISHED_PACKAGES ?? "[]",
+    argv[2] ?? env["PUBLISHED_PACKAGES"] ?? "[]",
   ) as PublishedPackage[];
 
-  const repository = env.GITHUB_REPOSITORY;
+  const repository = env["GITHUB_REPOSITORY"];
   const root = cwd();
 
   if (repository === undefined) {

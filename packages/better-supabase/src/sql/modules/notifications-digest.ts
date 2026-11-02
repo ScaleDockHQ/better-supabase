@@ -36,7 +36,7 @@ export const DIGEST_TABLE = {
  * Whether the digest engine renders: managed tables for the preferences with a
  * cadence column, the deliveries and the digests.
  */
-export function digesting(ctx: BlockSqlContext, n: NotifyNames): boolean {
+function digesting(ctx: BlockSqlContext, n: NotifyNames): boolean {
   return (
     ctx.manages &&
     ctx.hasTable("deliveries") &&
