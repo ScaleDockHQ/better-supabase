@@ -49,6 +49,13 @@ import {
   entityNoun,
 } from "../packages/better-supabase/src/core/entity-naming.ts";
 import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
+import {
+  namedPreset,
+  PRESET_GROUPS,
+  PRESET_NAMES,
+  PRESETS,
+} from "../packages/better-supabase/src/preset/presets.ts";
+import { resolvePreset } from "../packages/better-supabase/src/preset/resolve.ts";
 import { tenantNameClashes } from "../packages/better-supabase/src/sql/entity-clashes.ts";
 import {
   renderBlocks,
@@ -184,9 +191,21 @@ export interface CatalogBlock {
   readonly docs: string;
 }
 
+/** A named preset, for the home page's switcher and gallery. */
+export interface CatalogPreset {
+  readonly name: string;
+  readonly title: string;
+  readonly description: string;
+  readonly group: string;
+  readonly groupTitle: string;
+  /** Every block it installs, in install order, with the ones it requires. */
+  readonly blocks: readonly string[];
+}
+
 export interface Catalog {
   readonly categories: readonly Category[];
   readonly blocks: readonly CatalogBlock[];
+  readonly presets: readonly CatalogPreset[];
 }
 
 /** The category of the block whose manifest installs the module. */
@@ -328,7 +347,22 @@ export function buildCatalog(): Catalog {
     };
   });
 
-  return { categories: CATEGORIES, blocks };
+  const presets = PRESET_NAMES.map((name): CatalogPreset => {
+    const preset = PRESETS[name];
+
+    return {
+      name,
+      title: preset.title,
+      description: preset.description,
+      group: preset.group,
+      groupTitle: PRESET_GROUPS[preset.group],
+      blocks: resolvePreset(namedPreset(name)).blocks.map(
+        (block) => block.name,
+      ),
+    };
+  });
+
+  return { categories: CATEGORIES, blocks, presets };
 }
 
 export function formatCatalog(catalog: Catalog): string {

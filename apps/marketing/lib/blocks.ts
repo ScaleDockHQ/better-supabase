@@ -27,6 +27,16 @@ const catalogSchema = v.object({
       docs: v.string(),
     }),
   ),
+  presets: v.array(
+    v.object({
+      name: v.string(),
+      title: v.string(),
+      description: v.string(),
+      group: v.string(),
+      groupTitle: v.string(),
+      blocks: names,
+    }),
+  ),
 });
 
 export type CatalogBlock = v.InferOutput<
@@ -35,6 +45,11 @@ export type CatalogBlock = v.InferOutput<
 
 const catalog = v.parse(catalogSchema, catalogJson);
 
+export type CatalogPreset = v.InferOutput<
+  typeof catalogSchema
+>["presets"][number];
+
+export const catalogPresets: readonly CatalogPreset[] = catalog.presets;
 export const blockCategories: readonly string[] = catalog.categories;
 export const blocks: readonly CatalogBlock[] = catalog.blocks;
 
