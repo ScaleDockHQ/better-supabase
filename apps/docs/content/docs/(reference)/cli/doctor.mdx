@@ -2025,6 +2025,17 @@ block client method takes one object, such as
 positional arguments no longer type-checks. Run `bsb codemod 0.47`, which
 rewrites the calls it can place and lists the others for review.
 
+### BS510
+
+**Warning: maintenance jobs have no scheduler.** The schema files install the
+`housekeeping` module (the `maintenance_jobs` view), but no schema file calls
+`maintenance_schedule()` or schedules `maintenance()` with `cron.schedule`, and no
+source calls `maintenanceTick(...)`. The purges and expiries the installed blocks
+contribute never run. Run `select better_supabase.maintenance_schedule()` once,
+which registers pg_cron, or drain the `block_ticks` queue with `maintenanceTick`
+when pg_cron is not available. The check is static: it cannot see whether a job
+is due in the live database, so it does not replace reading `maintenance_jobs`.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets

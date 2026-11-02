@@ -1110,7 +1110,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:075992f9d222943959b68bc651455a7d882d4041e4e082ca05e8d3e9b7b27427
+-- @bsb-hash sha256:499368af03e80ff7ff629638408b693c1654dc32ea78b091e1a6dd1a08696737
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1750,6 +1750,7 @@ begin
   if v_amount <= 0 then
     raise exception 'the request covers no working days' using errcode = '22023', hint = 'LEAVE_INVALID';
   end if;
+  if not "better_supabase"."period_is_open"(request_leave.tenant, 'leave_year', request_leave.starts_on) then raise exception 'the leave year of this request is locked or closed' using errcode = '55000', hint = 'LEAVE_PERIOD_CLOSED'; end if;
   perform pg_advisory_xact_lock(hashtextextended('leave:' || request_leave.tenant::text || ':' || v_me::text, 0));
   if exists (
     select 1 from "better_supabase"."leave_requests" r

@@ -36,6 +36,17 @@ describe("leave module", () => {
     ).toThrow(/"funday" is not one of/);
   });
 
+  it("refuses a request in a locked or closed leave year when periods is installed", () => {
+    expect(sqlOf(BASE)).not.toContain("LEAVE_PERIOD_CLOSED");
+
+    const sql = sqlOf([...BASE, "periods"]);
+
+    expect(sql).toContain(
+      `"better_supabase"."period_is_open"(request_leave.tenant, 'leave_year', request_leave.starts_on)`,
+    );
+    expect(sql).toContain("LEAVE_PERIOD_CLOSED");
+  });
+
   it("keeps a ledger account per member, type and year", () => {
     const sql = sqlOf(BASE);
     expect(sql).toContain(

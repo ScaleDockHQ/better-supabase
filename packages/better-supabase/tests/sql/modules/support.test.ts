@@ -206,9 +206,19 @@ describe("impersonation module", () => {
     const names = resolveBlocks(["impersonation"]).map((module) => module.name);
 
     expect(names).toEqual(
-      expect.arrayContaining(["permissions", "audit", "impersonation"]),
+      expect.arrayContaining([
+        "permissions",
+        "audit",
+        "housekeeping",
+        "impersonation",
+      ]),
     );
-    expect(names.indexOf("impersonation")).toBe(names.length - 1);
+
+    for (const required of ["permissions", "audit"]) {
+      expect(names.indexOf(required)).toBeLessThan(
+        names.indexOf("impersonation"),
+      );
+    }
   });
 });
 

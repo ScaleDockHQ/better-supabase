@@ -9,7 +9,8 @@ select better_supabase.maintenance_schedule();
 
 The `housekeeping` module installs with the first block that has a recurring cleanup:
 `approvals` (expire requests), `trash` (purge batches), `webhook-inbox`, `rate-limit`,
-`idempotency` and `chat-sdk-state`. Each block lists its cleanup as a job, and
+`idempotency`, `chat-sdk-state`, `support` (end expired sessions), `usage` (purge idempotency
+keys, refresh computed meters) and `webhooks-out` (purge the delivery log). Each block lists its cleanup as a job, and
 `better_supabase.maintenance()` runs every job that is due, in name order, and records
 what happened in `maintenance_state`.
 
@@ -18,6 +19,43 @@ minutes and returns `pg_cron`. Without pg_cron it returns `none`: call
 `select better_supabase.maintenance()` from your own scheduler instead, such as the cron
 route that drains the queue. `maintenance_scheduler()` tells you which of the two is
 registered.
+
+## Without pg_cron
+
+When pg_cron is missing, the `block_ticks` queue can run the dispatcher. Add `maintenanceTimer` to
+the blocks you pass to `blockSchedules`, and register `maintenanceTick` next to the other tick
+handlers.
+
+```ts
+import {
+  blockSchedules,
+  blockTickHandler,
+  maintenanceTick,
+  maintenanceTimer,
+  rpcTransport,
+} from "better-supabase/blocks/queue";
+
+await jobs.ensureSchedules(blockSchedules([...blocks, maintenanceTimer]), {
+  prefix: BLOCK_SCHEDULE_PREFIX,
+});
+
+const ticks = blockTickHandler({
+  "housekeeping.maintenance": maintenanceTick(rpcTransport(admin)),
+});
+```
+
+The tick asks `maintenance_scheduler()` first and does nothing when pg_cron is registered, so a
+database that has both never runs a job twice. Pass `{ force: true }` to run it anyway and
+`{ schema }` when the module lives outside `better_supabase`. `doctor` reports `BS510` when the
+config installs the `housekeeping` module and neither `maintenance_schedule()` nor a
+`maintenanceTick` call appears in the project.
+
+## Jobs a block does not register
+
+`audit` (`purge_audit_log`) and `queue` (`purge_job_archive`) stay out of the dispatcher.
+The audit purge deletes compliance records after one year unless a retention policy says
+otherwise, so it only runs when you schedule it. The archive purge needs a queue name. Call
+them from your own cron line.
 
 ## Reading the jobs
 

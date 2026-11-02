@@ -152,7 +152,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:a934dd894d8d98563a6f8aa4de87ae9a006f98655173953fb9354911cd729717
+-- @bsb-hash sha256:146a1df02e9569a113ce28e29fad4846e02d4e65d6c8da0b32ad2333e4329c65
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -182,10 +182,13 @@ create or replace view "better_supabase"."maintenance_jobs" with (security_invok
   (s."last_run_at" is null or s."last_run_at" + j.every_interval <= now()) as due
 from (values
     ('expire_approvals', '"better_supabase"."expire_approvals"', interval '15 minutes'),
+    ('expire_support_sessions', '"better_supabase"."expire_support_sessions"', interval '5 minutes'),
     ('purge_chat_state', '"better_supabase"."purge_chat_state"', interval '15 minutes'),
     ('purge_expired_trash', '"better_supabase"."purge_expired_trash"', interval '1 day'),
     ('purge_idempotency_keys', 'better_supabase.purge_idempotency_keys', interval '1 hour'),
     ('purge_rate_limits', 'better_supabase.purge_rate_limits', interval '15 minutes'),
+    ('purge_usage_events', '"better_supabase"."purge_usage_events"', interval '1 day'),
+    ('purge_webhook_deliveries', '"better_supabase"."purge_webhook_deliveries"', interval '1 day'),
     ('purge_webhooks', 'better_supabase.purge_webhooks', interval '1 day')
   ) j (job, fn, every_interval)
 left join "better_supabase"."maintenance_state" s on s."job" = j.job;

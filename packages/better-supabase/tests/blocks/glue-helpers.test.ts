@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createCommerce } from "../../src/blocks/commerce/index.ts";
 import { createCrm } from "../../src/blocks/crm/index.ts";
+import { createFinance } from "../../src/blocks/finance/index.ts";
 import { createProjects } from "../../src/blocks/projects/index.ts";
 import { createSaas } from "../../src/blocks/saas/index.ts";
 import { createSupport } from "../../src/blocks/support/index.ts";
@@ -379,5 +380,76 @@ describe("projects time helpers", () => {
       remaining: money(0n, "EUR"),
       exhausted: true,
     });
+  });
+});
+
+describe("finance.reconcile", () => {
+  const item = (id: string, score?: number) => ({
+    transaction: { id },
+    ...(score === undefined ? {} : { suggestion: { score } }),
+  });
+
+  it("accepts the best match for each suggested transaction and goes on after a failure", async () => {
+    const acceptBestMatch = vi.fn(
+      ({ transactionId }: { transactionId: string }) =>
+        transactionId === "t2" ? failure() : done({ id: transactionId }),
+    );
+
+    const finance = createFinance(
+      parts({
+        parts: {
+          accounting: {},
+          banking: {
+            reviewQueue: () => done([item("t1", 5), item("t2", 4), item("t3")]),
+            acceptBestMatch,
+          },
+        },
+      }),
+    );
+
+    const result = await finance.reconcile({ accountId: "a", minScore: 2 });
+
+    expect(result.data).toEqual({
+      matched: [{ id: "t1" }],
+      unmatched: ["t3"],
+      failed: [{ transactionId: "t2", message: "no" }],
+    });
+    expect(acceptBestMatch).toHaveBeenCalledTimes(2);
+    expect(acceptBestMatch).toHaveBeenCalledWith({
+      transactionId: "t1",
+      minScore: 2,
+    });
+  });
+
+  it("skips suggestions below minScore and returns a failed queue read", async () => {
+    const acceptBestMatch = vi.fn(() => done({ id: "x" }));
+
+    const low = createFinance(
+      parts({
+        parts: {
+          accounting: {},
+          banking: {
+            reviewQueue: () => done([item("t1", 1)]),
+            acceptBestMatch,
+          },
+        },
+      }),
+    );
+
+    expect((await low.reconcile({ accountId: "a", minScore: 3 })).data).toEqual(
+      { matched: [], unmatched: ["t1"], failed: [] },
+    );
+    expect(acceptBestMatch).not.toHaveBeenCalled();
+
+    const broken = createFinance(
+      parts({
+        parts: {
+          accounting: {},
+          banking: { reviewQueue: failure, acceptBestMatch },
+        },
+      }),
+    );
+
+    expect((await broken.reconcile({ accountId: "a" })).ok).toBe(false);
   });
 });

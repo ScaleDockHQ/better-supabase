@@ -130,6 +130,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
   hiring:
     "application_detail apply_to_job close_application list_applications list_jobs save_job schedule_interview submit_scorecard",
+  housekeeping: "maintenance maintenance_scheduler",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
   identities:
