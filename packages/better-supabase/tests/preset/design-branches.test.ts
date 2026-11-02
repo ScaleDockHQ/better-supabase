@@ -165,6 +165,33 @@ describe("design seeds", () => {
     });
   });
 
+  it("reads and writes the sample size and random seed", () => {
+    const seeds = { sample: { size: "l", seed: 42 } } as const;
+
+    expect(parseDesign({ seeds })).toEqual({ seeds });
+    expect(designFormat({ seeds })).toBe(9);
+    expect(designConfig(crm, { seeds }).seed).toEqual({
+      defaults: {},
+      sample: { size: "l", seed: 42 },
+    });
+  });
+
+  it("rejects a malformed sample with a pointer", () => {
+    expect(issueOf({ seeds: { sample: 5 } }).path).toBe("/seeds/sample");
+    expect(issueOf({ seeds: { sample: { size: "m", x: 1 } } }).path).toBe(
+      "/seeds/sample/x",
+    );
+    expect(issueOf({ seeds: { sample: { size: "xl", seed: 1 } } }).path).toBe(
+      "/seeds/sample/size",
+    );
+    expect(issueOf({ seeds: { sample: { size: "m", seed: 1.5 } } }).path).toBe(
+      "/seeds/sample/seed",
+    );
+    expect(issueOf({ seeds: { sample: { size: "m", seed: -1 } } }).path).toBe(
+      "/seeds/sample/seed",
+    );
+  });
+
   it("writes seeds into the config", () => {
     expect(designConfig(crm, { seeds: { locale: "nl" } }).seed).toEqual({
       defaults: { locale: "nl" },

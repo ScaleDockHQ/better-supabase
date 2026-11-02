@@ -5,7 +5,7 @@ import type {
   AppTableConfig,
   AppTablesConfig,
 } from "../config/types/app-tables.ts";
-import type { SeedConfig } from "../config/types/database.ts";
+import type { SeedConfig, SeedSampleSize } from "../config/types/database.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
@@ -52,12 +52,17 @@ export interface CreateDesign {
   readonly seeds?: DesignSeeds;
 }
 
-/** `CreateDesign.seeds`: `database.seed.defaults.variants` and `.locale`. */
+/**
+ * `CreateDesign.seeds`: `database.seed.defaults.variants` and `.locale`, and
+ * the `database.seed.sample` size and random seed.
+ */
 export interface DesignSeeds {
   /** A block's starting set, keyed by block name. */
   readonly variants?: Readonly<Record<string, string>>;
   /** The language of defaults and sample data, such as `nl`. */
   readonly locale?: string;
+  /** How much sample data to generate, and the random seed that fixes it. */
+  readonly sample?: { readonly size: SeedSampleSize; readonly seed: number };
 }
 
 /**
@@ -703,6 +708,53 @@ function designOfValue(
 const SEED_KEY = /^[a-z][a-z0-9_-]{0,63}$/;
 const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
+const SAMPLE_SIZES: readonly SeedSampleSize[] = ["s", "m", "l"];
+
+/** A design's `seeds.sample`: a size and a whole-number random seed. */
+function sampleOf(value: unknown): NonNullable<DesignSeeds["sample"]> {
+  if (!isRecord(value)) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      "/seeds/sample",
+      "design.seeds.sample must be an object of size and seed",
+    );
+  }
+
+  const extra = Object.keys(value).find(
+    (name) => name !== "size" && name !== "seed",
+  );
+
+  if (extra !== undefined) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      jsonPointer("seeds", "sample", extra),
+      `design.seeds.sample: unknown key "${extra}"; sample has size and seed`,
+    );
+  }
+
+  const { size, seed } = value;
+
+  const knownSize = SAMPLE_SIZES.find((each) => each === size);
+
+  if (knownSize === undefined) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      "/seeds/sample/size",
+      "design.seeds.sample.size must be s, m or l",
+    );
+  }
+
+  if (typeof seed !== "number" || !Number.isSafeInteger(seed) || seed < 0) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      "/seeds/sample/seed",
+      "design.seeds.sample.seed must be a whole number of 0 or more",
+    );
+  }
+
+  return { size: knownSize, seed };
+}
+
 /** A design's `seeds`, or undefined when it holds nothing. */
 function seedsOf(value: unknown): DesignSeeds | undefined {
   if (!isRecord(value)) {
@@ -714,14 +766,14 @@ function seedsOf(value: unknown): DesignSeeds | undefined {
   }
 
   const extra = Object.keys(value).find(
-    (name) => name !== "variants" && name !== "locale",
+    (name) => name !== "variants" && name !== "locale" && name !== "sample",
   );
 
   if (extra !== undefined) {
     throw new DesignParseError(
       "invalid_seeds",
       jsonPointer("seeds", extra),
-      `design.seeds: unknown key "${extra}"; seeds has variants and locale`,
+      `design.seeds: unknown key "${extra}"; seeds has variants, locale and sample`,
     );
   }
 
@@ -767,13 +819,21 @@ function seedsOf(value: unknown): DesignSeeds | undefined {
     }
   }
 
-  if (Object.keys(variants).length === 0 && locale === undefined) {
+  const sample =
+    value["sample"] === undefined ? undefined : sampleOf(value["sample"]);
+
+  if (
+    Object.keys(variants).length === 0 &&
+    locale === undefined &&
+    sample === undefined
+  ) {
     return undefined;
   }
 
   return {
     ...(Object.keys(variants).length === 0 ? {} : { variants }),
     ...(locale === undefined ? {} : { locale }),
+    ...(sample === undefined ? {} : { sample }),
   };
 }
 
@@ -1021,6 +1081,7 @@ function seedConfigOf(seeds: DesignSeeds): SeedConfig {
       ...(seeds.variants === undefined ? {} : { variants: seeds.variants }),
       ...(seeds.locale === undefined ? {} : { locale: seeds.locale }),
     },
+    ...(seeds.sample === undefined ? {} : { sample: seeds.sample }),
   };
 }
 

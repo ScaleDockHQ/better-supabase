@@ -154,6 +154,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "saved-views",
       "search",
     ],
+    seeds: { variants: { pipelines: "b2b-sales" } },
   },
   projects: {
     name: "projects",
@@ -225,6 +226,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     group: "products",
     blocks: [...SAAS_LINKED, ...ERP],
     instances: QUOTE_TO_ORDER,
+    seeds: { variants: { accounting: "generic" } },
   },
   manufacturing: {
     name: "manufacturing",
@@ -355,6 +357,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "search",
       "automations",
     ],
+    seeds: { variants: { pipelines: "recruiting" } },
   },
   intranet: {
     name: "intranet",
@@ -952,6 +955,15 @@ export function namedPreset(name: PresetName): Preset {
     blocks,
     ...(instances === undefined ? {} : { instances }),
   };
+}
+
+/**
+ * The seeds a named preset starts from, or undefined for a preset without (ADR
+ * 0196). A preset only names a variant; the locale stays the app's, so tax
+ * codes follow `database.seed.defaults.locale`.
+ */
+export function namedPresetSeeds(name: PresetName): DesignSeeds | undefined {
+  return PRESETS[name].seeds;
 }
 
 /** The preset `/create` and `init` start from. */
