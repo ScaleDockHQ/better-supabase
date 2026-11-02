@@ -452,7 +452,7 @@ export const RISKS: BlockSqlDefinition = {
                 [q.m("scoring")]: d.scoring,
                 // Only the first matrix becomes the default.
                 [q.m("isDefault")]: {
-                  sql: `not exists (select 1 from ${q.matrices} d where d.${sqlIdent(q.m("tenant"))} = p_tenant and d.${sqlIdent(q.m("isDefault"))})`,
+                  sql: `not exists (select 1 from ${q.matrices} d where d.${q.m("tenant")} = p_tenant and d.${q.m("isDefault")})`,
                 },
               },
             },

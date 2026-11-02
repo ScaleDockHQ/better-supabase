@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:6e344e3d966f827879a91c8da77235999ecc09a5a8ced50fd9d9d8a477584471
+-- @bsb-hash sha256:118dcb87b820faa7a8e1bd6695d5b14434c38a560d8a857a4a117767be3c9827
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,10 +105,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;
@@ -151,7 +152,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:d3fe75957a5c572b1aba473e2e220f293ec617728e60a2a1c30fdc3db1a8ae2c
+-- @bsb-hash sha256:a934dd894d8d98563a6f8aa4de87ae9a006f98655173953fb9354911cd729717
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,10 +263,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;
@@ -308,7 +310,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:365c02565fa1d6d50df35fa1d451a6785f29e6825451ee02aefe9127fd7f9e65
+-- @bsb-hash sha256:0e6089bb458f0c2cd2e8600d7444a719b58fe785271d90bece06769393997c37
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -417,10 +419,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;
@@ -463,7 +466,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:c8b37f72cbb51390da1f15119f62336ddbcbb9200b9d3e85dbad9ea98e994af4
+-- @bsb-hash sha256:4349cd2fda524a8468f3236e207058cf3267062a4143072147668cb891349085
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -567,10 +570,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;
@@ -644,7 +648,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:77ee8d8b17059ba2acdedd1708a9b829d32864874568ede946a7c3ea8a7f37cb
+-- @bsb-hash sha256:409a5816d372c779f1b1c2626a7881ee5673b823dd16513c02a74ec8b8b5e5c2
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -746,10 +750,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;

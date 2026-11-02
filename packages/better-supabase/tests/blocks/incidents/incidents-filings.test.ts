@@ -88,14 +88,17 @@ describe("createIncidents regulatory filings", () => {
     const incidents = createIncidents({ transport: fake.transport });
 
     const saved = await incidents
-      .saveRegulatoryProfile("i1", {
-        regimes: ["nis2", "dora"],
-        awareAt: Temporal.Instant.from(AT),
-        classification: "major",
-        classifiedAt: Temporal.Instant.from(AT),
-        significant: true,
-        activelyExploited: true,
-        measureAvailableAt: Temporal.Instant.from(AT),
+      .saveRegulatoryProfile({
+        incidentId: "i1",
+        input: {
+          regimes: ["nis2", "dora"],
+          awareAt: Temporal.Instant.from(AT),
+          classification: "major",
+          classifiedAt: Temporal.Instant.from(AT),
+          significant: true,
+          activelyExploited: true,
+          measureAvailableAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
@@ -131,10 +134,13 @@ describe("createIncidents regulatory filings", () => {
     ]);
 
     await incidents
-      .saveRegulatoryProfile("i1", {
-        classification: null,
-        classifiedAt: null,
-        measureAvailableAt: null,
+      .saveRegulatoryProfile({
+        incidentId: "i1",
+        input: {
+          classification: null,
+          classifiedAt: null,
+          measureAvailableAt: null,
+        },
       })
       .orThrow();
 
@@ -147,7 +153,9 @@ describe("createIncidents regulatory filings", () => {
       },
     });
 
-    await incidents.saveRegulatoryProfile("i1", {}).orThrow();
+    await incidents
+      .saveRegulatoryProfile({ incidentId: "i1", input: {} })
+      .orThrow();
     expect(fake.calls[2]?.[1]).toEqual({ incident_id: "i1", attrs: {} });
 
     const bare = await incidents.regulatoryProfile("i1").orThrow();
@@ -178,22 +186,33 @@ describe("createIncidents regulatory filings", () => {
 
     const incidents = createIncidents({ transport: fake.transport });
 
-    const listed = await incidents.filings("org-1").orThrow();
+    const listed = await incidents
+      .filings({ organizationId: "org-1" })
+      .orThrow();
 
     expect(listed).toHaveLength(2);
     expect(listed[0]?.dueAt?.toString()).toBe(AT);
-    await incidents.filings("org-1", { pending: false }).orThrow();
+    await incidents
+      .filings({ organizationId: "org-1", pending: false })
+      .orThrow();
 
     const filed = await incidents
-      .submitFiling("i1", "nis2", "notification", {
-        reference: "REF-1",
-        notes: "Sent",
-        submittedAt: Temporal.Instant.from(AT),
+      .submitFiling({
+        incidentId: "i1",
+        regime: "nis2",
+        stage: "notification",
+        input: {
+          reference: "REF-1",
+          notes: "Sent",
+          submittedAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
     expect(filed.reference).toBe("REF-1");
-    await incidents.submitFiling("i1", "cra", "final").orThrow();
+    await incidents
+      .submitFiling({ incidentId: "i1", regime: "cra", stage: "final" })
+      .orThrow();
 
     expect(fake.calls.map(([, args]) => args)).toEqual([
       { tenant: "org-1", pending: true },
@@ -227,11 +246,22 @@ describe("createIncidents regulatory filings", () => {
       }).transport,
     });
 
-    expect((await incidents.submitFiling("i1", "nis2", "final")).ok).toBe(
+    expect(
+      (
+        await incidents.submitFiling({
+          incidentId: "i1",
+          regime: "nis2",
+          stage: "final",
+        })
+      ).ok,
+    ).toBe(false);
+    expect((await incidents.filings({ organizationId: "org-1" })).ok).toBe(
       false,
     );
-    expect((await incidents.filings("org-1")).ok).toBe(false);
-    expect((await incidents.saveRegulatoryProfile("i1", {})).ok).toBe(false);
+    expect(
+      (await incidents.saveRegulatoryProfile({ incidentId: "i1", input: {} }))
+        .ok,
+    ).toBe(false);
     expect((await incidents.regulatoryProfile("i1")).ok).toBe(false);
   });
 });
@@ -248,11 +278,9 @@ describe("createIncidents postmortems and public pages", () => {
     const incidents = createIncidents({ transport: fake.transport });
 
     const saved = await incidents
-      .savePostmortem("i1", {
-        summary: "S",
-        impact: "I",
-        rootCause: "R",
-        resolution: "Z",
+      .savePostmortem({
+        incidentId: "i1",
+        input: { summary: "S", impact: "I", rootCause: "R", resolution: "Z" },
       })
       .orThrow();
 
@@ -269,15 +297,20 @@ describe("createIncidents postmortems and public pages", () => {
     );
 
     const added = await incidents
-      .addPostmortemAction("p1", {
-        title: "Fix",
-        assigneeId: "u2",
-        dueAt: Temporal.Instant.from(AT),
+      .addPostmortemAction({
+        postmortemId: "p1",
+        input: {
+          title: "Fix",
+          assigneeId: "u2",
+          dueAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
     expect(added.dueAt?.toString()).toBe(AT);
-    await incidents.addPostmortemAction("p1", { title: "Fix" }).orThrow();
+    await incidents
+      .addPostmortemAction({ postmortemId: "p1", input: { title: "Fix" } })
+      .orThrow();
 
     const removed = await incidents.removePostmortemAction("a1").orThrow();
 
@@ -303,7 +336,9 @@ describe("createIncidents postmortems and public pages", () => {
       }).transport,
     });
 
-    expect((await incidents.savePostmortem("i1", {})).ok).toBe(false);
+    expect(
+      (await incidents.savePostmortem({ incidentId: "i1", input: {} })).ok,
+    ).toBe(false);
   });
 
   it("reads the public status page", async () => {
@@ -362,7 +397,9 @@ describe("createIncidents postmortems and public pages", () => {
 
     const incidents = createIncidents({ transport: fake.transport });
 
-    const page = await incidents.publicStatusPage("acme", 30).orThrow();
+    const page = await incidents
+      .publicStatusPage({ slug: "acme", days: 30 })
+      .orThrow();
 
     expect(page).toMatchObject({
       slug: "acme",
@@ -390,7 +427,7 @@ describe("createIncidents postmortems and public pages", () => {
     expect(page?.incidents[2]?.postmortem).toBeUndefined();
     expect(page?.incidents[1]?.components).toEqual([]);
 
-    await incidents.publicStatusPage("acme").orThrow();
+    await incidents.publicStatusPage({ slug: "acme" }).orThrow();
     expect(fake.calls.map(([, args]) => args)).toEqual([
       { slug: "acme", days: 30 },
       { slug: "acme", days: null },
@@ -402,7 +439,9 @@ describe("createIncidents postmortems and public pages", () => {
       transport: fakeTransport({ public_status_page: null }).transport,
     });
 
-    expect(await missing.publicStatusPage("none").orThrow()).toBeUndefined();
+    expect(
+      await missing.publicStatusPage({ slug: "none" }).orThrow(),
+    ).toBeUndefined();
 
     const bad = createIncidents({
       transport: fakeTransport({
@@ -415,6 +454,6 @@ describe("createIncidents postmortems and public pages", () => {
       }).transport,
     });
 
-    expect((await bad.publicStatusPage("a")).ok).toBe(false);
+    expect((await bad.publicStatusPage({ slug: "a" })).ok).toBe(false);
   });
 });

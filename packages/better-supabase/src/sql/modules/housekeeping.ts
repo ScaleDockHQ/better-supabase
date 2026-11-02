@@ -158,10 +158,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;

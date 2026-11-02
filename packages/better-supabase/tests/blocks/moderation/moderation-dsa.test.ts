@@ -109,22 +109,25 @@ describe("createModeration notices and statements", () => {
     });
 
     const sent = await moderation
-      .submitNotice(
-        { type: "comment", id: "c1" },
-        {
+      .submitNotice({
+        subject: { type: "comment", id: "c1" },
+        notice: {
           explanation: "Illegal",
           url: "https://example.com/c1",
           notifierName: "Ann",
           notifierEmail: "ann@example.com",
         },
-      )
+      })
       .orThrow();
 
     expect(sent).toMatchObject({ id: "n1", trusted: true });
     expect(sent.url).toBeUndefined();
 
     await moderation
-      .submitNotice({ type: "comment", id: "c1" }, { explanation: "Illegal" })
+      .submitNotice({
+        subject: { type: "comment", id: "c1" },
+        notice: { explanation: "Illegal" },
+      })
       .orThrow();
 
     const listed = await moderation
@@ -141,11 +144,13 @@ describe("createModeration notices and statements", () => {
     expect(await moderation.notices().orThrow()).toHaveLength(2);
 
     const decided = await moderation
-      .decideNotice("n1", "hide", { outcome: "Hidden" })
+      .decideNotice({ noticeId: "n1", decision: "hide", outcome: "Hidden" })
       .orThrow();
 
     expect(decided.decidedBy).toBe("u3");
-    await moderation.decideNotice("n1", "reject").orThrow();
+    await moderation
+      .decideNotice({ noticeId: "n1", decision: "reject" })
+      .orThrow();
 
     expect(fake.calls.map(([fn]) => fn)).toEqual([
       "submit_notice",
@@ -184,14 +189,17 @@ describe("createModeration notices and statements", () => {
     });
 
     const full = await moderation
-      .issueStatement("i1", {
-        restriction: "removal",
-        facts: "Facts",
-        legalGround: "Law",
-        termsGround: "Terms",
-        automatedDetection: true,
-        automatedDecision: true,
-        redress: ["internal"],
+      .issueStatement({
+        itemId: "i1",
+        statement: {
+          restriction: "removal",
+          facts: "Facts",
+          legalGround: "Law",
+          termsGround: "Terms",
+          automatedDetection: true,
+          automatedDecision: true,
+          redress: ["internal"],
+        },
       })
       .orThrow();
 
@@ -205,7 +213,10 @@ describe("createModeration notices and statements", () => {
     expect(full.redress).toHaveLength(2);
 
     await moderation
-      .issueStatement("i1", { restriction: "demotion", facts: "F" })
+      .issueStatement({
+        itemId: "i1",
+        statement: { restriction: "demotion", facts: "F" },
+      })
       .orThrow();
 
     const listed = await moderation.statements("i1").orThrow();
@@ -242,18 +253,18 @@ describe("createModeration notices and statements", () => {
 
     expect(
       (
-        await moderation.issueStatement("i1", {
-          restriction: "removal",
-          facts: "F",
+        await moderation.issueStatement({
+          itemId: "i1",
+          statement: { restriction: "removal", facts: "F" },
         })
       ).ok,
     ).toBe(false);
     expect(
       (
-        await moderation.submitNotice(
-          { type: "comment", id: "c1" },
-          { explanation: "x" },
-        )
+        await moderation.submitNotice({
+          subject: { type: "comment", id: "c1" },
+          notice: { explanation: "x" },
+        })
       ).ok,
     ).toBe(false);
     expect((await moderation.notices()).ok).toBe(false);
@@ -271,13 +282,15 @@ describe("createModeration flaggers, appeals and reports", () => {
     });
 
     const awarded = await moderation
-      .setTrustedFlagger("u5", { name: "Hotline", awardedBy: "u3" })
+      .setTrustedFlagger({ userId: "u5", name: "Hotline", awardedBy: "u3" })
       .orThrow();
 
     expect(awarded).toMatchObject({ awardedBy: "u3", name: "Hotline" });
     expect(awarded.revokedAt?.toString()).toBe(AT);
 
-    await moderation.setTrustedFlagger("u5", { name: "Hotline" }).orThrow();
+    await moderation
+      .setTrustedFlagger({ userId: "u5", name: "Hotline" })
+      .orThrow();
     await moderation.revokeTrustedFlagger("u5").orThrow();
 
     expect(fake.calls.map(([, args]) => args)).toEqual([
@@ -316,11 +329,15 @@ describe("createModeration flaggers, appeals and reports", () => {
       tenant: "org-1",
     });
 
-    await moderation.appeal({ statementId: "s1" }, "Wrong").orThrow();
-    await moderation.appeal({ noticeId: "n1" }, "Wrong").orThrow();
+    await moderation
+      .appeal({ target: { statementId: "s1" }, reasons: "Wrong" })
+      .orThrow();
+    await moderation
+      .appeal({ target: { noticeId: "n1" }, reasons: "Wrong" })
+      .orThrow();
 
     const decided = await moderation
-      .decideAppeal("ap1", "reversed", { reason: "Fine" })
+      .decideAppeal({ appealId: "ap1", outcome: "reversed", reason: "Fine" })
       .orThrow();
 
     expect(decided).toMatchObject({
@@ -331,7 +348,9 @@ describe("createModeration flaggers, appeals and reports", () => {
       status: "reversed",
     });
     expect(decided.decidedAt?.toString()).toBe(AT);
-    await moderation.decideAppeal("ap1", "upheld").orThrow();
+    await moderation
+      .decideAppeal({ appealId: "ap1", outcome: "upheld" })
+      .orThrow();
 
     expect(fake.calls.map(([, args]) => args)).toEqual([
       { statement_id: "s1", notice_id: null, reasons: "Wrong" },
@@ -397,16 +416,23 @@ describe("createModeration flaggers, appeals and reports", () => {
       tenant: "org-1",
     });
 
-    expect((await moderation.appeal({ noticeId: "n1" }, "x")).ok).toBe(false);
-    expect((await moderation.setTrustedFlagger("u5", { name: "H" })).ok).toBe(
-      false,
-    );
+    expect(
+      (await moderation.appeal({ target: { noticeId: "n1" }, reasons: "x" }))
+        .ok,
+    ).toBe(false);
+    expect(
+      (await moderation.setTrustedFlagger({ userId: "u5", name: "H" })).ok,
+    ).toBe(false);
     expect((await moderation.item({ type: "comment", id: "c1" })).ok).toBe(
       false,
     );
     expect(
-      (await moderation.report({ type: "comment", id: "c1" }, { reason: "r" }))
-        .ok,
+      (
+        await moderation.report({
+          subject: { type: "comment", id: "c1" },
+          report: { reason: "r" },
+        })
+      ).ok,
     ).toBe(false);
   });
 
@@ -416,16 +442,16 @@ describe("createModeration flaggers, appeals and reports", () => {
 
     expect(
       (
-        await moderation.submitNotice(
-          { type: "comment", id: "c1" },
-          { explanation: "x" },
-        )
+        await moderation.submitNotice({
+          subject: { type: "comment", id: "c1" },
+          notice: { explanation: "x" },
+        })
       ).ok,
     ).toBe(false);
     expect((await moderation.notices()).ok).toBe(false);
-    expect((await moderation.setTrustedFlagger("u", { name: "n" })).ok).toBe(
-      false,
-    );
+    expect(
+      (await moderation.setTrustedFlagger({ userId: "u", name: "n" })).ok,
+    ).toBe(false);
     expect((await moderation.revokeTrustedFlagger("u")).ok).toBe(false);
     expect((await moderation.bans()).ok).toBe(false);
     expect(
@@ -436,7 +462,9 @@ describe("createModeration flaggers, appeals and reports", () => {
         })
       ).ok,
     ).toBe(false);
-    expect((await moderation.statuses("c", ["a"])).ok).toBe(false);
+    expect(
+      (await moderation.statuses({ subjectType: "c", ids: ["a"] })).ok,
+    ).toBe(false);
     expect((await moderation.item({ type: "c", id: "a" })).ok).toBe(false);
     expect(fake.calls).toEqual([]);
   });

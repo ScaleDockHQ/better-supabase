@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:e9ed34be5c736e0baeda081c37e64a8b967ec4a911f46f17c8b837c90ee3fe64
+-- @bsb-hash sha256:4b5d1d3c0bad8351054e9c1b55bfe0006cd095d6d46f7202f95d644bb89b1040
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1002,9 +1002,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."risk_matrices" ("""tenant_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."""tenant_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -1119,7 +1119,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:bc99ca60f29c50c3a7536cce875931bd60f48c811aab59450b6b6ae53a0bc39a
+-- @bsb-hash sha256:f4999ac8384b30a34c2d8bb060f338f7fe5ad5be745e7fd1671412a50c217915
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2233,9 +2233,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."risk_matrices" ("""tenant_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."""tenant_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -2359,7 +2359,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:7c55d1390fe7547c904b0f53c3b6a038aa7c34f7335f543752c41fad1ac252c7
+-- @bsb-hash sha256:be7fa30a91d679ffe73e17a014f3988c44b51eaaf822cae5527071015c8e9e28
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3365,9 +3365,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "app_private"."risk_matrices" ("""tenant_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "app_private"."risk_matrices" d where d."""tenant_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "app_private"."risk_matrices" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "app_private"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "app_private"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "app_private"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "app_private"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -3482,7 +3482,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:2579b48a871c7bdfd99d265e2d4e6037298cce25b46af563c0668dc146486122
+-- @bsb-hash sha256:eb8c0bea52ed6c1006620e92e96615c06598184f75c153c422fb0909f879b22e
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4483,9 +4483,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."risk_matrices" ("""tenant_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."""tenant_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -4757,7 +4757,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:7b7877e7898c123df64b926e1a7a5d919ccf4f575095d8335cdff75f7ba2789d
+-- @bsb-hash sha256:af7be40eace3fd36e4f676d1013238f18eba3fd8b93b59eebec8a18facc75fc1
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5743,9 +5743,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."risk_matrices" ("""tenant_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."""tenant_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -5860,7 +5860,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:9d3012cb5e58075ee991a621c160e1d300e13193cdd2e4a57dd111657e54887f
+-- @bsb-hash sha256:fe6b3cefc5e706bb697a01548df9e2b55a2febd3156c9ff794f2e7150d66ffe8
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6861,9 +6861,9 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."risk_matrices" ("""org_id""", """key""", """name""", """likelihood_levels""", """impact_levels""", """bands""", """scoring""", """is_default""")
-  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."""org_id""" = p_tenant and d."""is_default"""))
-  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."""org_id""" = p_tenant and x."""key""" is not distinct from 'default');
+  insert into "better_supabase"."risk_matrices" ("org_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."org_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."org_id" = p_tenant and x."key" is not distinct from 'default');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;

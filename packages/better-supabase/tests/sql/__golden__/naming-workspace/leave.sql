@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4d27c18a77265ae9aee540272358f33c42bafed5d7773c9afa3a40e66560a35f
+-- @bsb-hash sha256:3c3578ce26ce9a549da6bed08d106c63684ded420cb2b8ebbe6369bd8395b494
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1008,15 +1008,15 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""", """allowance""")
+  insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance")
   select p_tenant, 'annual', 'Annual leave', 'days', true, true, 20
-  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'annual');
-  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""")
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'annual');
+  insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked")
   select p_tenant, 'sick', 'Sick leave', 'days', true, false
-  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'sick');
-  insert into "better_supabase"."leave_types" ("""tenant_id""", """key""", """name""", """unit""", """paid""", """tracked""")
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'sick');
+  insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked")
   select p_tenant, 'unpaid', 'Unpaid leave', 'days', false, false
-  where not exists (select 1 from "better_supabase"."leave_types" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'unpaid');
+  where not exists (select 1 from "better_supabase"."leave_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'unpaid');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_leave_defaults"(uuid, text, text) from public, anon, authenticated;

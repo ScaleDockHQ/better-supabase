@@ -304,14 +304,21 @@ describe("createAgentCheckout reads and writes", () => {
     const expiresAt = Temporal.Instant.from(AT);
 
     await checkout
-      .updateSession("s1", { buyer: null, status: "ready", expiresAt })
+      .updateSession({
+        sessionId: "s1",
+        buyer: null,
+        status: "ready",
+        expiresAt,
+      })
       .orThrow();
     expect(t.calls.at(-1)?.[1]["input"]).toMatchObject({
       buyer: null,
       status: "ready",
     });
 
-    await checkout.updateSession("s1", { expiresAt: null }).orThrow();
+    await checkout
+      .updateSession({ sessionId: "s1", expiresAt: null })
+      .orThrow();
     expect(t.calls.at(-1)?.[1]["input"]).toEqual({ expiresAt: null });
 
     await checkout.cancelSession("s1").orThrow();
@@ -342,7 +349,7 @@ describe("createAgentCheckout reads and writes", () => {
         })
       ).ok,
     ).toBe(false);
-    expect((await checkout.updateSession("s1", {})).ok).toBe(false);
+    expect((await checkout.updateSession({ sessionId: "s1" })).ok).toBe(false);
     expect((await checkout.getMandate("m1")).ok).toBe(false);
     expect((await checkout.listMandates()).ok).toBe(false);
     expect((await checkout.revokeMandate("m1")).ok).toBe(false);
@@ -360,7 +367,7 @@ describe("createAgentCheckout reads and writes", () => {
     expect(created.ok).toBe(false);
     expect((await checkout.listSessions()).ok).toBe(false);
     expect((await checkout.listMandates()).ok).toBe(false);
-    expect((await checkout.storeMandate("x")).ok).toBe(false);
+    expect((await checkout.storeMandate({ credential: "x" })).ok).toBe(false);
   });
 
   it("reads, lists and revokes mandates", async () => {
@@ -457,7 +464,7 @@ describe("createAgentCheckout reads and writes", () => {
     const credential = await mint({ ...OPEN_CLAIMS, exp: future() });
 
     const stored = await checkout
-      .storeMandate(credential, { sessionId: "s1" })
+      .storeMandate({ credential, sessionId: "s1" })
       .orThrow();
 
     expect(stored.id).toBe("m1");
@@ -466,7 +473,9 @@ describe("createAgentCheckout reads and writes", () => {
       credential,
       sessionId: "s1",
     });
-    expect((await checkout.storeMandate("garbage")).ok).toBe(false);
+    expect((await checkout.storeMandate({ credential: "garbage" })).ok).toBe(
+      false,
+    );
   });
 
   it("fails signing when the JWKS cannot be read", async () => {
@@ -546,7 +555,7 @@ describe("createAgentCheckout reads and writes", () => {
         transport: fieldsTransport({ get_checkout_session: () => row }),
         tenant: "org-1",
         orders: orders(),
-      }).completeSession("s1");
+      }).completeSession({ sessionId: "s1" });
 
     const done = await run({ ...SESSION, status: "completed" });
 
@@ -566,9 +575,9 @@ describe("createAgentCheckout reads and writes", () => {
       tenant: "org-1",
     });
 
-    expect((await noOrders.completeSession("s1")).error?.hint).toBe(
-      "AGENT_CHECKOUT_NOT_CONFIGURED",
-    );
+    expect(
+      (await noOrders.completeSession({ sessionId: "s1" })).error?.hint,
+    ).toBe("AGENT_CHECKOUT_NOT_CONFIGURED");
 
     const failing = createAgentCheckout({
       transport: fieldsTransport({ get_checkout_session: FAIL }),
@@ -576,7 +585,7 @@ describe("createAgentCheckout reads and writes", () => {
       orders: orders(),
     });
 
-    expect((await failing.completeSession("s1")).ok).toBe(false);
+    expect((await failing.completeSession({ sessionId: "s1" })).ok).toBe(false);
 
     const unpriced = createAgentCheckout({
       transport: fieldsTransport({ get_checkout_session: () => SESSION }),
@@ -584,7 +593,9 @@ describe("createAgentCheckout reads and writes", () => {
       orders: orders(money(1n, "EUR"), [{ code: "x" }]),
     });
 
-    expect((await unpriced.completeSession("s1")).ok).toBe(false);
+    expect((await unpriced.completeSession({ sessionId: "s1" })).ok).toBe(
+      false,
+    );
   });
 
   it("completes without a mandate when they are optional", async () => {
@@ -603,7 +614,9 @@ describe("createAgentCheckout reads and writes", () => {
       orders: orders(),
     });
 
-    const result = await checkout.completeSession("s1").orThrow();
+    const result = await checkout
+      .completeSession({ sessionId: "s1" })
+      .orThrow();
 
     expect(result.session.status).toBe("completed");
     expect(result.payment).toMatchObject({ id: "p1" });
@@ -630,20 +643,22 @@ describe("createAgentCheckout reads and writes", () => {
     const credential = await mint({ ...OPEN_CLAIMS, exp: future() });
 
     const ok = await make(money(5000n, "EUR"))
-      .completeSession("s1", { mandate: credential })
+      .completeSession({ sessionId: "s1", mandate: credential })
       .orThrow();
 
     expect(ok.mandate?.id).toBe("m1");
 
     for (const total of [money(7000n, "EUR"), money(100n, "USD")]) {
-      const refused = await make(total).completeSession("s1", {
+      const refused = await make(total).completeSession({
+        sessionId: "s1",
         mandate: credential,
       });
 
       expect(refused.error?.hint).toBe("AGENT_MANDATE_LIMIT");
     }
 
-    const bad = await make(money(1n, "EUR")).completeSession("s1", {
+    const bad = await make(money(1n, "EUR")).completeSession({
+      sessionId: "s1",
       mandate: "garbage",
     });
 
@@ -687,7 +702,7 @@ describe("createAgentCheckout reads and writes", () => {
     const happy = make();
 
     const done = await happy.checkout
-      .completeSession("s1", { mandate: good })
+      .completeSession({ sessionId: "s1", mandate: good })
       .orThrow();
 
     expect(done.mandate?.status).toBe("consumed");
@@ -696,38 +711,46 @@ describe("createAgentCheckout reads and writes", () => {
     const other = await mint(await closedClaims("s2"));
 
     expect(
-      (await make().checkout.completeSession("s1", { mandate: other })).error
-        ?.hint,
+      (
+        await make().checkout.completeSession({
+          sessionId: "s1",
+          mandate: other,
+        })
+      ).error?.hint,
     ).toBe("AGENT_MANDATE_MISMATCH");
 
     const stale = await mint(await closedClaims("s1", "cart-2"));
 
     expect(
-      (await make().checkout.completeSession("s1", { mandate: stale })).error
-        ?.hint,
+      (
+        await make().checkout.completeSession({
+          sessionId: "s1",
+          mandate: stale,
+        })
+      ).error?.hint,
     ).toBe("AGENT_MANDATE_MISMATCH");
 
     expect(
       (
-        await make({ store_agent_mandate: FAIL }).checkout.completeSession(
-          "s1",
-          { mandate: good },
-        )
+        await make({ store_agent_mandate: FAIL }).checkout.completeSession({
+          sessionId: "s1",
+          mandate: good,
+        })
       ).ok,
     ).toBe(false);
     expect(
       (
-        await make({ consume_agent_mandate: FAIL }).checkout.completeSession(
-          "s1",
-          { mandate: good },
-        )
+        await make({ consume_agent_mandate: FAIL }).checkout.completeSession({
+          sessionId: "s1",
+          mandate: good,
+        })
       ).ok,
     ).toBe(false);
     expect(
       (
         await make({
           complete_checkout_session: FAIL,
-        }).checkout.completeSession("s1")
+        }).checkout.completeSession({ sessionId: "s1" })
       ).ok,
     ).toBe(false);
   });
@@ -744,6 +767,8 @@ describe("createAgentCheckout reads and writes", () => {
       } as unknown as NonNullable<AgentCheckoutOptions["orders"]>,
     });
 
-    expect((await checkout.completeSession("s1")).ok).toBe(false);
+    expect((await checkout.completeSession({ sessionId: "s1" })).ok).toBe(
+      false,
+    );
   });
 });

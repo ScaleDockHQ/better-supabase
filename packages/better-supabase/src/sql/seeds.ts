@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "./context.ts";
 
-import { sqlIdent, sqlString } from "../core/template.ts";
+import { sqlIdent as quoteIdent, sqlString } from "../core/template.ts";
 import { serviceGrant } from "./shared.ts";
 
 /**
@@ -67,6 +67,16 @@ export interface BlockSeeds {
 
 export function seedFunctionName(module: string): string {
   return `seed_${module.replaceAll("-", "_")}_defaults`;
+}
+
+/**
+ * A column as `ctx.col` returns it is quoted already; a plain name is quoted
+ * here.
+ */
+function sqlIdent(column: string): string {
+  return column.startsWith('"') && column.endsWith('"')
+    ? column
+    : quoteIdent(column);
 }
 
 function valueSql(value: SeedValue): string {

@@ -220,7 +220,7 @@ describe("createAdvisories reads and writes", () => {
     expect(versions[0]?.sbomSpec).toBe("1.6");
 
     const components = await advisories
-      .components("ver1", { limit: 5 })
+      .components({ versionId: "ver1", limit: 5 })
       .orThrow();
 
     expect(components[0]).toMatchObject({
@@ -240,14 +240,17 @@ describe("createAdvisories reads and writes", () => {
     });
 
     await advisories
-      .importSbom("ver1", {
-        bomFormat: "CycloneDX",
-        specVersion: "1.6",
-        serialNumber: "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
-        components: [
-          { name: "core", group: "org.acme", version: "1" },
-          { name: "plain" },
-        ],
+      .importSbom({
+        versionId: "ver1",
+        bom: {
+          bomFormat: "CycloneDX",
+          specVersion: "1.6",
+          serialNumber: "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+          components: [
+            { name: "core", group: "org.acme", version: "1" },
+            { name: "plain" },
+          ],
+        },
       })
       .orThrow();
 
@@ -262,7 +265,10 @@ describe("createAdvisories reads and writes", () => {
     ]);
     expect(args.spec_version).toBe("1.6");
 
-    const refused = await advisories.importSbom("ver1", { nope: true });
+    const refused = await advisories.importSbom({
+      versionId: "ver1",
+      bom: { nope: true },
+    });
 
     expect(refused.ok).toBe(false);
   });
@@ -402,7 +408,9 @@ describe("createAdvisories reads and writes", () => {
     expect(saved.justification).toBe("component_not_present");
     expect(call.mock.calls[0]?.[2]).toMatchObject({ version_id: "ver1" });
 
-    const listed = await advisories.vexStatements("p1", "ver1").orThrow();
+    const listed = await advisories
+      .vexStatements({ productId: "p1", versionId: "ver1" })
+      .orThrow();
 
     expect(listed[1]).toMatchObject({
       justification: undefined,
@@ -417,7 +425,7 @@ describe("createAdvisories reads and writes", () => {
       transport: bad.transport,
       tenant: "org",
       feed: feedOf(),
-    }).vexStatements("p1");
+    }).vexStatements({ productId: "p1" });
 
     expect(result.ok).toBe(false);
   });
@@ -435,7 +443,8 @@ describe("createAdvisories reads and writes", () => {
     });
 
     const document = await advisories
-      .openVex("p1", {
+      .openVex({
+        productId: "p1",
         author: "Acme",
         role: "Vendor",
         purl: "pkg:generic/acme",
@@ -446,11 +455,14 @@ describe("createAdvisories reads and writes", () => {
 
     expect(document["version"]).toBe(2);
 
-    const plain = await advisories.openVex("p1", { author: "Acme" });
+    const plain = await advisories.openVex({ productId: "p1", author: "Acme" });
 
     expect(plain.ok).toBe(true);
 
-    const missing = await advisories.openVex("other", { author: "Acme" });
+    const missing = await advisories.openVex({
+      productId: "other",
+      author: "Acme",
+    });
 
     expect(!missing.ok && missing.error.kind).toBe("not_found");
 
@@ -465,7 +477,7 @@ describe("createAdvisories reads and writes", () => {
       transport: failing.transport,
       tenant: "org",
       feed: feedOf(),
-    }).openVex("p1", { author: "Acme" });
+    }).openVex({ productId: "p1", author: "Acme" });
 
     expect(down.ok).toBe(false);
 
@@ -480,7 +492,7 @@ describe("createAdvisories reads and writes", () => {
       transport: noProducts.transport,
       tenant: "org",
       feed: feedOf(),
-    }).openVex("p1", { author: "Acme" });
+    }).openVex({ productId: "p1", author: "Acme" });
 
     expect(downProducts.ok).toBe(false);
   });
@@ -518,9 +530,9 @@ describe("createAdvisories reads and writes", () => {
 
     expect(saved.revision).toBe(2);
 
-    await advisories.publishAdvisory("a1").orThrow();
+    await advisories.publishAdvisory({ id: "a1" }).orThrow();
     await advisories
-      .publishAdvisory("a1", { status: "interim", note: "n" })
+      .publishAdvisory({ id: "a1", status: "interim", note: "n" })
       .orThrow();
 
     expect(call.mock.calls[1]?.[2]).toMatchObject({ status: "final" });
