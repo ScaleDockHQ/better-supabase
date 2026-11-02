@@ -13,7 +13,8 @@ export const dbUrl: string = stackDbUrl();
 /**
  * Fires the deferred constraint triggers (the audit row triggers) queued so
  * far, then defers them again. Postgres refuses DDL on a table that still has
- * trigger events pending.
+ * trigger events pending. Leaving them immediate would break the tests that
+ * assert on commit-time checks, such as the last-owner guard.
  */
 export async function flushDeferred(client: {
   query: (sql: string) => Promise<unknown>;
