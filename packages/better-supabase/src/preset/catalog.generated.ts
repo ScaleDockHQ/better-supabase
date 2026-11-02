@@ -24227,7 +24227,42 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/periods"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreatePeriodInput"
+        },
+        {
+          "name": "Period"
+        },
+        {
+          "name": "PeriodEventData"
+        },
+        {
+          "name": "PeriodListOptions"
+        },
+        {
+          "name": "Periods"
+        },
+        {
+          "name": "PeriodsEvents"
+        },
+        {
+          "name": "PeriodsOptions"
+        },
+        {
+          "name": "PeriodStatus"
+        }
+      ],
+      "events": {
+        "type": "PeriodsEvents",
+        "types": [
+          "period.created",
+          "period.locked",
+          "period.closed",
+          "period.reopened"
+        ]
+      }
     },
     {
       "name": "agent-checkout",
