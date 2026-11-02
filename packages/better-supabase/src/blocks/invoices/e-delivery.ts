@@ -7,7 +7,7 @@ import type {
   EInvoiceFormat,
 } from "../../e-invoicing/channel.ts";
 import type { EInvoiceEndpoint } from "../../e-invoicing/party.ts";
-import type { FromUblOptions, UblBill } from "../../e-invoicing/read.ts";
+import type { UblBill } from "../../e-invoicing/read.ts";
 import type { LineInput } from "../sales-lines.ts";
 import type { Invoice, InvoiceInput } from "./invoices.ts";
 
@@ -17,7 +17,6 @@ import {
   eInvoiceChannelOf,
   eInvoiceFormatOf,
 } from "../../e-invoicing/channel.ts";
-import { fromUbl } from "../../e-invoicing/read.ts";
 import { compact } from "../sales-shared.ts";
 import {
   optionalInstant,
@@ -152,7 +151,14 @@ export interface InvoiceEDelivery<I> {
   }): AsyncResult<readonly EInvoiceDeliveryRecord[]>;
 }
 
-export interface ReceiveEInvoicesOptions extends FromUblOptions {
+export interface ReceiveEInvoicesOptions {
+  /**
+   * Reads a received UBL document into a purchase bill: pass `fromUbl` from
+   * `better-supabase/e-invoicing`, bound to the options it needs. The block
+   * doesn't import the reader, so apps that only send keep their bundle small.
+   * A throw leaves the document unmatched with the error message.
+   */
+  readonly readUbl: (xml: string) => Promise<UblBill>;
   readonly channel: EInvoiceChannel;
   readonly signal?: AbortSignal;
 }
@@ -455,7 +461,7 @@ export function invoiceEDelivery<F extends object>(
             organizationId,
             item.xml,
             item.sender,
-            options,
+            options.readUbl,
           );
 
           if (outcome.kind === "unmatched") {
@@ -545,7 +551,7 @@ export function invoiceEDelivery<F extends object>(
     organizationId: string,
     xml: string,
     sender: EInvoiceEndpoint | undefined,
-    options: FromUblOptions,
+    readUbl: ReceiveEInvoicesOptions["readUbl"],
   ): Promise<
     | {
         readonly kind: "bill";
@@ -557,7 +563,7 @@ export function invoiceEDelivery<F extends object>(
     let bill: UblBill;
 
     try {
-      bill = await fromUbl(xml, options);
+      bill = await readUbl(xml);
     } catch (cause) {
       return {
         kind: "unmatched",

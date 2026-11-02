@@ -1,5 +1,5 @@
 /** A place on the map, in decimal degrees (WGS 84). */
-import { portOf } from "../../core/block-helpers.ts";
+import { portOf } from "./block-helpers.ts";
 
 export interface RoutePoint {
   readonly latitude: number;
@@ -336,4 +336,42 @@ export async function planVisits(
   }
 
   return { optimization, visits };
+}
+
+/** What `optimizeLocated` takes besides the stops. */
+export interface LocatedRouteOptions {
+  /** Defaults to `nearestNeighbourOptimizer()`. */
+  readonly optimizer?: RouteOptimizer;
+  readonly start?: RoutePoint;
+  readonly end?: RoutePoint;
+}
+
+export interface LocatedRoute {
+  readonly optimization: OptimizedStops;
+  /** The optimized order, then the ids that have no location, in input order. */
+  readonly order: readonly string[];
+}
+
+/**
+ * Orders the stops that have a location and appends the ids in `allIds` that
+ * don't, so a caller can save one complete order.
+ */
+export async function optimizeLocated(
+  located: readonly RouteStop[],
+  allIds: readonly string[],
+  options: LocatedRouteOptions,
+): Promise<LocatedRoute> {
+  const placed = new Set(located.map((stop) => stop.id));
+  const unplaced = allIds.filter((id) => !placed.has(id));
+
+  const optimization = await optimizeStops(
+    options.optimizer ?? nearestNeighbourOptimizer(),
+    {
+      stops: located,
+      ...(options.start ? { start: options.start } : {}),
+      ...(options.end ? { end: options.end } : {}),
+    },
+  );
+
+  return { optimization, order: [...optimization.order, ...unplaced] };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { RouteOptimizer } from "../../../src/blocks/dispatch/route-optimizer.ts";
+import type { RouteOptimizer } from "../../../src/core/route-optimizer.ts";
 
 import {
   binSlotInputSchema,

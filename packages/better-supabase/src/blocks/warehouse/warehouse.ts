@@ -4,21 +4,18 @@ import type {
   OptimizedStops,
   RouteOptimizer,
   RoutePoint,
-} from "../dispatch/route-optimizer.ts";
+} from "../../core/route-optimizer.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
+import { optimizeLocated } from "../../core/route-optimizer.ts";
 import {
   PICK_LINE_STATUSES,
   PICK_LIST_STATUSES,
   PICK_WAVE_STATUSES,
 } from "../../sql/modules/warehouse-values.ts";
-import {
-  nearestNeighbourOptimizer,
-  optimizeStops,
-} from "../dispatch/route-optimizer.ts";
 import {
   applyTemporal,
   blockCall,
@@ -799,29 +796,17 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
           return point === undefined ? [] : [{ id: line.id, point }];
         });
 
-        const placed = new Set(located.map((stop) => stop.id));
-
-        const unplaced = open
-          .map((line) => line.id)
-          .filter((id) => !placed.has(id));
-
         return AsyncResult.from(async () =>
           ok(
-            await optimizeStops(
-              routeOptions.optimizer ?? nearestNeighbourOptimizer(),
-              {
-                stops: located,
-                ...(routeOptions.start ? { start: routeOptions.start } : {}),
-                ...(routeOptions.end ? { end: routeOptions.end } : {}),
-              },
+            await optimizeLocated(
+              located,
+              open.map((line) => line.id),
+              routeOptions,
             ),
           ),
-        ).andThen((optimization) =>
+        ).andThen(({ optimization, order }) =>
           client
-            .setPickRoute({
-              pickListId,
-              lineIds: [...optimization.order, ...unplaced],
-            })
+            .setPickRoute({ pickListId, lineIds: order })
             .map((routed) => ({ pickList: routed, optimization })),
         );
       }),

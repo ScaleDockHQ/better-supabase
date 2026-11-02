@@ -7,6 +7,7 @@ import { money } from "../../../src/commerce/money.ts";
 import {
   eInvoiceChannelOf,
   eInvoiceFormatOf,
+  fromUbl,
   peppolBis3Format,
   toUbl,
 } from "../../../src/e-invoicing/index.ts";
@@ -355,6 +356,8 @@ describe("syncEInvoices", () => {
   });
 });
 
+const reader = (xml: string) => fromUbl(xml);
+
 describe("receiveEInvoices", () => {
   it("logs unreadable documents as unmatched", async () => {
     const { t, invoices } = client({
@@ -375,6 +378,7 @@ describe("receiveEInvoices", () => {
 
     const result = await invoices.receiveEInvoices({
       organizationId: "o",
+      readUbl: reader,
       channel,
     });
 
@@ -402,6 +406,7 @@ describe("receiveEInvoices", () => {
 
     const result = await invoices.receiveEInvoices({
       organizationId: "o",
+      readUbl: reader,
       channel,
     });
 
@@ -518,6 +523,7 @@ describe("error paths", () => {
   it("receiveEInvoices refuses a channel that can't receive", async () => {
     const result = await client().invoices.receiveEInvoices({
       organizationId: "o",
+      readUbl: reader,
       channel: memoryChannel().channel,
     });
 
@@ -536,13 +542,22 @@ describe("error paths", () => {
 
     const unlogged = await client({
       record_e_invoice_delivery: down,
-    }).invoices.receiveEInvoices({ organizationId: "o", channel, signal });
+    }).invoices.receiveEInvoices({
+      organizationId: "o",
+      readUbl: reader,
+      channel,
+      signal,
+    });
 
     expect(unlogged.ok).toBe(false);
 
     const unmoved = await client({
       set_e_invoice_delivery_state: down,
-    }).invoices.receiveEInvoices({ organizationId: "o", channel });
+    }).invoices.receiveEInvoices({
+      organizationId: "o",
+      readUbl: reader,
+      channel,
+    });
 
     expect(unmoved.ok).toBe(false);
   });
@@ -621,6 +636,7 @@ describe("receiveEInvoices with a readable bill", () => {
 
     const result = await invoices.receiveEInvoices({
       organizationId: "o",
+      readUbl: reader,
       channel: inbound(),
     });
 
@@ -651,6 +667,7 @@ describe("receiveEInvoices with a readable bill", () => {
 
       const result = await invoices.receiveEInvoices({
         organizationId: "o",
+        readUbl: reader,
         channel: inbound({ scheme: "0106", id: "11111111" }),
       });
 
@@ -665,7 +682,11 @@ describe("receiveEInvoices with a readable bill", () => {
       record_e_invoice_delivery: logged,
       find_e_endpoint_party: found,
       create_invoice: down,
-    }).invoices.receiveEInvoices({ organizationId: "o", channel: inbound() });
+    }).invoices.receiveEInvoices({
+      organizationId: "o",
+      readUbl: reader,
+      channel: inbound(),
+    });
 
     expect(uncreated.ok).toBe(false);
 
@@ -674,7 +695,11 @@ describe("receiveEInvoices with a readable bill", () => {
       find_e_endpoint_party: found,
       create_invoice: () => BILL,
       set_e_invoice_delivery_state: down,
-    }).invoices.receiveEInvoices({ organizationId: "o", channel: inbound() });
+    }).invoices.receiveEInvoices({
+      organizationId: "o",
+      readUbl: reader,
+      channel: inbound(),
+    });
 
     expect(unmoved.ok).toBe(false);
   });
@@ -688,14 +713,17 @@ describe("receiveEInvoices with a readable bill", () => {
     const result = await invoices.receiveEInvoices({
       organizationId: "o",
       channel: inbound(),
-      xmlParser: {
-        XMLParser: class {
-          parse(): never {
-            // oxlint-disable-next-line typescript/only-throw-error -- the reader must handle a parser that throws a non-error
-            throw "broken";
-          }
-        },
-      },
+      readUbl: (xml) =>
+        fromUbl(xml, {
+          xmlParser: {
+            XMLParser: class {
+              parse(): never {
+                // oxlint-disable-next-line typescript/only-throw-error -- the reader must handle a parser that throws a non-error
+                throw "broken";
+              }
+            },
+          },
+        }),
     });
 
     expect(result.ok && result.data.unmatched[0]?.reason).toBe(
