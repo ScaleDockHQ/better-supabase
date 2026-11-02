@@ -1,0 +1,110 @@
+---
+title: Commissions
+description: Commission plans per seller, accrual on the ledger when an invoice is paid, statements per period and the lines payroll adds.
+---
+
+`commissions` pays sellers a share of what they sell. A plan is a flat rate or
+marginal tiers, a seller is assigned to a plan, and each sale accrues a
+commission that is posted to the [ledger](/docs/blocks/ledger). Commissions are
+collected into one statement per seller, currency and period, and a finalized
+statement is paid out on the ledger.
+
+```bash
+better-supabase add commissions
+```
+
+```ts
+import { createCommissions } from "better-supabase/blocks/commissions";
+```
+
+The module requires `memberships`, `permissions` and `ledger`. `outbox` records
+the events and `audit` audits every change. With [periods](/docs/blocks/periods)
+installed, the `commission_period` kind is a calendar month and closing it
+builds and finalizes each seller's statement.
+
+## Tables and permissions
+
+| Table                    | Holds                                                                     |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `commission_plans`       | A flat `rate_bps` or marginal `tiers`, archived plans stay readable       |
+| `commission_assignments` | A seller on a plan, optionally for one subject, with a start and end date |
+| `commissions`            | One accrued or reversed commission per seller and source record           |
+| `commission_statements`  | A seller's commissions of a range as `open`, `finalized` or `paid`        |
+
+| Permission           | Allows                                    | Default roles |
+| -------------------- | ----------------------------------------- | ------------- |
+| `commissions.read`   | reading plans, commissions and statements | owner, admin  |
+| `commissions.write`  | saving plans and accruing commissions     | owner, admin  |
+| `commissions.manage` | statements, payout and reversals          | owner, admin  |
+
+A seller always reads their own commissions and statements.
+
+## Plans and accrual
+
+A tiered plan applies each rate to the part of the month's sales that falls in
+its tier, so the second sale of a month starts where the first ended. Amounts
+are bigint minor units.
+
+```ts
+const commissions = createCommissions({ transport, tenant: organizationId });
+
+const plan = await commissions
+  .savePlan({
+    name: "Account executives",
+    kind: "tiered",
+    tiers: [{ upTo: 100_000, bps: 1000 }, { bps: 500 }],
+  })
+  .orThrow();
+
+await commissions.assignPlan({ planId: plan.id, sellerId: userId }).orThrow();
+
+const commission = await commissions
+  .accrue({
+    sellerId: userId,
+    source: { type: "orders", id: orderId },
+    basis: money(80_000n, "EUR"),
+  })
+  .orThrow();
+```
+
+Accruing twice for the same seller and record returns the first commission, and
+a seller without a plan gets `undefined`. The ledger posting debits
+`commissions:expense:<currency>` and credits the seller's
+`commissions:payable:<seller>:<currency>`. `reverse` posts the opposite lines,
+and refuses once the commission is on a finalized statement.
+
+Set `blocks.commissions.options.invoices` to `true` to accrue automatically: a
+trigger on the invoices table accrues a commission for the invoice's creator
+when a sales invoice becomes paid. It needs the invoices block with its
+`createdBy` column.
+
+## Statements and payroll
+
+```ts
+const statement = await commissions
+  .buildStatement({
+    sellerId: userId,
+    currency: "EUR",
+    startsOn: Temporal.PlainDate.from("2026-03-01"),
+    endsOn: Temporal.PlainDate.from("2026-03-31"),
+  })
+  .orThrow();
+
+await commissions.finalizeStatement(statement.id).orThrow();
+await commissions.payStatement(statement.id).orThrow();
+```
+
+`payStatement` moves the total from payable to paid on the ledger once.
+
+[Payroll export](/docs/blocks/payroll-export) has no contribution point for
+extra pay lines. `payrollLines` (SQL `commission_payroll_lines`) returns one
+line per seller and currency for the finalized and paid statements that end in a
+range, for the app to pass to its payroll run.
+
+## Events
+
+| Event                                                         | Carries                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `commission_plan.created`, `commission_plan.updated`          | `organizationId`, `id`, `name`, `kind`                             |
+| `commission.accrued`, `commission.reversed`                   | `organizationId`, `id`, `planId`, `sellerId`, `amount`, `currency` |
+| `commission_statement.finalized`, `commission_statement.paid` | `organizationId`, `id`, `sellerId`, `total`, `currency`            |

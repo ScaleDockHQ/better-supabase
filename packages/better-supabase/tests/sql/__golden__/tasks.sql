@@ -2206,7 +2206,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:2b1099f2ef58b04e76c0d56df570c880c4267665424c1da37c2798fc73a13ed0
+-- @bsb-hash sha256:2b710e771be12bccd64026bd15b8695926770346070cd2e4eaa48430acf74a64
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2301,6 +2301,8 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_awards"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."funding_awards" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_deliveries"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."funding_deliveries" set "source_type" = 'task' where "source_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_alerts"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_alerts" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commission_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."commission_assignments" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commissions"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."commissions" set "source_type" = 'task' where "source_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 -- Gives each existing project its value of the accounting project dimension.
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)

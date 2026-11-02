@@ -48,6 +48,7 @@ import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { CLINICAL_DECISION_SUPPORT } from "./modules/clinical-decision-support.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { COMMISSIONS } from "./modules/commissions.ts";
 import { COMPLIANCE } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { CONSENTS } from "./modules/consents.ts";
@@ -140,6 +141,7 @@ import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { RECURRENCE } from "./modules/recurrence.ts";
+import { REFERRALS } from "./modules/referrals.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -445,6 +447,8 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(PERIODS),
+      built(COMMISSIONS),
+      built(REFERRALS),
       built(RECURRENCE),
       built(HOUSEKEEPING),
       built(E_PRESCRIBING),

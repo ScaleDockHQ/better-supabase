@@ -262,6 +262,11 @@ may be your own enum or domain.
   - `better_supabase.saved_items`: `id`, `user_id`, `tenant_id`, `subject_type`, `subject_id`, `remind_at`, `reminded_at`, `completed_at`, `created_at`
 - `comments`
   - `better_supabase.comment_tasks`: `message_id`, `organization_id`, `task_id`
+- `commissions`
+  - `better_supabase.commission_plans`: `id`, `tenant_id`, `name`, `kind`, `rate_bps`, `tiers`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.commission_assignments`: `id`, `tenant_id`, `plan_id`, `seller_id`, `subject_type`, `subject_id`, `starts_on`, `ends_on`, `created_at`
+  - `better_supabase.commissions`: `id`, `tenant_id`, `plan_id`, `seller_id`, `source_type`, `source_id`, `basis`, `amount`, `currency`, `occurred_on`, `status`, `statement_id`, `ledger_transaction_id`, `reversed_at`, `created_at`
+  - `better_supabase.commission_statements`: `id`, `tenant_id`, `seller_id`, `currency`, `starts_on`, `ends_on`, `status`, `total`, `ledger_transaction_id`, `finalized_at`, `paid_at`, `paid_by`, `created_at`
 - `compliance`
   - `better_supabase.control_frameworks`: `id`, `tenant_id`, `key`, `name`
   - `better_supabase.controls`: `id`, `tenant_id`, `framework_id`, `code`, `title`, `applicable`
@@ -654,6 +659,9 @@ may be your own enum or domain.
   - `better_supabase.reactions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `actor`, `user_id`, `kind`, `emoji`, `value`; typed: `kind`
   - `better_supabase.reaction_scores`: `tenant_id`, `subject_type`, `subject_id`, `score`, `up`, `down`
   - `better_supabase.custom_emoji`: `id`, `tenant_id`, `shortcode`, `url`
+- `referrals`
+  - `better_supabase.referral_codes`: `id`, `tenant_id`, `code`, `referrer_id`, `invitation_id`, `reward_amount`, `reward_unit`, `max_uses`, `uses`, `active`, `expires_at`, `created_at`
+  - `better_supabase.referrals`: `id`, `tenant_id`, `code_id`, `referrer_id`, `referred_user_id`, `referred_organization_id`, `referred_email`, `status`, `reward_amount`, `reward_unit`, `qualified_at`, `qualified_by`, `rewarded_at`, `ledger_transaction_id`, `voided_at`, `created_at`
 - `relations`
   - `better_supabase.relations`: `id`, `tenant_id`, `kind`, `source_type`, `source_id`, `target_type`, `target_id`, `data`, `created_by`, `created_at`
 - `reminders`

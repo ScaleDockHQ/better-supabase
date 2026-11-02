@@ -636,6 +636,25 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "commissions": {
+    readonly tables: {
+      readonly "plans": "id" | "tenant" | "name" | "kind" | "rateBps" | "tiers" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "assignments": "id" | "tenant" | "plan" | "seller" | "subjectType" | "subjectId" | "startsOn" | "endsOn" | "createdAt";
+      readonly "entries": "id" | "tenant" | "plan" | "seller" | "sourceType" | "sourceId" | "basis" | "amount" | "currency" | "occurredOn" | "status" | "statement" | "ledgerTransaction" | "reversedAt" | "createdAt";
+      readonly "statements": "id" | "tenant" | "seller" | "currency" | "startsOn" | "endsOn" | "status" | "total" | "ledgerTransaction" | "finalizedAt" | "paidAt" | "paidBy" | "createdAt";
+    };
+    readonly functions: "accrue_commission" | "assign_commission_plan" | "build_commission_statement" | "commission_accrue" | "commission_amount" | "commission_close_range" | "commission_payroll_lines" | "commission_plan_for" | "commission_statement_build" | "commission_statement_finalize" | "commission_tiers_valid" | "end_commission_assignment" | "finalize_commission_statement" | "get_commission_statement" | "list_commission_plans" | "list_commission_statements" | "list_commissions" | "pay_commission_statement" | "reverse_commission" | "save_commission_plan";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "commission_plan": "id" | "tenant_id" | "name" | "kind" | "rate_bps" | "tiers" | "archived_at" | "created_at" | "updated_at";
+      readonly "commission_assignment": "id" | "tenant_id" | "plan_id" | "seller_id" | "subject_type" | "subject_id" | "starts_on" | "ends_on" | "created_at";
+      readonly "commission": "id" | "tenant_id" | "plan_id" | "seller_id" | "source_type" | "source_id" | "basis" | "amount" | "currency" | "occurred_on" | "status" | "statement_id" | "ledger_transaction_id" | "reversed_at" | "created_at";
+      readonly "commission_statement": "id" | "tenant_id" | "seller_id" | "currency" | "starts_on" | "ends_on" | "status" | "total" | "ledger_transaction_id" | "finalized_at" | "paid_at" | "paid_by" | "created_at";
+    };
+    readonly primary: "commission_plan";
+    readonly formerKeys: never;
+  };
   readonly "compliance": {
     readonly tables: {
       readonly "frameworks": "id" | "tenant" | "key" | "name" | "kind" | "version" | "description" | "createdAt" | "updatedAt";
@@ -2058,6 +2077,21 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+    readonly formerKeys: never;
+  };
+  readonly "referrals": {
+    readonly tables: {
+      readonly "codes": "id" | "tenant" | "code" | "referrer" | "invitation" | "rewardAmount" | "rewardUnit" | "maxUses" | "uses" | "active" | "expiresAt" | "createdAt";
+      readonly "referrals": "id" | "tenant" | "code" | "referrer" | "referredUser" | "referredOrganization" | "referredEmail" | "status" | "rewardAmount" | "rewardUnit" | "qualifiedAt" | "qualifiedBy" | "rewardedAt" | "ledgerTransaction" | "voidedAt" | "createdAt";
+    };
+    readonly functions: "attribute_referral" | "create_referral_code" | "list_referral_codes" | "list_referrals" | "qualify_referral" | "referral_attribute" | "void_referral";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "referral_code": "id" | "tenant_id" | "code" | "referrer_id" | "invitation_id" | "reward_amount" | "reward_unit" | "max_uses" | "uses" | "active" | "expires_at" | "created_at";
+      readonly "referral": "id" | "tenant_id" | "code_id" | "referrer_id" | "referred_user_id" | "referred_organization_id" | "referred_email" | "status" | "reward_amount" | "reward_unit" | "qualified_at" | "qualified_by" | "rewarded_at" | "ledger_transaction_id" | "voided_at" | "created_at";
+    };
+    readonly primary: "referral_code";
     readonly formerKeys: never;
   };
   readonly "relations": {
