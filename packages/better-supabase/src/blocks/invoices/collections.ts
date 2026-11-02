@@ -2,8 +2,9 @@ import type { Money } from "../../commerce/money.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockCall, TransitionActor } from "../shared.ts";
 
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
-import { compact, plainDate } from "../sales-shared.ts";
+import { compact } from "../sales-shared.ts";
 import {
   bigintOf,
   optionalInstant,
@@ -228,7 +229,7 @@ export function dunningOf(
   return compact<InvoiceDunning>({
     level: row["dunning_level"],
     at: optionalInstant(row["dunning_at"]),
-    pausedUntil: plainDate(row["dunning_paused_until"]),
+    pausedUntil: optionalPlainDateOf(row["dunning_paused_until"]),
   });
 }
 
@@ -247,7 +248,7 @@ export function paymentTermsOf(
 
   return compact<InvoicePaymentTerms>({
     id,
-    discountDueOn: plainDate(row["discount_due_on"]),
+    discountDueOn: optionalPlainDateOf(row["discount_due_on"]),
     discountAmount:
       typeof early === "string" || typeof early === "number"
         ? moneyOf(early, currency, "invoice early discount")
@@ -276,7 +277,7 @@ function runsOf(value: unknown): readonly InvoiceDunningRun[] {
   return recordsOf(value, "invoice dunning runs").map((run) =>
     compact<InvoiceDunningRun>({
       id: textOf(run["id"]),
-      asOf: plainDate(run["asOf"]),
+      asOf: optionalPlainDateOf(run["asOf"]),
       createdAt: optionalInstant(run["createdAt"]),
       items: Number(run["items"]),
       customers: Number(run["customers"]),
@@ -294,7 +295,7 @@ function runItemOf(
     templateKey: textOf(item["templateKey"]),
     fee: bigintOf(item["fee"], "dunning item fee"),
     balance: bigintOf(item["balance"], "dunning item balance"),
-    dueOn: plainDate(item["dueOn"]),
+    dueOn: optionalPlainDateOf(item["dueOn"]),
   });
 }
 

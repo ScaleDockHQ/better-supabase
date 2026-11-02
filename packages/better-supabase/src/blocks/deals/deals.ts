@@ -11,6 +11,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -26,7 +27,6 @@ import {
   unknownCurrency,
 } from "../money-codec.ts";
 import { lineArg, totalsOf } from "../sales-lines.ts";
-import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -470,11 +470,12 @@ function dealOf(value: unknown): Deal {
         ? undefined
         : enumOrThrow(forecast, FORECASTS, "deal forecast"),
     openedOn:
-      plainDate(row["opened_on"]) ?? temporal().PlainDate.from("1970-01-01"),
-    closeOn:
-      plainDate(row["expected_close_on"]) ??
+      optionalPlainDateOf(row["opened_on"]) ??
       temporal().PlainDate.from("1970-01-01"),
-    slippedFrom: plainDate(row["slipped_from"]),
+    closeOn:
+      optionalPlainDateOf(row["expected_close_on"]) ??
+      temporal().PlainDate.from("1970-01-01"),
+    slippedFrom: optionalPlainDateOf(row["slipped_from"]),
     pushCount: num(row["push_count"]) ?? 0,
     closedAt: optionalInstant(row["closed_at"]),
     nextStep: optionalText(row["next_step"]),

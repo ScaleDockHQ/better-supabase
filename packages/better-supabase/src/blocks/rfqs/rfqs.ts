@@ -5,11 +5,11 @@ import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { money } from "../../commerce/money.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   RFQ_QUOTE_STATUSES,
   RFQ_STATUSES,
@@ -306,12 +306,6 @@ const requiredNumber = (value: unknown, name: string): number => {
   return value;
 };
 
-function plainDate(value: unknown): Temporal.PlainDate | undefined {
-  return typeof value === "string"
-    ? temporal().PlainDate.from(value)
-    : undefined;
-}
-
 const amountOf = (value: unknown, currency: string): Money =>
   money(bigintOf(value, "amount"), currency);
 
@@ -407,7 +401,7 @@ function quoteOf(value: unknown, fn: string): RfqQuote {
     submittedAt: requiredInstant(row["submittedAt"], "submittedAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("leadTimeDays", numberOf(row["leadTimeDays"])),
-    ...optional("validUntil", plainDate(row["validUntil"])),
+    ...optional("validUntil", optionalPlainDateOf(row["validUntil"])),
     ...optional("notes", optionalText(row["notes"])),
     ...optional("submittedBy", optionalText(row["submittedBy"])),
     ...optional("lines", lines),
@@ -470,7 +464,7 @@ function comparisonOf(value: unknown, fn: string): RfqComparison {
         complete: quote["complete"] === true,
         lowest: quote["lowest"] === true,
         ...optional("leadTimeDays", numberOf(quote["leadTimeDays"])),
-        ...optional("validUntil", plainDate(quote["validUntil"])),
+        ...optional("validUntil", optionalPlainDateOf(quote["validUntil"])),
       };
     }),
   };

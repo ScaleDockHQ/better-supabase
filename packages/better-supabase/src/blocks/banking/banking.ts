@@ -19,11 +19,11 @@ import type {
 } from "./statement.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   BATCH_ITEM_STATUSES,
   BATCH_STATUSES,
@@ -481,12 +481,6 @@ const REASONS: readonly BankMatchReason[] = [
 const dateText = (value: BankDate | undefined): string | undefined =>
   value === undefined ? undefined : value.toString();
 
-const plainDate = (value: unknown): Temporal.PlainDate =>
-  temporal().PlainDate.from(textOf(value));
-
-const optionalDate = (value: unknown): Temporal.PlainDate | undefined =>
-  typeof value === "string" && value !== "" ? plainDate(value) : undefined;
-
 function accountOf(value: unknown, fn: string): BankAccount {
   const row = recordOf(value, fn);
   const iban = optionalText(row["iban"]);
@@ -513,8 +507,8 @@ function statementOf(value: unknown, fn: string): BankStatement {
   const row = recordOf(value, fn);
   const currency = row["currency"];
   const reference = optionalText(row["reference"]);
-  const fromOn = optionalDate(row["fromOn"]);
-  const untilOn = optionalDate(row["untilOn"]);
+  const fromOn = optionalPlainDateOf(row["fromOn"]);
+  const untilOn = optionalPlainDateOf(row["untilOn"]);
 
   const openingBalance = optionalMoneyOf(
     row["openingBalance"],
@@ -584,7 +578,7 @@ const TRANSACTION_TEXT = [
 function transactionOf(value: unknown, fn: string): BankTransaction {
   const row = recordOf(value, fn);
   const currency = row["currency"];
-  const valueOn = optionalDate(row["valueOn"]);
+  const valueOn = optionalPlainDateOf(row["valueOn"]);
   const matchedAt = optionalInstant(row["matchedAt"]);
 
   const text = Object.fromEntries(
@@ -599,7 +593,7 @@ function transactionOf(value: unknown, fn: string): BankTransaction {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     accountId: textOf(row["accountId"]),
-    bookedOn: plainDate(row["bookedOn"]),
+    bookedOn: plainDateOf(row["bookedOn"]),
     ...(valueOn ? { valueOn } : {}),
     amount: moneyOf(row["amount"], currency),
     ...text,
@@ -696,7 +690,7 @@ function reconciliationOf(value: unknown, fn: string): BankReconciliation {
 
   return {
     accountId: textOf(row["accountId"]),
-    asOf: plainDate(row["asOf"]),
+    asOf: plainDateOf(row["asOf"]),
     ...(statementId ? { statementId } : {}),
     ...(statementBalance ? { statementBalance } : {}),
     transactionTotal: moneyOf(
@@ -750,8 +744,8 @@ function batchOf(value: unknown, fn: string): PaymentBatch {
     accountId: textOf(row["accountId"]),
     reference: textOf(row["reference"]),
     messageId: textOf(row["messageId"]),
-    dueBy: plainDate(row["dueBy"]),
-    executionOn: plainDate(row["executionOn"]),
+    dueBy: plainDateOf(row["dueBy"]),
+    executionOn: plainDateOf(row["executionOn"]),
     total: moneyOf(row["total"], currency, "total"),
     itemCount: Number(row["itemCount"]),
     status: enumOrThrow(row["status"], BATCH_STATUSES, "payment batch status"),

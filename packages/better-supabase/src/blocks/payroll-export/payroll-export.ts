@@ -3,10 +3,10 @@ import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { PayrollExportFile, PayrollExportFormat } from "./format.ts";
 
+import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   PAYROLL_LINE_KINDS,
   PAYROLL_LINE_UNITS,
@@ -123,9 +123,6 @@ export interface PayrollExportOptions extends BlockOptions {
   readonly logger?: Logger;
 }
 
-const plainDate = (value: unknown): Temporal.PlainDate =>
-  temporal().PlainDate.from(textOf(value));
-
 function lineOf(value: unknown, fn: string): PayrollLine {
   const row = recordOf(value, fn);
   const userId = optionalText(row["userId"]);
@@ -159,8 +156,8 @@ function summaryOf(value: unknown, fn: string): PayrollRunSummary {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    periodFrom: plainDate(row["periodFrom"]),
-    periodTo: plainDate(row["periodTo"]),
+    periodFrom: plainDateOf(row["periodFrom"]),
+    periodTo: plainDateOf(row["periodTo"]),
     ...(label ? { label } : {}),
     status: enumOrThrow(
       row["status"],

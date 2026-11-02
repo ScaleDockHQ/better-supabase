@@ -9,11 +9,12 @@ import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
-import { compact, plainDate, refOf } from "../sales-shared.ts";
+import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -368,7 +369,7 @@ function contractPatchArgs(patch: ContractPatch): Record<string, unknown> {
 }
 
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
-  const date = plainDate(value);
+  const date = optionalPlainDateOf(value);
 
   if (date === undefined) {
     throw new TypeError(`${field} is missing`);
@@ -396,8 +397,8 @@ function employeeOf(value: unknown): Employee {
     managerId: optionalText(row["manager_id"]),
     employmentType: optionalText(row["employment_type"]),
     status: enumOrThrow(row["status"], STATUSES, "employee status"),
-    startDate: plainDate(row["start_date"]),
-    endDate: plainDate(row["end_date"]),
+    startDate: optionalPlainDateOf(row["start_date"]),
+    endDate: optionalPlainDateOf(row["end_date"]),
     offboardReason: optionalText(row["offboard_reason"]),
     origin: refOf(row["origin_type"], row["origin_id"]),
     createdAt: optionalInstant(row["created_at"]),
@@ -430,7 +431,7 @@ function privateOf(value: unknown): PrivateDetails {
     employeeId: textOf(row["employee_id"]),
     nationalId: optionalText(row["national_id"]),
     iban: optionalText(row["iban"]),
-    birthDate: plainDate(row["birth_date"]),
+    birthDate: optionalPlainDateOf(row["birth_date"]),
     personalEmail: optionalText(row["personal_email"]),
     phone: optionalText(row["phone"]),
     address: isRecord(address) ? address : undefined,
@@ -448,7 +449,7 @@ function contractOf(value: unknown): Contract {
     id: textOf(row["id"]),
     employeeId: textOf(row["employee_id"]),
     startsOn: requiredDate(row["starts_on"], "startsOn"),
-    endsOn: plainDate(row["ends_on"]),
+    endsOn: optionalPlainDateOf(row["ends_on"]),
     hoursPerWeek: num(row["hours_per_week"]),
     salary: optionalMoneyOf(row["salary"], row["currency"], "contract salary"),
     salaryPeriod:

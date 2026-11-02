@@ -3,9 +3,9 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   LIMS_RESULT_OUTCOMES,
   LIMS_SAMPLE_STATUSES,
@@ -220,14 +220,6 @@ const requiredNumber = (value: unknown, name: string): number => {
   return value;
 };
 
-function plainDate(value: unknown, name: string): Temporal.PlainDate {
-  if (typeof value !== "string") {
-    throw new TypeError(`${name} is missing`);
-  }
-
-  return temporal().PlainDate.from(value);
-}
-
 function methodOf(value: unknown, fn: string): LimsMethod {
   const row = recordOf(value, fn);
 
@@ -274,7 +266,7 @@ function sampleOf(value: unknown, fn: string): LimsSample {
     organizationId: textOf(row["organizationId"]),
     number: textOf(row["number"]),
     title: textOf(row["title"]),
-    receivedOn: plainDate(row["receivedOn"], "receivedOn"),
+    receivedOn: plainDateOf(row["receivedOn"], "receivedOn"),
     status: enumOrThrow(row["status"], LIMS_SAMPLE_STATUSES, "sample status"),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),

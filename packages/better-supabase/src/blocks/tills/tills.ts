@@ -5,9 +5,9 @@ import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { money } from "../../commerce/money.ts";
+import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   TILL_DEPOSIT_STATUSES,
   TILL_MOVEMENT_KINDS,
@@ -261,14 +261,6 @@ const definedOf = (input: object): Record<string, unknown> =>
 const amountOf = (value: unknown, currency: string): Money =>
   money(bigintOf(value, "amount"), currency);
 
-function plainDate(value: unknown, name: string): Temporal.PlainDate {
-  if (typeof value !== "string") {
-    throw new TypeError(`${name} is not a date`);
-  }
-
-  return temporal().PlainDate.from(value);
-}
-
 function denominationsOf(
   value: unknown,
 ): Readonly<Record<string, number>> | undefined {
@@ -360,7 +352,7 @@ function depositOf(value: unknown, fn: string): TillDeposit {
     id: textOf(row["id"]),
     sessionId: textOf(row["sessionId"]),
     amount: amountOf(row["amount"], currency),
-    depositedOn: plainDate(row["depositedOn"], "depositedOn"),
+    depositedOn: plainDateOf(row["depositedOn"], "depositedOn"),
     status: enumOrThrow(row["status"], TILL_DEPOSIT_STATUSES, "deposit status"),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...optional("reference", optionalText(row["reference"])),

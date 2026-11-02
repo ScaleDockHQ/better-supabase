@@ -2,8 +2,9 @@ import type { Money } from "../../commerce/money.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockCall, TransitionActor } from "../shared.ts";
 
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
-import { compact, plainDate } from "../sales-shared.ts";
+import { compact } from "../sales-shared.ts";
 import {
   optionalInstant,
   optionalText,
@@ -314,13 +315,13 @@ function openItemOf(row: Readonly<Record<string, unknown>>): OpenItem {
     documentType: kind === "unallocated_payment" ? kind : "invoice",
     documentId: textOf(row["documentId"]),
     identifier: optionalText(row["identifier"]),
-    issuedOn: plainDate(row["issuedOn"]),
-    dueOn: plainDate(row["dueOn"]),
+    issuedOn: optionalPlainDateOf(row["issuedOn"]),
+    dueOn: optionalPlainDateOf(row["dueOn"]),
     amount: moneyOf(row["amount"], currency, "open item amount"),
     balance: moneyOf(row["balance"], currency, "open item balance"),
     daysOverdue: Number(row["daysOverdue"] ?? 0),
     bucket: bucketOf(row["bucket"]),
-    discountDueOn: plainDate(row["discountDueOn"]),
+    discountDueOn: optionalPlainDateOf(row["discountDueOn"]),
     discountAmount:
       discount === null || discount === undefined
         ? undefined
@@ -368,7 +369,7 @@ function allocationsOf(
       amount: moneyOf(row["amount"], currency, "allocation amount"),
       discount: moneyOf(row["discount"], currency, "allocation discount"),
       paymentId: optionalText(row["paymentId"]),
-      allocatedOn: plainDate(row["allocatedOn"]),
+      allocatedOn: optionalPlainDateOf(row["allocatedOn"]),
       unallocatedAt: optionalInstant(row["unallocatedAt"]),
     });
   });

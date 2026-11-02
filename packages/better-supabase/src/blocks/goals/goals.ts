@@ -10,8 +10,9 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { attrsArg, compact, plainDate } from "../sales-shared.ts";
+import { attrsArg, compact } from "../sales-shared.ts";
 import {
   bigintOf,
   applyTemporal,
@@ -113,8 +114,12 @@ function targetOf(value: unknown): Target {
     metric: textOf(row["metric"]),
     ownerId: optionalText(row["owner_user_id"]),
     teamId: optionalText(row["team_id"]),
-    periodStart: plainDate(row["period_start"]) ?? plainDate("1970-01-01")!,
-    periodEnd: plainDate(row["period_end"]) ?? plainDate("1970-01-01")!,
+    periodStart:
+      optionalPlainDateOf(row["period_start"]) ??
+      optionalPlainDateOf("1970-01-01")!,
+    periodEnd:
+      optionalPlainDateOf(row["period_end"]) ??
+      optionalPlainDateOf("1970-01-01")!,
     currency: optionalText(row["currency"]),
     goal: bigintOf(row["goal"], "target goal"),
     fields: isRecord(row["fields"]) ? row["fields"] : {},

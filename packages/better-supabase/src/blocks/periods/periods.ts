@@ -3,6 +3,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -87,14 +88,6 @@ export interface Periods {
   listPeriods(list?: PeriodListOptions): AsyncResultType<readonly Period[]>;
 }
 
-function plainDate(value: unknown, name: string): Temporal.PlainDate {
-  if (typeof value !== "string") {
-    throw new TypeError(`${name} is not a date`);
-  }
-
-  return temporal().PlainDate.from(value);
-}
-
 function periodOf(value: unknown, fn: string): Period {
   const row = recordOf(value, fn);
   const closedAt = optionalInstant(row["closedAt"]);
@@ -104,8 +97,8 @@ function periodOf(value: unknown, fn: string): Period {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     kind: textOf(row["kind"]),
-    startsOn: plainDate(row["startsOn"], "startsOn"),
-    endsOn: plainDate(row["endsOn"], "endsOn"),
+    startsOn: plainDateOf(row["startsOn"], "startsOn"),
+    endsOn: plainDateOf(row["endsOn"], "endsOn"),
     status: enumOrThrow(row["status"], PERIOD_STATUSES, "period status"),
     createdAt: temporal().Instant.from(textOf(row["createdAt"])),
     ...(closedAt === undefined ? {} : { closedAt }),
