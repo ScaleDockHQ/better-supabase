@@ -265,6 +265,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "memberships",
         "permissions",
+        "seeds",
         "updated-at"
       ],
       "integrates": [
@@ -273,8 +274,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs",
-        "seeds"
+        "reserved-slugs"
       ],
       "manifest": "organizations",
       "scopes": [
