@@ -24518,7 +24518,86 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/commissions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AccrueCommissionInput"
+        },
+        {
+          "name": "AssignCommissionPlanInput"
+        },
+        {
+          "name": "Commission"
+        },
+        {
+          "name": "CommissionAssignment"
+        },
+        {
+          "name": "CommissionEventData"
+        },
+        {
+          "name": "CommissionListOptions"
+        },
+        {
+          "name": "CommissionPayrollLine"
+        },
+        {
+          "name": "CommissionPlan"
+        },
+        {
+          "name": "CommissionPlanEventData"
+        },
+        {
+          "name": "CommissionPlanKind"
+        },
+        {
+          "name": "CommissionPlanWithAssignments"
+        },
+        {
+          "name": "Commissions"
+        },
+        {
+          "name": "CommissionsEvents"
+        },
+        {
+          "name": "CommissionsOptions"
+        },
+        {
+          "name": "CommissionStatement"
+        },
+        {
+          "name": "CommissionStatementDetail"
+        },
+        {
+          "name": "CommissionStatementEventData"
+        },
+        {
+          "name": "CommissionStatementListOptions"
+        },
+        {
+          "name": "CommissionStatementStatus"
+        },
+        {
+          "name": "CommissionStatus"
+        },
+        {
+          "name": "CommissionTier"
+        },
+        {
+          "name": "SaveCommissionPlanInput"
+        }
+      ],
+      "events": {
+        "type": "CommissionsEvents",
+        "types": [
+          "commission_plan.created",
+          "commission_plan.updated",
+          "commission.accrued",
+          "commission.reversed",
+          "commission_statement.finalized",
+          "commission_statement.paid"
+        ]
+      }
     },
     {
       "name": "referrals",
@@ -24531,7 +24610,58 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/referrals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AttributeReferralInput"
+        },
+        {
+          "name": "CreateReferralCodeInput"
+        },
+        {
+          "name": "Referral"
+        },
+        {
+          "name": "ReferralCode"
+        },
+        {
+          "name": "ReferralCodeEventData"
+        },
+        {
+          "name": "ReferralEventData"
+        },
+        {
+          "name": "ReferralListOptions"
+        },
+        {
+          "name": "ReferralReward"
+        },
+        {
+          "name": "ReferralRewardedEventData"
+        },
+        {
+          "name": "Referrals"
+        },
+        {
+          "name": "ReferralsEvents"
+        },
+        {
+          "name": "ReferralsOptions"
+        },
+        {
+          "name": "ReferralStatus"
+        }
+      ],
+      "events": {
+        "type": "ReferralsEvents",
+        "types": [
+          "referral_code.created",
+          "referral.attributed",
+          "referral.qualified",
+          "referral.rewarded",
+          "referral.voided"
+        ]
+      }
     },
     {
       "name": "agent-checkout",
