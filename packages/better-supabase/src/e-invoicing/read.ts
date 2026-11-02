@@ -1,20 +1,15 @@
 import type { InvoiceInput, LineInput } from "../blocks/invoices/invoices.ts";
 import type { Money } from "../commerce/money.ts";
+import type { XmlParserModule } from "../core/xml.ts";
 import type { EInvoiceParty } from "./party.ts";
 
 import { isCurrency, money, parseMoney } from "../commerce/money.ts";
 import { isRecord } from "../core/block-helpers.ts";
-import { importOptionalPeer, memoized } from "../core/optional-peer.ts";
+import { roundDiv } from "../core/round-div.ts";
 import { temporal } from "../core/temporal-required.ts";
+import { loadXmlParser } from "../core/xml.ts";
 
 type Tree = Readonly<Record<string, unknown>>;
-
-/** The part of `fast-xml-parser` that `fromUbl` uses. */
-export interface XmlParserModule {
-  readonly XMLParser: new (options: Readonly<Record<string, unknown>>) => {
-    parse(xml: string): unknown;
-  };
-}
 
 export interface FromUblOptions {
   /** The `fast-xml-parser` module, instead of loading it on first use. */
@@ -43,26 +38,6 @@ export interface UblBill {
   /** What the document says is due (BT-115). */
   readonly payable: Money;
 }
-
-function isParserModule(value: unknown): value is XmlParserModule {
-  return isRecord(value) && typeof value["XMLParser"] === "function";
-}
-
-const loadParser = memoized(async (): Promise<XmlParserModule> => {
-  const module = await importOptionalPeer("fast-xml-parser");
-
-  if (isParserModule(module)) {
-    return module;
-  }
-
-  if (isRecord(module) && isParserModule(module["default"])) {
-    return module["default"];
-  }
-
-  throw new TypeError(
-    "fromUbl needs the fast-xml-parser package: pnpm add fast-xml-parser, or pass it as options.xmlParser",
-  );
-});
 
 /** The keys that hold a string, for `exactOptionalPropertyTypes`. */
 function defined<K extends string>(
@@ -236,14 +211,6 @@ function taxOf(category: Tree | undefined): TaxOf {
   return code === undefined ? { taxRateBps } : { taxRateBps, taxCode: code };
 }
 
-const roundDiv = (numerator: bigint, denominator: bigint): bigint => {
-  const negative = numerator < 0n;
-  const n = negative ? -numerator : numerator;
-  const rounded = (n * 2n + denominator) / (denominator * 2n);
-
-  return negative ? -rounded : rounded;
-};
-
 function scaled(value: string): { digits: bigint; scale: bigint } | undefined {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
 
@@ -346,7 +313,9 @@ export async function fromUbl(
   xml: string,
   options: FromUblOptions = {},
 ): Promise<UblBill> {
-  const parserModule = options.xmlParser ?? (await loadParser());
+  const parserModule =
+    options.xmlParser ??
+    (await loadXmlParser("fromUbl", ", or pass it as options.xmlParser"));
 
   const parser = new parserModule.XMLParser({
     ignoreAttributes: false,

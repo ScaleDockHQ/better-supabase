@@ -4,20 +4,19 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { money } from "../../commerce/money.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import {
   RFQ_QUOTE_STATUSES,
   RFQ_STATUSES,
   RFQ_SUPPLIER_STATUSES,
 } from "../../sql/modules/rfqs-values.ts";
+import { moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
-  bigintOf,
   blockCall,
   enumOrThrow,
   optionalInstant,
@@ -306,15 +305,6 @@ const requiredNumber = (value: unknown, name: string): number => {
   return value;
 };
 
-function plainDate(value: unknown): Temporal.PlainDate | undefined {
-  return typeof value === "string"
-    ? temporal().PlainDate.from(value)
-    : undefined;
-}
-
-const amountOf = (value: unknown, currency: string): Money =>
-  money(bigintOf(value, "amount"), currency);
-
 function rfqOf(value: unknown, fn: string): Rfq {
   const row = recordOf(value, fn);
 
@@ -382,7 +372,7 @@ function quoteLineOf(
     id: textOf(row["id"]),
     quoteId: textOf(row["quoteId"]),
     lineId: textOf(row["lineId"]),
-    unitAmount: amountOf(row["unitAmount"], currency),
+    unitAmount: moneyOf(row["unitAmount"], currency),
     ...optional("leadTimeDays", numberOf(row["leadTimeDays"])),
   };
 }
@@ -402,12 +392,12 @@ function quoteOf(value: unknown, fn: string): RfqQuote {
     rfqId: textOf(row["rfqId"]),
     invitationId: textOf(row["invitationId"]),
     status: enumOrThrow(row["status"], RFQ_QUOTE_STATUSES, "quote status"),
-    total: amountOf(row["total"], currency),
+    total: moneyOf(row["total"], currency),
     revision: requiredNumber(row["revision"], "revision"),
     submittedAt: requiredInstant(row["submittedAt"], "submittedAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("leadTimeDays", numberOf(row["leadTimeDays"])),
-    ...optional("validUntil", plainDate(row["validUntil"])),
+    ...optional("validUntil", optionalPlainDateOf(row["validUntil"])),
     ...optional("notes", optionalText(row["notes"])),
     ...optional("submittedBy", optionalText(row["submittedBy"])),
     ...optional("lines", lines),
@@ -449,8 +439,8 @@ function comparisonOf(value: unknown, fn: string): RfqComparison {
           return {
             quoteId: textOf(offer["quoteId"]),
             invitationId: textOf(offer["invitationId"]),
-            unitAmount: amountOf(offer["unitAmount"], currency),
-            lineTotal: amountOf(offer["lineTotal"], currency),
+            unitAmount: moneyOf(offer["unitAmount"], currency),
+            lineTotal: moneyOf(offer["lineTotal"], currency),
             lowest: offer["lowest"] === true,
             ...optional("leadTimeDays", numberOf(offer["leadTimeDays"])),
           };
@@ -466,11 +456,11 @@ function comparisonOf(value: unknown, fn: string): RfqComparison {
         supplierType: textOf(quote["supplierType"]),
         supplierId: textOf(quote["supplierId"]),
         status: enumOrThrow(quote["status"], RFQ_QUOTE_STATUSES, "status"),
-        total: amountOf(quote["total"], currency),
+        total: moneyOf(quote["total"], currency),
         complete: quote["complete"] === true,
         lowest: quote["lowest"] === true,
         ...optional("leadTimeDays", numberOf(quote["leadTimeDays"])),
-        ...optional("validUntil", plainDate(quote["validUntil"])),
+        ...optional("validUntil", optionalPlainDateOf(quote["validUntil"])),
       };
     }),
   };

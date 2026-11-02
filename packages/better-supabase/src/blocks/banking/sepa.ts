@@ -2,6 +2,7 @@ import type { Money } from "../../commerce/money.ts";
 
 import { money, toDecimal } from "../../commerce/money.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
+import { escapeXml } from "../../core/xml.ts";
 
 /** One credit transfer of a SEPA file. */
 export interface SepaCreditTransfer {
@@ -43,14 +44,6 @@ const DISALLOWED = /[^a-zA-Z0-9/\-?:().,'+ ]/g;
 const COMBINING = /\p{M}/gu;
 const SPACES = / {2,}/g;
 
-const XML_ESCAPES: Readonly<Record<string, string>> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&apos;",
-};
-
 /** The text in the SEPA character set (the Latin subset), cut to `max`. */
 function sepaText(value: string, max: number): string {
   return value
@@ -62,11 +55,8 @@ function sepaText(value: string, max: number): string {
     .slice(0, max);
 }
 
-const escape = (value: string): string =>
-  value.replaceAll(/[&<>"']/g, (char) => XML_ESCAPES[char] ?? char);
-
 const tag = (name: string, value: string): string =>
-  `<${name}>${escape(value)}</${name}>`;
+  `<${name}>${escapeXml(value)}</${name}>`;
 
 function required(value: string, max: number, field: string): string {
   const text = sepaText(value, max);

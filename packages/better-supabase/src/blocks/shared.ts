@@ -10,6 +10,7 @@ export {
   enumOrThrow,
   errorText,
   injectableOf,
+  portOf,
   instantArg,
   isRecord,
   notFoundError,

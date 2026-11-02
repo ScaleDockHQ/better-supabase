@@ -107,8 +107,9 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
       expect(warnings).toEqual({
         // The fixture runs no queue worker, so the reminders timer has no handler.
         "warning BS508": ["reminders.schedule()"],
-        // CentraKit grants projects to members for select only.
-        "warning BS107": ["centrakit.projects"],
+        // CentraKit grants projects to members for select only, and file nodes
+        // are written by the app's own service, never by clients.
+        "warning BS107": ["centrakit.file_node", "centrakit.projects"],
         // CentraKit's schema grants select on every table, including ones it keeps
         // closed to authenticated with no policy.
         "warning BS115": [

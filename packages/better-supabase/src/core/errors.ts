@@ -1,5 +1,4 @@
 import { DbException } from "./db-exception.ts";
-import { legacyHintOf } from "./hint-renames.ts";
 
 export { DbException };
 
@@ -89,13 +88,6 @@ interface DbErrorBase<K extends DbErrorKind> {
   readonly details?: string;
   /** Postgres `HINT`. `raised` errors use it as an app-level error code. */
   readonly hint?: string;
-  /**
-   * The code `hint` had before 0.47 (`WORK_ITEM_NOT_FOUND` for
-   * `TASK_NOT_FOUND`), for clients that still match the old code.
-   *
-   * @deprecated Match `hint`. Removed in 0.48.
-   */
-  readonly legacyHint?: string;
   /** App-cased table key the operation ran against. */
   readonly table?: string;
 }
@@ -169,6 +161,60 @@ export function dbError<K extends DbErrorKind>(
   // SAFETY: the loop above copied the detail fields for K onto the error.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from the detail map for K above.
   return error as unknown as DbErrorOf<K>;
+}
+
+/**
+ * The `DbError` for a failed HTTP response from a service: 400 and 422 are
+ * `invalid_input`, 401 `unauthorized`, 403 `forbidden`, 404 `not_found`, 409
+ * `conflict`, 408 and 504 `timeout`, 429 `rate_limited`, 5xx `network`, and
+ * anything else `unexpected`. `extra` carries `code` or similar detail.
+ */
+export function dbErrorOfStatus(
+  status: number,
+  message: string,
+  extra: Partial<
+    Pick<DbErrorBase<DbErrorKind>, "code" | "details" | "hint">
+  > = {},
+): DbError {
+  switch (status) {
+    case 400:
+    case 413:
+    case 415:
+    case 422: {
+      return dbError("invalid_input", message, extra);
+    }
+
+    case 401: {
+      return dbError("unauthorized", message, extra);
+    }
+
+    case 403: {
+      return dbError("forbidden", message, extra);
+    }
+
+    case 404: {
+      return dbError("not_found", message, extra);
+    }
+
+    case 408:
+    case 504: {
+      return dbError("timeout", message, extra);
+    }
+
+    case 409: {
+      return dbError("conflict", message, extra);
+    }
+
+    case 429: {
+      return dbError("rate_limited", message, extra);
+    }
+
+    default: {
+      return status >= 500
+        ? dbError("network", message, extra)
+        : dbError("unexpected", message, extra);
+    }
+  }
 }
 
 /**
@@ -391,14 +437,8 @@ function optional(raw: RawDbError): {
   code?: string;
   details?: string;
   hint?: string;
-  legacyHint?: string;
 } {
-  const out: {
-    code?: string;
-    details?: string;
-    hint?: string;
-    legacyHint?: string;
-  } = {};
+  const out: { code?: string; details?: string; hint?: string } = {};
 
   if (raw.code) {
     out.code = raw.code;
@@ -410,12 +450,6 @@ function optional(raw: RawDbError): {
 
   if (raw.hint) {
     out.hint = raw.hint;
-
-    const legacy = legacyHintOf(raw.hint);
-
-    if (legacy !== undefined) {
-      out.legacyHint = legacy;
-    }
   }
 
   return out;

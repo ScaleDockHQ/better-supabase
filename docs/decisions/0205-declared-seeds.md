@@ -1,4 +1,4 @@
-# 0196: Seeds are declared by modules, with defaults in SQL and sample data in the cloud
+# 0205: Seeds are declared by modules, with defaults in SQL and sample data in the cloud
 
 - Status: accepted
 - Date: 2026-11-01

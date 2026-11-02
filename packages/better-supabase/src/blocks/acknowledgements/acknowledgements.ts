@@ -3,8 +3,8 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions, RecordRef } from "../shared.ts";
 
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -237,7 +237,7 @@ function myAcknowledgementOf(value: unknown, fn: string): MyAcknowledgement {
     versionId: textOf(row["versionId"]),
     overdue: row["overdue"] === true,
     ...optional("title", optionalText(row["subjectTitle"])),
-    ...optional("dueOn", plainDate(row["dueOn"])),
+    ...optional("dueOn", optionalPlainDateOf(row["dueOn"])),
     ...optional("acknowledgedAt", optionalInstant(row["acknowledgedAt"])),
   };
 }
@@ -251,7 +251,7 @@ function statusOf(value: unknown, fn: string): AcknowledgementStatus {
     pending: recordsOf(row["pending"], fn).map((item) => ({
       userId: textOf(item["userId"]),
       overdue: item["overdue"] === true,
-      ...optional("dueOn", plainDate(item["dueOn"])),
+      ...optional("dueOn", optionalPlainDateOf(item["dueOn"])),
     })),
     ...optional("versionId", optionalText(row["versionId"])),
   };

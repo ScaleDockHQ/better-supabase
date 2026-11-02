@@ -1,6 +1,7 @@
 import type { Result } from "../../core/result.ts";
 import type { CredentialToken } from "../../credentials/provider.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -100,13 +101,7 @@ export interface MailProvider {
 
 /** Checks the provider's `apiVersion` before the block uses it. */
 export function mailProviderOf(provider: MailProvider): MailProvider {
-  const version: unknown = provider.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `mail "${provider.name}" targets mail provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  portOf(`mail "${provider.name}"`, "mail provider", provider);
 
   return provider;
 }

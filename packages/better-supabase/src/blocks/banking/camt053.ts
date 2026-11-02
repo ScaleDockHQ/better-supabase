@@ -6,7 +6,7 @@ import type {
 } from "./statement.ts";
 
 import { negateMoney, parseMoney } from "../../commerce/money.ts";
-import { importOptionalPeer, memoized } from "../../core/optional-peer.ts";
+import { loadXmlParser } from "../../core/xml.ts";
 
 const NAMESPACE = /urn:iso:std:iso:20022:tech:xsd:camt\.053\.001\.(\d{2})/;
 
@@ -22,31 +22,6 @@ const REPEATED = new Set([
 
 const OPENING = new Set(["OPBD", "PRCD"]);
 const CLOSING = new Set(["CLBD"]);
-
-interface XmlParserModule {
-  readonly XMLParser: new (options: Record<string, unknown>) => {
-    parse(xml: string): unknown;
-  };
-}
-
-const isParserModule = (value: unknown): value is XmlParserModule =>
-  typeof value === "object" &&
-  value !== null &&
-  "XMLParser" in value &&
-  typeof value.XMLParser === "function";
-
-// fast-xml-parser is an optional peer: only apps that read CAMT files install it.
-const loadParser = memoized(async (): Promise<XmlParserModule> => {
-  const module = await importOptionalPeer("fast-xml-parser");
-
-  if (!isParserModule(module)) {
-    throw new TypeError(
-      "parseCamt053 needs the fast-xml-parser package: pnpm add fast-xml-parser",
-    );
-  }
-
-  return module;
-});
 
 type Node = Readonly<Record<string, unknown>>;
 
@@ -288,7 +263,7 @@ export async function parseCamt053(
     );
   }
 
-  const { XMLParser } = await loadParser();
+  const { XMLParser } = await loadXmlParser("parseCamt053");
 
   const document = new XMLParser({
     ignoreAttributes: false,

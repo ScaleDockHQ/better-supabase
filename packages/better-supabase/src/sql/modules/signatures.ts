@@ -18,7 +18,7 @@ import {
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -144,7 +144,9 @@ const PREVIOUS_REQUEST_ARGS = "text, text, uuid[], uuid, text, uuid, text";
 
 /** The hash `versions` stores for a version's content. */
 const versionHash = (content: string, storagePath: string): string =>
-  sha256Hex(`coalesce(${content}::text, '') || coalesce(${storagePath}, '')`);
+  sha256HexSql(
+    `coalesce(${content}::text, '') || coalesce(${storagePath}, '')`,
+  );
 
 /**
  * The hash a signature stores: the request, the signed version's content hash,
@@ -159,7 +161,7 @@ const signedHash = (parts: {
   readonly image: string;
   readonly signedAt: string;
 }): string =>
-  sha256Hex(
+  sha256HexSql(
     `${parts.request}::text || ':' || ${parts.contentHash} || ':' || ${parts.signer}::text || ':' || ${parts.method} || ':' || coalesce(${parts.typedName}, '') || ':' || coalesce(${parts.image}::text, '') || ':' || to_char(${parts.signedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
   );
 

@@ -38,7 +38,10 @@ export function conversationReadable(
     "read",
   );
 
-  const follows = q.followsRecord(`${alias}.${cv("subjectType")}`);
+  const follows = q.followsRecord(
+    `${alias}.${cv("subjectType")}`,
+    `${alias}.${cv("subjectId")}`,
+  );
 
   const scopedHeld =
     onRecord === undefined

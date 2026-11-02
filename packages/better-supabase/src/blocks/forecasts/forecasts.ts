@@ -6,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { DealForecast } from "../deal-forecast.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { forecastOf } from "../deal-forecast.ts";
@@ -15,7 +16,6 @@ import {
   optionalMoneyOf,
   moneyOf,
 } from "../money-codec.ts";
-import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -141,7 +141,7 @@ export interface ForecastsOptions extends BlockTemporalOptions {
 }
 
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
-  const date = plainDate(value);
+  const date = optionalPlainDateOf(value);
 
   if (date === undefined) {
     throw new TypeError(`${field} is missing`);
@@ -185,7 +185,7 @@ function dealOf(value: unknown, currency: string): ForecastSnapshotDeal {
     forecast: optionalText(row["forecast"]),
     outcome: textOf(row["outcome"]),
     amount: moneyOf(row["amount"], currency, "forecast_snapshot deal amount"),
-    closeOn: plainDate(row["closeOn"]),
+    closeOn: optionalPlainDateOf(row["closeOn"]),
     closedAt: optionalInstant(row["closedAt"]),
   };
 }

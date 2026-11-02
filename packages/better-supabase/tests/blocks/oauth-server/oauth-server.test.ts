@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
 import { accessTokenResolver } from "../../../src/auth/access-token.ts";
-import { createOAuthServer } from "../../../src/blocks/oauth-server/deprecated.ts";
 import { createOauthServer } from "../../../src/blocks/oauth-server/oauth-server.ts";
 
 const sha256 = async (value: string): Promise<string> =>
@@ -37,11 +36,6 @@ const CLIENT_ROW = {
 };
 
 describe("createOauthServer", () => {
-  it("keeps createOAuthServer as a deprecated alias", () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- the alias is what this checks (1 finding).
-    expect(createOAuthServer).toBe(createOauthServer);
-  });
-
   it("registers a public client without a secret", async () => {
     const { call, transport } = fake({ register_oauth_client: CLIENT_ROW });
     const oauth = createOauthServer({ transport });

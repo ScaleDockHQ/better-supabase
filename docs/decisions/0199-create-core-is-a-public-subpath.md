@@ -1,4 +1,4 @@
-# 0048: The Create core is a public subpath
+# 0199: The Create core is a public subpath
 
 - Status: accepted
 - Date: 2026-10-19

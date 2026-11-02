@@ -162,16 +162,3 @@ export {
   rateLimitBlock,
   webhookInboxBlock,
 } from "./manifest.ts";
-
-export * from "./deprecated.ts";
-
-export type {
-  RateLimit,
-  RateLimitAllDecision,
-  RateLimitDecision,
-  RateLimitHit,
-  RateLimitOptions,
-  RateLimitRule,
-  RateLimitSettings,
-  RateLimitSource,
-} from "./rate-limit.ts";

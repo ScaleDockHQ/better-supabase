@@ -10,7 +10,7 @@ import {
   raise,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   serviceGrant,
   userGrant,
   writeExtraColumns,
@@ -1036,7 +1036,7 @@ begin
   end if;
   insert into ${block.table("versions")} (${columns.join(", ")})
   select doc.${d.tenant}, ${sqlString(aiDocumentSubject(ctx))}, x.document_id::text, x.version, ${content}, x.storage_path,
-    ${sha256Hex(`coalesce(${content}::text, '') || coalesce(x.storage_path, '')`)},
+    ${sha256HexSql(`coalesce(${content}::text, '') || coalesce(x.storage_path, '')`)},
     'manual', false, x.created_by, x.created_at
   from ${old} x
   join ${ctx.table("documents")} doc on doc.${d.id} = x.document_id

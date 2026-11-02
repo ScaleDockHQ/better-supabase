@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { ruleStarts } from "./calendar-availability.ts";
 import { maintenanceFunctions } from "./maintenance-functions.ts";
 import { maintenanceSql } from "./maintenance-sql.ts";
 import {
@@ -318,7 +317,6 @@ function build(ctx: BlockSqlContext): string {
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 ${tables(ctx)}
-${ruleStarts(ctx, "maintenance_rule_starts")}
 ${maintenanceFunctions(ctx)}`;
 }
 

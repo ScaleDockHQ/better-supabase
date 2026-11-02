@@ -2,6 +2,7 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { DbError } from "../core/errors.ts";
 import type { AsyncResult } from "../core/result.ts";
 
+import { portOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 
 /**
@@ -181,13 +182,7 @@ export interface SetCredentialOptions {
 export function credentialProviderOf(
   provider: CredentialProvider,
 ): CredentialProvider {
-  const version: unknown = provider.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `credentials "${provider.name}" targets credential provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  portOf(`credentials "${provider.name}"`, "credential provider", provider);
 
   return provider;
 }

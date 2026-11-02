@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:1a751f2ee28f6aa5a0baf7e5e1bae2572dfe5753aed3f38ed2cd8ca298488d5a
+-- @bsb-hash sha256:48e8b82c8f3683048e2b7e36ee38dfc13d055713ef3e1fbfc4221a626d5b007e
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -228,23 +228,6 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
-create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
-    return;
-  end if;
-  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
-end;
-$$;
-revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
-
-
 -- The first occurrence of an RRULE strictly after an instant, or null when
 -- the rule has ended (COUNT or UNTIL) or has none within ten years.
 create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
@@ -253,9 +236,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select min(s) from "better_supabase"."maintenance_rule_starts"(
-    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
-    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+  select min(s) from better_supabase.rrule_occurrences(
+    maintenance_next_occurrence.rrule, maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz,
+    tstzrange(maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years', '[)')) s;
 $$;
 revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
 grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
@@ -1202,15 +1185,6 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
-
-create or replace function "api"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
-returns setof timestamptz
-language sql
-security invoker
-set search_path = ''
-as $$ select * from "better_supabase"."maintenance_rule_starts"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
-grant execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
 returns timestamptz

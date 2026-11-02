@@ -206,14 +206,12 @@ export interface BlockCatalogEntry {
   readonly docs: string;
 }
 
-/** A named preset, for the home page's switcher and gallery. */
 export interface BlockCatalogPreset {
   readonly name: string;
   readonly title: string;
   readonly description: string;
   readonly group: string;
   readonly groupTitle: string;
-  /** Every block it installs, in install order, with the ones it requires. */
   readonly blocks: readonly string[];
 }
 

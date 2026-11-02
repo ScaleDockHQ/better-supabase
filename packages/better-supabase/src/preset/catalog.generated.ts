@@ -20275,9 +20275,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "SequenceEnrollment"
         },
         {
-          "name": "SequenceEnrollmentEventData"
-        },
-        {
           "name": "SequenceEnrollmentsFilter"
         },
         {

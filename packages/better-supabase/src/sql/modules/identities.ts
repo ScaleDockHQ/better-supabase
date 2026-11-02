@@ -13,7 +13,7 @@ import {
   revokeTable,
   schemaPreamble,
   serviceGrant,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
 } from "../shared.ts";
 
@@ -195,7 +195,7 @@ begin
     and ${c("provider")} is not distinct from begin_identity_link.provider
     and ${c("usedAt")} is null;
   insert into ${codes} (${c("user")}, ${c("kind")}, ${c("provider")}, ${c("codeHash")}, ${c("expiresAt")})
-  values (v_user, ${ctx.cast("codes", "kind", "begin_identity_link.kind")}, begin_identity_link.provider, ${sha256Hex("convert_to(v_code, 'utf8')")}, v_expires);
+  values (v_user, ${ctx.cast("codes", "kind", "begin_identity_link.kind")}, begin_identity_link.provider, ${sha256HexSql("convert_to(v_code, 'utf8')")}, v_expires);
   return jsonb_build_object('code', v_code, 'expires_at', v_expires);
 end;
 $$;
@@ -222,7 +222,7 @@ begin
   end if;
   select ${c("id")}, ${c("user")} into v_code_id, v_user
   from ${codes}
-  where ${c("codeHash")} = ${sha256Hex("convert_to(upper(regexp_replace(redeem_identity_link.code, '[^0-9A-Za-z]', '', 'g')), 'utf8')")}
+  where ${c("codeHash")} = ${sha256HexSql("convert_to(upper(regexp_replace(redeem_identity_link.code, '[^0-9A-Za-z]', '', 'g')), 'utf8')")}
     and ${c("kind")} = ${ctx.cast("codes", "kind", "redeem_identity_link.kind", "null")}
     and ${c("provider")} is not distinct from redeem_identity_link.provider
     and ${c("usedAt")} is null

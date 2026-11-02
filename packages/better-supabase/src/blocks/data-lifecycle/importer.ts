@@ -5,6 +5,7 @@ import type { ImportItem } from "../imports/define-import.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { sha256Hex } from "../../core/sha256.ts";
 import {
   blockCall,
   errorText,
@@ -114,14 +115,6 @@ interface ParsedFile {
 
 const FILE = /^(?:.*\/)?([^/]+?)\.(ndjson|jsonl|csv)$/;
 
-const hex = (bytes: ArrayBuffer): string =>
-  [...new Uint8Array(bytes)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-
-const sha256 = async (text: string): Promise<string> =>
-  hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
-
 function tablesOf(value: unknown): Map<string, RestorableTable> {
   const tables = new Map<string, RestorableTable>();
 
@@ -226,7 +219,7 @@ async function keyOf(
   return values.length > 0 &&
     values.every((value) => value !== null && value !== undefined)
     ? `${table.name}:${JSON.stringify(values)}`
-    : `${table.name}#${await sha256(line)}`;
+    : `${table.name}#${await sha256Hex(line)}`;
 }
 
 /**

@@ -18,7 +18,7 @@ import {
   applyTemporal,
   blockCall,
   enumOrThrow,
-  injectableOf,
+  portOf,
   optionalInstant,
   optionalText,
   recordOf,
@@ -212,7 +212,7 @@ export interface CareDecisionRequest {
  */
 export interface ClinicalDecisionSupport {
   /** The port contract version. Omitted means 1. */
-  readonly apiVersion?: 1;
+  readonly apiVersion: 1;
   /**
    * The source name stored on its alerts, 1 to 100 characters. `built-in` is
    * reserved.
@@ -377,7 +377,11 @@ function contextOf(value: unknown, fn: string): CareDecisionContext {
 
 /** Checks an engine at construction: version and key. */
 function engineOf(engine: ClinicalDecisionSupport): ClinicalDecisionSupport {
-  injectableOf("clinical decision support engine", engine);
+  portOf(
+    `clinical decision support engine "${engine.key}"`,
+    "clinical decision support engine",
+    engine,
+  );
 
   if (
     engine.key.trim() === "" ||

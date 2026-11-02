@@ -1,4 +1,6 @@
 /** The five account types of the accounting block. */
+import { portOf } from "../core/block-helpers.ts";
+
 export type AuditAccountType =
   | "asset"
   | "liability"
@@ -186,16 +188,11 @@ export interface AuditFileAdapter {
 export function defineAuditFileAdapter(
   adapter: AuditFileAdapter,
 ): AuditFileAdapter {
-  // A JavaScript caller can pass any version, though the type says 1.
-  const version: unknown = adapter.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `audit file adapter "${adapter.key}" has apiVersion ${String(version)}; this release reads apiVersion 1`,
-    );
-  }
-
-  return adapter;
+  return portOf(
+    `audit file adapter "${adapter.key}"`,
+    "audit file adapter",
+    adapter,
+  );
 }
 
 export type AuditFileErrorCode =

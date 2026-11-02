@@ -5,14 +5,14 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { RecordRef } from "../../schema/types.ts";
-import type { BlockOptions } from "../shared.ts";
 import type {
   OptimizedStops,
   RouteOptimizer,
   RoutePoint,
-} from "./route-optimizer.ts";
+} from "../../core/route-optimizer.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { RecordRef } from "../../schema/types.ts";
+import type { BlockOptions } from "../shared.ts";
 import type { WorkOrderPriority, WorkOrderStatus } from "./statuses.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -20,6 +20,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
+import { optimizeLocated } from "../../core/route-optimizer.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -35,7 +36,6 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
-import { nearestNeighbourOptimizer, optimizeStops } from "./route-optimizer.ts";
 import { WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES } from "./statuses.ts";
 
 export interface DispatchOptions<
@@ -605,30 +605,17 @@ export function createDispatch<
               ];
         });
 
-        const placed = new Set(located.map((stop) => stop.id));
-
-        const unplaced = planned.stops
-          .map((stop) => stop.workOrder.id)
-          .filter((id) => !placed.has(id));
-
         return AsyncResult.from(async () =>
           ok(
-            await optimizeStops(
-              routeOptions.optimizer ?? nearestNeighbourOptimizer(),
-              {
-                stops: located,
-                ...(routeOptions.start ? { start: routeOptions.start } : {}),
-                ...(routeOptions.end ? { end: routeOptions.end } : {}),
-              },
+            await optimizeLocated(
+              located,
+              planned.stops.map((stop) => stop.workOrder.id),
+              routeOptions,
             ),
           ),
-        ).andThen((optimization) =>
+        ).andThen(({ optimization, order }) =>
           client
-            .planRoute({
-              technicianId,
-              day,
-              workOrderIds: [...optimization.order, ...unplaced],
-            })
+            .planRoute({ technicianId, day, workOrderIds: order })
             .map((route) => ({ route, optimization })),
         );
       }),

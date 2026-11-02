@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { RouteOptimizer } from "../../src/blocks/dispatch/route-optimizer.ts";
+import type { RouteOptimizer } from "../../src/core/route-optimizer.ts";
 
-import { nearestNeighbourOptimizer } from "../../src/blocks/dispatch/route-optimizer.ts";
+import { nearestNeighbourOptimizer } from "../../src/core/route-optimizer.ts";
 import {
   ConformanceError,
   testRouteOptimizer,

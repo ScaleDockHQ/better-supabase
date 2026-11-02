@@ -1,5 +1,6 @@
 import type { Result } from "../../core/result.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 
@@ -66,13 +67,7 @@ export interface C2paReader {
 
 /** Checks a reader's `apiVersion` before the app uses it. */
 export function c2paReaderOf(reader: C2paReader): C2paReader {
-  const version: unknown = reader.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `C2PA reader "${reader.name}" targets C2PA reader API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the reader for API 1.`,
-    );
-  }
+  portOf(`C2PA reader "${reader.name}"`, "C2PA reader", reader);
 
   return reader;
 }

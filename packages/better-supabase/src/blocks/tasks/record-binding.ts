@@ -55,7 +55,3 @@ export const taskChecklistBinding: RecordBinding<
   events: ["task.updated"],
   optimistic: workItemChecklistOptimistic,
 });
-
-/** @deprecated Use `taskChecklistBinding`. */
-export const workItemChecklistBinding: typeof taskChecklistBinding =
-  taskChecklistBinding;

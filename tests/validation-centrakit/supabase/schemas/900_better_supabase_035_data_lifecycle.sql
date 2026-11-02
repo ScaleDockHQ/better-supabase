@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:9760af3c164ea9285946fc2ebf7d57e1cf47eda5c14db22784c125930aa9abfc
+-- @bsb-hash sha256:492cae773ef3cad47fb932a8f45214f113a3903d73fece8c1404e993815cea9e
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1182,6 +1182,12 @@ begin
       v_name := 'better_supabase.conversations';
       v_reveal := 'conversations_reveal';
       v_reveal_schema := 'better_supabase';
+    when 'file_node' then
+      select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
+      from "centrakit"."file_node" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'centrakit.file_node';
+      v_reveal := 'file_node_reveal';
+      v_reveal_schema := 'centrakit';
     when 'task' then
       select to_jsonb(s.*), s."organization_id" into v_record, v_tenant
       from "centrakit"."tasks" s where s."id" = (request_subject_export.subject_id)::uuid;

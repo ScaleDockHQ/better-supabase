@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { DriveKit } from "./drive-kit.ts";
 
-import { fail, serviceGrant, sha256Hex } from "../shared.ts";
+import { fail, serviceGrant, sha256HexSql } from "../shared.ts";
 import { usable } from "./drive-kit.ts";
 
 /**
@@ -86,7 +86,7 @@ export function syncBatchSql(kit: DriveKit): string {
   select q.*,
     (rec.${x("id")} is null or rec.${x("contentHash")} <> q.hash or node.${n("id")} is null) as changed
   from (
-    select b.*, ${sha256Hex(`b.kind || chr(31) || b.name || chr(31) || coalesce(b.parent_external_id, '') || chr(31) || b.metadata::text`)} as hash
+    select b.*, ${sha256HexSql(`b.kind || chr(31) || b.name || chr(31) || coalesce(b.parent_external_id, '') || chr(31) || b.metadata::text`)} as hash
     from (
       select distinct on (item ->> 'externalId')
         item ->> 'externalId' as external_id,

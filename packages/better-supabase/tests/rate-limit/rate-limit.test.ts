@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createRateLimit, rateLimited } from "../../../src/rate-limit/index.ts";
-import { fakeSql } from "../../fixtures/fake-sql.ts";
+import { createRateLimit, rateLimited } from "../../src/rate-limit/index.ts";
+import { fakeSql } from "../fixtures/fake-sql.ts";
 
 describe("createRateLimit", () => {
   it("counts a hit against the scope's rule or a given limit", async () => {
