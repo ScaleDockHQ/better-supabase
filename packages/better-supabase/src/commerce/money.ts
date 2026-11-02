@@ -1,10 +1,6 @@
 import { ISO_4217_MINOR_UNITS } from "./iso4217.ts";
 import { parseScaled } from "./scaled.ts";
 
-export { parseScaled } from "./scaled.ts";
-
-export type { ParseScaledFailure } from "./scaled.ts";
-
 /**
  * An amount in the currency's minor units (cents for EUR, yen for JPY) and an
  * ISO 4217 code. SQL stores the same pair as `bigint` and `char(3)`.

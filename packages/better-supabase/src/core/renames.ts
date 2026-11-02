@@ -371,7 +371,7 @@ export const OPERATION_RENAMES: Readonly<Record<string, string>> = frozen({
 });
 
 /** The action name `module` used for `action` before `OPERATION_RENAMES`. */
-export function formerOperationAction(
+function formerOperationAction(
   module: string,
   action: string,
 ): string | undefined {
