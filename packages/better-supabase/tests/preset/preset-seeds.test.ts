@@ -18,7 +18,7 @@ import { resolvePreset } from "../../src/preset/resolve.ts";
  * to `true` once those branches are merged and the catalog is regenerated, so
  * the catalog assertion below runs.
  */
-const PRESET_VARIANTS_IN_CATALOG = false;
+const PRESET_VARIANTS_IN_CATALOG = true;
 
 const SEEDED = PRESET_NAMES.filter((name) => PRESETS[name].seeds !== undefined);
 

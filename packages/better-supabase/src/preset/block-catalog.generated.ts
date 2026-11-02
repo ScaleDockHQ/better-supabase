@@ -385,11 +385,13 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "description": "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
       "requires": [
         "permissions",
-        "audit"
+        "audit",
+        "housekeeping"
       ],
       "integrates": [
         "invitations",
-        "approvals"
+        "approvals",
+        "housekeeping"
       ],
       "modes": [
         "managed",
@@ -492,7 +494,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "permissions",
         "profiles",
         "memberships",
-        "data-lifecycle"
+        "data-lifecycle",
+        "consents",
+        "housekeeping"
       ],
       "modes": [
         "managed",
@@ -520,12 +524,14 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "category": "Developer platform",
       "description": "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
       "requires": [
-        "updated-at"
+        "updated-at",
+        "housekeeping"
       ],
       "integrates": [
         "permissions",
         "service-accounts",
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
       "modes": [
         "managed",
@@ -645,12 +651,14 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "description": "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "entitlements",
         "data-lifecycle",
-        "invoices"
+        "invoices",
+        "housekeeping"
       ],
       "modes": [
         "managed",
@@ -674,6 +682,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "permissions"
       ],
       "integrates": [
+        "ledger",
         "organizations",
         "usage"
       ],
@@ -3874,7 +3883,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "consents"
       ],
       "modes": [
         "managed",
@@ -4132,7 +4142,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "data-lifecycle",
         "banking",
         "periods",
-        "imports"
+        "imports",
+        "accounting"
       ],
       "modes": [
         "managed",
@@ -4991,6 +5002,68 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "subpath": "better-supabase/blocks/periods",
       "react": null,
       "docs": "/docs/blocks/periods"
+    },
+    {
+      "name": "commissions",
+      "title": "Commissions",
+      "category": "Billing & commerce",
+      "description": "Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invoices",
+        "periods"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "commission.accrued",
+        "commission.reversed",
+        "commission_plan.created",
+        "commission_plan.updated",
+        "commission_statement.finalized",
+        "commission_statement.paid"
+      ],
+      "subpath": "better-supabase/blocks/commissions",
+      "react": null,
+      "docs": "/docs/blocks/commissions"
+    },
+    {
+      "name": "referrals",
+      "title": "Referrals",
+      "category": "Billing & commerce",
+      "description": "Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invitations"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "referral.attributed",
+        "referral.qualified",
+        "referral.rewarded",
+        "referral.voided",
+        "referral_code.created"
+      ],
+      "subpath": "better-supabase/blocks/referrals",
+      "react": null,
+      "docs": "/docs/blocks/referrals"
     },
     {
       "name": "recurrence",
@@ -7034,7 +7107,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "teams",
         "service-accounts",
         "signing-keys",
-        "enrollments"
+        "enrollments",
+        "housekeeping"
       ]
     },
     {
@@ -7312,6 +7386,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "tills",
         "clinical-decision-support",
         "periods",
+        "commissions",
+        "referrals",
         "recurrence",
         "housekeeping",
         "e-prescribing",

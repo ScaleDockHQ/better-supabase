@@ -109,6 +109,13 @@ export const NL_RGS_CHART: readonly ChartAccount[] = [
     role: "tax_payable",
   },
   {
+    code: "3200",
+    name: "Vooruitontvangen opbrengsten",
+    type: "liability",
+    subtype: "current_liability",
+    role: "deferred_revenue",
+  },
+  {
     code: "4000",
     name: "Bedrijfskosten",
     type: "expense",

@@ -241,17 +241,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "admin",
       "requires": [
         "permissions",
-        "audit"
+        "audit",
+        "housekeeping"
       ],
       "integrates": [
         "invitations",
-        "approvals"
+        "approvals",
+        "housekeeping"
       ],
       "manifest": "impersonation",
       "scopes": [
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "approvals"
       ]
     },
@@ -356,9 +359,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions",
         "profiles",
         "memberships",
-        "data-lifecycle"
+        "data-lifecycle",
+        "consents",
+        "housekeeping"
       ],
       "manifest": "notifications",
+      "contributes": [
+        "consents",
+        "housekeeping"
+      ],
       "extraColumns": "events"
     },
     {
@@ -366,14 +375,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Outgoing webhooks",
       "category": "developer",
       "requires": [
-        "updated-at"
+        "updated-at",
+        "housekeeping"
       ],
       "integrates": [
         "permissions",
         "service-accounts",
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
       "manifest": "webhooks",
+      "contributes": [
+        "housekeeping"
+      ],
       "entities": {
         "specs": {
           "webhook_endpoint": {
@@ -534,16 +548,21 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "commerce",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "entitlements",
         "data-lifecycle",
-        "invoices"
+        "invoices",
+        "housekeeping"
       ],
       "manifest": "usage",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "housekeeping"
       ]
     },
     {
@@ -555,6 +574,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
+        "ledger",
         "organizations",
         "usage"
       ],
@@ -692,6 +712,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "imports",
         "subjects"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "attachments",
       "entities": {
         "specs": {
@@ -1058,6 +1081,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
+      "seeds": {
+        "variants": []
+      },
       "tenantNameClashes": [
         "team"
       ],
@@ -2105,6 +2131,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "events",
       "entities": {
         "specs": {
@@ -3590,6 +3619,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "seeds": {
+        "variants": [
+          "b2b-sales",
+          "recruiting"
+        ]
+      },
       "extraColumns": "pipelines",
       "entities": {
         "specs": {
@@ -7354,11 +7389,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "contacts",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "consents"
       ],
       "manifest": "sequences",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "consents"
       ],
       "entities": {
         "specs": {
@@ -8010,7 +8049,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "data-lifecycle",
         "banking",
         "periods",
-        "imports"
+        "imports",
+        "accounting"
       ],
       "manifest": "accounting",
       "scopes": [
@@ -8018,8 +8058,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "imports",
+        "accounting",
         "periods"
       ],
+      "seeds": {
+        "variants": [
+          "generic",
+          "nl-rgs"
+        ]
+      },
       "extraColumns": "entries",
       "entities": {
         "specs": {
@@ -11199,6 +11246,200 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "periods.read",
           "write": "periods.write",
           "manage": "periods.manage"
+        }
+      }
+    },
+    {
+      "name": "commissions",
+      "title": "Commissions",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invoices",
+        "periods"
+      ],
+      "manifest": "commissions",
+      "scopes": [
+        "tenant"
+      ],
+      "contributes": [
+        "periods"
+      ],
+      "entities": {
+        "specs": {
+          "commission_plan": {
+            "table": "plans",
+            "singular": "commission_plan",
+            "primary": true
+          },
+          "commission_assignment": {
+            "table": "assignments",
+            "singular": "commission_assignment"
+          },
+          "commission": {
+            "table": "entries",
+            "singular": "commission"
+          },
+          "commission_statement": {
+            "table": "statements",
+            "singular": "commission_statement"
+          }
+        },
+        "tables": {
+          "plans": {
+            "name": "commission_plans",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "kind": "kind",
+              "rateBps": "rate_bps",
+              "tiers": "tiers",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "assignments": {
+            "name": "commission_assignments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "seller": "seller_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          },
+          "entries": {
+            "name": "commissions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "seller": "seller_id",
+              "sourceType": "source_type",
+              "sourceId": "source_id",
+              "basis": "basis",
+              "amount": "amount",
+              "currency": "currency",
+              "occurredOn": "occurred_on",
+              "status": "status",
+              "statement": "statement_id",
+              "ledgerTransaction": "ledger_transaction_id",
+              "reversedAt": "reversed_at",
+              "createdAt": "created_at"
+            }
+          },
+          "statements": {
+            "name": "commission_statements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "seller": "seller_id",
+              "currency": "currency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "total": "total",
+              "ledgerTransaction": "ledger_transaction_id",
+              "finalizedAt": "finalized_at",
+              "paidAt": "paid_at",
+              "paidBy": "paid_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "commissions.read",
+          "write": "commissions.write",
+          "manage": "commissions.manage"
+        }
+      }
+    },
+    {
+      "name": "referrals",
+      "title": "Referrals",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invitations"
+      ],
+      "manifest": "referrals",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "referral_code": {
+            "table": "codes",
+            "singular": "referral_code",
+            "primary": true
+          },
+          "referral": {
+            "table": "referrals",
+            "singular": "referral"
+          }
+        },
+        "tables": {
+          "codes": {
+            "name": "referral_codes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "referrer": "referrer_id",
+              "invitation": "invitation_id",
+              "rewardAmount": "reward_amount",
+              "rewardUnit": "reward_unit",
+              "maxUses": "max_uses",
+              "uses": "uses",
+              "active": "active",
+              "expiresAt": "expires_at",
+              "createdAt": "created_at"
+            }
+          },
+          "referrals": {
+            "name": "referrals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code_id",
+              "referrer": "referrer_id",
+              "referredUser": "referred_user_id",
+              "referredOrganization": "referred_organization_id",
+              "referredEmail": "referred_email",
+              "status": "status",
+              "rewardAmount": "reward_amount",
+              "rewardUnit": "reward_unit",
+              "qualifiedAt": "qualified_at",
+              "qualifiedBy": "qualified_by",
+              "rewardedAt": "rewarded_at",
+              "ledgerTransaction": "ledger_transaction_id",
+              "voidedAt": "voided_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "referrals.read",
+          "write": "referrals.write",
+          "manage": "referrals.manage"
         }
       }
     },
@@ -24265,6 +24506,32 @@ export const PRESET_CATALOG: PresetCatalog = {
           "period.reopened"
         ]
       }
+    },
+    {
+      "name": "commissions",
+      "sql": [
+        "commissions"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "commissionsBlock",
+        "subpath": "better-supabase/blocks/commissions"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "referrals",
+      "sql": [
+        "referrals"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "referralsBlock",
+        "subpath": "better-supabase/blocks/referrals"
+      },
+      "consumes": {},
+      "provides": []
     },
     {
       "name": "agent-checkout",
