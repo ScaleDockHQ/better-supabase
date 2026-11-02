@@ -27,6 +27,7 @@ import { billingBlock as billingBlockInstance } from "better-supabase/blocks/bil
 import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabase/blocks/data-lifecycle";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
@@ -84,6 +85,10 @@ export const blockConfig = {
     options: {},
   },
   grants: {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -160,6 +165,7 @@ export const blocks = {
   "data-lifecycle": dataLifecycleBlockInstance,
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,

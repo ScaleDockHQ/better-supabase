@@ -118,6 +118,7 @@ import type { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import type { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import type { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import type { peopleBlock } from "../../src/blocks/people/manifest.ts";
+import type { periodsBlock } from "../../src/blocks/periods/manifest.ts";
 import type { permissionsBlock } from "../../src/blocks/permissions/manifest.ts";
 import type { pgtapBlock } from "../../src/blocks/pgtap/manifest.ts";
 import type { pipelinesBlock } from "../../src/blocks/pipelines/manifest.ts";
@@ -301,6 +302,7 @@ export type AllBlocks = {
   readonly filespace: typeof filespaceBlock;
   readonly crm: typeof crmBlock;
   readonly tills: typeof tillsBlock;
+  readonly periods: typeof periodsBlock;
   readonly "agent-checkout": typeof agentCheckoutBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
   readonly "e-prescribing": typeof ePrescribingBlock;

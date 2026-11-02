@@ -26,6 +26,7 @@ import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { supabaseDir } from "../supabase-toml.ts";
+import { runSeedDefaults, runSeedSample } from "./seed-cloud.ts";
 import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
 const ARGS = {
@@ -44,6 +45,40 @@ const ARGS = {
     description:
       "Defaults to database.seed.output (supabase/seeds/000_better_supabase.sql)",
     valueHint: "file",
+  },
+  defaults: {
+    type: "boolean",
+    description:
+      "Call the installed blocks' seed_<block>_defaults functions for --tenant (default every organization)",
+  },
+  variant: {
+    type: "string",
+    description: "A block's defaults variant as block=name; repeat for more",
+    valueHint: "block=name",
+  },
+  locale: {
+    type: "string",
+    description: "The language of defaults and sample data (default en)",
+    valueHint: "code",
+  },
+  sample: {
+    type: "boolean",
+    description:
+      "Fetch generated sample data from the Better Supabase cloud (Pro; needs `login`) and apply it",
+  },
+  size: {
+    type: "string",
+    description: "Sample data size: s, m or l (default m)",
+    valueHint: "s|m|l",
+  },
+  seed: {
+    type: "string",
+    description: "Sample data random seed; the same number gives the same rows",
+    valueHint: "number",
+  },
+  "demo-org": {
+    type: "boolean",
+    description: "Put the sample data in a new demo organization",
   },
   tenant: {
     type: "string",
@@ -71,6 +106,22 @@ export async function runSeed(
   dbUrl?: string,
   requireConsent: (request: ConsentRequest) => void = () => {},
 ): Promise<CommandResult> {
+  if (args.sample === true) {
+    return runSeedSample(
+      config,
+      args,
+      env,
+      { fetch: (input, init) => fetch(input, init), now: () => Date.now() },
+      open,
+      dbUrl,
+      requireConsent,
+    );
+  }
+
+  if (args.defaults === true) {
+    return runSeedDefaults(config, args, env, open, dbUrl, requireConsent);
+  }
+
   if (args.tenant !== undefined) {
     return runTenantSeed(config, args, env, open, dbUrl, requireConsent);
   }
@@ -303,7 +354,10 @@ export const seedCommand: AnyCommand = defineCliCommand({
     const seed = (): Promise<CommandResult> =>
       runSeed(config, args, env, connect, dbUrl, requireConsent);
 
-    return args.apply === true || args.tenant !== undefined
+    return args.apply === true ||
+      args.tenant !== undefined ||
+      args.sample === true ||
+      args.defaults === true
       ? log.progress("Inserting the seed rows", seed)
       : seed();
   },

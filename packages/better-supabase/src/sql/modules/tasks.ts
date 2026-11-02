@@ -12,6 +12,7 @@ import type { WorkItemNames } from "./tasks-functions.ts";
 import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { entityType } from "../resolved-names.ts";
+import { searchColumnSql } from "../search-column.ts";
 import {
   addExtraColumns,
   fail,
@@ -132,6 +133,7 @@ const NAMES: BlockSqlNames = {
     "authorCanDelete",
     "notify",
     "actionPath",
+    "searchColumn",
   ],
   tables: {
     items: {
@@ -360,7 +362,7 @@ create table if not exists ${t("items")} (
 );${appUniqueIndex(ctx, "items", ["tenant", "number"])}
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_board_idx`)} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_parent_idx`)} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("project_idx")}`)} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("iteration_idx")}`)} on ${t("items")} (${w("iteration")});` : ""}
-create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}${searchColumnSql(ctx, "items", ["identifier", "title", "body"])}
 ${lockModuleTable(ctx, "items", { read: true })}
 ${read("items")}
 

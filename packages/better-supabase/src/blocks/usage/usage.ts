@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -7,6 +8,7 @@ import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 import type { StripeSource } from "../stripe.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { amountText } from "../money-codec.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
@@ -93,6 +95,16 @@ export interface UsageHistoryOptions extends CursorPageOptions<number> {
   readonly limit?: number;
   /** Only entries with a lower id, for the next page. */
   readonly cursor?: number;
+}
+
+/** What `billPeriod` made of a period. */
+export interface UsageBilled {
+  /** The draft invoice, or `undefined` when the period had nothing to bill. */
+  readonly invoiceId: string | undefined;
+  /** False when the period was billed before or had nothing to bill. */
+  readonly created: boolean;
+  /** How many invoice lines the rating wrote. */
+  readonly lines: number;
 }
 
 export interface UsageRecorded {
@@ -221,6 +233,31 @@ export interface Usage {
     organizationId: string;
     meter: string;
   }): AsyncResult<readonly UsageBreakdownEntry[]>;
+  /**
+   * Sets what one unit of `meter` costs in the currency of `unitAmount`, and
+   * how many units each period includes (`included`, default 0). Needs a
+   * service transport and the `invoices` block with `options.history`.
+   */
+  setPrice(input: {
+    meter: string;
+    unitAmount: Money;
+    included?: number | undefined;
+    label?: string | undefined;
+  }): AsyncResult<void>;
+  /**
+   * Rates the usage history of the UTC days from `periodStart` up to, not
+   * including, `periodEnd` by the meter prices into a draft invoice: per meter,
+   * the quantity beyond the included units times the unit amount. Billing the
+   * same period again returns the first invoice. `invoice` adds invoice fields
+   * such as `company` or `termsDays`. Needs a service transport.
+   */
+  billPeriod(input: {
+    organizationId: string;
+    periodStart: Temporal.PlainDate;
+    periodEnd: Temporal.PlainDate;
+    currency?: string | undefined;
+    invoice?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<UsageBilled>;
   /**
    * Deletes up to `batch` history entries older than `olderThan` (default 400
    * days, `purge_usage_history`); returns how many.
@@ -414,6 +451,44 @@ export function createUsage(options: UsageOptions): Usage {
   const purgeEvents = purge("purge_usage_events");
 
   const client: Usage = {
+    setPrice: ({ meter, unitAmount, included, label }) =>
+      call(
+        "set_usage_price",
+        {
+          meter,
+          currency: unitAmount.currency,
+          unit_amount: amountText(unitAmount),
+          included: included ?? 0,
+          label,
+        },
+        () => undefined,
+      ),
+    billPeriod: ({
+      organizationId,
+      periodStart,
+      periodEnd,
+      currency,
+      invoice,
+    }) =>
+      call(
+        "bill_usage_period",
+        {
+          tenant: organizationId,
+          period_start: periodStart.toString(),
+          period_end: periodEnd.toString(),
+          currency,
+          attrs: invoice,
+        },
+        (value) => {
+          const row = isRecord(value) ? value : {};
+
+          return {
+            invoiceId: optionalText(row["invoice_id"]),
+            created: row["created"] === true,
+            lines: numberOf(row["lines"]),
+          };
+        },
+      ),
     purgeHistory,
     purgeEvents,
     purgeJob:

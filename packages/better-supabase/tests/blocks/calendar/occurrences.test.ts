@@ -12,7 +12,7 @@ import {
   expandOccurrences,
   splitRule,
 } from "../../../src/blocks/calendar/occurrences.ts";
-import { expandRule } from "../../../src/blocks/reminders/rrule.ts";
+import { expandRule } from "../../../src/core/recurrence.ts";
 
 const at = (text: string): Temporal.Instant => Temporal.Instant.from(text);
 

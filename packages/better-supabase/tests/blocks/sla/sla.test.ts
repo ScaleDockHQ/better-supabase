@@ -71,6 +71,7 @@ describe("sla block", () => {
       resolutionMinutes: 240,
       warnAtPercent: 50,
       businessHours: true,
+      escalations: [],
       fields: {},
     });
     expect(t.calls[0]?.[1]).toEqual({
@@ -83,6 +84,36 @@ describe("sla block", () => {
         firstResponseMinutes: 30,
       },
     });
+  });
+
+  it("saves and reads an escalation ladder", async () => {
+    const ladder = [
+      { at: 50, action: "notify" },
+      { at: 100, action: "reassign", target: "u2" },
+      { at: 150, action: "page" },
+    ] as const;
+
+    const t = transport({
+      save_sla_policy: () => ({
+        id: "p1",
+        subject_type: "ticket",
+        name: "Urgent",
+        warn_at_percent: 80,
+        business_hours: false,
+        escalations: ladder,
+      }),
+    });
+
+    const policy = await createSla({ transport: t, tenant: "o" })
+      .savePolicy({
+        subjectType: "ticket",
+        name: "Urgent",
+        escalations: ladder,
+      })
+      .orThrow();
+
+    expect(policy.escalations).toEqual(ladder);
+    expect(t.calls[0]?.[1]).toMatchObject({ attrs: { escalations: ladder } });
   });
 
   it("starts, records, reads, checks and computes due times", async () => {

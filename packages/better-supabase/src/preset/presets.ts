@@ -1,3 +1,4 @@
+import type { DesignSeeds } from "./design.ts";
 import type { Preset, PresetConventions } from "./fields.ts";
 
 import { PRESET_CATALOG } from "./catalog.generated.ts";
@@ -44,6 +45,8 @@ export interface NamedPreset {
   readonly conventions?: Partial<PresetConventions>;
   /** The `blocks` entries it writes: its nouns and extra instances. */
   readonly instances?: Preset["instances"];
+  /** The default seed variant per block and the locale it seeds (ADR 0196). */
+  readonly seeds?: DesignSeeds;
 }
 
 /** A named preset's name. */

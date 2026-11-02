@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:e06ff6c350360e754128a2edf6a611fa73338145c2c455ca1918b0fc89511ec1
+-- @bsb-hash sha256:46040c24a757b7c27bdedf7430749bedc227b44ccb51d9284cef19cade8d3724
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -887,6 +887,86 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_tax_returns"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_tax_returns"(uuid) to authenticated, service_role;
+
+-- Seeds the rows every organization starts with for tax. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_tax_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_locale = any (array['nl']) then
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'NL21', 'BTW hoog 21%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'NL21');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'NL9', 'BTW laag 9%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'NL9');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'NL0', 'BTW 0%', 'zero'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'NL0');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'NLVRIJ', 'Vrijgesteld van BTW', 'exempt'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'NLVRIJ');
+  end if;
+  if p_locale = any (array['nl']) then
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'NL21' limit 1), 2100
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'NL21' limit 1));
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'NL9' limit 1), 900
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'NL9' limit 1));
+  end if;
+  if p_locale = any (array['de']) then
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'DE19', 'Umsatzsteuer 19%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'DE19');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'DE7', 'Umsatzsteuer 7%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'DE7');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'DE0', 'Umsatzsteuer 0%', 'zero'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'DE0');
+  end if;
+  if p_locale = any (array['de']) then
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'DE19' limit 1), 1900
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'DE19' limit 1));
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'DE7' limit 1), 700
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'DE7' limit 1));
+  end if;
+  if p_locale = any (array['fr']) then
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'FR20', 'TVA 20%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'FR20');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'FR10', 'TVA 10%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'FR10');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'FR55', 'TVA 5,5%', 'sales'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'FR55');
+    insert into "better_supabase"."tax_codes" ("""tenant_id""", """code""", """name""", """type""")
+    select p_tenant, 'FR0', 'TVA 0%', 'zero'
+    where not exists (select 1 from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" is not distinct from 'FR0');
+  end if;
+  if p_locale = any (array['fr']) then
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR20' limit 1), 2000
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR20' limit 1));
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR10' limit 1), 1000
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR10' limit 1));
+    insert into "better_supabase"."tax_rates" ("""tenant_id""", """tax_code_id""", """rate_bps""")
+    select p_tenant, (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR55' limit 1), 550
+    where not exists (select 1 from "better_supabase"."tax_rates" x where x."""tenant_id""" = p_tenant and x."""tax_code_id""" is not distinct from (select x."""id""" from "better_supabase"."tax_codes" x where x."""tenant_id""" = p_tenant and x."""code""" = 'FR55' limit 1));
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

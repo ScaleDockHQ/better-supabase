@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:8e05ea94a635a2ca8951974d23d2c6f14b9915210385f29169acb431aeafb173
@@ -583,7 +583,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -597,7 +597,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:957f6c56a586664d7184904b96d7c2d8b8d1d4661d72f20facdc646ebecc7d6e
@@ -1263,7 +1263,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -1277,7 +1277,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:97dd2c4176816291bb3a38290eca23957e003287940e0afd669b744fe1bc0afa
@@ -1867,7 +1867,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -1881,7 +1881,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:cbacd1c80583fc6b16bbb15813fbfccc3cf39df8312decbf4301f2514b995351
@@ -2578,7 +2578,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -2592,7 +2592,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:8970d9d86c8557c0f5206c547c247a3ecbc0ca9400f6b7e73f639e05116f4cdf
@@ -3172,7 +3172,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -3186,7 +3186,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:7247f6f8624c4bb3994089eb12608ca8f7d2f8a2e3298a72496b91ec0103a35f
@@ -3771,7 +3771,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238

@@ -216,6 +216,12 @@ for the booking and scan that: scanning the pack itself counts as another use.
 | `bookWithCredit(passId, input)` | Books a class and takes a credit; returns the booking |
 | `credits(passId)`               | The pass's credit ledger, newest first                |
 
+## No overlapping passes
+
+`noOverlap: true` adds the `passes_no_overlap` exclusion constraint. A holder
+can't have two active passes of the same kind and resource with overlapping
+validity. It is off by default because existing data may already overlap.
+
 ## Errors
 
 | Hint                      | Cause                                                       |

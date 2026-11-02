@@ -904,7 +904,7 @@ export const TEMPLATES: BlockSqlDefinition = {
   title: "Templates",
   description:
     "Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.",
-  requires: ["memberships", "permissions"],
+  requires: ["memberships", "permissions", "recurrence"],
   integrates: [
     "outbox",
     "audit",

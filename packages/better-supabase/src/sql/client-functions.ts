@@ -149,6 +149,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":
     "care_decision_context decide_care_alert delete_care_rule evaluate_care_rules list_care_alerts list_care_rules record_care_alerts save_care_rule",
+  periods:
+    "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   "agent-checkout":
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:

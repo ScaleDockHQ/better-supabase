@@ -20,6 +20,7 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -49,6 +50,7 @@ export const blockSet = defineBlocks(blockConfig, {
   outbox: outboxBlock,
   profiles: profilesBlock,
   reactions: reactionsBlock,
+  reminders: remindersBlock,
   search: searchBlock,
   settings: settingsBlock,
   shareLinks: shareLinksBlock,

@@ -31,6 +31,7 @@ import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
 import { relationsBlock } from "better-supabase/blocks/relations";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -69,6 +70,7 @@ export const blockSet = defineBlocks(blockConfig, {
   profiles: profilesBlock,
   quotes: quotesBlock,
   relations: relationsBlock,
+  reminders: remindersBlock,
   settings: settingsBlock,
   sla: slaBlock,
   subjects: subjectsBlock,

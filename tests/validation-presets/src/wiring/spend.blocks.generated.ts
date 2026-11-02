@@ -30,6 +30,7 @@ import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledge
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { expensesBlock as expensesBlockInstance } from "better-supabase/blocks/expenses";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
@@ -96,6 +97,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  queue: {
+    schema: "better_supabase",
+    options: {},
+  },
   notifications: {
     schema: "better_supabase",
     options: {
@@ -159,6 +164,7 @@ export const blocks = {
   enrollments: enrollmentsBlockInstance,
   expenses: expensesBlockInstance,
   entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,

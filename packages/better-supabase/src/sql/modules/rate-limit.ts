@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -437,7 +438,18 @@ revoke execute on function better_supabase.purge_rate_limits(integer) from publi
 grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`;
 }
 
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: () => [
+    {
+      job: "purge_rate_limits",
+      function: "better_supabase.purge_rate_limits",
+      every: "15 minutes",
+    },
+  ],
+};
+
 export const RATE_LIMIT: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "rate-limit",
   names: NAMES,
   data: (ctx) =>
@@ -445,7 +457,7 @@ export const RATE_LIMIT: BlockSqlDefinition = {
   title: "Write rate limits",
   description:
     "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
-  requires: [],
+  requires: ["housekeeping"],
   target: "schema",
   build,
 };

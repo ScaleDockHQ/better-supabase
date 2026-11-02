@@ -8,6 +8,15 @@ import { COMMANDS } from "./core/manifest.ts";
  * loads on demand, so `--version` and `--help` import no command.
  */
 const LOADERS: readonly (readonly [string, Loader])[] = [
+  ["login", () => import("./commands/account.ts").then((m) => m.loginCommand)],
+  [
+    "logout",
+    () => import("./commands/account.ts").then((m) => m.logoutCommand),
+  ],
+  [
+    "whoami",
+    () => import("./commands/account.ts").then((m) => m.whoamiCommand),
+  ],
   ["init", () => import("./commands/init.ts").then((m) => m.initCommand)],
   ["add", () => import("./commands/add.ts").then((m) => m.addCommand)],
   ["remove", () => import("./commands/remove.ts").then((m) => m.removeCommand)],

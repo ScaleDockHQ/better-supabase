@@ -6,6 +6,7 @@ export {
   type ReportUsageResult,
   type Usage,
   type UsageBatchRecorded,
+  type UsageBilled,
   type UsageBreakdownEntry,
   type UsageEntry,
   type UsageHistoryEntry,

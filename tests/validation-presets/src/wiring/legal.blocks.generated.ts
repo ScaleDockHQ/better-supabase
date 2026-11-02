@@ -36,6 +36,7 @@ import { billableTimeBlock as billableTimeBlockInstance } from "better-supabase/
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
 import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
@@ -103,6 +104,10 @@ export const blockConfig = {
     options: {},
   },
   invoices: {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -184,6 +189,7 @@ export const blocks = {
   entitlements: entitlementsBlockInstance,
   signatures: signaturesBlockInstance,
   invoices: invoicesBlockInstance,
+  queue: queueBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,

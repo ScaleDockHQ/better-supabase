@@ -246,6 +246,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_care_alert_decide",
     "after_care_alert_decide",
   ],
+  periods: [],
   tills: [
     "before_till_session_open",
     "after_till_session_open",

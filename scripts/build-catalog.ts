@@ -724,6 +724,10 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
     block = { ...block, reads };
   }
 
+  if (module.seeds !== undefined) {
+    block = { ...block, seeds: { variants: module.seeds.variants ?? [] } };
+  }
+
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
   }

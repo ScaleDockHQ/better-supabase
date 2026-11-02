@@ -41,7 +41,7 @@ describe("checkDesign", () => {
           path: "/tables",
           table: "design",
           message:
-            'design: unknown key "tables"; a design has preset, appTables, extraColumns and positions',
+            'design: unknown key "tables"; a design has preset, appTables, extraColumns, positions and seeds',
         },
       ],
     });

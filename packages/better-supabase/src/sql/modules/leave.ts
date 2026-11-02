@@ -50,6 +50,13 @@ import {
   leaveOwner,
   leaveParts,
 } from "./leave-owner.ts";
+import {
+  INTEGRATES,
+  INTERNAL,
+  leaveSeeds,
+  leaveDependencies,
+  periodFunctions,
+} from "./leave-periods.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -1032,7 +1039,7 @@ ${
 end;
 $$;
 ${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid" : ""})`)}
-
+${periodFunctions(ctx, joinApproval("r", "ap"), pendingIn("r", "ap"))}
 `;
 }
 
@@ -1040,26 +1047,15 @@ const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 
 export const LEAVE: BlockSqlDefinition = {
   contributes: LEAVE_CONTRIBUTES,
-  internal: ["leave_available", "leave_post", "leave_posted"],
+  internal: INTERNAL,
   name: "leave",
   scopes: ["tenant"],
   title: "Leave",
   description:
     'Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app\'s own table of signed amounts instead of the ledger.',
   requires: [...REQUIRES],
-  dependencies: (layout) =>
-    REQUIRES.filter(
-      (name) =>
-        !(
-          name === "approvals" &&
-          layout.modules?.["leave"]?.options?.["approvals"] === false
-        ) &&
-        !(
-          name === "ledger" &&
-          typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
-        ),
-    ),
-  integrates: ["outbox", "audit", "employees", "share-links", "teams"],
+  dependencies: (layout) => leaveDependencies(REQUIRES, layout),
+  integrates: INTEGRATES,
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,
@@ -1086,4 +1082,5 @@ export const LEAVE: BlockSqlDefinition = {
   names: LEAVE_NAMES,
   contract: leaveContract,
   build,
+  seeds: leaveSeeds,
 };

@@ -9,6 +9,7 @@ import {
 } from "better-supabase/blocks";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 
 /**
@@ -22,6 +23,10 @@ export const blockConfig = {
     options: {},
   },
   "created-by": {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -47,6 +52,7 @@ export const blockConfig = {
  */
 export const blocks = {
   permissions: permissionsBlockInstance,
+  queue: queueBlockInstance,
   trash: trashBlockInstance,
 } as const;
 

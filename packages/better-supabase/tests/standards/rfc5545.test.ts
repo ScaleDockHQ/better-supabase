@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseIcs, toIcs } from "../../src/blocks/calendar/ics.ts";
-import { expandRule } from "../../src/blocks/reminders/rrule.ts";
+import { expandRule } from "../../src/core/recurrence.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 describe("RFC 5545", () => {

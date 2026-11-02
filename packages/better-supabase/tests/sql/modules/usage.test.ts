@@ -170,4 +170,25 @@ describe("usage partitioned history", () => {
       '"id" bigint generated always as identity primary key',
     );
   });
+
+  it("rates the history into a draft invoice only with history and invoices", () => {
+    const render = (modules: readonly string[], history: boolean) =>
+      renderBlocks(modules, {
+        modules: history ? { usage: { options: { history: true } } } : {},
+      }).find((file) => file.module === "usage" && file.kind === "schema")!
+        .contents;
+
+    const sql = render(["invoices", "usage"], true);
+
+    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("usage_meter_prices");
+    expect(sql).toContain("usage_billed_periods");
+    expect(sql).toContain('"better_supabase"."bill_usage_period"(');
+    expect(sql).toContain('"better_supabase"."create_invoice"(');
+    expect(sql).toContain("USAGE_PERIOD_INVALID");
+    expect(render(["invoices", "usage"], false)).not.toContain(
+      "bill_usage_period",
+    );
+    expect(render(["usage"], true)).not.toContain("bill_usage_period");
+  });
 });

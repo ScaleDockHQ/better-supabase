@@ -41,6 +41,16 @@ export interface CliEnv {
    * The directory with `pg_dump` and `psql` for `db diff --in-stack`; found
    * from the stack's postmaster otherwise.
    */
+  /**
+   * The cloud app `login`, `whoami` and `db seed --sample` call; defaults to
+   * https://app.bettersupabase.com.
+   */
+  readonly BSB_CLOUD_URL?: string | undefined;
+  /**
+   * Where the saved login lives, under `better-supabase/auth.json`; defaults to
+   * `~/.config`.
+   */
+  readonly XDG_CONFIG_HOME?: string | undefined;
   /** Every variable of the run, for the processes the CLI starts. */
   readonly [PROCESS_ENV]?: Readonly<Record<string, string | undefined>>;
 }
@@ -99,6 +109,8 @@ export function parseEnv(
       BETTER_SUPABASE_ENV: optionalString,
       BETTER_SUPABASE_AGENT: optionalString,
       BSB_STACK: optionalString,
+      BSB_CLOUD_URL: optionalUrl,
+      XDG_CONFIG_HOME: optionalString,
     },
     runtimeEnv: env,
     isServer: true,

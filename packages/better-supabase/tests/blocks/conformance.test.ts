@@ -154,6 +154,8 @@ const NO_FIELDS: readonly string[] = [
   "passes",
   // Payroll runs and lines are fixed records that come from other blocks.
   "payroll-export",
+  // Periods are dated ranges the engine creates; app data goes on the records they cover.
+  "periods",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
   // Versions are immutable templates; nothing for an app to extend.

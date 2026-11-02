@@ -16,7 +16,7 @@ describe("CONFIG_DEFAULTS", () => {
     expect(resolved.postgrestVersion).toBe(CONFIG_DEFAULTS.postgrestVersion);
     expect(resolved.codecs).toEqual(CONFIG_DEFAULTS.codecs);
     expect(resolved.sql).toMatchObject(CONFIG_DEFAULTS.sql);
-    expect(resolved.seed).toEqual(CONFIG_DEFAULTS.seed);
+    expect(resolved.seed).toMatchObject(CONFIG_DEFAULTS.seed);
     expect(resolved.openapi).toEqual(CONFIG_DEFAULTS.openapi);
     expect(resolved.specs.failOn).toBe(CONFIG_DEFAULTS.specs.failOn);
     expect(resolved.doctor).toMatchObject(CONFIG_DEFAULTS.doctor);

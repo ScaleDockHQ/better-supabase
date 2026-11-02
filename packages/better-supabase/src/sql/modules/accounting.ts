@@ -613,12 +613,22 @@ export const ACCOUNTING: BlockSqlDefinition = {
   description:
     "Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.",
   requires: ["memberships", "permissions", "tax"],
-  integrates: ["outbox", "audit", "data-lifecycle", "banking"],
+  integrates: ["outbox", "audit", "data-lifecycle", "banking", "periods"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,
   contract,
   build,
   data: seedDisposalAccounts,
-  contributes: { imports: accountingImportTargets },
+  internal: ["accounting_range_close_blockers", "accounting_close_range"],
+  contributes: {
+    imports: accountingImportTargets,
+    periods: (own) => [
+      {
+        kind: "fiscal_period",
+        blockers: own.fn("accounting_range_close_blockers"),
+        onClose: own.fn("accounting_close_range"),
+      },
+    ],
+  },
 };

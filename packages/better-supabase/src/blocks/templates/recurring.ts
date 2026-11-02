@@ -7,10 +7,10 @@ import type {
 import type { BlockCall } from "../shared.ts";
 
 import { dbError } from "../../core/errors.ts";
+import { expandRule } from "../../core/recurrence.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { isInstant } from "../../core/temporal.ts";
-import { expandRule } from "../reminders/rrule.ts";
 import {
   instantOf,
   isRecord,

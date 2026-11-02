@@ -49,6 +49,16 @@ const METRICS: readonly SlaMetric[] = [
 
 const STATES: readonly SlaState[] = ["running", "paused", "met", "breached"];
 
+/** One rung of a policy's escalation ladder. */
+export interface SlaEscalationStep {
+  /** The share of the clock's time, 1 to 500, after which the step fires. */
+  readonly at: number;
+  /** `notify` the owner, `reassign` to `target`, or `page`. */
+  readonly action: "notify" | "reassign" | "page";
+  /** The user a `reassign` moves the record to. */
+  readonly target?: string;
+}
+
 /** A policy. `F` types the extra columns the `fields` schema describes. */
 export interface SlaPolicy<F extends object = Record<never, never>> {
   readonly id: string;
@@ -63,6 +73,8 @@ export interface SlaPolicy<F extends object = Record<never, never>> {
   readonly warnAtPercent: number;
   /** Count only the module's business hours. */
   readonly businessHours: boolean;
+  /** The escalation ladder, evaluated by `check()`. */
+  readonly escalations: readonly SlaEscalationStep[];
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -92,6 +104,8 @@ export interface SlaPolicyInput<F extends object = Record<never, never>> {
   readonly resolutionMinutes?: number | null;
   readonly warnAtPercent?: number;
   readonly businessHours?: boolean;
+  /** Replaces the ladder; `null` or `[]` clears it. */
+  readonly escalations?: readonly SlaEscalationStep[] | null;
   readonly archived?: boolean;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
@@ -114,7 +128,10 @@ export interface Sla<F extends object = Record<never, never>> {
     event: SlaEvent;
   }): AsyncResult<SlaClock[]>;
   clocks(subject: RecordRef): AsyncResult<SlaClock[]>;
-  /** Records warnings and breaches. Service role only; run it from a job. */
+  /**
+   * Records warnings and breaches and runs the escalation ladders. Service role
+   * only; run it from a job.
+   */
   check(): AsyncResult<number>;
   /** The time `minutes` of working time after `start`. */
   dueAt(input: {
@@ -140,6 +157,22 @@ export interface SlaOptions<
 const minutes = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
 
+const ACTIONS: readonly SlaEscalationStep["action"][] = [
+  "notify",
+  "reassign",
+  "page",
+];
+
+function stepsOf(value: unknown): SlaEscalationStep[] {
+  return recordsOf(value ?? [], "sla escalations").map((row) =>
+    compact<SlaEscalationStep>({
+      at: Number(row["at"]),
+      action: enumOrThrow(row["action"], ACTIONS, "sla escalation action"),
+      target: optionalText(row["target"]),
+    }),
+  );
+}
+
 function policyOf(value: unknown): SlaPolicy {
   const row = recordOf(value, "sla policy");
 
@@ -153,6 +186,7 @@ function policyOf(value: unknown): SlaPolicy {
     resolutionMinutes: minutes(row["resolution_minutes"]),
     warnAtPercent: minutes(row["warn_at_percent"]) ?? 80,
     businessHours: row["business_hours"] === true,
+    escalations: stepsOf(row["escalations"]),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   });
 }

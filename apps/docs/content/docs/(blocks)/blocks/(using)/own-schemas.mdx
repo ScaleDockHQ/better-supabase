@@ -395,6 +395,8 @@ may be your own enum or domain.
   - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `created_at`; typed with values: `kind`
   - `better_supabase.interview_interviewers`, once mapped: `interview_id`, `user_id`
   - `better_supabase.application_scorecard_scores`, once mapped: `scorecard_id`, `criterion_key`, `score`
+- `housekeeping`
+  - `better_supabase.maintenance_state`: `job`, `last_run_at`, `last_status`, `last_result`, `last_error`, `runs`
 - `idempotency`
   - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `locked_until`, `expires_at`, `holder`; typed: `status`
   - `better_supabase.idempotency_leases`: `scope`, `key`, `holder`, `expires_at`
@@ -603,6 +605,8 @@ may be your own enum or domain.
 - `payroll-export`
   - `better_supabase.payroll_runs`: `id`, `tenant_id`, `period_from`, `period_to`, `label`, `status`, `format`, `checksum`, `exported_at`, `exported_by`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.payroll_lines`: `id`, `tenant_id`, `run_id`, `user_id`, `employee_id`, `employee_name`, `kind`, `code`, `paid`, `unit`, `quantity`, `source_count`, `created_at`
+- `periods`
+  - `better_supabase.periods`: `id`, `tenant_id`, `kind`, `starts_on`, `ends_on`, `status`, `closed_at`, `closed_by`, `created_at`
 - `permissions`
   - `better_supabase.roles`: `id`, `key`
   - `better_supabase.permissions`: `id`, `key`
@@ -718,6 +722,7 @@ may be your own enum or domain.
   - `better_supabase.signing_keys`: `id`, `owner_type`, `owner_id`, `kid`, `alg`, `public_jwk`, `vault_secret_id`, `state`, `publish_until`; typed: `alg`, `state`
 - `sla`
   - `better_supabase.sla_policies`: `id`, `tenant_id`, `subject_type`, `name`, `priority`, `first_response_minutes`, `next_response_minutes`, `resolution_minutes`
+  - `better_supabase.sla_escalations`: `id`, `tenant_id`, `clock_id`, `at_percent`, `action`, `target`, `result`, `fired_at`
   - `better_supabase.sla_clocks`: `id`, `tenant_id`, `subject_type`, `subject_id`, `policy_id`, `metric`, `started_at`, `due_at`, `paused_at`, `paused_seconds`, `warned_at`, `breached_at`, `met_at`; typed: `metric`
 - `sso`
   - `better_supabase.sso_domains`: `id`, `organization_id`, `domain`, `verification_token`, `verified_at`, `auto_join_role`, `enforce_sso`; typed: `auto_join_role`
@@ -778,6 +783,8 @@ may be your own enum or domain.
   - `better_supabase.usage_events`: `organization_id`, `meter`, `idempotency_key`, `quantity`, `recorded_at`
   - `better_supabase.usage_history`: `id`, `organization_id`, `meter`, `quantity`, `actor_id`, `recorded_at`
   - `better_supabase.usage_distinct`: `organization_id`, `meter`, `period_start`, `subject`
+  - `better_supabase.usage_meter_prices`: `meter`, `currency`, `unit_amount`, `included`
+  - `better_supabase.usage_billed_periods`: `organization_id`, `period_start`, `period_end`, `invoice_id`, `billed_at`
   - `better_supabase.usage_quotas`: `id`, `organization_id`, `plan`, `meter`, `limit`, `period`; typed: `period`
 - `vercel-marketplace`
   - `better_supabase.marketplace_installations`: `id`, `configuration_id`, `tenant`, `access_token_secret_id`, `status`; typed: `status`

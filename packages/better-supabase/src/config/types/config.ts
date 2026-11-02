@@ -20,6 +20,7 @@ import type {
   BucketConfig,
   RealtimeConfig,
   ResolvedSqlConfig,
+  ResolvedSeedConfig,
   SeedConfig,
   SqlConfig,
   TopicPoliciesConfig,
@@ -286,7 +287,7 @@ export interface ResolvedConfig {
   /** `appTables`, checked; empty without any. */
   readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
-  readonly seed: Required<SeedConfig>;
+  readonly seed: ResolvedSeedConfig;
   readonly openapi: Required<OpenApiConfig>;
   readonly specs: {
     readonly entry: string;

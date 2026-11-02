@@ -17,6 +17,14 @@ export interface OpenedTicket {
   readonly clocks: readonly SlaClock[];
 }
 
+/** What `support.escalate` returns. */
+export interface EscalatedTicket {
+  /** How many assignees the ticket has now. */
+  readonly assignees: number;
+  /** The SLA clocks, recomputed for the new priority. */
+  readonly clocks: readonly SlaClock[];
+}
+
 /** The helpers `support` adds over its parts. */
 export interface Support {
   /**
@@ -31,6 +39,18 @@ export interface Support {
     assigneeIds?: readonly string[] | undefined;
     priority?: string | undefined;
   }): AsyncResult<OpenedTicket>;
+  /**
+   * Escalates a ticket: hands it to `assigneeIds` (`tasks.assign`, which
+   * replaces the assignees and notifies the new ones), then restarts its SLA
+   * clocks at the higher `priority` (`sla.start`). A failed SLA start returns
+   * its error and leaves the new assignees in place, so retry it with
+   * `sla.start`.
+   */
+  escalate(input: {
+    ticketId: string;
+    assigneeIds: readonly string[];
+    priority: string;
+  }): AsyncResult<EscalatedTicket>;
 }
 
 /** What the `support` creator receives. */
@@ -66,6 +86,26 @@ export function createSupport(options: SupportOptions): Support {
 
         return clocks.ok
           ? ok({ ticket: created.data, clocks: clocks.data })
+          : clocks;
+      }),
+    escalate: ({ ticketId, assigneeIds, priority }) =>
+      Async.from<EscalatedTicket>(async () => {
+        const assigned = await tasks.assign({
+          workItemId: ticketId,
+          userIds: assigneeIds,
+        });
+
+        if (!assigned.ok) {
+          return assigned;
+        }
+
+        const clocks = await sla.start({
+          subject: { type: "task", id: ticketId },
+          priority,
+        });
+
+        return clocks.ok
+          ? ok({ assignees: assigned.data, clocks: clocks.data })
           : clocks;
       }),
   };

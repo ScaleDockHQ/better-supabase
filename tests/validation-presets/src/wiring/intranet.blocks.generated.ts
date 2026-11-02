@@ -20,6 +20,7 @@ import type { ChannelsEvents } from "better-supabase/blocks/channels";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
@@ -49,6 +50,7 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { reactionsBlock as reactionsBlockInstance } from "better-supabase/blocks/reactions";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
@@ -166,6 +168,10 @@ export const blockConfig = {
       topic: "reactions",
     },
   },
+  reminders: {
+    schema: "better_supabase",
+    options: {},
+  },
   "saved-views": {
     schema: "better_supabase",
     options: {},
@@ -238,6 +244,7 @@ export const blocks = {
   outbox: outboxBlockInstance,
   profiles: profilesBlockInstance,
   reactions: reactionsBlockInstance,
+  reminders: remindersBlockInstance,
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   settings: settingsBlockInstance,
@@ -412,7 +419,7 @@ export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.m
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AnnouncementsEvents & ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CalendarEvents & EnrollmentsEvents & AcknowledgementsEvents & DriveEvents & EmployeesEvents & MessagingEvents & ChannelsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = AnnouncementsEvents & ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CalendarEvents & EnrollmentsEvents & AcknowledgementsEvents & DriveEvents & EmployeesEvents & MessagingEvents & ChannelsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & RemindersEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -534,6 +541,7 @@ export const blockEvents: Events<BlockEvents> = {
     "platform_setting.updated",
     "reaction.added",
     "reaction.removed",
+    "reminder.sent",
     "saved_view.created",
     "saved_view.deleted",
     "saved_view.updated",
@@ -676,6 +684,7 @@ export const blockEventSchemas = {
   "platform_setting.updated": true,
   "reaction.added": true,
   "reaction.removed": true,
+  "reminder.sent": true,
   "saved_view.created": true,
   "saved_view.deleted": true,
   "saved_view.updated": true,

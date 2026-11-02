@@ -113,6 +113,8 @@ const config: KnipConfig = {
         // The composite actions are the runnable example the docs link to; no
         // page calls them yet.
         "src/features/composites/composite-actions.ts",
+        // The usage billing action is the example the usage docs link to.
+        "src/features/billing/usage-billing-actions.ts",
       ],
     },
     "apps/examples/vite-react": browserExample,

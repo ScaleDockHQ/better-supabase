@@ -1,4 +1,8 @@
-export { expandRule, weekdayName, type ExpandInput } from "./rrule.ts";
+export {
+  expandRule,
+  weekdayName,
+  type ExpandInput,
+} from "../../core/recurrence.ts";
 
 export {
   deliverReminder,

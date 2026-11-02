@@ -12,6 +12,7 @@ import {
   accountingContributions,
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
+import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
@@ -72,7 +73,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: ["extraColumns", "noOverlap"],
   tables: {
     leases: {
       name: "leases",
@@ -123,6 +124,28 @@ const NAMES: BlockSqlNames = {
     },
   },
 };
+
+/** The exclusion that keeps a unit's active leases from overlapping. */
+function leaseOverlap(ctx: BlockSqlContext): string {
+  if (!ctx.flag("noOverlap", false) || !ctx.owns("leases")) {
+    return "";
+  }
+
+  const l = (column: string): string => ctx.col("leases", column);
+
+  return `\n${ensureExclusion(
+    ctx.table("leases"),
+    ctx.naming.rename("leases_no_overlap"),
+    [
+      { expression: l("unit"), operator: "=" },
+      {
+        expression: `daterange(${l("startsOn")}, coalesce(${l("endsOn")}, 'infinity'::date), '[)')`,
+        operator: "&&",
+      },
+    ],
+    `${l("status")} = 'active'`,
+  )}`;
+}
 
 function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
@@ -180,7 +203,7 @@ create table if not exists ${leases} (
 create index if not exists ${index("leases", "tenant_idx")} on ${leases} (${l("tenant")}, ${l("status")}, ${l("startsOn")} desc);
 create index if not exists ${index("leases", "unit_idx")} on ${leases} (${l("unit")});
 create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("tenant")}, ${l("partyType")}, ${l("partyId")});
-create index if not exists ${index("leases", "deposit_hold_idx")} on ${leases} (${l("depositHold")}) where ${l("depositHold")} is not null;
+create index if not exists ${index("leases", "deposit_hold_idx")} on ${leases} (${l("depositHold")}) where ${l("depositHold")} is not null;${leaseOverlap(ctx)}
 ${lockModuleTable(ctx, "leases", { read: true })}
 drop policy if exists ${index("leases", "read")} on ${leases};
 ${renderPolicy(makePolicy({ table: leases, name: index("leases", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { target: leases })}

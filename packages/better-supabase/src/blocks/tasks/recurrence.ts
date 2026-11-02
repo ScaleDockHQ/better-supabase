@@ -1,9 +1,9 @@
 import type { EventSink } from "../../events/cloud-event.ts";
 import type { WorkItemRecurrence, Tasks } from "./tasks.ts";
 
+import { expandRule } from "../../core/recurrence.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { eventTypeOf } from "../../events/cloud-event.ts";
-import { expandRule } from "../reminders/rrule.ts";
 import { isRecord, optionalText } from "../shared.ts";
 
 /** How far ahead `nextWorkItemOccurrence` looks for the next occurrence. */

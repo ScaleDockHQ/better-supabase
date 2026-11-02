@@ -83,6 +83,7 @@ import { TARGETS } from "./modules/goals.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
+import { HOUSEKEEPING } from "./modules/housekeeping.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -121,6 +122,7 @@ import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PASSES } from "./modules/passes.ts";
 import { PAYROLL_EXPORT } from "./modules/payroll-export.ts";
+import { PERIODS } from "./modules/periods.ts";
 import { ACCESS } from "./modules/permissions.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
@@ -137,6 +139,7 @@ import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RECURRENCE } from "./modules/recurrence.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -441,6 +444,9 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(PERIODS),
+      built(RECURRENCE),
+      built(HOUSEKEEPING),
       built(E_PRESCRIBING),
       built(AGENT_CHECKOUT),
       built(ADVISORIES),

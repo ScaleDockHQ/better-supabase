@@ -166,9 +166,9 @@ function targetOf(
 
 /**
  * The tags `config` implies for `table`: `subject`, `realtime`,
- * `vector-search`, `json`, `encrypted`, `lookup`, `server` and `events`.
- * `audit`, `audit-reads` and `expose` change the table's SQL only, which the
- * split keeps as written.
+ * `vector-search`, `json`, `encrypted`, `lookup`, `server`, `search` and
+ * `events`. `audit`, `audit-reads` and `expose` change the table's SQL only,
+ * which the split keeps as written.
  */
 function tagsFor(
   config: ResolvedConfig,
@@ -275,6 +275,21 @@ function tagsFor(
       tag: {
         name: "server",
         args: Object.fromEntries(hidden.map((name) => [name, true as const])),
+      },
+    });
+  }
+
+  const search = app?.search;
+
+  if (search !== undefined) {
+    tags.push({
+      feature: "search",
+      tag: {
+        name: "search",
+        args:
+          search === true || search.columns === undefined
+            ? {}
+            : { columns: search.columns.join(", ") },
       },
     });
   }

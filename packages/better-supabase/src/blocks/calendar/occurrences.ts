@@ -5,8 +5,8 @@ import type {
 } from "./availability.ts";
 import type { CalendarAttendee, CalendarEventStatus } from "./ics.ts";
 
+import { expandRule } from "../../core/recurrence.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { expandRule } from "../reminders/rrule.ts";
 
 /** One row of `calendar_events`: a single event, a series or an override. */
 export interface CalendarEvent {

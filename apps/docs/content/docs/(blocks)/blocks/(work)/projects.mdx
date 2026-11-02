@@ -38,6 +38,34 @@ Installing `projects` installs these blocks. Each stays an ordinary block in the
 await blocks.projects.approveAndInvoice({ timesheetId });
 ```
 
+`utilization`: The hours every member tracked in the ISO week that holds `weekOf`, against a capacity (40 hours by default). An entry that crosses the edge of the week counts only the part inside it, and a running entry is skipped. It needs `time_tracking.read`.
+
+```ts
+const week = await blocks.projects.utilization({
+  weekOf: Temporal.PlainDate.from("2026-11-04"),
+  capacityHours: 36,
+});
+```
+
+`financials`: The time tracked on a project and its billable value. Each finished entry is valued at its hourly rate and rounded half to even, and the values are summed per currency, so currencies never mix.
+
+```ts
+const { seconds, billable } = (
+  await blocks.projects.financials({ projectId })
+).orThrow();
+```
+
+`retainerDrawdown`: How much of a prepaid retainer the project's billable time has used. `remaining` never drops below zero and `exhausted` turns true once the retainer is spent. Entries in another currency than the retainer's are not counted.
+
+```ts
+await blocks.projects.retainerDrawdown({
+  projectId,
+  retainer: money(500_000n, "EUR"),
+});
+```
+
+The Next.js example calls these from the `weekUtilization` and `projectBudget` server actions in `composite-actions.ts`.
+
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove

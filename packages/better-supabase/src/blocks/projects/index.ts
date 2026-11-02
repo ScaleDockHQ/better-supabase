@@ -3,6 +3,10 @@ export {
   type Projects,
   type ProjectsOptions,
   type ApprovedAndInvoiced,
+  type MemberUtilization,
+  type ProjectFinancials,
+  type RetainerDrawdown,
+  type Utilization,
 } from "./projects.ts";
 
 export {

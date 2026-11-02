@@ -284,6 +284,50 @@
             "perTenant": {
               "type": "string",
               "default": "supabase/seed.tenant.ts"
+            },
+            "defaults": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "onCreate": {
+                      "type": "boolean"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "variants": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "sample": {
+              "type": "object",
+              "properties": {
+                "size": {
+                  "enum": ["s", "m", "l"],
+                  "type": "string"
+                },
+                "seed": {
+                  "type": "number"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1701,6 +1745,7 @@
               "grants",
               "guests",
               "hiring",
+              "housekeeping",
               "idempotency",
               "identities",
               "impersonation",
@@ -1740,6 +1785,7 @@
               "outbox",
               "passes",
               "payroll-export",
+              "periods",
               "permissions",
               "pgtap",
               "pipelines",
@@ -1756,6 +1802,7 @@
               "reactions",
               "read-sets",
               "realtime-tables",
+              "recurrence",
               "relations",
               "reminders",
               "reserved-slugs",
@@ -1889,6 +1936,7 @@
                   "grants",
                   "guests",
                   "hiring",
+                  "housekeeping",
                   "idempotency",
                   "identities",
                   "impersonation",
@@ -1928,6 +1976,7 @@
                   "outbox",
                   "passes",
                   "payroll-export",
+                  "periods",
                   "permissions",
                   "pgtap",
                   "pipelines",
@@ -1944,6 +1993,7 @@
                   "reactions",
                   "read-sets",
                   "realtime-tables",
+                  "recurrence",
                   "relations",
                   "reminders",
                   "reserved-slugs",
@@ -2216,6 +2266,9 @@
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
             },
+            "housekeeping": {
+              "$ref": "#/$defs/blocks/housekeeping"
+            },
             "idempotency": {
               "$ref": "#/$defs/blocks/idempotency"
             },
@@ -2333,6 +2386,9 @@
             "payroll-export": {
               "$ref": "#/$defs/blocks/payroll-export"
             },
+            "periods": {
+              "$ref": "#/$defs/blocks/periods"
+            },
             "permissions": {
               "$ref": "#/$defs/blocks/permissions"
             },
@@ -2380,6 +2436,9 @@
             },
             "realtime-tables": {
               "$ref": "#/$defs/blocks/realtime-tables"
+            },
+            "recurrence": {
+              "$ref": "#/$defs/blocks/recurrence"
             },
             "relations": {
               "$ref": "#/$defs/blocks/relations"
@@ -4647,6 +4706,10 @@
               "defaultAlarms": {
                 "type": "boolean",
                 "default": false
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4923,6 +4986,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -5158,6 +5225,10 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -5328,7 +5399,11 @@
               },
               "quota": {},
               "control": {},
-              "sync": {}
+              "sync": {},
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -5517,7 +5592,12 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              }
+            }
           }
         }
       },
@@ -5679,6 +5759,17 @@
                 "default": "user"
               }
             }
+          }
+        }
+      },
+      "housekeeping": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -6005,6 +6096,10 @@
               "discountMatrix": {
                 "type": "boolean",
                 "default": false
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6090,6 +6185,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6738,6 +6837,10 @@
               "creditRefundBefore": {
                 "type": "string",
                 "default": "12 hours"
+              },
+              "noOverlap": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6762,6 +6865,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "periods": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -7143,6 +7257,17 @@
         }
       },
       "realtime-tables": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "recurrence": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -7732,6 +7857,10 @@
               },
               "actionPath": {
                 "type": "string"
+              },
+              "searchColumn": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

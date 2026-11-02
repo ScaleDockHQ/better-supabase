@@ -20,6 +20,7 @@ const SUBJECT_EVENTS = [
   "sla.warned",
   "sla.breached",
   "sla.completed",
+  "sla.escalated",
   "quote.created",
   "quote.updated",
   "quote.sent",

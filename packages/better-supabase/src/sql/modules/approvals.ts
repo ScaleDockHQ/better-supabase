@@ -1036,6 +1036,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("expire_approvals"),
+      function: own.fn("expire_approvals"),
+      every: "15 minutes",
+    },
+  ],
   subjects: (own) => {
     const r = (column: string): string => `r.${own.col("requests", column)}`;
 
@@ -1059,7 +1066,7 @@ export const APPROVALS: BlockSqlDefinition = {
   title: "Approvals",
   description:
     "Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.",
-  requires: ["memberships", "permissions"],
+  requires: ["memberships", "permissions", "housekeeping"],
   integrates: [
     "outbox",
     "audit",

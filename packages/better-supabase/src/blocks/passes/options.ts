@@ -15,6 +15,13 @@ export type PassesSqlOptions = {
   readonly credits?: boolean;
   /** How long before a class a cancellation still refunds its credit. */
   readonly creditRefundBefore?: string;
+  /**
+   * Adds a gist exclusion constraint (ADR 0198) so a holder has at most one
+   * active pass of a kind per resource at a time. Needs `btree_gist`, which the
+   * module creates. Rows that already overlap make the migration fail. Default
+   * `false`.
+   */
+  readonly noOverlap?: boolean;
 };
 
 export const passesSqlOptions: BlockOptionsSchema<PassesSqlOptions> =
@@ -23,4 +30,5 @@ export const passesSqlOptions: BlockOptionsSchema<PassesSqlOptions> =
     dropInLength: option.string({ default: "2 hours" }),
     credits: option.boolean({ default: false }),
     creditRefundBefore: option.string({ default: "12 hours" }),
+    noOverlap: option.boolean({ default: false }),
   });

@@ -88,7 +88,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "queue",
       "title": "Job queue",
       "category": "automation",
-      "requires": [],
+      "requires": [
+        "housekeeping"
+      ],
       "integrates": [
         "data-lifecycle"
       ],
@@ -98,19 +100,32 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "idempotency",
       "title": "Idempotency keys",
       "category": "automation",
-      "requires": [],
-      "integrates": [],
-      "manifest": "idempotency"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "idempotency",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "webhook-inbox",
       "title": "Webhook inbox",
       "category": "automation",
-      "requires": [],
+      "requires": [
+        "housekeeping"
+      ],
       "integrates": [
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
       "manifest": "webhook-inbox",
+      "contributes": [
+        "housekeeping"
+      ],
       "extraColumns": "messages"
     },
     {
@@ -183,9 +198,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "rate-limit",
       "title": "Write rate limits",
       "category": "automation",
-      "requires": [],
-      "integrates": [],
-      "manifest": "rate-limit"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "rate-limit",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "vector-search",
@@ -516,7 +538,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "entitlements",
-        "data-lifecycle"
+        "data-lifecycle",
+        "invoices"
       ],
       "manifest": "usage",
       "scopes": [
@@ -978,9 +1001,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "chat-sdk-state",
       "title": "Chat SDK state",
       "category": "messaging",
-      "requires": [],
-      "integrates": [],
-      "manifest": "inbox"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "inbox",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "inbox",
@@ -2058,7 +2088,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "scheduling",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "share-links",
@@ -2295,12 +2326,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "database",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "outbox",
         "audit",
         "data-lifecycle",
+        "housekeeping",
         "bulk"
       ],
       "manifest": "trash",
@@ -2308,6 +2341,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "bulk"
       ],
       "extraColumns": "items"
@@ -2366,7 +2400,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "work",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "outbox",
@@ -2378,6 +2413,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "state-machine",
         "employees",
         "automations",
+        "housekeeping",
         "subjects"
       ],
       "manifest": "approvals",
@@ -2385,6 +2421,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "subjects"
       ],
       "extraColumns": "requests",
@@ -3482,7 +3519,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "content",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "outbox",
@@ -4471,6 +4509,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "resolution": "resolution_minutes",
               "warnPercent": "warn_at_percent",
               "businessHours": "business_hours",
+              "escalations": "escalations",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -4974,6 +5013,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "share-links",
         "teams",
+        "periods",
         "approvals"
       ],
       "manifest": "leave",
@@ -4981,9 +5021,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "periods",
         "share-links",
         "approvals"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "requests",
       "entities": {
         "specs": {
@@ -7682,6 +7726,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "risks",
       "entities": {
         "specs": {
@@ -7962,6 +8009,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "data-lifecycle",
         "banking",
+        "periods",
         "imports"
       ],
       "manifest": "accounting",
@@ -7969,7 +8017,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
-        "imports"
+        "imports",
+        "periods"
       ],
       "extraColumns": "entries",
       "entities": {
@@ -8689,6 +8738,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "created_from"
         }
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "cases",
       "entities": {
         "specs": {
@@ -9879,7 +9931,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "dispatch"
+        "dispatch",
+        "recurrence"
       ],
       "integrates": [
         "assets",
@@ -10114,6 +10167,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "seeds": {
+        "variants": []
+      },
       "entities": {
         "specs": {
           "tax_code": {
@@ -11098,6 +11154,69 @@ export const PRESET_CATALOG: PresetCatalog = {
           "manage": "clinical_decision_support.manage"
         }
       }
+    },
+    {
+      "name": "periods",
+      "title": "Periods",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "periods",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "period": {
+            "table": "periods",
+            "singular": "period",
+            "primary": true
+          }
+        },
+        "tables": {
+          "periods": {
+            "name": "periods",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "periods.read",
+          "write": "periods.write",
+          "manage": "periods.manage"
+        }
+      }
+    },
+    {
+      "name": "recurrence",
+      "title": "Recurrence",
+      "category": "scheduling",
+      "requires": [],
+      "integrates": [],
+      "manifest": "reminders"
+    },
+    {
+      "name": "housekeeping",
+      "title": "Housekeeping",
+      "category": "automation",
+      "requires": [],
+      "integrates": [],
+      "manifest": "queue"
     },
     {
       "name": "e-prescribing",
@@ -24100,6 +24219,54 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "periods",
+      "sql": [
+        "periods"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "periodsBlock",
+        "subpath": "better-supabase/blocks/periods"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreatePeriodInput"
+        },
+        {
+          "name": "Period"
+        },
+        {
+          "name": "PeriodEventData"
+        },
+        {
+          "name": "PeriodListOptions"
+        },
+        {
+          "name": "Periods"
+        },
+        {
+          "name": "PeriodsEvents"
+        },
+        {
+          "name": "PeriodsOptions"
+        },
+        {
+          "name": "PeriodStatus"
+        }
+      ],
+      "events": {
+        "type": "PeriodsEvents",
+        "types": [
+          "period.created",
+          "period.locked",
+          "period.closed",
+          "period.reopened"
+        ]
+      }
+    },
+    {
       "name": "agent-checkout",
       "sql": [
         "agent-checkout"
@@ -28948,7 +29115,8 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "queue",
       "sql": [
-        "queue"
+        "queue",
+        "housekeeping"
       ],
       "category": "automation",
       "client": {
@@ -31502,7 +31670,8 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "reminders",
       "sql": [
-        "reminders"
+        "reminders",
+        "recurrence"
       ],
       "category": "scheduling",
       "client": {
@@ -32049,7 +32218,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "sla.warned",
           "sla.breached",
-          "sla.completed"
+          "sla.completed",
+          "sla.escalated"
         ]
       },
       "schedules": [

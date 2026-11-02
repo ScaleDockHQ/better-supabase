@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_171_agent_checkout.sql
+-- ==== schema supabase/schemas/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:fbc237bbd74964f130f396a7a1ae5d93cf1ff68074d26747150e6f0fe4b69d0b
@@ -583,7 +583,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_171_agent_checkout.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_174_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238

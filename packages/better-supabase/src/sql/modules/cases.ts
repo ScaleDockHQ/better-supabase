@@ -485,4 +485,33 @@ export const CASES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  seeds: {
+    // The kinds `options.kinds` lists. `ensure_case_kinds` seeds them lazily,
+    // so this also fills them in for organizations that exist already.
+    defaults: (ctx) => {
+      const q = casesSql(ctx);
+
+      return [
+        {
+          table: q.kinds,
+          tenantColumn: q.k("tenant"),
+          key: [q.k("key")],
+          rows: q.seeded.map((kind) => ({
+            values: {
+              [q.k("key")]: kind.key,
+              [q.k("name")]: kind.name,
+              [q.k("prefix")]: kind.prefix,
+              [q.k("effectivenessAfterDays")]:
+                kind.effectivenessAfterDays ?? null,
+              [q.k("requiresRootCause")]: kind.requiresRootCause ?? true,
+              [q.k("requiresActions")]: kind.requiresActions ?? true,
+              [q.k("requiresEffectiveness")]:
+                kind.requiresEffectiveness ?? false,
+              [q.k("requiresRevisions")]: kind.requiresRevisions ?? false,
+            },
+          })),
+        },
+      ];
+    },
+  },
 };

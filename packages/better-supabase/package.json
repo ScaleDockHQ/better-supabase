@@ -325,6 +325,11 @@
       "types": "./dist/rate-limit/index.d.ts",
       "default": "./dist/rate-limit/index.js"
     },
+    "./recurrence": {
+      "@better-supabase/source": "./src/recurrence/index.ts",
+      "types": "./dist/recurrence/index.d.ts",
+      "default": "./dist/recurrence/index.js"
+    },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
@@ -1255,6 +1260,11 @@
       "types": "./dist/blocks/tills/index.d.ts",
       "default": "./dist/blocks/tills/index.js"
     },
+    "./blocks/periods": {
+      "@better-supabase/source": "./src/blocks/periods/index.ts",
+      "types": "./dist/blocks/periods/index.d.ts",
+      "default": "./dist/blocks/periods/index.js"
+    },
     "./blocks/agent-checkout": {
       "@better-supabase/source": "./src/blocks/agent-checkout/index.ts",
       "types": "./dist/blocks/agent-checkout/index.d.ts",
@@ -1603,6 +1613,10 @@
       "./rate-limit": {
         "types": "./dist/rate-limit/index.d.ts",
         "default": "./dist/rate-limit/index.js"
+      },
+      "./recurrence": {
+        "types": "./dist/recurrence/index.d.ts",
+        "default": "./dist/recurrence/index.js"
       },
       "./events": {
         "types": "./dist/events/index.d.ts",
@@ -2348,6 +2362,10 @@
       "./blocks/tills": {
         "types": "./dist/blocks/tills/index.d.ts",
         "default": "./dist/blocks/tills/index.js"
+      },
+      "./blocks/periods": {
+        "types": "./dist/blocks/periods/index.d.ts",
+        "default": "./dist/blocks/periods/index.js"
       },
       "./blocks/agent-checkout": {
         "types": "./dist/blocks/agent-checkout/index.d.ts",

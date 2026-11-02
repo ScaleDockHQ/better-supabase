@@ -394,10 +394,14 @@
       "ResolvedConfig",
       "ResolvedExpose",
       "ResolvedExtensions",
+      "ResolvedSeedConfig",
       "ResolvedSqlConfig",
       "ResolveInput",
       "RoleNames",
       "SeedConfig",
+      "SeedDefaultsConfig",
+      "SeedSampleConfig",
+      "SeedSampleSize",
       "SkillsAgent",
       "SkillsConfig",
       "SourceConfig",
@@ -3265,6 +3269,17 @@
       "RateLimitSource"
     ]
   },
+  "./recurrence": {
+    "values": [
+      "expandRule",
+      "rruleOccurrences",
+      "weekdayName"
+    ],
+    "types": [
+      "ExpandInput",
+      "OccurrencesInput"
+    ]
+  },
   "./events": {
     "values": [
       "BLOCK_ATTRIBUTES",
@@ -3746,6 +3761,7 @@
       "StripeSource",
       "Usage",
       "UsageBatchRecorded",
+      "UsageBilled",
       "UsageBreakdownEntry",
       "UsageEntry",
       "UsageHistoryEntry",
@@ -9048,6 +9064,7 @@
       "scopePolicyName",
       "scopeProblems",
       "SECRET_COLUMNS",
+      "seedDefaultsFunctions",
       "setBsbTag",
       "setFeatureStatement",
       "setTableFeature",
@@ -9122,6 +9139,7 @@
       "RulePolicy",
       "RulePolicyInput",
       "RuleValue",
+      "SeedDefaultsFunction",
       "TableFeature",
       "TenantQuery"
     ]
@@ -10175,6 +10193,7 @@
   },
   "./blocks/saas": {
     "values": [
+      "createKeyRotator",
       "createSaas",
       "saasBlock",
       "saasParts"
@@ -10221,7 +10240,9 @@
       "Commerce",
       "CommerceOptions",
       "CommerceParts",
-      "PaidAndFulfilled"
+      "PaidAndFulfilled",
+      "ProcessedReturn",
+      "ReturnDisposition"
     ]
   },
   "./blocks/procurement": {
@@ -10255,6 +10276,7 @@
       "supportParts"
     ],
     "types": [
+      "EscalatedTicket",
       "OpenedTicket",
       "Support",
       "SupportOptions",
@@ -10269,9 +10291,13 @@
     ],
     "types": [
       "ApprovedAndInvoiced",
+      "MemberUtilization",
+      "ProjectFinancials",
       "Projects",
       "ProjectsOptions",
-      "ProjectsParts"
+      "ProjectsParts",
+      "RetainerDrawdown",
+      "Utilization"
     ]
   },
   "./blocks/service": {
@@ -10397,9 +10423,13 @@
       "crmReadSets"
     ],
     "types": [
+      "Attainment",
+      "AttainmentInput",
       "Crm",
       "CrmOptions",
-      "CrmParts"
+      "CrmParts",
+      "MetricAttainment",
+      "RoutedLead"
     ]
   },
   "./blocks/rfqs": {
@@ -10621,6 +10651,33 @@
       "TillsEvents",
       "TillsOptions",
       "TillUpdate"
+    ]
+  },
+  "./blocks/periods": {
+    "values": [
+      "createPeriods",
+      "dbTransport",
+      "extendBlock",
+      "periodsBlock",
+      "periodsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CreatePeriodInput",
+      "Period",
+      "PeriodEventData",
+      "PeriodListOptions",
+      "Periods",
+      "PeriodsEvents",
+      "PeriodsOptions",
+      "PeriodStatus",
+      "RpcClient"
     ]
   },
   "./blocks/agent-checkout": {

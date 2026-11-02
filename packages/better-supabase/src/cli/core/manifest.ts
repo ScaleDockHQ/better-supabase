@@ -26,7 +26,7 @@ export const GROUPS: readonly (readonly [CommandGroup, string])[] = [
 ];
 
 /** Services a command contacts over the network. */
-type NetworkTarget = "supabase-api" | "github";
+type NetworkTarget = "supabase-api" | "github" | "cloud";
 
 export type CommandEffect = (
   | { readonly kind: "files" }
@@ -62,9 +62,6 @@ export interface CommandSpec {
 
 /** Top-level names left free for account and cloud commands. */
 export const RESERVED_NAMES: readonly string[] = [
-  "login",
-  "logout",
-  "whoami",
   "link",
   "projects",
   "deploy",
@@ -86,6 +83,28 @@ const MANAGEMENT_API: CommandEffect = {
 };
 
 export const COMMANDS: readonly CommandSpec[] = [
+  {
+    name: "login",
+    description:
+      "Logs in to the Better Supabase cloud in the browser and saves the login for sample data",
+    group: "account",
+    docs: "/docs/cli/login",
+    effects: [{ kind: "network", target: "cloud" }],
+  },
+  {
+    name: "logout",
+    description: "Deletes the saved cloud login",
+    group: "account",
+    docs: "/docs/cli/login#logout",
+    effects: [FILES],
+  },
+  {
+    name: "whoami",
+    description: "Shows the account and plan the saved login belongs to",
+    group: "account",
+    docs: "/docs/cli/login#whoami",
+    effects: [{ kind: "network", target: "cloud" }],
+  },
   {
     name: "init",
     description:
@@ -520,6 +539,8 @@ export const COMMANDS: readonly CommandSpec[] = [
           FILES,
           { kind: "database", access: "write", when: "--apply" },
           { kind: "database", access: "write", when: "--tenant" },
+          { kind: "database", access: "write", when: "--defaults" },
+          { kind: "network", target: "cloud", when: "--sample" },
         ],
       },
       {

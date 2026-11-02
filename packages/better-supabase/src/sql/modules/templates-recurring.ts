@@ -67,6 +67,11 @@ export function recurringContract(
     },
     { name: "list_template_schedule", args: [], returns: "jsonb" },
     {
+      name: "due_template_occurrences",
+      args: ["timestamp with time zone", "timestamp with time zone"],
+      returns: "jsonb",
+    },
+    {
       name: "claim_template_occurrence",
       args: ["uuid", "timestamp with time zone"],
       returns: "jsonb",
@@ -318,6 +323,37 @@ as $$
   where x.${cs("enabled")} and u.${cu("rrule")} is not null
 $$;
 ${serviceGrant(`${fn("list_template_schedule")}()`)}
+
+-- The occurrences of every enabled schedule that start in [range_start,
+-- range_end) and haven't applied yet, expanded by rrule_occurrences:
+-- [{ schedule, tenant, occurrenceAt }], oldest first, at most 5000.
+create or replace function ${fn("due_template_occurrences")}(range_start timestamptz, range_end timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  select coalesce(jsonb_agg(jsonb_build_object('schedule', d.schedule, 'tenant', d.tenant, 'occurrenceAt', d.at) order by d.at, d.schedule), '[]'::jsonb)
+  from (
+    select x.${cs("id")} as schedule, x.${cs("tenant")} as tenant, o.at
+    from ${s} x
+    join ${rules} u on ${ruleOf("u", "x")}
+    cross join lateral better_supabase.rrule_occurrences(u.${cu("rrule")}, u.${cu("dtstart")}, u.${cu("tzid")}, tstzrange(due_template_occurrences.range_start, due_template_occurrences.range_end, '[)')) o (at)
+    where x.${cs("enabled")} and u.${cu("rrule")} is not null
+      and not exists (
+        select 1 from ${r} y
+        where y.${cr("schedule")} = x.${cs("id")} and y.${cr("occurrence")} = o.at and y.${cr("application")} is not null
+      )
+    order by o.at, x.${cs("id")}
+    limit 5000
+  ) d
+  );
+end;
+$$;
+${serviceGrant(`${fn("due_template_occurrences")}(timestamptz, timestamptz)`)}
 
 -- Claims one occurrence of an enabled schedule: the schedule when the
 -- occurrence is new or hasn't recorded an application yet, else null.

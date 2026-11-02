@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:84d420d52ecd539f81bb4acc0e9ef7b9832a0cbd1e37fcbda418df1d89a88d70
+-- @bsb-hash sha256:2df93d6e4940f9f1f50664ffd27adb03fde75551369394ce633b06da393205ee
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1282,6 +1282,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."case_stats"(uuid, text, date, date, text) from public, anon;
 grant execute on function "better_supabase"."case_stats"(uuid, text, date, date, text) to authenticated, service_role;
+
+-- Seeds the rows every organization starts with for cases. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_cases_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'nonconformity', 'Nonconformity', 'NC', null, true, true, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'nonconformity');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'complaint', 'Complaint', 'CMP', null, true, true, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'complaint');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'incident', 'Incident', 'INC', null, true, true, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'incident');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'near_miss', 'Near miss', 'NM', null, true, false, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'near_miss');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'observation', 'Observation', 'OBS', null, false, false, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'observation');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'improvement', 'Improvement', 'IMP', null, false, true, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'improvement');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'change', 'Change request', 'CHG', null, false, true, false, true
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'change');
+  insert into "better_supabase"."case_kinds" ("""tenant_id""", """key""", """name""", """prefix""", """effectiveness_after_days""", """requires_root_cause""", """requires_actions""", """requires_effectiveness""", """requires_revisions""")
+  select p_tenant, 'finding', 'Audit finding', 'FND', null, true, true, false, false
+  where not exists (select 1 from "better_supabase"."case_kinds" x where x."""tenant_id""" = p_tenant and x."""key""" is not distinct from 'finding');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_cases_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_cases_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -208,7 +208,7 @@ export default defineConfig({
     sequences: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
-    usage: {},
+    usage: { options: { history: true } },
     // Cmd+K over customers, and the customers card on the dashboard.
     search: {},
     metrics: { options: { metrics } },
@@ -427,6 +427,8 @@ export default defineConfig({
     rfqs: {},
     // Till sessions, cash drawers and end-of-day counts that post to accounting.
     tills: {},
+    // Fiscal periods and leave years close through one protocol.
+    periods: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },
     promotions: {},
