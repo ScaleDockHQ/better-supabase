@@ -1,0 +1,47 @@
+---
+title: Recurrence
+description: Expand RFC 5545 recurrence rules in TypeScript or in SQL with the same result.
+---
+
+```ts
+import { rruleOccurrences } from "better-supabase/recurrence";
+
+const starts = rruleOccurrences({
+  rule: "FREQ=WEEKLY;BYDAY=MO,WE;COUNT=12",
+  dtstart: Temporal.Instant.from("2026-03-02T08:30:00Z"),
+  tz: "Europe/Amsterdam",
+  from: Temporal.Instant.from("2026-03-01T00:00:00Z"),
+  until: Temporal.Instant.from("2026-05-01T00:00:00Z"),
+});
+```
+
+`rruleOccurrences` returns the instants of a rule that start in `[from, until)`, oldest
+first. Local times stay the same across a daylight saving change, so a 09:30 meeting in
+`Europe/Amsterdam` is 09:30 before and after it. A rule it can't read returns the first
+start when that falls inside the window and nothing otherwise, and it never throws.
+
+`expandRule` is the lower-level function: it takes a `Temporal.ZonedDateTime` start and
+returns zoned results, and it throws on an unreadable rule. Calendar events, task
+recurrence, reminders and recurring template schedules all expand through it.
+
+## In SQL
+
+The `recurrence` module installs two functions in the `better_supabase` schema.
+
+```sql
+select * from better_supabase.rrule_occurrences(
+  'FREQ=MONTHLY;BYDAY=-1FR',
+  '2026-01-30 17:00+00',
+  'America/New_York',
+  tstzrange('2026-01-01', '2026-12-31', '[)')
+);
+```
+
+`rrule_occurrences(rule, dtstart, tz, during)` returns the starts inside the range, at
+most 1000 rows. `rrule_next(rule, dtstart, tz, after)` returns the first start after a
+given instant. A conformance test runs the same rules through both implementations and
+compares the instants.
+
+The calendar block's `calendar_rule_starts` and the templates block's
+`due_template_occurrences(range_start, range_end)` call `rrule_occurrences`, so a new block
+that stores a rule needs no expander of its own.

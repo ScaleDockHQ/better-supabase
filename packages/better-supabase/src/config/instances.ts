@@ -33,6 +33,7 @@ export const CORE_BLOCKS: ReadonlySet<string> = new Set([
   "queue",
   "rate-limit",
   "read-sets",
+  "recurrence",
   "realtime-tables",
   "reserved-slugs",
   "rls-guard",

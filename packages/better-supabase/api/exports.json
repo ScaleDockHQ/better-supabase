@@ -3255,6 +3255,17 @@
       "RateLimitSource"
     ]
   },
+  "./recurrence": {
+    "values": [
+      "expandRule",
+      "rruleOccurrences",
+      "weekdayName"
+    ],
+    "types": [
+      "ExpandInput",
+      "OccurrencesInput"
+    ]
+  },
   "./events": {
     "values": [
       "BLOCK_ATTRIBUTES",

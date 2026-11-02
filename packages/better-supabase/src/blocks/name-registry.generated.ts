@@ -1922,6 +1922,15 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "recurrence": {
+    readonly tables: {};
+    readonly functions: never;
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
+  };
   readonly "relations": {
     readonly tables: {
       readonly "relations": "id" | "tenant" | "kind" | "sourceType" | "sourceId" | "targetType" | "targetId" | "data" | "createdBy" | "createdAt";

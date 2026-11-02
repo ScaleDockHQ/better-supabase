@@ -2058,7 +2058,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "scheduling",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "share-links",
@@ -3482,7 +3483,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "content",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "outbox",
@@ -7680,6 +7682,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "risks",
       "entities": {
         "specs": {
@@ -8687,6 +8692,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "created_from"
         }
       ],
+      "seeds": {
+        "variants": []
+      },
       "extraColumns": "cases",
       "entities": {
         "specs": {
@@ -11007,6 +11015,14 @@ export const PRESET_CATALOG: PresetCatalog = {
           "manage": "clinical_decision_support.manage"
         }
       }
+    },
+    {
+      "name": "recurrence",
+      "title": "Recurrence",
+      "category": "scheduling",
+      "requires": [],
+      "integrates": [],
+      "manifest": "reminders"
     },
     {
       "name": "rls-guard",
@@ -30498,7 +30514,8 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "reminders",
       "sql": [
-        "reminders"
+        "reminders",
+        "recurrence"
       ],
       "category": "scheduling",
       "client": {

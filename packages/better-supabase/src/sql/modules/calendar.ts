@@ -1018,7 +1018,7 @@ export const CALENDAR: BlockSqlDefinition = {
   title: "Calendar",
   description:
     "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.",
-  requires: ["memberships", "permissions"],
+  requires: ["memberships", "permissions", "recurrence"],
   integrates: ["share-links", "reminders", "outbox", "leave", "organizations"],
   target: "schema",
   modes: ["managed", "custom"],

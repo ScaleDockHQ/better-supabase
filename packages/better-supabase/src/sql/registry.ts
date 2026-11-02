@@ -131,6 +131,7 @@ import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RECURRENCE } from "./modules/recurrence.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -435,6 +436,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(RECURRENCE),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );
