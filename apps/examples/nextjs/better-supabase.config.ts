@@ -429,6 +429,9 @@ export default defineConfig({
     tills: {},
     // Fiscal periods and leave years close through one protocol.
     periods: {},
+    // Commission plans and entries per sales rep, and referral codes with rewards.
+    commissions: {},
+    referrals: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },
     promotions: {},

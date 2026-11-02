@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:d53265b58897acc39765cd907af620a3c7466ddccc457af63f9760be5e7c7066
+-- @bsb-hash sha256:ac489f559b0e5cb226ee2aff753091a46188fb3f45417b257d0494b506e4ee92
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,6 +119,7 @@ create table if not exists "better_supabase"."referrals" (
 );
 create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
 create unique index if not exists referrals_workspace_key on "better_supabase"."referrals" ("tenant_id", "referred_workspace_id") where "referred_workspace_id" is not null;
+create index if not exists referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
 create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;

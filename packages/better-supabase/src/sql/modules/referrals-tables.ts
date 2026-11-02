@@ -97,6 +97,7 @@ create table if not exists ${referrals} (
 );
 create unique index if not exists ${name("referrals", "user_key")} on ${referrals} (${r("tenant")}, ${r("referredUser")}) where ${r("referredUser")} is not null;
 create unique index if not exists ${name("referrals", "organization_key")} on ${referrals} (${r("tenant")}, ${r("referredOrganization")}) where ${r("referredOrganization")} is not null;
+create index if not exists ${name("referrals", "code_idx")} on ${referrals} (${r("tenant")}, ${r("code")});
 create index if not exists ${name("referrals", "referrer_idx")} on ${referrals} (${r("tenant")}, ${r("referrer")}, ${r("createdAt")} desc);
 ${lockTable(referrals, { read: true })}
 ${readPolicy("referrals", r("tenant"), r("referrer"))}

@@ -100,6 +100,7 @@ create table if not exists ${rows} (
   ${r("entry")} uuid,
   ${r("postedAt")} timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on ${rows} (${r("schedule")});
 create index if not exists accounting_recognition_rows_due_idx on ${rows} (${r("tenant")}, ${r("dueOn")}) where ${r("status")} = 'pending';
 alter table ${rows} enable row level security;
 revoke all on ${rows} from anon, authenticated;

@@ -94,6 +94,7 @@ create table if not exists ${assignments} (
   check (${a("endsOn")} is null or ${a("endsOn")} >= ${a("startsOn")}),
   foreign key (${a("tenant")}, ${a("plan")}) references ${plans} (${p("tenant")}, ${p("id")}) on delete cascade
 );
+create index if not exists ${name("assignments", "plan_idx")} on ${assignments} (${a("tenant")}, ${a("plan")});
 create index if not exists ${name("assignments", "seller_idx")} on ${assignments} (${a("tenant")}, ${a("seller")}, ${a("startsOn")} desc);
 ${lockTable(assignments, { read: true })}
 ${readPolicy("assignments", a("tenant"), a("seller"))}
@@ -144,7 +145,8 @@ create table if not exists ${entries} (
   foreign key (${c("tenant")}, ${c("statement")}) references ${statements} (${s("tenant")}, ${s("id")})
 );
 create index if not exists ${name("entries", "seller_idx")} on ${entries} (${c("tenant")}, ${c("seller")}, ${c("currency")}, ${c("occurredOn")});
-create index if not exists ${name("entries", "statement_idx")} on ${entries} (${c("statement")});
+create index if not exists ${name("entries", "statement_idx")} on ${entries} (${c("tenant")}, ${c("statement")});
+create index if not exists ${name("entries", "plan_idx")} on ${entries} (${c("tenant")}, ${c("plan")});
 ${lockTable(entries, { read: true })}
 ${readPolicy("entries", c("tenant"), c("seller"))}
 `;

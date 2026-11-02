@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:4c99820a5a72278094cd65ecc8b6ac4d2eb3913452ef7d646b3164c1d23edeb9
+-- @bsb-hash sha256:ceef4c90dfc00e49aa31ca137a9925374422fbc1ffae23a3d7edb1e7a7e9241b
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -365,6 +365,7 @@ create table if not exists "better_supabase"."notification_digests" (
   "sent_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
 create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."notification_digests" enable row level security;
 revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;

@@ -17,7 +17,8 @@ export const CATALOG_ROLES = ["owner", "admin", "member"] as const;
  * stay valid. Only the catalog model has the table.
  */
 export function catalogRoles(ctx: BlockSqlContext): string {
-  if (accessModel(ctx) !== "catalog") {
+  // An app's own role table may have no default id, so the module leaves it alone.
+  if (accessModel(ctx) !== "catalog" || !ctx.owns("roles")) {
     return "";
   }
 

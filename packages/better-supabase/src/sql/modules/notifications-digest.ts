@@ -109,6 +109,7 @@ create table if not exists ${t} (
   ${c("sentAt")} timestamptz,
   ${c("createdAt")} timestamptz not null default now()
 );
+create index if not exists notification_digests_user_idx on ${t} (${c("user")});
 create index if not exists notification_digests_pending_idx on ${t} (${c("createdAt")}) where ${c("status")} = 'pending';
 alter table ${t} enable row level security;
 ${revokeTable(t)}

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2c0b2403522ceeeece993fe151f1f31cb6873fd533b184804a47ba59eee490bd
+-- @bsb-hash sha256:9107c3ff6d2f5acd6b70c0271b990dabbac230e19167df7854cae80a7f1a4bcb
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3104,6 +3104,7 @@ create table if not exists "better_supabase"."accounting_recognition_rows" (
   "entry_id" uuid,
   "posted_at" timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
@@ -3758,7 +3759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:942d48779828bcdd7699c928819691653e4939827a18cd982b1e7640720d8bf2
+-- @bsb-hash sha256:2dedfdacc75f824c731ed12bdedf1d1a2c07d92d0a35419f23c4d6a4938c3d56
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7035,6 +7036,7 @@ create table if not exists "better_supabase"."accounting_recognition_rows" (
   "entry_id" uuid,
   "posted_at" timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
@@ -7701,7 +7703,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:66646cec02371cb55388e62fae3cc8d71cd4ba47dd9abe7dec771cdbcebf546c
+-- @bsb-hash sha256:2be78a7298c34221ec480a7c75ed64efcf815604ef5c3b20b5d97628999b2fc2
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10809,6 +10811,7 @@ create table if not exists "app_private"."accounting_recognition_rows" (
   "entry_id" uuid,
   "posted_at" timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on "app_private"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "app_private"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "app_private"."accounting_recognition_rows" enable row level security;
 revoke all on "app_private"."accounting_recognition_rows" from anon, authenticated;
@@ -11463,7 +11466,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e37eab706fc1e2304dc177e36622a244c2530e53f0929e804b65730f1eb78115
+-- @bsb-hash sha256:c9ec703614aac58c94ebf3650f5673a1a0c35bca7c076ee3cbad6bf78b90f484
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14566,6 +14569,7 @@ create table if not exists "better_supabase"."accounting_recognition_rows" (
   "entry_id" uuid,
   "posted_at" timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
@@ -15700,7 +15704,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f6803bfadb6a0d5de5e8416452bdf7bc6f32e828717fd5d8c54c410eacc61be2
+-- @bsb-hash sha256:60b7828a81017b25c1e3eaa40baa3e42327641907b97d96673f5625a3a2221d2
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18742,6 +18746,7 @@ alter table "better_supabase"."accounting_recognition_rows" add column if not ex
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'posted'));
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "entry_id" uuid;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "posted_at" timestamptz;
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 grant all on "better_supabase"."accounting_recognition_rows" to service_role;
@@ -19395,7 +19400,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:17860c801eca84ba315d53b75aff70c1c3bf2959c608bf71dd68beb004f522b9
+-- @bsb-hash sha256:e31ed8f00fe8e24eb6bd1ce69b35103c49f4fee17f98cfe762e50d57e3617608
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22498,6 +22503,7 @@ create table if not exists "better_supabase"."accounting_recognition_rows" (
   "entry_id" uuid,
   "posted_at" timestamptz
 );
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
 create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("org_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;

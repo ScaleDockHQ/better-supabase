@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_171_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:2c0f2418edd139ac2b459c24f1b87261ecaab3331f0f77acce860bb83eebf72f
+-- @bsb-hash sha256:03b70f13fcba82e33c1e0eabc91ebd16d0c4e9ce9f74a126809abc8762269a9b
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,6 +123,7 @@ create table if not exists "better_supabase"."commission_assignments" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id") references "better_supabase"."commission_plans" ("tenant_id", "id") on delete cascade
 );
+create index if not exists "commission_assignments_plan_idx" on "better_supabase"."commission_assignments" ("tenant_id", "plan_id");
 create index if not exists "commission_assignments_seller_idx" on "better_supabase"."commission_assignments" ("tenant_id", "seller_id", "starts_on" desc);
 alter table "better_supabase"."commission_assignments" enable row level security;
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
@@ -185,7 +186,8 @@ create table if not exists "better_supabase"."commissions" (
   foreign key ("tenant_id", "statement_id") references "better_supabase"."commission_statements" ("tenant_id", "id")
 );
 create index if not exists "commissions_seller_idx" on "better_supabase"."commissions" ("tenant_id", "seller_id", "currency", "occurred_on");
-create index if not exists "commissions_statement_idx" on "better_supabase"."commissions" ("statement_id");
+create index if not exists "commissions_statement_idx" on "better_supabase"."commissions" ("tenant_id", "statement_id");
+create index if not exists "commissions_plan_idx" on "better_supabase"."commissions" ("tenant_id", "plan_id");
 alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
