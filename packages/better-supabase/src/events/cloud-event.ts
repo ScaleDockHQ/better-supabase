@@ -31,25 +31,12 @@ export function stripTypePrefix(
   return type.startsWith(prefix) ? type.slice(prefix.length) : type;
 }
 
-/**
- * The CloudEvents extension an outbox relay with `legacyEventTypes` sets to the
- * current event type, while `type` carries the old name.
- */
-export const CURRENT_TYPE_EXTENSION = "currenttype";
-
-/**
- * The event's current type without `typePrefix`: the `currenttype` extension
- * when a relay with `legacyEventTypes` set it, otherwise the stripped `type`.
- */
+/** The event's type without `typePrefix`. */
 export function eventTypeOf(
   event: CloudEvent,
   typePrefix: string = DEFAULT_TYPE_PREFIX,
 ): string {
-  const current = event[CURRENT_TYPE_EXTENSION];
-
-  return typeof current === "string" && current !== ""
-    ? current
-    : stripTypePrefix(event.type, typePrefix);
+  return stripTypePrefix(event.type, typePrefix);
 }
 
 export interface CloudEventOptions {

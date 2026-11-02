@@ -1,4 +1,4 @@
-export { createRateLimit, rateLimited } from "../blocks/queue/rate-limit.ts";
+export { createRateLimit, rateLimited } from "./rate-limit.ts";
 
 export type {
   RateLimit,
@@ -9,4 +9,4 @@ export type {
   RateLimitRule,
   RateLimitSettings,
   RateLimitSource,
-} from "../blocks/queue/rate-limit.ts";
+} from "./rate-limit.ts";

@@ -28,15 +28,11 @@ describe("stripTypePrefix", () => {
 });
 
 describe("eventTypeOf", () => {
-  const event = (
-    type: string,
-    extra: Record<string, unknown> = {},
-  ): CloudEvent => ({
+  const event = (type: string): CloudEvent => ({
     specversion: "1.0",
     id: "1",
     source: "app",
     type,
-    ...extra,
   });
 
   it("strips the prefix from the type", () => {
@@ -46,20 +42,5 @@ describe("eventTypeOf", () => {
     expect(eventTypeOf(event("acme.task.created"), "acme")).toBe(
       "task.created",
     );
-  });
-
-  it("prefers the current type a legacy relay sent", () => {
-    expect(
-      eventTypeOf(
-        event(`${DEFAULT_TYPE_PREFIX}.work_item.created`, {
-          currenttype: "task.created",
-        }),
-      ),
-    ).toBe("task.created");
-    expect(
-      eventTypeOf(
-        event(`${DEFAULT_TYPE_PREFIX}.task.created`, { currenttype: "" }),
-      ),
-    ).toBe("task.created");
   });
 });

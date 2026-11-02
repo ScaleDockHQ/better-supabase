@@ -1,18 +1,24 @@
-import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
-import type { Logger } from "../../core/logger.ts";
-import type { ProblemFormat } from "../../core/problem.ts";
-import type { SqlClient } from "../../postgres/executor.ts";
-import type { BlockTemporalOptions } from "../shared.ts";
-import type { JobHandler } from "./types.ts";
+import type { JobHandler } from "../blocks/queue/types.ts";
+import type { BlockTemporalOptions } from "../blocks/shared.ts";
+import type { BlockHooks } from "../core/block-hooks.ts";
+import type { BlockTransport } from "../core/block-transport.ts";
+import type { ErrorMapper } from "../core/errors.ts";
+import type { Logger } from "../core/logger.ts";
+import type { ProblemFormat } from "../core/problem.ts";
+import type { SqlClient } from "../postgres/executor.ts";
 
-import { withBlockHooks } from "../../core/block-hooks.ts";
-import { sqlTransport } from "../../core/block-transport.ts";
-import { dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
-import { AsyncResult } from "../../core/result.ts";
-import { blockCall, isRecord, run, seconds, applyTemporal } from "../shared.ts";
+import {
+  blockCall,
+  isRecord,
+  run,
+  seconds,
+  applyTemporal,
+} from "../blocks/shared.ts";
+import { withBlockHooks } from "../core/block-hooks.ts";
+import { sqlTransport } from "../core/block-transport.ts";
+import { dbError } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
+import { AsyncResult } from "../core/result.ts";
 
 // ---------------------------------------------------------------------------
 // Rate limits for route handlers (SQL module `rate-limit`)

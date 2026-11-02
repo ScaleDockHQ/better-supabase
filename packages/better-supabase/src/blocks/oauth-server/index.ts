@@ -33,23 +33,3 @@ export type {
   OauthGrantEventData,
   OauthServerEvents,
 } from "./events.ts";
-
-// The OAuth spellings stay exported for one minor; re-exporting a deprecated
-// name is the point here (13 findings).
-/* oxlint-disable typescript/no-deprecated */
-export {
-  createOAuthServer,
-  type OAuthAuthorization,
-  type OAuthClient,
-  type OAuthClientAuthMethod,
-  type OAuthClientEventData,
-  type OAuthClientMetadata,
-  type OAuthGrant,
-  type OAuthGrantEventData,
-  type OAuthGrantType,
-  type OAuthServer,
-  type OAuthServerEvents,
-  type OAuthServerOptions,
-  type RegisteredOAuthClient,
-} from "./deprecated.ts";
-/* oxlint-enable typescript/no-deprecated */

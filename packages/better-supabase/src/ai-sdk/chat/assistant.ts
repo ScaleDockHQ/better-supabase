@@ -86,8 +86,8 @@ export interface AssistantRunArgs {
   readonly context: AssistantContext;
 }
 
-/** The options the deprecated `toUIMessageStream()` method gets. */
-interface LegacyUIMessageStreamOptions extends AssistantStreamOptions {
+/** The options the assistant passes to `toUIMessageStream`. */
+interface UIStreamOptions extends AssistantStreamOptions {
   originalMessages: UIMessage[];
   generateMessageId: () => string;
   onEnd: UIMessageStreamOnEndCallback<UIMessage>;
@@ -106,17 +106,6 @@ export interface AssistantRunResult {
   readonly usage?: PromiseLike<LanguageModelUsage>;
   /** The last step, whose `providerMetadata` carries the gateway's cost. */
   readonly finalStep?: PromiseLike<{ readonly providerMetadata?: unknown }>;
-  /**
-   * @deprecated Return a result with `stream`. Read only when `stream` is
-   * missing; removed in 0.33.
-   */
-  toUIMessageStream?(
-    options: LegacyUIMessageStreamOptions,
-  ): ReadableStream<UIMessageChunk>;
-  /** @deprecated Return `usage`; removed in 0.33. */
-  readonly totalUsage?: PromiseLike<LanguageModelUsage>;
-  /** @deprecated Return `finalStep`; removed in 0.33. */
-  readonly providerMetadata?: PromiseLike<unknown>;
 }
 
 /** The verdict of a moderation hook. */
@@ -351,15 +340,11 @@ const settle = async <T>(
 
 const uiChunksOf = (
   result: AssistantRunResult,
-  options: LegacyUIMessageStreamOptions,
-): ReadableStream<UIMessageChunk> | undefined => {
-  if (result.stream !== undefined) {
-    return toUIMessageStream({ stream: result.stream, ...options });
-  }
-
-  // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `stream`.
-  return result.toUIMessageStream?.(options);
-};
+  options: UIStreamOptions,
+): ReadableStream<UIMessageChunk> | undefined =>
+  result.stream === undefined
+    ? undefined
+    : toUIMessageStream({ stream: result.stream, ...options });
 
 /**
  * A chat route for the AI SDK on the `ai-chat` block: `respond` stores the
@@ -670,13 +655,8 @@ export function createAssistant(options: AssistantOptions): Assistant {
         });
 
         const usage = usageOf({
-          // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `usage`.
-          usage: await settle(result.usage ?? result.totalUsage),
-          finalStep:
-            result.finalStep === undefined
-              ? // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `finalStep`.
-                { providerMetadata: await settle(result.providerMetadata) }
-              : await settle(result.finalStep),
+          usage: await settle(result.usage),
+          finalStep: await settle(result.finalStep),
         });
 
         await release(

@@ -1,5 +1,6 @@
 import type { BlockOf } from "../define-block.ts";
 
+import { createRateLimit } from "../../rate-limit/rate-limit.ts";
 import { defineBlock } from "../define-block.ts";
 import { CRON_SECRET_ENV, DATABASE_URL_ENV } from "../wiring.ts";
 import { createIdempotency } from "./idempotency.ts";
@@ -9,7 +10,6 @@ import {
   webhookInboxSqlOptions,
 } from "./options.ts";
 import { createQueue } from "./queue.ts";
-import { createRateLimit } from "./rate-limit.ts";
 import { createWebhookInbox } from "./webhook-inbox.ts";
 
 /** The `queue` block's manifest (ADR 0029). */
