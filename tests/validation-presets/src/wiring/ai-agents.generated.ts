@@ -6,6 +6,8 @@ import {
 import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { agentsBlock } from "better-supabase/blocks/agents";
+import { aiEvalsBlock } from "better-supabase/blocks/ai-evals";
+import { aiGuardrailsBlock } from "better-supabase/blocks/ai-guardrails";
 import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
@@ -14,6 +16,7 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { connectorsBlock } from "better-supabase/blocks/connectors";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { promptsBlock } from "better-supabase/blocks/prompts";
 import { queueBlock } from "better-supabase/blocks/queue";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
@@ -32,6 +35,8 @@ export const blockSet = defineBlocks(blockConfig, {
   saas: saasBlock,
   permissions: permissionsBlock,
   agents: agentsBlock,
+  aiEvals: aiEvalsBlock,
+  aiGuardrails: aiGuardrailsBlock,
   aiSchedules: aiSchedulesBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
@@ -40,6 +45,7 @@ export const blockSet = defineBlocks(blockConfig, {
   connectors: connectorsBlock,
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
+  prompts: promptsBlock,
   queue: queueBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,

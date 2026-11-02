@@ -22,9 +22,12 @@ import { expensesBlock } from "better-supabase/blocks/expenses";
 import { qualificationsBlock } from "better-supabase/blocks/qualifications";
 import { casesBlock } from "better-supabase/blocks/cases";
 import { inspectionsBlock } from "better-supabase/blocks/inspections";
+import { rfqsBlock } from "better-supabase/blocks/rfqs";
+import { periodsBlock } from "better-supabase/blocks/periods";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
 import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
+import { payrollExportBlock } from "better-supabase/blocks/payroll-export";
 import { taxBlock } from "better-supabase/blocks/tax";
 import { documentTemplatesBlock } from "better-supabase/blocks/document-templates";
 import { employeesBlock } from "better-supabase/blocks/employees";
@@ -75,9 +78,12 @@ export const blockSet = defineBlocks(blockConfig, {
   qualifications: qualificationsBlock,
   cases: casesBlock,
   inspections: inspectionsBlock,
+  rfqs: rfqsBlock,
+  periods: periodsBlock,
   manufacturing: manufacturingBlock,
   banking: bankingBlock,
   legalEntities: legalEntitiesBlock,
+  payrollExport: payrollExportBlock,
   tax: taxBlock,
   documentTemplates: documentTemplatesBlock,
   employees: employeesBlock,

@@ -15,6 +15,7 @@ import { acknowledgementsBlock } from "better-supabase/blocks/acknowledgements";
 import { risksBlock } from "better-supabase/blocks/risks";
 import { casesBlock } from "better-supabase/blocks/cases";
 import { inspectionsBlock } from "better-supabase/blocks/inspections";
+import { advisoriesBlock } from "better-supabase/blocks/advisories";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
@@ -45,6 +46,7 @@ export const blockSet = defineBlocks(blockConfig, {
   risks: risksBlock,
   cases: casesBlock,
   inspections: inspectionsBlock,
+  advisories: advisoriesBlock,
   drive: driveBlock,
   entitlements: entitlementsBlock,
   forms: formsBlock,

@@ -6,6 +6,7 @@ import {
   type GeneratedBlocks,
 } from "better-supabase/blocks";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
+import type { AiGuardrailsEvents } from "better-supabase/blocks/ai-guardrails";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
@@ -20,6 +21,8 @@ import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
+import { aiEvalsBlock as aiEvalsBlockInstance } from "better-supabase/blocks/ai-evals";
+import { aiGuardrailsBlock as aiGuardrailsBlockInstance } from "better-supabase/blocks/ai-guardrails";
 import { aiSchedulesBlock as aiSchedulesBlockInstance } from "better-supabase/blocks/ai-schedules";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
@@ -28,6 +31,7 @@ import { billingBlock as billingBlockInstance } from "better-supabase/blocks/bil
 import { connectorsBlock as connectorsBlockInstance } from "better-supabase/blocks/connectors";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { promptsBlock as promptsBlockInstance } from "better-supabase/blocks/prompts";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { metricsBlock as metricsBlockInstance } from "better-supabase/blocks/metrics";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
@@ -54,6 +58,14 @@ export const blockConfig = {
     options: {},
   },
   agents: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "ai-evals": {
+    schema: "better_supabase",
+    options: {},
+  },
+  "ai-guardrails": {
     schema: "better_supabase",
     options: {},
   },
@@ -90,6 +102,10 @@ export const blockConfig = {
     options: {},
   },
   entitlements: {
+    schema: "better_supabase",
+    options: {},
+  },
+  prompts: {
     schema: "better_supabase",
     options: {},
   },
@@ -155,6 +171,8 @@ export const blocks = {
   saas: saasBlockInstance,
   permissions: permissionsBlockInstance,
   agents: agentsBlockInstance,
+  "ai-evals": aiEvalsBlockInstance,
+  "ai-guardrails": aiGuardrailsBlockInstance,
   "ai-schedules": aiSchedulesBlockInstance,
   "api-keys": apiKeysBlockInstance,
   approvals: approvalsBlockInstance,
@@ -163,6 +181,7 @@ export const blocks = {
   connectors: connectorsBlockInstance,
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
+  prompts: promptsBlockInstance,
   queue: queueBlockInstance,
   metrics: metricsBlockInstance,
   notifications: notificationsBlockInstance,
@@ -273,7 +292,7 @@ export type PermissionKey = "agents.moderate" | "agents.publish" | "agents.read"
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AgentsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WorkflowsEvents;
+export type BlockEvents = AgentsEvents & AiGuardrailsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -325,6 +344,7 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment_program.created",
     "enrollment_program.deleted",
     "enrollment_program.updated",
+    "guardrail.blocked",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -417,6 +437,7 @@ export const blockEventSchemas = {
   "enrollment_program.created": true,
   "enrollment_program.deleted": true,
   "enrollment_program.updated": true,
+  "guardrail.blocked": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,

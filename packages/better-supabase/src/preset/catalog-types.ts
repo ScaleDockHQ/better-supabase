@@ -185,3 +185,29 @@ export interface PresetCatalog {
   readonly manifests: readonly PresetCatalogManifest[];
   readonly glue: readonly PresetGlueItem[];
 }
+
+/** One block in the public catalog: what the docs, the site and Create list. */
+export interface BlockCatalogEntry {
+  readonly name: string;
+  readonly title: string;
+  /** The heading it is listed under, one of `BlockCatalog.categories`. */
+  readonly category: string;
+  readonly description: string;
+  readonly requires: readonly string[];
+  readonly integrates: readonly string[];
+  readonly modes: readonly string[];
+  /** Outbox event types the module emits when the outbox is installed. */
+  readonly events: readonly string[];
+  /** The `better-supabase/blocks/<name>` subpath, when it has a client. */
+  readonly subpath: string | null;
+  /** The registry item with its React hooks and the source file. */
+  readonly react: { readonly item: string; readonly source: string } | null;
+  /** The docs page that covers the module. */
+  readonly docs: string;
+}
+
+/** What `scripts/build-catalog.ts` writes to `BLOCK_CATALOG`. */
+export interface BlockCatalog {
+  readonly categories: readonly string[];
+  readonly blocks: readonly BlockCatalogEntry[];
+}

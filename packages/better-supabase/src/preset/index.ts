@@ -1,6 +1,10 @@
+export { BLOCK_CATALOG } from "./block-catalog.generated.ts";
+
 export { PRESET_CATALOG } from "./catalog.generated.ts";
 
 export type {
+  BlockCatalog,
+  BlockCatalogEntry,
   PresetCatalog,
   PresetCatalogBlock,
   PresetCatalogManifest,
