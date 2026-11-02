@@ -78,6 +78,7 @@ import { TARGETS } from "./modules/goals.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
+import { HOUSEKEEPING } from "./modules/housekeeping.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -132,6 +133,7 @@ import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RECURRENCE } from "./modules/recurrence.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -437,6 +439,8 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(PERIODS),
+      built(RECURRENCE),
+      built(HOUSEKEEPING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

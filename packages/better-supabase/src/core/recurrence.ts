@@ -1,4 +1,4 @@
-import { temporal } from "../../core/temporal-required.ts";
+import { temporal } from "./temporal-required.ts";
 
 /**
  * Expands an RFC 5545 recurrence rule on `Temporal.ZonedDateTime`, so a local
@@ -526,4 +526,53 @@ export function weekdayName(day: number): string {
   }
 
   return name;
+}
+
+/**
+ * What `rruleOccurrences` expands: the same arguments `rrule_occurrences` takes
+ * in SQL.
+ */
+export interface OccurrencesInput {
+  /** An `RRULE` value, with or without the `RRULE:` prefix. */
+  readonly rule: string;
+  readonly dtstart: Temporal.Instant;
+  /** An IANA time zone; local times stay put across daylight-saving changes. */
+  readonly tz: string;
+  /** The window `[from, until)`. */
+  readonly from: Temporal.Instant;
+  readonly until: Temporal.Instant;
+  /** The most occurrences to return. Default 1000, as in SQL. */
+  readonly limit?: number;
+}
+
+/**
+ * The instants a rule starts in `[from, until)`, the same ones the SQL function
+ * `better_supabase.rrule_occurrences` returns. A rule it can't read counts as
+ * one occurrence at `dtstart`, so a bad rule never loses the event itself.
+ */
+export function rruleOccurrences(input: OccurrencesInput): Temporal.Instant[] {
+  const time = temporal();
+  const { dtstart, from, until } = input;
+
+  if (time.Instant.compare(from, until) >= 0) {
+    return [];
+  }
+
+  try {
+    return expandRule({
+      dtstart: dtstart.toZonedDateTimeISO(input.tz),
+      rrule: input.rule,
+      window: { from, until },
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+    }).map((when) => when.toInstant());
+  } catch (error) {
+    if (!(error instanceof TypeError)) {
+      throw error;
+    }
+
+    return time.Instant.compare(dtstart, from) >= 0 &&
+      time.Instant.compare(dtstart, until) < 0
+      ? [dtstart]
+      : [];
+  }
 }

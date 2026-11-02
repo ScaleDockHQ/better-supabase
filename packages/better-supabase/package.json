@@ -320,6 +320,11 @@
       "types": "./dist/rate-limit/index.d.ts",
       "default": "./dist/rate-limit/index.js"
     },
+    "./recurrence": {
+      "@better-supabase/source": "./src/recurrence/index.ts",
+      "types": "./dist/recurrence/index.d.ts",
+      "default": "./dist/recurrence/index.js"
+    },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
@@ -1564,6 +1569,10 @@
       "./rate-limit": {
         "types": "./dist/rate-limit/index.d.ts",
         "default": "./dist/rate-limit/index.js"
+      },
+      "./recurrence": {
+        "types": "./dist/recurrence/index.d.ts",
+        "default": "./dist/recurrence/index.js"
       },
       "./events": {
         "types": "./dist/events/index.d.ts",

@@ -9,8 +9,8 @@ import { createBookings } from "../../src/blocks/bookings/bookings.ts";
 import { commonFreeTime } from "../../src/blocks/calendar/availability.ts";
 import { createCalendar } from "../../src/blocks/calendar/calendar.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
-import { expandRule } from "../../src/blocks/reminders/rrule.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
+import { expandRule } from "../../src/core/recurrence.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();

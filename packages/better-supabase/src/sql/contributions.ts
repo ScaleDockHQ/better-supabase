@@ -12,6 +12,7 @@ export interface BlockContributions {
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
+  readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
   readonly periods: PeriodContribution;
@@ -29,6 +30,23 @@ export type BlockContributes = {
     target: BlockSqlContext,
   ) => readonly BlockContributions[K][];
 };
+
+/**
+ * A recurring cleanup the contributing block asks the maintenance dispatcher to
+ * run: `better_supabase.maintenance()` calls `function` when `every` has passed
+ * since the job last ran.
+ */
+export interface HousekeepingContribution {
+  /** The job's name, unique across the installed blocks. */
+  readonly job: string;
+  /**
+   * The qualified function to call with no arguments, such as
+   * `better_supabase.purge_webhooks`. Its arguments all need defaults.
+   */
+  readonly function: string;
+  /** How long to wait between runs, as a Postgres interval such as `15 minutes`. */
+  readonly every: string;
+}
 
 /**
  * A kind of document the contributing block books in the accounting block.

@@ -167,6 +167,7 @@ const PURE_BARRELS = [
   "react",
   "realtime",
   "rate-limit",
+  "recurrence",
   "sql",
   "storage",
   "streams",

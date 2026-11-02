@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -279,14 +280,25 @@ ${serviceOnly([
 ])}`;
 }
 
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: () => [
+    {
+      job: "purge_idempotency_keys",
+      function: "better_supabase.purge_idempotency_keys",
+      every: "1 hour",
+    },
+  ],
+};
+
 export const IDEMPOTENCY: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "idempotency",
   version: 2,
   names: NAMES,
   title: "Idempotency keys",
   description:
     "Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.",
-  requires: [],
+  requires: ["housekeeping"],
   target: "schema",
   build,
 };

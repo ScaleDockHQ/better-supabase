@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   expandRule,
+  rruleOccurrences,
   weekdayName,
-} from "../../../src/blocks/reminders/rrule.ts";
+} from "../../src/core/recurrence.ts";
 
 const utc = (text: string): Temporal.ZonedDateTime =>
   Temporal.Instant.from(text).toZonedDateTimeISO("UTC");
@@ -214,5 +215,71 @@ describe("expandRule with a window", () => {
     });
 
     expect(days(found)).toEqual(["2030-01-01", "2030-01-02"]);
+  });
+});
+
+describe("rruleOccurrences", () => {
+  const dtstart = Temporal.Instant.from("2026-03-02T08:00:00Z");
+
+  it("keeps the local time across a daylight-saving change", () => {
+    const found = rruleOccurrences({
+      rule: "FREQ=WEEKLY;BYDAY=MO",
+      dtstart,
+      tz: "Europe/Amsterdam",
+      from: Temporal.Instant.from("2026-03-23T00:00:00Z"),
+      until: Temporal.Instant.from("2026-04-07T00:00:00Z"),
+    }).map((when) => when.toString());
+
+    expect(found).toEqual([
+      "2026-03-23T08:00:00Z",
+      "2026-03-30T07:00:00Z",
+      "2026-04-06T07:00:00Z",
+    ]);
+  });
+
+  it("counts an unreadable rule as one occurrence at dtstart", () => {
+    const window = {
+      from: Temporal.Instant.from("2026-03-01T00:00:00Z"),
+      until: Temporal.Instant.from("2026-04-01T00:00:00Z"),
+    };
+
+    expect(
+      rruleOccurrences({ rule: "nonsense", dtstart, tz: "UTC", ...window }),
+    ).toEqual([dtstart]);
+
+    expect(
+      rruleOccurrences({
+        rule: "nonsense",
+        dtstart,
+        tz: "UTC",
+        from: Temporal.Instant.from("2026-05-01T00:00:00Z"),
+        until: Temporal.Instant.from("2026-06-01T00:00:00Z"),
+      }),
+    ).toEqual([]);
+  });
+
+  it("returns nothing for an empty window and honors limit", () => {
+    const from = Temporal.Instant.from("2026-03-02T00:00:00Z");
+
+    expect(
+      rruleOccurrences({
+        rule: "FREQ=DAILY",
+        dtstart,
+        tz: "UTC",
+        from,
+        until: from,
+      }),
+    ).toEqual([]);
+
+    expect(
+      rruleOccurrences({
+        rule: "FREQ=DAILY",
+        dtstart,
+        tz: "UTC",
+        from,
+        until: Temporal.Instant.from("2026-06-01T00:00:00Z"),
+        limit: 3,
+      }),
+    ).toHaveLength(3);
   });
 });

@@ -12,6 +12,8 @@
     "credentials",
     "credential-providers",
     "add-an-sdk",
+    "recurrence",
+    "maintenance",
     "events",
     "conformance",
     "stability"

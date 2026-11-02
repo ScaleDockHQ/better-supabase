@@ -369,6 +369,8 @@ may be your own enum or domain.
   - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `created_at`; typed with values: `kind`
   - `better_supabase.interview_interviewers`, once mapped: `interview_id`, `user_id`
   - `better_supabase.application_scorecard_scores`, once mapped: `scorecard_id`, `criterion_key`, `score`
+- `housekeeping`
+  - `better_supabase.maintenance_state`: `job`, `last_run_at`, `last_status`, `last_result`, `last_error`, `runs`
 - `idempotency`
   - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `locked_until`, `expires_at`, `holder`; typed: `status`
   - `better_supabase.idempotency_leases`: `scope`, `key`, `holder`, `expires_at`

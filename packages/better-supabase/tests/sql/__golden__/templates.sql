@@ -914,7 +914,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:6665c610bede5160ac37964f7fa2ed59b09db482e4e82df5334be81882c99c8c
+-- @bsb-hash sha256:c2ae4891d6d8170659d048bde35a7fc8917d8701d90609a5fec597cfbca79b27
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2199,6 +2199,40 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_template_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_template_schedule"() to service_role;
+
+-- The occurrences of every enabled schedule that start in [range_start,
+-- range_end) and haven't applied yet, expanded by rrule_occurrences:
+-- [{ schedule, tenant, occurrenceAt }], oldest first, at most 5000.
+create or replace function "better_supabase"."due_template_occurrences"(range_start timestamptz, range_end timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  select coalesce(jsonb_agg(jsonb_build_object('schedule', d.schedule, 'tenant', d.tenant, 'occurrenceAt', d.at) order by d.at, d.schedule), '[]'::jsonb)
+  from (
+    select x."id" as schedule, x."tenant_id" as tenant, o.at
+    from "better_supabase"."template_schedules" x
+    join "better_supabase"."recurrence_rules" u on u."tenant_id" = x."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = x."id"::text
+    cross join lateral better_supabase.rrule_occurrences(u."rrule", u."dtstart", u."tzid", tstzrange(due_template_occurrences.range_start, due_template_occurrences.range_end, '[)')) o (at)
+    where x."enabled" and u."rrule" is not null
+      and not exists (
+        select 1 from "better_supabase"."template_schedule_runs" y
+        where y."schedule_id" = x."id" and y."occurrence_at" = o.at and y."application_id" is not null
+      )
+    order by o.at, x."id"
+    limit 5000
+  ) d
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."due_template_occurrences"(timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."due_template_occurrences"(timestamptz, timestamptz) to service_role;
 
 -- Claims one occurrence of an enabled schedule: the schedule when the
 -- occurrence is new or hasn't recorded an application yet, else null.
