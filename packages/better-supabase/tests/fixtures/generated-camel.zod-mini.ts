@@ -576,6 +576,14 @@ export const organizationMembersArgs: z.ZodMiniType<{ organization: string }> = 
   organization: z.guid(),
 }).check(z.meta({ title: "organization_members arguments" }));
 
+export const rsFinanceOverviewArgs: z.ZodMiniType<{ p: Json }> = z.object({
+  p: z.json(),
+}).check(z.meta({ title: "rs_finance_overview arguments" }));
+
+export const rsPipelineOverviewArgs: z.ZodMiniType<{ p: Json }> = z.object({
+  p: z.json(),
+}).check(z.meta({ title: "rs_pipeline_overview arguments" }));
+
 export const rsWorkspaceSummaryArgs: z.ZodMiniType<{ p: Json }> = z.object({
   p: z.json(),
 }).check(z.meta({ title: "rs_workspace_summary arguments" }));
@@ -603,5 +611,9 @@ export const importCustomerResult: z.ZodMiniType<Json> = z.json();
 export const importCustomerUpdatedAtResult: z.ZodMiniType<string | null> = z.nullable(z.iso.datetime({ offset: true }));
 
 export const islandCountsResult: z.ZodMiniType<Json> = z.json();
+
+export const rsFinanceOverviewResult: z.ZodMiniType<Json> = z.json();
+
+export const rsPipelineOverviewResult: z.ZodMiniType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodMiniType<Json> = z.json();

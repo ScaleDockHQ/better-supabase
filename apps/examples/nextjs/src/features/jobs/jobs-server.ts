@@ -2,7 +2,12 @@ import "server-only";
 import type { BetterPostgres } from "better-supabase/postgres";
 
 import { QueueClient } from "@vercel/queue";
-import { createQueue, vercelQueueProvider } from "better-supabase/blocks/queue";
+import {
+  BLOCK_TICKS_QUEUE,
+  blockTickSchema,
+  createQueue,
+  vercelQueueProvider,
+} from "better-supabase/blocks/queue";
 import * as v from "valibot";
 
 import { env } from "@/env";
@@ -10,7 +15,10 @@ import { env } from "@/env";
 /** The queue the settings page's "Enqueue a test job" writes to. */
 export const TEST_QUEUE = "settings_test";
 
-const queues = { [TEST_QUEUE]: v.object({ message: v.string() }) };
+const queues = {
+  [TEST_QUEUE]: v.object({ message: v.string() }),
+  [BLOCK_TICKS_QUEUE]: blockTickSchema,
+};
 
 /**
  * Jobs over a direct connection: the block is installed with `{ api: false }`,

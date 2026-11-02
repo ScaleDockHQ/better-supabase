@@ -8,6 +8,10 @@ import {
 } from "../codemod-block-renames.ts";
 import { findObjectInputCalls } from "../codemod-object-inputs.ts";
 
+// A vendored UI component can have an `addRule` of its own; only files that reach a block
+// client (through the package, `$blocks` or the generated `lib/supabase` files) count.
+const BLOCK_CLIENT_FILE = /better-supabase|\$blocks|lib\/supabase/;
+
 const SPECIFIER = /from\s+["']better-supabase\/([\w./-]+)["']/g;
 
 const NAMED_IMPORT =
@@ -186,15 +190,17 @@ function removedApis(context: DoctorContext): FindingInput[] {
  * takes one object since 0.47 (BS509).
  */
 function positionalBlockCalls(context: DoctorContext): FindingInput[] {
-  return context.sources.flatMap((file) =>
-    findObjectInputCalls(file.text)
-      .filter((call) => call.input !== undefined)
-      .map((call) => ({
-        message: `${file.path} calls \`.${call.method}(...)\` with positional arguments; the block client takes one object (\`.${call.method}(${call.input ?? ""})\`). Run \`bsb codemod 0.47\`.`,
-        target: `${file.path}:${String(call.line)}`,
-        location: { file: file.path, line: call.line },
-      })),
-  );
+  return context.sources
+    .filter((file) => BLOCK_CLIENT_FILE.test(file.text))
+    .flatMap((file) =>
+      findObjectInputCalls(file.text)
+        .filter((call) => call.input !== undefined)
+        .map((call) => ({
+          message: `${file.path} calls \`.${call.method}(...)\` with positional arguments; the block client takes one object (\`.${call.method}(${call.input ?? ""})\`). Run \`bsb codemod 0.47\`.`,
+          target: `${file.path}:${String(call.line)}`,
+          location: { file: file.path, line: call.line },
+        })),
+    );
 }
 
 export const REMOVED_API_RULES: readonly Rule[] = [

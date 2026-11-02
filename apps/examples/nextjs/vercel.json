@@ -3,7 +3,18 @@
   "functions": {
     "src/app/api/queues/settings-test/route.ts": {
       "experimentalTriggers": [
-        { "type": "queue/v2beta", "topic": "settings_test" }
+        {
+          "type": "queue/v2beta",
+          "topic": "settings_test"
+        }
+      ]
+    },
+    "src/app/api/queues/block-ticks/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "block_ticks"
+        }
       ]
     }
   }

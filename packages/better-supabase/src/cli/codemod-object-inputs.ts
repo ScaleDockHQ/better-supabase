@@ -113,10 +113,16 @@ function receiverFits(
 
   const block = normal(signature.block);
 
-  return receiver.some((name) => {
+  // `$blocks` stands for any block only when the call is on it directly;
+  // `$blocks.organizations.members(id)` names another block.
+  return receiver.some((name, index) => {
     const each = normal(name);
 
-    return each.length > 0 && (each.includes(block) || each === "blocks");
+    return (
+      each.length > 0 &&
+      (each.includes(block) ||
+        (each === "blocks" && index === receiver.length - 1))
+    );
   });
 }
 

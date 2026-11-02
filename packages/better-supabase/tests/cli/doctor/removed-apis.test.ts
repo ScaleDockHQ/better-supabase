@@ -13,11 +13,21 @@ const context = (text: string): DoctorContext =>
 describe("BS509", () => {
   it("reports a block call with positional arguments", async () => {
     const findings = await rule.check(
-      context("await chats.runs.setCost(id, 120, usage);"),
+      context(
+        'import { bsb } from "@/lib/supabase/server";\nawait chats.runs.setCost(id, 120, usage);',
+      ),
     );
 
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.location).toEqual({ file: "route.ts", line: 1 });
+    expect(findings[0]?.location).toEqual({ file: "route.ts", line: 2 });
+  });
+
+  it("ignores a file that never reaches a block client", async () => {
+    const findings = await rule.check(
+      context("actions.addRule(createFilterRule({ id }), true);"),
+    );
+
+    expect(findings).toEqual([]);
   });
 
   it("accepts a call that passes one object", async () => {

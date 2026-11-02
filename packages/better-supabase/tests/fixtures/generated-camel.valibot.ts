@@ -580,6 +580,14 @@ export const organizationMembersArgs: v.GenericSchema<{ organization: string }> 
   organization: v.pipe(v.string(), v.uuid()),
 }), v.title("organization_members arguments"));
 
+export const rsFinanceOverviewArgs: v.GenericSchema<{ p: Json }> = v.pipe(v.object({
+  p: json,
+}), v.title("rs_finance_overview arguments"));
+
+export const rsPipelineOverviewArgs: v.GenericSchema<{ p: Json }> = v.pipe(v.object({
+  p: json,
+}), v.title("rs_pipeline_overview arguments"));
+
 export const rsWorkspaceSummaryArgs: v.GenericSchema<{ p: Json }> = v.pipe(v.object({
   p: json,
 }), v.title("rs_workspace_summary arguments"));
@@ -607,5 +615,9 @@ export const importCustomerResult: v.GenericSchema<Json> = json;
 export const importCustomerUpdatedAtResult: v.GenericSchema<string | null> = v.nullable(v.pipe(v.string(), v.isoTimestamp()));
 
 export const islandCountsResult: v.GenericSchema<Json> = json;
+
+export const rsFinanceOverviewResult: v.GenericSchema<Json> = json;
+
+export const rsPipelineOverviewResult: v.GenericSchema<Json> = json;
 
 export const rsWorkspaceSummaryResult: v.GenericSchema<Json> = json;
