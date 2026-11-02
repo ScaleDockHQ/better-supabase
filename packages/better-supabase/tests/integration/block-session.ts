@@ -134,6 +134,24 @@ export class BlockSession {
       $$`);
     }
 
+    // The fixture's note actions reference its work_items table, and
+    // `create table if not exists` would keep that key for a render on tasks.
+    if (names.includes("activities") && names.includes("tasks")) {
+      await this.client.query(`do $$
+        begin
+          if to_regclass('better_supabase.activity_note_actions') is not null
+            and not exists (
+              select 1 from pg_constraint
+              where conrelid = to_regclass('better_supabase.activity_note_actions')
+                and conname = 'activity_note_actions_task_id_fkey'
+                and confrelid = to_regclass('better_supabase.tasks')
+            ) then
+            drop table better_supabase.activity_note_actions cascade;
+          end if;
+        end
+      $$`);
+    }
+
     await flushDeferred(this.client);
 
     for (const file of renderBlocks(names, layout)) {

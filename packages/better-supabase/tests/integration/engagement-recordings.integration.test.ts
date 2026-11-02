@@ -29,6 +29,7 @@ const MODULES = [
   "subjects",
   "contacts",
   "ai-files",
+  "tasks",
   "activities",
 ];
 
