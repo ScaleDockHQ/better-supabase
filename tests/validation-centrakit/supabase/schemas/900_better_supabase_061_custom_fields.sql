@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:2eb73c5a6cede44ed9ff1829d9abbf6ca8548afec427d690d7fdf6076d961d43
+-- @bsb-hash sha256:4e7f8983c5af770147f4f3dd5bf7ff360b82b4f71dfb1bb1c0fef1a4a97b7730
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -133,7 +133,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  if save_field_definition.entity is null or save_field_definition.entity <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+  if save_field_definition.entity is null or save_field_definition.entity <> all (array['message', 'conversation', 'file_node', 'task', 'project', 'customer']::text[]) then
     raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
   end if;
   insert into "centrakit"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
@@ -319,7 +319,7 @@ begin
   end if;
 
   for v_entity, v_fields in select s.key, s.value from jsonb_each(install_field_pack.pack -> 'subjects') s order by s.key loop
-    if v_entity is null or v_entity <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+    if v_entity is null or v_entity <> all (array['message', 'conversation', 'file_node', 'task', 'project', 'customer']::text[]) then
     raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
   end if;
     if jsonb_typeof(v_fields) is distinct from 'array' then
@@ -432,7 +432,7 @@ begin
   if v_type is null or v_subject is null then
     raise exception 'a field value needs a subject: { entity, key }, or subjectType and subjectId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  if v_type is null or v_type <> all (array['message', 'conversation', 'task', 'project', 'customer']::text[]) then
+  if v_type is null or v_type <> all (array['message', 'conversation', 'file_node', 'task', 'project', 'customer']::text[]) then
     raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'FIELD_ENTITY_UNKNOWN';
   end if;
   select d."id", d."type" into v_definition, v_field_type

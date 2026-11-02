@@ -37,3 +37,20 @@ create policy tasks_member on centrakit.tasks
   for all to authenticated
   using (organization_id in (select centrakit.authz_organization_member_ids()))
   with check (organization_id in (select centrakit.authz_organization_member_ids()));
+
+-- CentraKit's file tree reads through the provider's row grants, which reach
+-- nodes shared from another organization. The drive module's own read policy
+-- and tenant scope are replaced here so a grant outside the member's
+-- organizations stays visible; the restrictive scope stays, with the grant
+-- branch repeated (ADR 0099/0104).
+drop policy if exists bsb_file_node_select on centrakit.file_node;
+drop policy if exists bsb_tenant_scope_select on centrakit.file_node;
+create policy file_node_select on centrakit.file_node
+  for select to authenticated
+  using (id::text in (select centrakit.authz_file_node_rows('fileNode.read')));
+create policy bsb_tenant_scope_select on centrakit.file_node as restrictive
+  for select to public
+  using (
+    organization_id in (select better_supabase.member_organization_ids())
+    or id::text in (select centrakit.authz_file_node_rows('fileNode.read'))
+  );

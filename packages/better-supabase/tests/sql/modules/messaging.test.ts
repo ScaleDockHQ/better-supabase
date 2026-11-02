@@ -46,6 +46,64 @@ describe("messaging module", () => {
     expect(sql).toContain("600");
   });
 
+  it("prunes a commented record type with row grants to the record table's visible set", () => {
+    const provider = {
+      ...moduleProvider,
+      functions: {
+        ...moduleProvider.functions,
+        rowsWith: "authz.rows_{resource}({permission}, {ids})",
+        rowsWithFor: "authz.rows_{resource}_for({user}, {permission}, {ids})",
+      },
+    };
+
+    const sql = renderBlocks(["messaging"], {
+      modules: { permissions: { model: "provider" } },
+      subjects: {
+        file_node: {
+          table: "public.file_nodes",
+          idType: "uuid",
+          permissions: {
+            comment: { key: "fileNode.comment", rows: "file_node" },
+            read: { key: "fileNode.read", rows: "file_node" },
+          },
+        },
+        note: {
+          table: "public.notes",
+          permissions: { comment: "notes.comment" },
+        },
+      },
+      accessProvider: provider,
+    })
+      .filter((file) => file.module === "messaging")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `coalesce(case "better_supabase"."conversations"."subject_type" when 'file_node' then "better_supabase"."conversations"."subject_id" in (select s."id"::text from "public"."file_nodes" s) when 'note' then true else false end, false)`,
+    );
+  });
+
+  it("keeps the membership test when no commented record type has row grants", () => {
+    const sql = renderBlocks(["messaging"], {
+      modules: { permissions: { model: "provider" } },
+      subjects: {
+        drive_node: {
+          table: "public.drive_nodes",
+          idType: "uuid",
+          permissions: { comment: "driveNode.comment" },
+        },
+      },
+      accessProvider: moduleProvider,
+    })
+      .filter((file) => file.module === "messaging")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `"better_supabase"."conversations"."subject_type" in ('drive_node')`,
+    );
+  });
+
   it("opens a record's conversation to a grant on the record's scope", () => {
     const render = (provider: boolean) =>
       renderBlocks(["messaging"], {

@@ -24,7 +24,9 @@
     "canAssignFor": "centrakit.authz_can_assign_for({user}, {tenant}, {role})",
     "permissionsFor": "centrakit.authz_permissions_for({user}, {tenant})",
     "holdersOf": "centrakit.authz_organization_users_with({permission}, {tenant})",
-    "actorMayWrite": "centrakit.authz_actor_may_write()"
+    "actorMayWrite": "centrakit.authz_actor_may_write()",
+    "rowsWith": "centrakit.authz_{resource}_rows({permission}, {ids})",
+    "rowsWithFor": "centrakit.authz_{resource}_rows_for({user}, {permission}, {ids})"
   },
   "requires": [
     {
@@ -54,6 +56,16 @@
     {
       "function": "centrakit.authz_actor_may_write",
       "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_file_node_rows",
+      "args": "text, text[]",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_file_node_rows_for",
+      "args": "uuid, text, text[]",
+      "role": "service_role"
     },
     {
       "function": "centrakit.authz_organization_member_ids_for",

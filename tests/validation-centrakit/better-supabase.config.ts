@@ -10,8 +10,30 @@ import { centrakitProvider } from "./src/provider.ts";
 // its tables in `public`; the fixture puts them in `centrakit`.
 export default defineConfig({
   // add finds CentraKit's own tables in these schemas.
-  database: { schemas: ["public", "centrakit"] },
+  database: {
+    schemas: ["public", "centrakit"],
+    // can_subject calls the row template as authenticated; the _for form stays
+    // with the service role and definer callers.
+    expose: {
+      "centrakit.authz_file_node_rows(text, text[])": {
+        execute: ["authenticated"],
+      },
+    },
+  },
   auth: { authorization: centrakitProvider() },
+  // CentraKit's file tree is a comment subject whose read, comment and update
+  // are granted per row through the provider's rowsWith template.
+  subjects: {
+    file_node: {
+      idType: "uuid",
+      permissions: {
+        comment: { key: "fileNode.comment", rows: "file_node" },
+        moderate: { key: "fileNode.update", rows: "file_node" },
+        read: { key: "fileNode.read", rows: "file_node" },
+      },
+      table: "centrakit.file_node",
+    },
+  },
   // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
   blocks: {
     permissions: {

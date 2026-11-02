@@ -945,15 +945,25 @@ as $$
   select case role_key when 'owner' then 3 when 'admin' then 2 when 'member' then 1 else 0 end
 $$;
 
+-- CentraKit's file tree permissions are row-scoped, but a member with the
+-- drive keys holds them at tenant level too: fileNode.read follows file.read
+-- (drive.read here), comment follows comments.create, update follows
+-- drive.manage. can_subject asks this before the row function.
 create function centrakit.authz_organization_ids_with_for(p_user uuid, p_permission text)
 returns setof uuid
 language sql stable security definer set search_path = ''
 as $$
-  select ou.organization_id
+  select distinct ou.organization_id
   from centrakit.organization_users ou
   join centrakit.roles r on r.id = ou.role_id
+  cross join lateral unnest(centrakit.authz_role_grants(r.scope, r.key)) as g(key)
   where ou.user_id = p_user
-    and p_permission = any(centrakit.authz_role_grants(r.scope, r.key))
+    and (
+      g.key = p_permission
+      or (p_permission = 'fileNode.read' and g.key = 'drive.read')
+      or (p_permission = 'fileNode.comment' and g.key = 'comments.create')
+      or (p_permission = 'fileNode.update' and g.key = 'drive.manage')
+    )
 $$;
 
 create function centrakit.authz_organization_ids_with(p_permission text)
@@ -1081,6 +1091,64 @@ as $$
   end
 $$;
 
+-- The rows of the file tree p_user may act on with p_permission: the
+-- organizations where the key holds, or a grant on the node. A grant counts
+-- in another organization too, as a share does, so a node outside the user's
+-- organizations stays readable.
+create function centrakit.authz_file_node_rows_for(p_user uuid, p_permission text, p_ids text[] default null)
+returns setof text
+language sql stable security definer set search_path = ''
+as $$
+  select x.id::text
+  from centrakit.file_node x
+  where (p_ids is null or x.id::text = any (p_ids))
+    and case p_permission
+      when 'fileNode.read' then
+        x.organization_id in (select centrakit.authz_organization_ids_with_for(p_user, 'drive.read'))
+        or exists (
+          select 1 from centrakit.file_node_grant g
+          where g.file_node_id = x.id
+            and (g.user_id = p_user
+              or (g.team_id is not null and exists (
+                select 1 from centrakit.team_members tm
+                where tm.team_id = g.team_id and tm.user_id = p_user
+              )))
+        )
+      when 'fileNode.comment' then
+        x.organization_id in (select centrakit.authz_organization_ids_with_for(p_user, 'comments.create'))
+        or exists (
+          select 1 from centrakit.file_node_grant g
+          where g.file_node_id = x.id
+            and g.role in ('commenter', 'editor')
+            and (g.user_id = p_user
+              or (g.team_id is not null and exists (
+                select 1 from centrakit.team_members tm
+                where tm.team_id = g.team_id and tm.user_id = p_user
+              )))
+        )
+      when 'fileNode.update' then
+        x.organization_id in (select centrakit.authz_organization_ids_with_for(p_user, 'drive.manage'))
+        or exists (
+          select 1 from centrakit.file_node_grant g
+          where g.file_node_id = x.id
+            and g.role = 'editor'
+            and (g.user_id = p_user
+              or (g.team_id is not null and exists (
+                select 1 from centrakit.team_members tm
+                where tm.team_id = g.team_id and tm.user_id = p_user
+              )))
+        )
+      else false
+    end
+$$;
+
+create function centrakit.authz_file_node_rows(p_permission text, p_ids text[] default null)
+returns setof text
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_file_node_rows_for((select auth.uid()), p_permission, p_ids)
+$$;
+
 revoke execute on function
   centrakit.authz_organization_ids_with_for(uuid, text),
   centrakit.authz_project_ids_with_for(uuid, text),
@@ -1088,7 +1156,8 @@ revoke execute on function
   centrakit.authz_organization_member_ids_for(uuid),
   centrakit.authz_permissions_for(uuid, uuid),
   centrakit.authz_can_assign_for(uuid, uuid, text),
-  centrakit.authz_organization_users_with(text, uuid)
+  centrakit.authz_organization_users_with(text, uuid),
+  centrakit.authz_file_node_rows_for(uuid, text, text[])
   from public, anon, authenticated;
 grant execute on function
   centrakit.authz_organization_ids_with_for(uuid, text),
@@ -1097,8 +1166,11 @@ grant execute on function
   centrakit.authz_organization_member_ids_for(uuid),
   centrakit.authz_permissions_for(uuid, uuid),
   centrakit.authz_can_assign_for(uuid, uuid, text),
-  centrakit.authz_organization_users_with(text, uuid)
+  centrakit.authz_organization_users_with(text, uuid),
+  centrakit.authz_file_node_rows_for(uuid, text, text[])
   to service_role, supabase_auth_admin;
+revoke execute on function centrakit.authz_file_node_rows(text, text[]) from public, anon;
+grant execute on function centrakit.authz_file_node_rows(text, text[]) to authenticated;
 
 -- The record types comments attach to, as @bsb subject tags.
 comment on table centrakit.tasks is '@bsb subject type=task id-type=uuid';

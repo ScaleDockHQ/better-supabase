@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:8b363f02eacdb89f216deb3a11309a6009fe3bdad1d491e7db575b85ccf72f61
+-- @bsb-hash sha256:11339953f2afad7ff8db8f2adf4cbffdb9b06976823a77a89c88e87b19096e82
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,6 +130,7 @@ begin
     else case create_share_link.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
+    when 'file_node' then exists (select 1 from "centrakit"."file_node" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant and (coalesce(better_supabase.can('tenant', create_share_link.tenant, 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id))))
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
     when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
     when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = (create_share_link.subject_id)::bigint and s."organization_id" = create_share_link.tenant)
