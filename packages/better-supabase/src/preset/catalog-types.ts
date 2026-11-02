@@ -206,8 +206,18 @@ export interface BlockCatalogEntry {
   readonly docs: string;
 }
 
+export interface BlockCatalogPreset {
+  readonly name: string;
+  readonly title: string;
+  readonly description: string;
+  readonly group: string;
+  readonly groupTitle: string;
+  readonly blocks: readonly string[];
+}
+
 /** What `scripts/build-catalog.ts` writes to `BLOCK_CATALOG`. */
 export interface BlockCatalog {
   readonly categories: readonly string[];
   readonly blocks: readonly BlockCatalogEntry[];
+  readonly presets: readonly BlockCatalogPreset[];
 }
