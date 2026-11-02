@@ -11,4 +11,6 @@ export const memoryBlock: BlockOf<"memory", typeof createMemory> = defineBlock({
   options: { memory: memorySqlOptions },
   create: createMemory,
   category: "ai",
+  description:
+    "Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.",
 });

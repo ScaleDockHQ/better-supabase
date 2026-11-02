@@ -21,4 +21,6 @@ export const payrollExportBlock: BlockOf<
   create: createPayrollExport,
   recipes: ["payroll-runs"],
   category: "people",
+  description:
+    "Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.",
 });

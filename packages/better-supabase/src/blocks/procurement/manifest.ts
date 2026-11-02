@@ -35,4 +35,6 @@ export const procurementBlock: BlockOf<
   composes: procurementParts,
   create: createProcurement,
   category: "commerce",
+  description:
+    "Requests for quotation, inventory, invoices and banking installed together for buying.",
 });

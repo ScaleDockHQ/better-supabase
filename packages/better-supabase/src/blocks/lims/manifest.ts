@@ -21,4 +21,6 @@ export const limsBlock: BlockOf<"lims", typeof createLims, LimsEvents> =
     create: createLims,
     recipes: [],
     category: "work",
+    description:
+      "Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.",
   });

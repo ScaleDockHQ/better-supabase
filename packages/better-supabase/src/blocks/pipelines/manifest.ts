@@ -18,5 +18,7 @@ export const pipelinesBlock: BlockOf<
   events: pipelinesEvents,
   create: createPipelines,
   category: "work",
+  description:
+    "Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.",
   recipes: ["deal-board"],
 });

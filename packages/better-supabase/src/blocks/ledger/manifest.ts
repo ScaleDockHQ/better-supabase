@@ -22,4 +22,6 @@ export const ledgerBlock: BlockOf<
   create: createLedger,
   record: ledgerBinding,
   category: "commerce",
+  description:
+    "Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.",
 });

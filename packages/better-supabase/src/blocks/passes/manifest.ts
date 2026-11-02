@@ -25,4 +25,6 @@ export const passesBlock: BlockOf<
   create: createPasses,
   record: passesBinding,
   category: "scheduling",
+  description:
+    "Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.",
 });

@@ -20,4 +20,6 @@ export const legalEntitiesBlock: BlockOf<
   schemas: { legal_entity: { input: legalEntityInputSchema } },
   create: createLegalEntities,
   category: "tenancy",
+  description:
+    "Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.",
 });

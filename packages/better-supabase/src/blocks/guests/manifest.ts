@@ -28,4 +28,6 @@ export const guestsBlock: BlockOf<
   create: createGuests,
   record: guestsBinding,
   category: "collaboration",
+  description:
+    "People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.",
 });

@@ -23,5 +23,7 @@ export const versionsBlock: BlockOf<
   create: createVersions,
   record: versionsBinding,
   category: "database",
+  description:
+    "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",
   recipes: ["version-history", "record-history", "subject-timeline"],
 });

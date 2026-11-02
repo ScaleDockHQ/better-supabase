@@ -20,4 +20,6 @@ export const fieldHistoryBlock: BlockOf<
   record: fieldHistoryBinding,
   create: createFieldHistory,
   category: "database",
+  description:
+    "The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.",
 });

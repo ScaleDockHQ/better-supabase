@@ -25,4 +25,6 @@ export const appraisalsBlock: BlockOf<
   create: createAppraisals,
   recipes: [],
   category: "work",
+  description:
+    "Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.",
 });

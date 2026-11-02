@@ -408,7 +408,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "manage": "webhooks.manage",
-          "view": "webhooks.read"
+          "read": "webhooks.read"
         }
       }
     },
@@ -991,9 +991,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "workflow_editor.read",
           "run": "workflow_editor.run",
-          "edit": "workflow_editor.write",
+          "write": "workflow_editor.write",
           "publish": "workflow_editor.publish",
-          "admin": "workflow_editor.manage"
+          "manage": "workflow_editor.manage"
         }
       }
     },
@@ -1180,7 +1180,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "create": "ai_chat.create",
           "share": "ai_chat.share",
           "moderate": "ai_chat.moderate",
-          "admin": "ai_chat.manage"
+          "manage": "ai_chat.manage"
         }
       }
     },
@@ -3771,7 +3771,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-files",
         "queue",
         "bookings",
-        "contacts"
+        "contacts",
+        "tasks"
       ],
       "manifest": "activities",
       "scopes": [
@@ -4772,7 +4773,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "employees.read",
           "write": "employees.write",
-          "viewSensitive": "employees.read_sensitive"
+          "readSensitive": "employees.read_sensitive"
         }
       }
     },
@@ -5145,9 +5146,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "read": "automations.read",
-          "edit": "automations.write",
+          "write": "automations.write",
           "publish": "automations.publish",
-          "admin": "automations.manage"
+          "manage": "automations.manage"
         }
       }
     },
@@ -7173,7 +7174,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "read": "segments.read",
-          "edit": "segments.write"
+          "write": "segments.write"
         }
       }
     },

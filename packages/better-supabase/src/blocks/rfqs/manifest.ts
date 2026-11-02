@@ -16,4 +16,6 @@ export const rfqsBlock: BlockOf<"rfqs", typeof createRfqs, RfqsEvents> =
     create: createRfqs,
     recipes: [],
     category: "commerce",
+    description:
+      "Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.",
   });

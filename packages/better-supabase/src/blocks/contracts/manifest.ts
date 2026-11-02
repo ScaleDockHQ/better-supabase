@@ -33,4 +33,6 @@ export const contractsBlock: BlockOf<
   record: contractsBinding,
   recipes: ["contract-renewals"],
   category: "crm",
+  description:
+    "Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.",
 });

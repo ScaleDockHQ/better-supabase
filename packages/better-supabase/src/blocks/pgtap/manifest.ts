@@ -7,4 +7,6 @@ export const pgtapBlock: Block<"pgtap"> = defineBlock({
   name: "pgtap",
   sql: ["pgtap"],
   category: "database",
+  description:
+    "tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.",
 });

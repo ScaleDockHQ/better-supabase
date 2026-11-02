@@ -16,6 +16,8 @@ export const hiringBlock: BlockOf<"hiring", typeof createHiring, HiringEvents> =
     events: hiringEvents,
     create: createHiring,
     category: "people",
+    description:
+      "Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
     recipes: ["hiring-board"],
     automations: HIRING_AUTOMATIONS,
   });

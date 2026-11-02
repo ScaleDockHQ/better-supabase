@@ -18,5 +18,7 @@ export const dataLifecycleBlock: BlockOf<
   events: dataLifecycleEvents,
   create: createDataLifecycle,
   category: "admin",
+  description:
+    "Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.",
   recipes: ["data-export-delete"],
 });

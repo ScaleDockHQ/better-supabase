@@ -29,5 +29,7 @@ export const workflowsBlock: BlockOf<
   create: createWorkflows,
   client: "workflows",
   category: "automation",
+  description:
+    "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
   recipes: ["workflow-canvas", "workflow-runs"],
 });

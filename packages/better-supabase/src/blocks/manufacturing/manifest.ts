@@ -29,4 +29,6 @@ export const manufacturingBlock: BlockOf<
   create: createManufacturing,
   recipes: ["production-order-board"],
   category: "commerce",
+  description:
+    "Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.",
 });

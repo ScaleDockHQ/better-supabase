@@ -15,5 +15,7 @@ export const bulkBlock: BlockOf<"bulk", typeof createBulk, BulkEvents> =
     events: bulkEvents,
     create: createBulk,
     category: "work",
+    description:
+      "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
     recipes: ["bulk-action-bar"],
   });

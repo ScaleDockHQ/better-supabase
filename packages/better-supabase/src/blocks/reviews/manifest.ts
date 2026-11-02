@@ -18,4 +18,6 @@ export const reviewsBlock: BlockOf<
   events: reviewsEvents,
   create: createReviews,
   category: "commerce",
+  description:
+    "Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.",
 });

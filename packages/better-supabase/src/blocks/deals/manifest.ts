@@ -16,6 +16,8 @@ export const dealsBlock: BlockOf<"deals", typeof createDeals, DealsEvents> =
     events: dealsEvents,
     create: createDeals,
     category: "crm",
+    description:
+      "Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.",
     recipes: ["deal-board"],
     schemas: { deal: { input: dealInputSchema, change: dealChangeSchema } },
   });

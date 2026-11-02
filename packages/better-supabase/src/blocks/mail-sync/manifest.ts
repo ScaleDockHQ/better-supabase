@@ -26,6 +26,8 @@ export const mailSyncBlock: BlockOf<
   provides: { mailer: (client) => client },
   create: createMailSync,
   category: "crm",
+  description:
+    "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
   providers: [
     {
       option: "providers",

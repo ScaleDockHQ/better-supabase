@@ -18,5 +18,7 @@ export const inventoryBlock: BlockOf<
   events: inventoryEvents,
   create: createInventory,
   category: "commerce",
+  description:
+    "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.",
   recipes: ["inventory-table"],
 });

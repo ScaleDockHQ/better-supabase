@@ -23,4 +23,5 @@ export const eventsBlock: BlockOf<"events", typeof createEvents> = defineBlock({
   composes: eventsParts,
   create: createEvents,
   category: "scheduling",
+  description: "Bookings and admission passes installed together for events.",
 });

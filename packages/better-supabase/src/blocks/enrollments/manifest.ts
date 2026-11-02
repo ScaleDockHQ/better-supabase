@@ -23,4 +23,6 @@ export const enrollmentsBlock: BlockOf<
   create: createEnrollments,
   record: enrollmentsBinding,
   category: "people",
+  description:
+    "Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.",
 });

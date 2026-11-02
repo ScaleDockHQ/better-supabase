@@ -28,4 +28,6 @@ export const expensesBlock: BlockOf<
   },
   create: createExpenses,
   category: "commerce",
+  description:
+    "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.",
 });

@@ -16,4 +16,6 @@ export const tillsBlock: BlockOf<"tills", typeof createTills, TillsEvents> =
     create: createTills,
     recipes: [],
     category: "commerce",
+    description:
+      "Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.",
   });

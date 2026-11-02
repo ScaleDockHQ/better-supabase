@@ -20,4 +20,6 @@ export const fundingBlock: BlockOf<
   schemas: { funding_award: { input: fundingAwardInputSchema } },
   create: createFunding,
   category: "commerce",
+  description:
+    "Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.",
 });

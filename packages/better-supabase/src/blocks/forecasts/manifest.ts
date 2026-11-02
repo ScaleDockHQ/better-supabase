@@ -16,4 +16,6 @@ export const forecastsBlock: BlockOf<
   events: forecastsEvents,
   create: createForecasts,
   category: "crm",
+  description:
+    "Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).",
 });

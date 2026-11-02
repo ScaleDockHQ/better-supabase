@@ -25,4 +25,6 @@ export const maintenanceBlock: BlockOf<
   create: createMaintenance,
   recipes: [],
   category: "work",
+  description:
+    "Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.",
 });

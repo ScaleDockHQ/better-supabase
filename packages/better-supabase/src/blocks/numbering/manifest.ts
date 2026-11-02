@@ -18,4 +18,6 @@ export const numberingBlock: BlockOf<
   events: numberingEvents,
   create: createNumbering,
   category: "database",
+  description:
+    "Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.",
 });

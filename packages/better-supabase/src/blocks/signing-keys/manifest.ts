@@ -18,5 +18,7 @@ export const signingKeysBlock: BlockOf<
   events: signingKeysEvents,
   create: createSigningKeys,
   category: "developer",
+  description:
+    "Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.",
   recipes: ["signing-keys-rotation"],
 });

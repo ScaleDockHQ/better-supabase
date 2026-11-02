@@ -226,6 +226,19 @@ export function categoryOf(name: string): Category {
   return CATEGORY_TITLES[block.category];
 }
 
+/**
+ * The description of the block named like `module`: the manifest's, since the
+ * manifest is the source of truth, or the module's own for a module another
+ * block installs (a block's `sql` can list several modules).
+ */
+function descriptionOf(module: { name: string; description: string }): string {
+  const manifest = BLOCK_MANIFESTS.find((each) => each.name === module.name);
+
+  return manifest === undefined || manifest.description === ""
+    ? module.description
+    : manifest.description;
+}
+
 /** Module name to docs page, from the Blocks table in `blocks/index.mdx`. */
 function docsPages(): ReadonlyMap<string, string> {
   const index = readFileSync(join(DOCS_BLOCKS, "index.mdx"), "utf-8");
@@ -337,7 +350,7 @@ export function buildCatalog(): Catalog {
       name: module.name,
       title: module.title,
       category: categoryOf(module.name),
-      description: module.description,
+      description: descriptionOf(module),
       requires: module.requires,
       integrates: worksWith(module),
       modes: module.modes ?? ["managed"],

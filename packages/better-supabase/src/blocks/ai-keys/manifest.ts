@@ -18,5 +18,7 @@ export const aiKeysBlock: BlockOf<
   events: aiKeysEvents,
   create: createAiKeys,
   category: "ai",
+  description:
+    "A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.",
   recipes: ["ai-provider-settings"],
 });

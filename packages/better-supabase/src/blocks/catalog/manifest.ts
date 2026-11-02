@@ -19,6 +19,8 @@ export const catalogBlock: BlockOf<
   events: catalogEvents,
   create: createCatalog,
   category: "commerce",
+  description:
+    "Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.",
   recipes: ["product-catalog-grid"],
   schemas: { product: { input: productInputSchema } },
 });
