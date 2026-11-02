@@ -86,6 +86,7 @@ create table if not exists ${notices} (
 );
 create index if not exists ${name("notices", "queue_idx")} on ${notices} (${n("tenant")}, ${n("trusted")} desc, ${n("createdAt")}) where ${n("status")} = 'received';
 create index if not exists ${name("notices", "notifier_idx")} on ${notices} (${n("notifier")});
+create index if not exists ${name("notices", "item_idx")} on ${notices} (${n("item")});
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -99,6 +100,7 @@ create table if not exists ${flaggers} (
   ${f("createdAt")} timestamptz not null default now()
 );
 create unique index if not exists ${name("flaggers", "active_idx")} on ${flaggers} (${f("tenant")}, ${f("user")}) where ${f("revokedAt")} is null;
+create index if not exists ${name("flaggers", "user_idx")} on ${flaggers} (${f("user")});
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists ${appeals} (
@@ -118,6 +120,7 @@ create table if not exists ${appeals} (
 create unique index if not exists ${name("appeals", "open_statement_idx")} on ${appeals} (${p("statement")}) where ${p("status")} = 'open' and ${p("statement")} is not null;
 create unique index if not exists ${name("appeals", "open_notice_idx")} on ${appeals} (${p("notice")}) where ${p("status")} = 'open' and ${p("notice")} is not null;
 create index if not exists ${name("appeals", "tenant_idx")} on ${appeals} (${p("tenant")}, ${p("createdAt")} desc);
+create index if not exists ${name("appeals", "appellant_idx")} on ${appeals} (${p("appellant")});
 `;
 }
 
