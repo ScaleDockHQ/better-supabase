@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:7f0ca7a511d63079c948655bfee1e293e7e58265b7e691b07a5b63e7b59a1aba
+-- @bsb-hash sha256:796f6e6e39109c9e961a6f1a6cf4d315719e344c1824f7f5c4d2522be10c0da7
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,task,project,customer}'::text[]
+  select '{message,conversation,file_node,task,project,customer}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -230,6 +230,12 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'conversation')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
+      'type', 'file_node', 'id', s."id"::text,
+      'title', null::text, 'url', null::text))
+    from "centrakit"."file_node" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'file_node')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
       'type', 'task', 'id', s."id"::text,
       'title', null::text, 'url', null::text))
     from "centrakit"."tasks" s
@@ -265,6 +271,7 @@ returns boolean
 language plpgsql
 stable
 security invoker
+cost 1000
 set search_path = ''
 as $$
 begin
@@ -288,6 +295,17 @@ begin
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          else true
+        end)
+      );
+    when 'file_node' then
+      return exists (
+        select 1 from "centrakit"."file_node" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'comment' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.comment'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.comment', array[s."id"::text]) as r(id)))
+          when 'moderate' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.update'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.update', array[s."id"::text]) as r(id)))
+          when 'read' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id)))
           else true
         end)
       );
@@ -417,6 +435,17 @@ begin
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
+          else false
+        end
+      );
+    when 'file_node' then
+      return exists (
+        select 1 from "centrakit"."file_node" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'comment' then (coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'fileNode.comment'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows_for(can_subject_for.member, 'fileNode.comment', array[s."id"::text]) as r(id)))
+          when 'moderate' then (coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'fileNode.update'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows_for(can_subject_for.member, 'fileNode.update', array[s."id"::text]) as r(id)))
+          when 'read' then (coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows_for(can_subject_for.member, 'fileNode.read', array[s."id"::text]) as r(id)))
           else false
         end
       );

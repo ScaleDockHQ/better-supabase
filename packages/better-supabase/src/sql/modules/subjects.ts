@@ -561,6 +561,7 @@ returns boolean
 language plpgsql
 stable
 security invoker
+cost 1000
 set search_path = ''
 as $$
 begin

@@ -56,3 +56,11 @@ migration note.
   privileges, and revoking them would silently break the user's own tables; the `grants` block and
   `expose` are the opt-in. In `better_supabase` no default grant exists to revoke, and the
   statement made pg-delta's declarative shadow load stuck on the attachments and catalog files.
+- Amended (0.46): the messaging follows branch prunes a commented subject type whose `read` names
+  the provider's `rows` by the subject table's own RLS-visible id set,
+  `subject_id in (select s.<id>::text from <subject table> s)`, before `can_subject` runs. The set
+  is a superset of the rows `can_subject` can pass because it requires the subject row to be
+  visible under the same policy, so visibility is unchanged, and it runs once per statement
+  instead of one provider call per row. A commented type without `rows` keeps `true`. The
+  restrictive tenant scope repeats the branch unchanged (ADR 0099). `can_subject` and `can` carry
+  `cost 1000` so the set check stays ahead of them.

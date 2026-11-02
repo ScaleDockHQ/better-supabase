@@ -121,7 +121,10 @@ ${userGrant(`${fn("follow")}(text, uuid, boolean)`)}
     "(open_conversation.attrs ->> 'subjectId')",
   ] as const;
 
-  const recordFollows = q.followsRecord(`v_conv.${cv("subjectType")}`);
+  const recordFollows = q.followsRecord(
+    `v_conv.${cv("subjectType")}`,
+    `v_conv.${cv("subjectId")}`,
+  );
 
   const recordComment = q.recordCan(
     `v_conv.${cv("subjectType")}`,
@@ -135,7 +138,7 @@ ${userGrant(`${fn("follow")}(text, uuid, boolean)`)}
     "moderate",
   );
 
-  const openFollows = q.followsRecord(subjectArgs[0]);
+  const openFollows = q.followsRecord(subjectArgs[0], subjectArgs[1]);
   const openOnRecord = q.recordCan(subjectArgs[0], subjectArgs[1], "comment");
 
   return `

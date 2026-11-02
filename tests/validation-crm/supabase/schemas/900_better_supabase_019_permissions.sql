@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:a34113f792a1f51af582821dd512518d18bc5f92db4d22f1cca80374206fedee
+-- @bsb-hash sha256:2e4ba39fb6da9fe5933b57ac19d2e80eac70cb9f3a85fdd8e1020dbd5ea0a540
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -305,6 +305,7 @@ returns boolean
 language sql
 stable
 security definer
+cost 1000
 set search_path = ''
 as $$
   select case

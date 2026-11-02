@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:22b14b9f2a9209c19c22cdc2ad9f59cd96a13dbc1338c8e5e73e9b412d719285
+-- @bsb-hash sha256:115d5b801df3089acbe237e7ce11bb8717ef122aeb19e609a384e5ca32cb4262
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -114,10 +114,11 @@ begin
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   if not (auth.role() = 'service_role')
-    and save_reminder.subject_type in ('message', 'conversation', 'task', 'project', 'customer')
+    and save_reminder.subject_type in ('message', 'conversation', 'file_node', 'task', 'project', 'customer')
     and not (case save_reminder.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'comments.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'comments.read'), false)
+    when 'file_node' then exists (select 1 from "centrakit"."file_node" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant and (coalesce(better_supabase.can('tenant', save_reminder.tenant, 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id))))
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
     when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
     when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = (save_reminder.subject_id)::bigint and s."organization_id" = save_reminder.tenant)

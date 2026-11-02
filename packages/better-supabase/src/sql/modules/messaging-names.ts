@@ -8,6 +8,7 @@ import type { BlockSqlAccessProvider } from "../module-types.ts";
 import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
+import { subjectPermissionOf } from "../../core/subject-permission.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
@@ -268,7 +269,7 @@ export interface MessagingSql {
    * send (`comment`) and moderate (`moderate`, when declared, besides the
    * tenant key). `undefined` when no type declares `comment`.
    */
-  readonly followsRecord: (type: string) => string | undefined;
+  readonly followsRecord: (type: string, id: string) => string | undefined;
   /**
    * `can_subject(type, id, action)` for the types that declare `action` among
    * those that follow their record, `false` for the others; `undefined` when
@@ -340,11 +341,12 @@ export function messagingSql(
     );
   }
 
-  const scoped = registeredSubjects(ctx.subjects, ctx.naming).flatMap(
-    (subject) =>
-      subject.config.scope === undefined
-        ? []
-        : [{ type: subject.type, scope: subject.config.scope }],
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming);
+
+  const scoped = subjects.flatMap((subject) =>
+    subject.config.scope === undefined
+      ? []
+      : [{ type: subject.type, scope: subject.config.scope }],
   );
 
   // A provider answers scope grants through its idsWith set; the access
@@ -377,8 +379,47 @@ export function messagingSql(
   const listed = (types: readonly string[]): string =>
     types.map((type) => sqlString(type)).join(", ");
 
-  const followsRecord = (type: string): string | undefined =>
-    commented.length === 0 ? undefined : `${type} in (${listed(commented)})`;
+  const registry = new Map(subjects.map((subject) => [subject.type, subject]));
+
+  // A record type without a scope follows its record's own checks, which
+  // can_subject runs per row. A type whose read names the provider's rows is
+  // pruned first by the subject table's own visible set, which can_subject
+  // requires anyway: the set is a superset of the rows it can pass, and it
+  // runs once per statement instead of one provider call per row.
+  const followsRecord = (type: string, id: string): string | undefined => {
+    if (commented.length === 0) {
+      return undefined;
+    }
+
+    const pruned = commented.flatMap((name) => {
+      const subject = registry.get(name);
+
+      const rows = subjectPermissionOf(
+        ctx.subjects[name]?.permissions?.["read"],
+      )?.rows;
+
+      return rows === undefined || subject === undefined
+        ? []
+        : [{ name, subject }];
+    });
+
+    // Nothing to prune: keep the plain membership test.
+    if (pruned.length === 0) {
+      return `${type} in (${listed(commented)})`;
+    }
+
+    const set = new Map(pruned.map(({ name, subject }) => [name, subject]));
+
+    return `coalesce(case ${type} ${commented
+      .map((name) => {
+        const subject = set.get(name);
+
+        return subject === undefined
+          ? `when ${sqlString(name)} then true`
+          : `when ${sqlString(name)} then ${id} in (select s.${subject.id}::text from ${subject.qualified} s)`;
+      })
+      .join(" ")} else false end, false)`;
+  };
 
   const recordCan = (
     type: string,

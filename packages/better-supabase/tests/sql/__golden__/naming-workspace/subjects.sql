@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c7a9a3f67165eaf3a84edef76b674ebbc69f4caca74fecd19bdf30a6840c24ff
+-- @bsb-hash sha256:b0cb967608fe67c94cc2f157cb06fda8c7e1ac270de76e7781c34bfa32d3d26a
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -234,6 +234,7 @@ returns boolean
 language plpgsql
 stable
 security invoker
+cost 1000
 set search_path = ''
 as $$
 begin

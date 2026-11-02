@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:16fd3018c9c120f71d4718ed105df1f8ca566894634cd27ccc6355d65aefb87e
+-- @bsb-hash sha256:dcd2d4a5db834849ad5df05d719e1972a1b9c8998f6f8b5dd770a0cfbd4c8406
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -186,8 +186,9 @@ grant execute on function "better_supabase"."is_conversation_member"(uuid) to au
 drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
-  using ((("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('comments.read'))
+  using (((("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('comments.read'))
     or ("better_supabase"."conversations"."access" = 'subject' and coalesce(case "better_supabase"."conversations"."subject_type" when 'project' then "better_supabase"."conversations"."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
+    or ("better_supabase"."conversations"."access" = 'subject' and coalesce(case "better_supabase"."conversations"."subject_type" when 'file_node' then "better_supabase"."conversations"."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case "better_supabase"."conversations"."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
@@ -395,8 +396,9 @@ as $$
   from "better_supabase"."messages" y
   join "centrakit"."profiles" pr on pr."user_id" = y."author_id"
   where y."id" = any ($1)
-    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and ((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
+    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then c."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
+    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -463,7 +465,7 @@ begin
     where x is distinct from v_msg."author_id"
       and coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'comments.read'), false)
         and (v_conv."access" <> 'members' or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = x))
-        and (v_conv."access" <> 'subject' or case v_conv."subject_type" when 'message' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'conversation' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) else true end)
+        and (v_conv."access" <> 'subject' or case v_conv."subject_type" when 'message' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'conversation' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'file_node' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) else true end)
   );
   if v_msg."mention_scope" is not null then
     v_mentioned := v_mentioned || array(
@@ -586,8 +588,9 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then c."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
+    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -604,11 +607,15 @@ begin
     when 'read' then
       return true;
     when 'send' then
+      if v_conv."access" = 'subject' and coalesce(case v_conv."subject_type" when 'file_node' then v_conv."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false) then
+        return v_conv."archived_at" is null and (v_conv."subject_type" in ('file_node') and coalesce("better_supabase"."can_subject"(v_conv."subject_type", v_conv."subject_id", 'comment'), false));
+      end if;
       return v_conv."archived_at" is null
         and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'comments.create'), false)
         and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"))));
     when 'moderate' then
-      return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'comments.moderate'), false);
+      return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'comments.moderate'), false)
+        or (v_conv."access" = 'subject' and (v_conv."subject_type" in ('file_node') and coalesce("better_supabase"."can_subject"(v_conv."subject_type", v_conv."subject_id", 'moderate'), false)));
     else
       return false;
   end case;
@@ -639,14 +646,14 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'comments.create'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'comments.create'), false) or (open_conversation.kind = 'subject' and ((open_conversation.attrs ->> 'subjectType') in ('file_node') and coalesce("better_supabase"."can_subject"((open_conversation.attrs ->> 'subjectType'), (open_conversation.attrs ->> 'subjectId'), 'comment'), false)))) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if exists (
+  if not (open_conversation.kind = 'subject' and coalesce(case (open_conversation.attrs ->> 'subjectType') when 'file_node' then (open_conversation.attrs ->> 'subjectId') in (select s."id"::text from "centrakit"."file_node" s) else false end, false)) and exists (
     select 1 from unnest(v_users) x
     where not coalesce(better_supabase.can_user(x, 'tenant', open_conversation.tenant, 'comments.read'), false)
   ) then
@@ -675,6 +682,7 @@ begin
       if coalesce((case (open_conversation.attrs ->> 'subjectType')
       when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'file_node' then (select s."organization_id"::text from "centrakit"."file_node" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'task' then (select s."organization_id"::text from "centrakit"."tasks" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'project' then (select s."organization_id"::text from "centrakit"."projects" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
       when 'customer' then (select s."organization_id"::text from "centrakit"."customers" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::bigint)
@@ -1379,6 +1387,13 @@ begin
   if not found then
     raise exception 'no message of yours has this id' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
+  if exists (
+    select 1 from "better_supabase"."conversations" c
+    where c."id" = v_msg."conversation_id"
+      and c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)
+  ) and not "better_supabase"."can_conversation"(v_msg."conversation_id", 'send') then
+    raise exception 'not allowed to comment on this record' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+  end if;
   if v_msg."sent_at" is not null and not (true) then
     raise exception 'this message can no longer be edited' using errcode = '55000', hint = 'MESSAGING_EDIT_CLOSED';
   end if;
@@ -1824,7 +1839,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'centrakit.tasks' then array['task'] when 'centrakit.projects' then array['project'] when 'centrakit.customers' then array['customer'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'centrakit.file_node' then array['file_node'] when 'centrakit.tasks' then array['task'] when 'centrakit.projects' then array['project'] when 'centrakit.customers' then array['customer'] else '{}'::text[] end) loop
     declare
       v_kept uuid := (select c."id" from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_keep limit 1);
       v_dropped uuid := (select c."id" from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_drop limit 1);
@@ -1866,8 +1881,9 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ((("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('comments.read'))
+    or (((("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('comments.read'))
     or ("better_supabase"."conversations"."access" = 'subject' and coalesce(case "better_supabase"."conversations"."subject_type" when 'project' then "better_supabase"."conversations"."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
+    or ("better_supabase"."conversations"."access" = 'subject' and coalesce(case "better_supabase"."conversations"."subject_type" when 'file_node' then "better_supabase"."conversations"."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case "better_supabase"."conversations"."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")

@@ -378,6 +378,7 @@ function messageFunctions(q: MessagingSql): string {
 
   const editFollows = q.followsRecord(
     `c.${q.cols("conversations")("subjectType")}`,
+    `c.${q.cols("conversations")("subjectId")}`,
   );
 
   const editable = (alias: string): string =>
