@@ -14,7 +14,7 @@ import {
  * is kept (the rated quantities) and `invoices` is installed (the draft goes
  * there).
  */
-export function billsUsage(ctx: BlockSqlContext): boolean {
+function billsUsage(ctx: BlockSqlContext): boolean {
   return (
     ctx.mode !== "custom" &&
     ctx.flag("history", false) &&

@@ -46,7 +46,7 @@ type DefaultsCall = SeedDefaultsFunction;
 const defaultsCalls = seedDefaultsFunctions;
 
 /** `--variant block=name` (repeatable) over `database.seed.defaults.variants`. */
-export function resolveVariants(
+function resolveVariants(
   config: ResolvedConfig,
   flag: CloudSeedFlags["variant"],
   calls: readonly DefaultsCall[],

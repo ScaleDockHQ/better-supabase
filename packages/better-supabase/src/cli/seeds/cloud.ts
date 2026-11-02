@@ -107,10 +107,8 @@ export async function clearLogin(path: string): Promise<boolean> {
 }
 
 /** Whether the token has run out, with a minute of leeway. */
-export const isExpired = (
-  login: StoredLogin,
-  now: number = Date.now(),
-): boolean => login.expiresAt * 1000 - 60_000 <= now;
+const isExpired = (login: StoredLogin, now: number = Date.now()): boolean =>
+  login.expiresAt * 1000 - 60_000 <= now;
 
 export class CloudError extends Error {
   readonly kind:
@@ -279,7 +277,7 @@ export async function pollLogin(
  * Trades the refresh token for a new grant. The cloud rotates the refresh
  * token, so the caller must save the answer.
  */
-export async function refreshLogin(
+async function refreshLogin(
   fetcher: Fetch,
   base: string,
   refreshToken: string,
