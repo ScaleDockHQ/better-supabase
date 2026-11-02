@@ -13,7 +13,9 @@ import {
   channelDefaults,
   permissionAudience,
 } from "./notifications-audience.ts";
+import { consentGate } from "./notifications-consent.ts";
 import { delivery, purge } from "./notifications-delivery.ts";
+import { digestFunctions, heldStatus, notOff } from "./notifications-digest.ts";
 import {
   changedJson,
   integerMutations,
@@ -78,7 +80,7 @@ function wanted(ctx: BlockSqlContext, n: NotifyNames): string {
   const tenant = n.has("preferences", "tenant");
 
   return `select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p.${p("enabled")}, ${defaults}) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p.${p("enabled")}, ${defaults})${notOff(n, "p")} as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join ${n.table("preferences")} p
         on p.${p("user")} = x and p.${p("channel")} = c
@@ -115,7 +117,7 @@ function enabled(ctx: BlockSqlContext, n: NotifyNames): string {
 
   const lookup = ctx.hasTable("preferences")
     ? `(
-    select p.${n.col("preferences", "enabled")}
+    select p.${n.col("preferences", "enabled")}${notOff(n, "p")}
     from ${n.table("preferences")} p
     where p.${n.col("preferences", "user")} = notification_enabled.member
       and p.${n.col("preferences", "channel")} = notification_enabled.channel
@@ -358,7 +360,7 @@ function notify(
     `rc.${r("id")}`,
     ...(n.has("deliveries", "tenant") ? ["v_tenant"] : []),
     "c",
-    "case when c = 'in_app' then 'sent' else 'pending' end",
+    `case when c = 'in_app' then 'sent' else ${heldStatus(ctx, n, `rc.${r("user")}`)} end`,
     ...(n.has("deliveries", "deliveredAt")
       ? ["case when c = 'in_app' then now() end"]
       : []),
@@ -411,7 +413,7 @@ begin
   if v_activity not in ('participating', 'all') then
     ${fail("NOTIFICATION_ACTIVITY_UNKNOWN", "activity must be participating or all", "22023")}
   end if;${actionsCheck(n)}${authorize}
-  ${ctx.hook("before_notification_send", [["jsonb", "notification"]])}
+  ${ctx.hook("before_notification_send", [["jsonb", "notification"]])}${consentGate(ctx)}
   if to_regprocedure(${sqlString(`${audience}(jsonb)`)}) is not null then
     execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');
@@ -975,6 +977,7 @@ export function functions(
     settings(ctx, n),
     readers(ctx, n),
     delivery(ctx, n),
+    digestFunctions(ctx, n),
     suppressionFunctions(ctx, n),
     trackingFunctions(ctx, n),
     purge(ctx, n),

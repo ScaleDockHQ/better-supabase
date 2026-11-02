@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:7a7188c9182c83c9d138fb4bc4cf7b4670a9e28c1fae984f23ec58e05b7743f5
+-- @bsb-hash sha256:0fc1e58170ad7458812aeed88d45954f273fad5c844544c43f1190762ccde941
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -953,7 +956,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:c77bafe1cb2481b135052b00b29572ba52c394ede739d9292b548f3fb0728ee1
+-- @bsb-hash sha256:1661ee02710d25083d43afa9e6eff6b892d243cffaf73e5812d8c0b7c4ecf3ca
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1114,6 +1117,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -1794,6 +1800,11 @@ begin
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
+        if v_step ? 'consentPurpose' and "better_supabase"."consent_missing"(v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_step ->> 'consentPurpose') then
+          perform "better_supabase"."sequence_step_done"(v_due, v_current);
+          v_ran := v_ran + 1;
+          continue;
+        end if;
         update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
         where y."enrollment_id" = v_due and y."completed_at" is null;
         update "better_supabase"."enrollments" x
@@ -2015,7 +2026,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:030ea29076f84b0999e932c6551d6ca916b3286acd7a57f4fbf1510c9b2d8f52
+-- @bsb-hash sha256:d7a4b414b062fcc8c22a0517b4dc62b82ea03a3f400b7b33294157861053bdc9
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2181,6 +2192,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -2972,7 +2986,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:6be6883c51282380ff7b4cdae2cb85a8a27de08c937bd16db57be2ad53b34a0a
+-- @bsb-hash sha256:ebdfb8d1a679996a433694aaef3e536bd0ed6a3b21e52313f76a3f6856e1d1d0
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3133,6 +3147,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -4036,7 +4053,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:91b4507de2ca573033a1c20fbb3f4768193de155c5bbbbe577f90354557daf2a
+-- @bsb-hash sha256:fcca7b3fe68c7d935f8ce02595f007404eb51c2233e3aaef25aefc3d143d218d
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4205,6 +4222,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -4996,7 +5016,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:f049d665e7688a5d6669e6f86e0a1f49c13a745fb0439bf2161f7f7c649d10ce
+-- @bsb-hash sha256:f03a849968515802f1d9ff892cc7e8a0201e0b6807aa5960edefa710d3373613
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5157,6 +5177,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';

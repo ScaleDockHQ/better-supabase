@@ -130,8 +130,8 @@ describe("consents module", () => {
       expect(sql).toContain("sha256");
     });
 
-    it("keeps the parsers out of the contract and is a version 2 module", () => {
-      expect(CONSENTS.version).toBe(2);
+    it("keeps the parsers out of the contract and is a version 3 module", () => {
+      expect(CONSENTS.version).toBe(3);
       expect(CONSENTS.internal).toEqual(
         expect.arrayContaining(["parse_tc_string", "parse_gpp_string"]),
       );

@@ -152,7 +152,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:a934dd894d8d98563a6f8aa4de87ae9a006f98655173953fb9354911cd729717
+-- @bsb-hash sha256:8357d8d9754f9d20f8c5eda1cacdbdbf0322df6b031eab7b09027f1e150e7e82
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,6 +181,7 @@ create or replace view "better_supabase"."maintenance_jobs" with (security_invok
   coalesce(s."runs", 0) as runs,
   (s."last_run_at" is null or s."last_run_at" + j.every_interval <= now()) as due
 from (values
+    ('digest_run', '"better_supabase"."run_notification_digests"', interval '1 hour'),
     ('expire_approvals', '"better_supabase"."expire_approvals"', interval '15 minutes'),
     ('purge_chat_state', '"better_supabase"."purge_chat_state"', interval '15 minutes'),
     ('purge_expired_trash', '"better_supabase"."purge_expired_trash"', interval '1 day'),

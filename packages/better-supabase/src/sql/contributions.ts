@@ -12,6 +12,7 @@ export interface BlockContributions {
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
+  readonly consents: ConsentPurposeContribution;
   readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
@@ -30,6 +31,26 @@ export type BlockContributes = {
     target: BlockSqlContext,
   ) => readonly BlockContributions[K][];
 };
+
+/**
+ * A purpose the contributing block sends under. The `consents` block renders it
+ * as a system purpose (no organization), so an app can name it on a send and
+ * the `requires_consent` gate holds the send back until the record consented.
+ */
+export interface ConsentPurposeContribution {
+  /** The purpose key, such as `outreach_email`. */
+  readonly key: string;
+  readonly title: string;
+  readonly description?: string;
+  /** Defaults to `consent`; any other basis never gates a send. */
+  readonly legalBasis?:
+    | "consent"
+    | "contract"
+    | "legal_obligation"
+    | "vital_interest"
+    | "public_task"
+    | "legitimate_interest";
+}
 
 /**
  * A recurring cleanup the contributing block asks the maintenance dispatcher to

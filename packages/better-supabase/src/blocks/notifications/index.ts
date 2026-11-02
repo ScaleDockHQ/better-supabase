@@ -25,6 +25,16 @@ export type {
   NotificationSendResult,
 } from "./channel.ts";
 
+export { createNotificationDigests, digestText } from "./digests.ts";
+
+export type {
+  DigestItem,
+  DigestRunReport,
+  NotificationDigest,
+  NotificationDigests,
+  NotificationDigestsOptions,
+} from "./digests.ts";
+
 export { createNotifications } from "./notifications.ts";
 
 export { subscriptionOf } from "./rows.ts";

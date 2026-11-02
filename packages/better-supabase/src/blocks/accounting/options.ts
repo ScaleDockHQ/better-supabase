@@ -30,6 +30,12 @@ export type AccountingSqlOptions = {
    * to post.
    */
   readonly autoPost?: boolean;
+  /**
+   * Whether `schedule_revenue_recognition` spreads an amount over the months it
+   * is earned in and the `revenue_recognition` period posts each month when it
+   * closes (default `false`).
+   */
+  readonly recognition?: boolean;
 };
 
 export const accountingSqlOptions: BlockOptionsSchema<AccountingSqlOptions> =
@@ -40,4 +46,5 @@ export const accountingSqlOptions: BlockOptionsSchema<AccountingSqlOptions> =
     fiscalYearStartMonth: option.number({ default: 1 }),
     subtypes: option.strings(),
     autoPost: option.boolean({ default: true }),
+    recognition: option.boolean({ default: false }),
   });

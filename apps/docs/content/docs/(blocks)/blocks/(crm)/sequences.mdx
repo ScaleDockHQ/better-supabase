@@ -134,6 +134,17 @@ After `maxAttempts` the run ends with the reason `failed`. A run whose
 contact replies on the thread ends with the reason `replied`, unless the
 sequence sets `exitOnReply: false`.
 
+## Consent
+
+An email step takes `consentPurpose`. With the `consents` block installed, a
+recipient whose record has no consent in force for that purpose is skipped: the
+step counts as run and nothing is sent. The block contributes the
+`outreach_email` purpose, which a step can name.
+
+```ts
+{ id: "intro", kind: "email", subject: "Hello", consentPurpose: "outreach_email" }
+```
+
 ## Options
 
 ```ts title="better-supabase.config.ts"

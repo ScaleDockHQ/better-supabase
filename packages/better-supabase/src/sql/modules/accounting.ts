@@ -26,6 +26,14 @@ import {
   accountingTaxReport,
 } from "./accounting-postings.ts";
 import { accountingSeeds } from "./accounting-seeds.ts";
+import {
+  RECOGNITION_TABLES,
+  recognitionContract,
+  recognitionFunctions,
+  recognitionPeriods,
+  recognitionSources,
+  recognitionTables,
+} from "./accounting-recognition.ts";
 import { accountingSetupFunctions } from "./accounting-setup.ts";
 import { accountingConfig, ENTRY_RESERVED } from "./accounting-shared.ts";
 import { accountingTables } from "./accounting-tables.ts";
@@ -153,8 +161,10 @@ const NAMES: BlockSqlNames = {
     "fiscalYearStartMonth",
     "subtypes",
     "autoPost",
+    "recognition",
   ],
   tables: {
+    ...RECOGNITION_TABLES,
     settings: {
       name: "accounting_settings",
       app: {},
@@ -386,7 +396,7 @@ function build(ctx: BlockSqlContext): string {
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
-${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingLedgerReports(ctx)}${accountingOpeningFunctions(ctx)}${accountingImportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}`;
+${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingLedgerReports(ctx)}${accountingOpeningFunctions(ctx)}${accountingImportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}${recognitionTables(ctx)}${recognitionFunctions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -395,6 +405,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ).contract;
 
   return [
+    ...recognitionContract(ctx),
     {
       name: "setup_accounting",
       args: ["{id}", "text", "integer"],
@@ -625,7 +636,9 @@ export const ACCOUNTING: BlockSqlDefinition = {
   internal: ["accounting_range_close_blockers", "accounting_close_range"],
   contributes: {
     imports: accountingImportTargets,
+    accounting: recognitionSources,
     periods: (own) => [
+      ...recognitionPeriods(own),
       {
         kind: "fiscal_period",
         blockers: own.fn("accounting_range_close_blockers"),
