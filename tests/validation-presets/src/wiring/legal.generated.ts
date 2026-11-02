@@ -16,6 +16,7 @@ import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -45,6 +46,7 @@ export const blockSet = defineBlocks(blockConfig, {
   entitlements: entitlementsBlock,
   signatures: signaturesBlock,
   invoices: invoicesBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,

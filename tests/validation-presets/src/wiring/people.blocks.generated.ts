@@ -18,6 +18,7 @@ import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
@@ -36,6 +37,7 @@ import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/bl
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { hiringBlock as hiringBlockInstance } from "better-supabase/blocks/hiring";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
@@ -43,6 +45,7 @@ import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbo
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { relationsBlock as relationsBlockInstance } from "better-supabase/blocks/relations";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
@@ -107,6 +110,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  queue: {
+    schema: "better_supabase",
+    options: {},
+  },
   notifications: {
     schema: "better_supabase",
     options: {
@@ -134,6 +141,10 @@ export const blockConfig = {
     options: {},
   },
   relations: {
+    schema: "better_supabase",
+    options: {},
+  },
+  reminders: {
     schema: "better_supabase",
     options: {},
   },
@@ -189,6 +200,7 @@ export const blocks = {
   employees: employeesBlockInstance,
   entitlements: entitlementsBlockInstance,
   hiring: hiringBlockInstance,
+  queue: queueBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,
@@ -196,6 +208,7 @@ export const blocks = {
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   relations: relationsBlockInstance,
+  reminders: remindersBlockInstance,
   automations: automationsBlockInstance,
   settings: settingsBlockInstance,
   subjects: subjectsBlockInstance,
@@ -333,7 +346,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.mana
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & AutomationsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -438,6 +451,7 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.updated",
     "platform_setting.reset",
     "platform_setting.updated",
+    "reminder.sent",
     "scorecard.submitted",
     "subject.accessed",
     "subject.linked",
@@ -563,6 +577,7 @@ export const blockEventSchemas = {
   "pipeline_stage.updated": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "reminder.sent": true,
   "scorecard.submitted": true,
   "subject.accessed": true,
   "subject.linked": true,

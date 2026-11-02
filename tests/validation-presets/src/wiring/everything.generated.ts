@@ -69,6 +69,7 @@ import { appraisalsBlock } from "better-supabase/blocks/appraisals";
 import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { rfqsBlock } from "better-supabase/blocks/rfqs";
 import { tillsBlock } from "better-supabase/blocks/tills";
+import { periodsBlock } from "better-supabase/blocks/periods";
 import { agentCheckoutBlock } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock } from "better-supabase/blocks/e-prescribing";
@@ -230,6 +231,7 @@ export const blockSet = defineBlocks(blockConfig, {
   warehouse: warehouseBlock,
   rfqs: rfqsBlock,
   tills: tillsBlock,
+  periods: periodsBlock,
   agentCheckout: agentCheckoutBlock,
   clinicalDecisionSupport: clinicalDecisionSupportBlock,
   ePrescribing: ePrescribingBlock,

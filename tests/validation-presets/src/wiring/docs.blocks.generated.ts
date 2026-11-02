@@ -14,6 +14,7 @@ import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { ShareLinksEvents } from "better-supabase/blocks/share-links";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
@@ -37,6 +38,7 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { reactionsBlock as reactionsBlockInstance } from "better-supabase/blocks/reactions";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
@@ -125,6 +127,10 @@ export const blockConfig = {
       topic: "reactions",
     },
   },
+  reminders: {
+    schema: "better_supabase",
+    options: {},
+  },
   search: {
     schema: "better_supabase",
     options: {},
@@ -187,6 +193,7 @@ export const blocks = {
   outbox: outboxBlockInstance,
   profiles: profilesBlockInstance,
   reactions: reactionsBlockInstance,
+  reminders: remindersBlockInstance,
   search: searchBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
@@ -324,7 +331,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | 
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & DocumentsEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & SubjectsEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & DocumentsEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & RemindersEvents & SettingsEvents & ShareLinksEvents & SubjectsEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -399,6 +406,7 @@ export const blockEvents: Events<BlockEvents> = {
     "platform_setting.updated",
     "reaction.added",
     "reaction.removed",
+    "reminder.sent",
     "share_link.created",
     "share_link.revoked",
     "subject.accessed",
@@ -491,6 +499,7 @@ export const blockEventSchemas = {
   "platform_setting.updated": true,
   "reaction.added": true,
   "reaction.removed": true,
+  "reminder.sent": true,
   "share_link.created": true,
   "share_link.revoked": true,
   "subject.accessed": true,

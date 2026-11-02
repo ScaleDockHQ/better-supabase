@@ -13,6 +13,7 @@ import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { ImportsEvents } from "better-supabase/blocks/imports";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TemplatesEvents } from "better-supabase/blocks/templates";
@@ -31,6 +32,7 @@ import { onboardingBlock as onboardingBlockInstance } from "better-supabase/bloc
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 import { templatesBlock as templatesBlockInstance } from "better-supabase/blocks/templates";
@@ -107,6 +109,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  reminders: {
+    schema: "better_supabase",
+    options: {},
+  },
   settings: {
     schema: "better_supabase",
     options: {},
@@ -151,6 +157,7 @@ export const blocks = {
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
   profiles: profilesBlockInstance,
+  reminders: remindersBlockInstance,
   settings: settingsBlockInstance,
   teams: teamsBlockInstance,
   templates: templatesBlockInstance,
@@ -243,7 +250,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | 
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & FormsEvents & ImportsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & TemplatesEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & FormsEvents & ImportsEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & TeamsEvents & TemplatesEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -311,6 +318,7 @@ export const blockEvents: Events<BlockEvents> = {
     "organization_setting.updated",
     "platform_setting.reset",
     "platform_setting.updated",
+    "reminder.sent",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -387,6 +395,7 @@ export const blockEventSchemas = {
   "organization_setting.updated": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "reminder.sent": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

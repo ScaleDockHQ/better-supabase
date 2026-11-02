@@ -15,6 +15,7 @@ import { assetsBlock } from "better-supabase/blocks/assets";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
@@ -44,6 +45,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
   forms: formsBlock,
+  queue: queueBlock,
   messaging: messagingBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,

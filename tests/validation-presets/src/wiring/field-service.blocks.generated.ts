@@ -26,6 +26,7 @@ import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
@@ -59,6 +60,7 @@ import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { quotesBlock as quotesBlockInstance } from "better-supabase/blocks/quotes";
 import { relationsBlock as relationsBlockInstance } from "better-supabase/blocks/relations";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
@@ -196,6 +198,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  reminders: {
+    schema: "better_supabase",
+    options: {},
+  },
   settings: {
     schema: "better_supabase",
     options: {},
@@ -261,6 +267,7 @@ export const blocks = {
   profiles: profilesBlockInstance,
   quotes: quotesBlockInstance,
   relations: relationsBlockInstance,
+  reminders: remindersBlockInstance,
   settings: settingsBlockInstance,
   sla: slaBlockInstance,
   subjects: subjectsBlockInstance,
@@ -484,7 +491,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign"
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & CasesEvents & MaintenanceEvents & FormsEvents & SignaturesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & RelationsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & CasesEvents & MaintenanceEvents & FormsEvents & SignaturesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & RelationsEvents & RemindersEvents & SettingsEvents & SlaEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -663,6 +670,7 @@ export const blockEvents: Events<BlockEvents> = {
     "quote.updated",
     "quote.viewed",
     "quote.withdrawn",
+    "reminder.sent",
     "reservation.committed",
     "reservation.created",
     "reservation.released",
@@ -673,6 +681,7 @@ export const blockEvents: Events<BlockEvents> = {
     "signature_request.signed",
     "sla.breached",
     "sla.completed",
+    "sla.escalated",
     "sla.warned",
     "stock.adjusted",
     "stock.reorder_point_reached",
@@ -880,6 +889,7 @@ export const blockEventSchemas = {
   "quote.updated": true,
   "quote.viewed": true,
   "quote.withdrawn": true,
+  "reminder.sent": true,
   "reservation.committed": true,
   "reservation.created": true,
   "reservation.released": true,
@@ -890,6 +900,7 @@ export const blockEventSchemas = {
   "signature_request.signed": true,
   "sla.breached": true,
   "sla.completed": true,
+  "sla.escalated": true,
   "sla.warned": true,
   "stock.adjusted": true,
   "stock.reorder_point_reached": true,
