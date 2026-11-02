@@ -1,4 +1,9 @@
 import { ISO_4217_MINOR_UNITS } from "./iso4217.ts";
+import { parseScaled } from "./scaled.ts";
+
+export { parseScaled } from "./scaled.ts";
+
+export type { ParseScaledFailure } from "./scaled.ts";
 
 /**
  * An amount in the currency's minor units (cents for EUR, yen for JPY) and an
@@ -33,7 +38,6 @@ export class CurrencyMismatchError extends TypeError {
 }
 
 const RATE = /^(\d+)(?:\.(\d+))?$/;
-const DECIMAL = /^(-)?(\d+)(?:\.(\d+))?$/;
 
 /** Whether `code` is an ISO 4217 code with minor units, such as `EUR`. */
 export function isCurrency(code: unknown): code is string {
@@ -85,23 +89,19 @@ export function isMoney(value: unknown): value is Money {
  */
 export function parseMoney(decimal: string, currency: string): Money {
   const units = minorUnits(currency);
-  const match = DECIMAL.exec(decimal.trim());
+  const amount = parseScaled(decimal, units);
 
-  if (!match) {
+  if (amount === "syntax") {
     throw new RangeError(`"${decimal}" is not a decimal amount`);
   }
 
-  const [, sign, whole = "0", fraction = ""] = match;
-
-  if (fraction.length > units) {
+  if (amount === "scale") {
     throw new RangeError(
       `"${decimal}" has more decimals than ${currency}'s ${units} minor units`,
     );
   }
 
-  const amount = BigInt(whole + fraction.padEnd(units, "0"));
-
-  return money(sign === "-" ? -amount : amount, currency);
+  return money(amount, currency);
 }
 
 /**

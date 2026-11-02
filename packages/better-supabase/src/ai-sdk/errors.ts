@@ -51,6 +51,8 @@ function retryAfterOf(error: Record<string, unknown>): number | undefined {
     : undefined;
 }
 
+// Not `dbErrorOfStatus`: provider failures carry fixed messages and
+// `AI_PROVIDER_*` codes, and 401 and 403 stay `unexpected` because the user can't fix the app's key.
 function ofStatus(
   status: number | undefined,
   error: Record<string, unknown>,

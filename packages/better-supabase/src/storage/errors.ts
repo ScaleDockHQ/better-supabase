@@ -63,6 +63,8 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
     return dbError("network", message, base);
   }
 
+  // Not `dbErrorOfStatus`: Storage keeps its own kinds (400 is
+  // `invalid_request`, 408 and 429 are `network`) and adds the bucket's table.
   switch (status) {
     case 400: {
       return dbError("invalid_request", message, base);
