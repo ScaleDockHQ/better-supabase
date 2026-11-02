@@ -18,6 +18,7 @@ import {
 } from "../shared.ts";
 import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { roleNameOf } from "./memberships.ts";
+import { catalogRoles } from "./permissions-catalog-roles.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
 import {
@@ -1140,6 +1141,9 @@ export const ACCESS: BlockSqlDefinition = {
   ],
   unusedPermissions: (ctx) =>
     rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
-  data: catalogKeyRenames,
+  data: (ctx) =>
+    [catalogRoles(ctx), catalogKeyRenames(ctx)]
+      .filter((part) => part !== "")
+      .join("\n\n"),
   build: accessSql,
 };

@@ -22,7 +22,7 @@ describe("deals module", () => {
       'create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"',
     );
     expect(pipelines).toContain(
-      "('closed_won', 'Closed won', 'won', 'success', 100::smallint",
+      "'closed_won', 'Closed won', ('won'), ('success')",
     );
   });
 
@@ -45,7 +45,7 @@ describe("deals module", () => {
       }),
     );
 
-    expect(pipelines).toContain("('lead', 'Lead', 'open', 'open'");
+    expect(pipelines).toContain("'lead', 'Lead', ('open'), ('open')");
     expect(pipelines).not.toContain("'qualified'");
     expect(pipelines).toContain("bsb_pipeline_status_deal");
   });

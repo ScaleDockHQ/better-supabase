@@ -192,6 +192,12 @@ does not declare is refused. Setting `database.seed.defaults.onCreate` to
 `false` stops new organizations from getting defaults. The database and
 consent rules are the ones `--apply` follows.
 
+Blocks that declare defaults today are `risks`, `cases`, `leave`, `tax`,
+`pipelines` and `accounting`. `pipelines` offers the variants `b2b-sales` and
+`recruiting`, and `accounting` offers `generic` (the default) and `nl-rgs`. The
+catalog roles `owner`, `admin` and `member` are not per-organization defaults;
+the `permissions` data step adds them once.
+
 ### Sample data
 
 `db seed --sample` asks the Better Supabase cloud for realistic sample rows

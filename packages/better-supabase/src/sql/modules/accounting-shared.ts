@@ -64,7 +64,7 @@ const DEFAULT_SUBTYPES: readonly string[] = [
   "other_expense",
 ];
 
-interface ChartAccount {
+export interface ChartAccount {
   readonly code: string;
   readonly name: string;
   readonly type: (typeof ACCOUNT_TYPES)[number];

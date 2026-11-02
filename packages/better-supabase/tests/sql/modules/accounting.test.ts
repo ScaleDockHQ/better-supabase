@@ -27,7 +27,8 @@ describe("accounting module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain("'1200', 'Accounts receivable'");
-    expect(sql).toContain("('retained_earnings', ");
+    expect(sql).toContain("'retained_earnings'");
+    expect(sql).toContain("'generic');");
     expect(sql).toContain("then the generic chart");
     expect(sql).toContain("'EUR'");
   });

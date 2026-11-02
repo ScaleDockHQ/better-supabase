@@ -25,6 +25,7 @@ import {
   accountingPostingFunctions,
   accountingTaxReport,
 } from "./accounting-postings.ts";
+import { accountingSeeds } from "./accounting-seeds.ts";
 import { accountingSetupFunctions } from "./accounting-setup.ts";
 import { accountingConfig, ENTRY_RESERVED } from "./accounting-shared.ts";
 import { accountingTables } from "./accounting-tables.ts";
@@ -620,6 +621,7 @@ export const ACCOUNTING: BlockSqlDefinition = {
   contract,
   build,
   data: seedDisposalAccounts,
+  seeds: accountingSeeds,
   internal: ["accounting_range_close_blockers", "accounting_close_range"],
   contributes: {
     imports: accountingImportTargets,
