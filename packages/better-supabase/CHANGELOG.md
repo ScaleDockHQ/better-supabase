@@ -1,5 +1,1214 @@
 # better-supabase
 
+## 0.47.0
+
+### Minor Changes
+
+- [#646](https://github.com/ScaleDockHQ/better-supabase/pull/646) [`21357a5`](https://github.com/ScaleDockHQ/better-supabase/commit/21357a56934e873ef9d5b7019ed6a6b95aa15bd8) Thanks [@martijn00](https://github.com/martijn00)! - The `accounting` block is now a general ledger. Accounts gain `normalSide`, `level`, roll-ups through
+  `parentId`, `defaultTaxCodeId` and `active`. Periods can be locked with `lockPeriod`, and posting
+  into one fails with `ACCOUNTING_PERIOD_LOCKED`. Journals gain a contra and a bank account, entry
+  lines gain `taxAmount`, and `cost_center` and `cost_object` are built-in dimensions. Opening balances
+  (`saveOpeningBalances`, `postOpeningBalances`) are carried forward by `closeFiscalYear`. New reports
+  are `columnBalance`, `journalListing` and `periodTrialBalance`, and billable time gains
+  `wipValuation`. The `imports` block gets the `accounting_account`, `accounting_journal`,
+  `accounting_entry` and `accounting_opening_balance` targets, which may post into closed periods but
+  never locked ones. The SQL functions `save_accounting_account` and `save_accounting_journal` take
+  extra arguments, so run `better-supabase upgrade` to regenerate the module.
+
+- [#578](https://github.com/ScaleDockHQ/better-supabase/pull/578) [`adff01d`](https://github.com/ScaleDockHQ/better-supabase/commit/adff01dc4b347fda07f623ef3e577453787490f4) Thanks [@martijn00](https://github.com/martijn00)! - The `accounting` block now books other blocks' documents in the same transaction. Invoices book on
+  issue, payment, refund and void. Expense reports book on approval and reimbursement. Costed stock
+  movements book at average cost, lease rent charges and payments book as they post, and gifts book
+  when they post and reverse on refund. Entries post at once, or stay drafts with the new `autoPost:
+  false` option. `postSource(sourceType, sourceId)` books a document by hand. Blocks declare their
+  sources through the new `accounting` contribution kind. The generic chart maps a new `expense`
+  role.
+  
+  `taxReport(organizationId, since, until)` sums posted tax per tax code and report box, with
+  `salesTax`, `purchaseTax` and `netTax`. The `TaxReportFormat` port (`apiVersion: 1`, checked with
+  `taxReportFormatOf`) renders a report as a country's file, and none is bundled. Budgets
+  (`saveBudget`, `budget`, `budgets`) hold amounts per account, period and dimensions, and
+  `budgetVsActual` compares them with the posted amounts. Saving a budget records
+  `accounting_budget.created` or `accounting_budget.updated`. Apply the new migration with
+  `better-supabase upgrade`.
+
+- [#550](https://github.com/ScaleDockHQ/better-supabase/pull/550) [`74d8820`](https://github.com/ScaleDockHQ/better-supabase/commit/74d88203ed1bbaa1fd5c43f1303337b3a617c4b5) Thanks [@martijn00](https://github.com/martijn00)! - Add the `accounting` block (`better-supabase/blocks/accounting`): double-entry books in money beside
+  the operational ledger. It has a chart of accounts with account roles, journals, fiscal years of
+  monthly periods, draft entries that post when they balance and are numbered per journal and year
+  (`SAL-2026-00001`), reversals, dimensions, exchange rates and tax codes, and the period and
+  year-end close into retained earnings. It also has the trial balance, profit and loss, balance
+  sheet and general ledger reports. The permissions are `accounting.read`, `accounting.write`,
+  `accounting.post`, `accounting.close` and `accounting.manage`. ADR 0136 explains the split from
+  `ledger`.
+
+- [#563](https://github.com/ScaleDockHQ/better-supabase/pull/563) [`856403c`](https://github.com/ScaleDockHQ/better-supabase/commit/856403c4a60f3001dde78d5294924716de3a7743) Thanks [@martijn00](https://github.com/martijn00)! - The new `acknowledgements` block (`better-supabase add acknowledgements`, `better-supabase/blocks/acknowledgements`) records who confirmed they read which version of a record. `assign(organizationId, record, { type, id }, { dueInDays })` asks a user, a team or a role; `mine(organizationId)` lists what the caller still has to read; `acknowledge(record, { versionId, signatureId })` records the caller's acknowledgement of the current version and fails with `ACKNOWLEDGEMENT_VERSION_STALE` when a newer one was published; `status(record)` and `of(record, versionId)` show who acknowledged and who is pending; `notifyDue()` reminds members once their acknowledgement is overdue.
+  
+  List the record types under `blocks.acknowledgements.on`, each with its `table` and an optional `versionColumn` that holds the record's current version; without it, the current version is the record's latest frozen version in the `versions` block. The block adds the `acknowledgements.read`, `acknowledgements.manage` and `acknowledgements.acknowledge` permission keys (members get `acknowledge`), the events `acknowledgement_assignment.created`, `acknowledgement_assignment.deleted`, `acknowledgement.created` and `acknowledgement.reminded`, and the `acknowledgement-inbox` UI recipe. An app on a permission catalog adds the three keys to its catalog.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - New `advisories` block (`better-supabase/blocks/advisories`) for software vendors: products and versions with CycloneDX SBOM import, vulnerabilities enriched hourly from OSV, EPSS and the CISA KEV catalog through the versioned `VulnerabilityFeed` port, OpenVEX statements, and CSAF 2.0 advisories with a `/.well-known/csaf` handler. `testVulnerabilityFeed` in `better-supabase/testing` checks a feed. CVSS 3.x vectors are scored; 4.0 vectors are parsed but not scored. Run `better-supabase upgrade` to add the tables and the `advisories.*` permissions.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Agents can check out, be discovered and be called by other agents.
+  
+  - New `agent-checkout` block (`better-supabase/blocks/agent-checkout`): ACP and UCP checkout sessions over an orders cart with idempotency keys, AP2 mandates signed and verified with `signing-keys`, and an x402 `paymentRequired` and `withPayment` helper. The permission keys are `agent-checkout.read`, `agent-checkout.write` and `agent-checkout.manage`.
+  - `better-supabase/blocks/agents` serves an A2A 1.0 Agent Card (`agentCard`, `agentCardResponse`) and a JSON-RPC task endpoint (`createA2AHandler`) that maps A2A tasks to ai-chat runs.
+  - New `better-supabase/webmcp` subpath: `registerWebMcpTools` registers the block actions a user may run as WebMCP tools, and `mcpToolsOf` offers the same actions to `createMcp`.
+  - `SPEC_PINS` gains `acp`, `ucp`, `ap2`, `x402`, `a2a` and `webmcp`.
+  
+  Run `better-supabase add agent-checkout` and generate a migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - New `ai-evals` block (`better-supabase/blocks/ai-evals`). It stores eval datasets and items, runs them
+  against a prompt version and a model with `createEvalJob`, scores with `exactMatch`, `jsonSchema` and an
+  injectable `llmJudge`, compares two runs for regressions and exports a promptfoo config.
+  `items.addFromFeedback` copies rated `ai-chat` replies into a dataset. New `ai-guardrails` block
+  (`better-supabase/blocks/ai-guardrails`) with per-agent input and output policies: prompt-injection
+  heuristics, PII redaction, topic deny lists and a tool depth limit. It logs decisions as hashes, records
+  the `guardrail.blocked` event and offers `check` and `guardrailMiddleware`. Run
+  `better-supabase add ai-evals ai-guardrails` to install them.
+
+- [#590](https://github.com/ScaleDockHQ/better-supabase/pull/590) [`d560d8b`](https://github.com/ScaleDockHQ/better-supabase/commit/d560d8b785d7feea8915536fb717221e56f51b5e) Thanks [@martijn00](https://github.com/martijn00)! - AI documents keep their versions in the `versions` block, and `ai-files` now requires it. Each
+  version is a `versions` row with `subject_type = 'ai_document'` and the text in `content`.
+  `better-supabase upgrade` moves the rows of `ai_document_versions` and drops that table. An edit
+  that leaves the text unchanged writes no version, a document keeps its latest 50 versions, and
+  the versions functions and RLS keep document versions private to ai-files. The
+  `blocks["ai-files"].tables.versions` key is removed.
+  
+  With the `tasks` block installed, incident postmortem action items are tasks.
+  `addPostmortemAction(postmortemId, { title, assigneeId, dueAt })` creates one and links it in the
+  new `incident_postmortem_actions` table, `removePostmortemAction(actionId)` removes the link, and
+  a postmortem's `actions` lists the linked tasks. `actionItems` is deprecated and is removed in
+  0.48; with `tasks`, `savePostmortem` refuses it. `codemod 0.47` lists the lines that use
+  `actionItems` or `ai_document_versions`.
+
+- [#658](https://github.com/ScaleDockHQ/better-supabase/pull/658) [`ac3d2da`](https://github.com/ScaleDockHQ/better-supabase/commit/ac3d2da70142d6219c009b3301cb1761da391d5b) Thanks [@martijn00](https://github.com/martijn00)! - New `appraisals` block (`better-supabase/blocks/appraisals`): review cycles with self, peer and manager reviews, calibration sessions, goals and sign-off.
+  
+  - `createCycle` and `openCycle` start a cycle and create one appraisal per person, with a self review, a manager review and one review per peer. `closeCycle` ends it once every appraisal is signed off.
+  - `submitReview` takes a rating from 1 to 5, comments and an optional `forms` submission id. Only the assigned reviewer submits, and a member reads only their own reviews.
+  - `calibrate` moves a reviewed rating with a reason and keeps the previous value. `setGoals` links goals from the `goals` block.
+  - `signOff` signs an appraisal off. With the `approvals` block it files an approval and the appraisal waits as `awaiting_signoff`. With `enrollments` and a cycle `program`, each stage marks a program step.
+  - The permission keys are `appraisals.read`, `appraisals.review` and `appraisals.manage`.
+  
+  Add `appraisals: {}` to `blocks`, run `better-supabase add appraisals` and generate a migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Appraisal cycles take a rubric of weighted competencies (`competencies`, `setCompetencies`, per-competency `ratings` and `calibrateCompetencies`) and an `anonymity` mode (`none`, `subject` or `all`, default `subject`) that hides peer reviewers in function outputs and row-level security, plus `shareFeedback` for the appraised person after sign-off. Adopted appraisal tables gain `anonymity`, `share_feedback`, `calibrated_competencies` and `competency_ratings` columns, and the block adds `appraisal_competencies` and `appraisal_review_ratings`. With the default, a person who held `appraisals.read` no longer sees who wrote a peer review about them. See ADR 0180.
+
+- [#559](https://github.com/ScaleDockHQ/better-supabase/pull/559) [`6069798`](https://github.com/ScaleDockHQ/better-supabase/commit/606979881914d52645adbcf75ab1465b6dd23164) Thanks [@martijn00](https://github.com/martijn00)! - Approval steps with `required: "all"` wait for each named approver, and managers can decide leave and expenses directly. Run `better-supabase upgrade` and generate a migration.
+  
+  - Approvals: a `required: "all"` step completes only once each listed user, or a delegate acting for that user, has approved. Before, any approvals reaching the count completed it, so a delegate and the user who delegated counted twice. After the step escalates, the fallback approvers count toward the number again. Steps resolved from `"all"` keep `all: true` in the policy snapshot and in `listPolicies`; a tenant can't set it on other steps.
+  - Leave and expenses: `options.approver: "manager"` lets the requester's manager from the employees block call `decide_leave_request`, `decide_expense` and `decide_expense_report` (`decide`, `decideExpense` and `decideExpenseReport`), next to holders of the approve permission. The default stays `"permission"`.
+  - Leave: with `approvals: false` on the block's own tables, request reads no longer refer to the approval column, which the table doesn't have without the approvals block.
+  - Time tracking: with `approvals: false`, `approve(id, { decidedBy })` and `reject(id, note, { decidedBy })` let the service role record the user who decided (`decided_by` in SQL), never the week's owner.
+
+- [#641](https://github.com/ScaleDockHQ/better-supabase/pull/641) [`5ce3365`](https://github.com/ScaleDockHQ/better-supabase/commit/5ce336511c7769ac42a3bcc8911e24a5d50012db) Thanks [@martijn00](https://github.com/martijn00)! - Attachments carry per-organization document types with typed metadata, and files can be registered before they are uploaded (breaking).
+  
+  - `attachments.documentTypes.define`, `list` and `remove` manage types such as `supplier_invoice` with typed fields (`text`, `number`, `amount`, `date`, `expiry`, `boolean`, `select`). A bad value fails with `ATTACHMENT_FIELD_INVALID`.
+  - Attachments gain `documentTypeId`, `source`, `externalId`, `storageStatus` (`stored`, `pending_upload`, `missing`) and `sourcePath`. `(organization, source, externalId)` is unique, `source` must be in `options.sources` or belong to an import run, and `subjectType` must be a registered subject type.
+  - The `imports` block gets an `attachment` target that registers the record first. `claim` and `markMissing` finish it later.
+  - `create_attachment` takes `document_type`, `source`, `external_id` and `source_path`; the old overloads are dropped. A table adopted for `tables.attachments` maps the five new columns or sets them to `null`.
+  
+  See the 0.46 to 0.47 migration guide, "Attachment document types".
+
+- [#652](https://github.com/ScaleDockHQ/better-supabase/pull/652) [`7a3e649`](https://github.com/ScaleDockHQ/better-supabase/commit/7a3e6499447e9501d6e927b367d0515eeeb031e1) Thanks [@martijn00](https://github.com/martijn00)! - New subpath `better-supabase/audit-files` reads and writes audit files for the general ledger. A
+  versioned `AuditFileAdapter` (`apiVersion: 1`) parses a file as a stream of ledger records and
+  exports books, with `saftAdapter()` for OECD SAF-T 2.00 and `xafAdapter()` for the Dutch XAF 3.2
+  (`SPEC_PINS.saftOecd`, `SPEC_PINS.xaf`). `importAuditFile(adapter, file, { run, imports })` writes
+  accounts, journals, opening balances and entries through the accounting import targets, so a repeat
+  changes nothing, and `exportAuditFile(adapter, accounting, { organizationId, company, currency,
+  selection })` writes a fiscal year. Parsing uses a small built-in streaming tokenizer with limits and
+  no XML dependency. Elements and links the ledger cannot store come back as warnings.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`e3c8a7a`](https://github.com/ScaleDockHQ/better-supabase/commit/e3c8a7a509f13e89722c8bb9789c943149bf4c72) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase automations list`, which prints the automations the installed blocks ship, and `--explain`, which says which block's event starts each one and what its actions do. Field history now also watches columns that a block entity declares in `subject.history`, and the `events` and `audit-reads` table tags write their SQL through `table enable`.
+
+- [#625](https://github.com/ScaleDockHQ/better-supabase/pull/625) [`61191e5`](https://github.com/ScaleDockHQ/better-supabase/commit/61191e537aa24e0456ca657edaa11ac467810918) Thanks [@martijn00](https://github.com/martijn00)! - Add the `banking` block (`better-supabase/blocks/banking`): bank accounts, statements and
+  transactions with reconciliation. `parseCamt053` reads camt.053.001.02 and .08 (with the optional
+  `fast-xml-parser` peer) and `parseMt940` reads MT940. Importing a statement twice adds nothing.
+  `suggestMatches` ranks open invoices by RF creditor reference (ISO 11649), Dutch
+  betalingskenmerk, invoice number in the remittance, amount and counterparty IBAN, and `match`
+  records the invoice payment. Bank rules match transactions by a filter tree and book them in the
+  bank account's journal or ignore them, and `reconciliation` compares the statement balance with
+  the books. Bank feeds plug in through the versioned `BankFeed` port; none is bundled. The
+  permissions are `banking.read`, `banking.import`, `banking.reconcile` and `banking.manage`. ADR
+  0153 explains the design.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a83037b`](https://github.com/ScaleDockHQ/better-supabase/commit/a83037b6d0d7e8523a51234d753ec174e0e2091a) Thanks [@martijn00](https://github.com/martijn00)! - Build the automation action registry from the installed blocks with `blockActions(blocks, { clients })`
+  from `better-supabase/blocks/automations`. Manifests gain a `handlers` field, `quotes.from_deal` creates a
+  quote from a won deal as a default automation that ships off, and doctor reports BS507 when blocks ship
+  actions and no source builds a registry.
+
+- [#567](https://github.com/ScaleDockHQ/better-supabase/pull/567) [`5b25625`](https://github.com/ScaleDockHQ/better-supabase/commit/5b25625be68d8035bb76fa3e84dbb360ea48a020) Thanks [@martijn00](https://github.com/martijn00)! - Block clients cover more of what apps wrote by hand:
+  
+  - `webhooks-out` manages endpoints as the user with `createEndpoint`, `updateEndpoint`, `listEndpoints` and `deleteEndpoint`, checked against the module's manage and view permissions. The block SQL adds `create_webhook_endpoint`, `update_webhook_endpoint`, `list_webhook_endpoints` and `delete_webhook_endpoint` (module version 6); run `better-supabase upgrade`.
+  - Notifications `send` takes `{ email, name? }` recipients for contacts without an account. The email channel sends to them right away through `sendToContact`, with an optional `composeContact`, and the result reports each contact in `contacts`.
+  - Comments `list` takes `includeDeleted: false` to leave deleted comments out in the database. `list_comments` gains an `include_deleted` argument (module version 9); the upgrade drops the old signature.
+  - `viewOf` from `better-supabase/blocks/saved-views` and `subscriptionOf` from `better-supabase/blocks/notifications` parse rows from a page payload RPC the way the clients do.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`342b44f`](https://github.com/ScaleDockHQ/better-supabase/commit/342b44f149ccc152646d7e211100829885f4040b) Thanks [@martijn00](https://github.com/martijn00)! - Two more block reads, each one SQL call that runs as the caller. `banking.reconciliationBoard`
+  returns an account's status, its latest transactions and the best invoice suggestion for each
+  unmatched one. `orders.board` returns the orders by status with counts, totals per currency and the
+  latest orders of each status. Both appear in the generated `blocks.reads`, the catalog and the
+  example's migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`234e967`](https://github.com/ScaleDockHQ/better-supabase/commit/234e96799f48621999c45a14b38433e8d73a10cc) Thanks [@martijn00](https://github.com/martijn00)! - Read sets take block reads and record summaries. `defineReadSet(db, name, { blocks: reads }, ...)` adds `s.blocks.<instance>.<read>(args)` for the reads the installed blocks ship, and `s.record(type, id, { sections })` adds the record summary. Both run inside the single `rs_<name>` round trip, as the caller.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`0ccb3bc`](https://github.com/ScaleDockHQ/better-supabase/commit/0ccb3bccb84b276a44c823318822c86bcf431b6e) Thanks [@martijn00](https://github.com/martijn00)! - Blocks can ship composed reads. `deals.board({ pipelineId })` returns a pipeline's stages with their deals, counts, totals per currency and the weighted forecast in one call, from the new `deal_board` function. `better-supabase gen` writes `reads` and a result type for each read into `blocks.generated.ts`, `defineReadSet` takes them as `blocks: reads`, and the block catalog lists them.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`8f9a48a`](https://github.com/ScaleDockHQ/better-supabase/commit/8f9a48ac78700ce41b84b285637acb4fe86a4c52) Thanks [@martijn00](https://github.com/martijn00)! - Two more block reads, each one SQL call that runs as the caller. `organizations.overview` returns
+  the organization, the caller's role, the members with their roles, the open invitations and the
+  billed seats. `billing.overview` returns the Stripe customer, the seats, the subscription item,
+  the latest invoices and the usage per meter. `organizations` now lists `billing` and `billing`
+  lists `usage` as integrations in the catalog.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`0679bea`](https://github.com/ScaleDockHQ/better-supabase/commit/0679beafd34fe87a8651df8a30f04091f5802845) Thanks [@martijn00](https://github.com/martijn00)! - More composed reads and helpers. `sessions.overview` returns the caller's sessions, their count and
+  the current session id in one SQL call. `inventory.overview` returns the stock level count, the
+  levels at or below their reorder point and the lots that expire soon. `audit.page` returns a page
+  of entries with the total and an `actorName` on each. `quotes.duplicate` starts a new draft from a
+  quote you hold, through `create`.
+
+- [#562](https://github.com/ScaleDockHQ/better-supabase/pull/562) [`3030fbf`](https://github.com/ScaleDockHQ/better-supabase/commit/3030fbfeaac3024f8fee386a92ffd5b36dbacb68) Thanks [@martijn00](https://github.com/martijn00)! - The calendar block takes `options.defaultAlarms`: each calendar keeps the alarms a new event gets when its input sets no `alarms`, in `calendar_default_alarms`, with an anchor time of day for all-day events (default 09:00). The client reads and replaces them with `defaultAlarms(calendarId)` and `setDefaultAlarms(calendarId, alarms)`. `save_calendar_event` also takes an optional `actor`, and `upsert(calendarId, input, { actor })` passes it: a new event's creator and owner are that user, and only the service role may name a user other than the caller.
+  
+  The tasks block's `update(changes, { atomic: true })` applies a batch in full or not at all, and a `window` change (`{ startAt, endAt }`) moves both dates in one write, so a Gantt drag past the old end no longer fails the date check halfway. `update_tasks` takes `atomic boolean default false`.
+  
+  In the keyed layout, `custom-fields` takes `on.<type>.keys` with `manage` and `read`, the tenant keys that writing and reading that type's values ask for instead of `custom_fields.manage` and `custom_fields.read`.
+  
+  Over an app's runs table, the workflows block's `principalKind` and `principalId` columns are optional as a pair. Without them the principal stays in the run's `attributes`, and `run.principal` reads it from there.
+  
+  Run `better-supabase upgrade` and generate a migration to pick up the new SQL.
+
+- [#552](https://github.com/ScaleDockHQ/better-supabase/pull/552) [`91da637`](https://github.com/ScaleDockHQ/better-supabase/commit/91da6370608464ddfa07b5d1bb97744086f2d003) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.bootstrap()` tells a banned user from an ended session, the proxy hands refreshed cookies to the render, and `SessionProvider` can skip the authorization refresh.
+  
+  - Bootstrap: the `bootstrap_<rpc>` wrappers return `end_reason` (`user_banned` or `session_not_found`) from the new `better_supabase.session_end_reason()`. The result carries it as `endReason`, the redirect uses `?reason=user_banned` for a banned user, and `reasons: { ended, banned }` sets other values, as in `verifySession`. Run `better-supabase upgrade` and generate a migration; a wrapper generated before reports `session_not_found` for both.
+  - Proxy: under `verifySession: "bootstrap"`, a session that `bsb.bootstrap()` found ended has its cookies cleared on its next request in the same process. The proxy also copies its `set-cookie` headers into `x-middleware-set-cookie`, so the render after a refresh reads the new token instead of the old one.
+  - React: `SessionProvider` takes `authzRefresh`, `false` or a test on the session, such as `(session) => !supportOf(session)` to keep a support session off the target user's topic.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`fc455b2`](https://github.com/ScaleDockHQ/better-supabase/commit/fc455b24856f7c05092e7a16369e73d68ae7838c) Thanks [@martijn00](https://github.com/martijn00)! - `blocks.sessions.options.bootstrap` accepts `{ readSet: "name" }` next to `"schema.function"`. The generated `bootstrap_<name>` wrapper then calls `public.rs_<name>`, so one page load carries the session check, the authorization version and a whole read set in one query.
+
+- [#643](https://github.com/ScaleDockHQ/better-supabase/pull/643) [`0017947`](https://github.com/ScaleDockHQ/better-supabase/commit/001794743901de5e17ed34ce3918c0f3c6e0af29) Thanks [@martijn00](https://github.com/martijn00)! - The care blocks work offline on PowerSync.
+  
+  - `powersync streams` and `gen.powersync.instances` accept `activities`, `observations` and `medications`. They need `authorization: "roles"`: a user syncs the organizations where their role holds the block's `read` key.
+  - `better-supabase/powersync` adds `progressNoteRoute`, `activityLinksRoute`, `observationRoute`, `medicationAdministrationRoute` and `careUploadOutcome`. Clinical conflicts (a dose already recorded, a locked note) land in `connector.rejected`.
+  
+  No migration is needed.
+
+- [#573](https://github.com/ScaleDockHQ/better-supabase/pull/573) [`f3078a3`](https://github.com/ScaleDockHQ/better-supabase/commit/f3078a3d7317fbb579ee7716e0b660ba19d21941) Thanks [@martijn00](https://github.com/martijn00)! - New `care-plans` block (`better-supabase/blocks/care-plans`): care plans for any client record, such as a customer, a resident or a member.
+  
+  - A plan belongs to one subject and holds problems (with a code from `options.codeSystems`, such as `omaha`), goals with a target date and actions of kind `intervention`, `appointment`, `task` or `measure`.
+  - `publish` freezes the draft as a version, makes it the client's active plan, archives the plan before it and starts its actions. `create` with `copyFromPlanId` drafts the next plan from an earlier one.
+  - `evaluate` records what a goal reached; a new status becomes the goal's status. The daily `reviews` schedule runs `dueReviews`, which notifies the owner and emits `care_plan.review_date_reached` or `care_plan_action.review_date_reached` when a plan or an action comes up for review.
+  - A restrictive measure (`kind: "measure"`, one of `options.measureKinds`) waits for an approval before it starts, through the approvals block. `requestAgreement` asks the members who speak for the client to sign the active plan through the signatures block, which gains the signature meaning `agreed`.
+  - Guests granted a client see its published plans. A task action can open a work item in the tasks block.
+  - The permission keys are `care_plans.read`, `care_plans.write`, `care_plans.evaluate`, `care_plans.publish` and `care_plans.manage`; the default member role reads plans.
+  
+  Add `"care-plans": {}` to `blocks`, run `better-supabase add care-plans` and generate a migration.
+
+- [#634](https://github.com/ScaleDockHQ/better-supabase/pull/634) [`076cf73`](https://github.com/ScaleDockHQ/better-supabase/commit/076cf73f1ebbc31b3b8a2bf93979a3978ca1a2f4) Thanks [@martijn00](https://github.com/martijn00)! - Adds the `care` preset for home care, nursing homes, disability care and youth care. It installs contacts for
+  clients and their representatives, guest access, encrypted fields, audit with read logging on the
+  client, data lifecycle, consents, activities, care plans, observations with the vitals catalog,
+  medications, forms, bookings, calendar, reminders, time tracking, funding, shifts, qualifications,
+  courses, cases for incidents, staff incidents and complaints, acknowledgements, the drive with
+  controlled documents released through approvals, and signatures. Missed doses open an incident, and
+  tracked time registers funding deliveries. Install it with `better-supabase add --preset care`.
+  
+  A block entity that registers a subject now takes `team` and `auditReads`, the same settings as an
+  app table subject, and a preset instance passes them under `subjects`:
+  
+  ```ts
+  blocks: {
+    contacts: {
+      entities: { person: { team: { actions: ["read", "write"] }, auditReads: true } },
+    },
+  },
+  ```
+  
+  The settings are refused on an entity that registers no subject.
+
+- [#593](https://github.com/ScaleDockHQ/better-supabase/pull/593) [`ed6c045`](https://github.com/ScaleDockHQ/better-supabase/commit/ed6c04576717ae4c59882441493e02f550d76ae3) Thanks [@martijn00](https://github.com/martijn00)! - New `cases` block (`better-supabase/blocks/cases`): nonconformities, complaints, incidents and other cases per organization, from report to a verified close.
+  
+  - Each organization starts with eight kinds from `options.kinds` (nonconformity, complaint, incident, near miss, observation, improvement, change request and audit finding). A kind sets the number prefix (`NC-`, `CMP-`) and what closing requires; `saveKind` adds your own. Each kind gets its own pipeline with the stages reported, investigating, acting, verifying, closed and canceled.
+  - `open` puts a case on its kind's first stage, `move` moves it on the board, `recordRootCause` records the root cause and `createAction` or `linkAction` adds containment, correction, corrective, preventive and improvement actions as work items of the tasks block.
+  - `blockers` lists what still stops a case from closing (`CASE_ROOT_CAUSE_REQUIRED`, `CASE_ACTIONS_REQUIRED`, `CASE_ACTIONS_OPEN`, `CASE_EFFECTIVENESS_REQUIRED`, `CASE_DOCUMENTS_NOT_REVISED`), and `close` or a move to a closing stage fails with the first one while any remains.
+  - A kind with `effectivenessAfterDays` sets the effectiveness check date after the last required action is done; the daily `effectiveness-due` schedule runs `notifyDueEffectiveness`, which notifies the owner and emits `case.effectiveness_date_reached`.
+  - `case_from_submission` is a forms submission handler, so a public form opens cases of the answers' kind or `options.intakeKind`.
+  - The `medications` block's new `missedCaseKind` option opens a case of that kind for each missed dose.
+  - The permission keys are `cases.read`, `cases.create`, `cases.write`, `cases.close` and `cases.manage`; the default member role reads and opens cases, and a case's owner may change and close it.
+  
+  Add `cases: {}` to `blocks`, run `better-supabase add cases` and generate a migration.
+
+- [#616](https://github.com/ScaleDockHQ/better-supabase/pull/616) [`f9b0786`](https://github.com/ScaleDockHQ/better-supabase/commit/f9b078639cd788c4ca94c87e2b6456ee7b2c459d) Thanks [@martijn00](https://github.com/martijn00)! - Connect `cases` and `inspections` to the other blocks. A tenant policy for subject `case` and action
+  `close` now blocks closing (`CASE_APPROVAL_REQUIRED`) until the request is approved, and closing a
+  case writes a version. Inspections take a `calendar` option that mirrors planned inspections as
+  all-day events, send `inspection.assigned` when someone joins the team, and report overdue
+  inspections through `notifyOverdue()` and a daily `overdue` schedule. See ADR 0148.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a84ca93`](https://github.com/ScaleDockHQ/better-supabase/commit/a84ca93443e9f9e661f72d886fc3bf5ca97d4e78) Thanks [@martijn00](https://github.com/martijn00)! - The preset catalog lists each block's automations, the generic blocks it contributes to and every port it provides, including `mailer` and `recordAccess`. `better-supabase blocks view <block>` prints Ports in, Ports out, Contributes, Fires and Listens lines.
+
+- [#618](https://github.com/ScaleDockHQ/better-supabase/pull/618) [`f9b5351`](https://github.com/ScaleDockHQ/better-supabase/commit/f9b5351f773e57feb6b96ef633af6474bc84f77e) Thanks [@martijn00](https://github.com/martijn00)! - The `catalog` block now keeps product identifiers (EAN, supplier and manufacturer codes), relations between variants (alternative, superseded by, accessory), supplier items with a column mapping per supplier and keyword search, and `promoteSupplierItem`, which creates a product from a supplier item on first use. Variants gain `setVariantTradeCode` for the CN code, and `inventory` locations gain `setLocationAddress`. The catalog contributes `supplier_item` and `product_identifier` import targets, so price lists and code lists load by external key. Existing installations get the new tables and columns from `better-supabase upgrade`; the new tables follow the `catalog` module to version 5 and `inventory` to version 4.
+
+- [#639](https://github.com/ScaleDockHQ/better-supabase/pull/639) [`df62df1`](https://github.com/ScaleDockHQ/better-supabase/commit/df62df13f95af107c7526df1a977c2db21d70d0c) Thanks [@martijn00](https://github.com/martijn00)! - Two versioned ports (`apiVersion: 1`) with no bundled implementation.
+  
+  - `better-supabase/blocks/invoices` adds `EInvoiceFormat`, `EInvoiceChannel` and `sendEInvoice`, which renders an issued invoice and sends it through your access point. Drafts and void invoices are refused with `EINVOICE_NOT_ISSUED`.
+  - `better-supabase/blocks/accounting` adds `AccountingChartFormat` and `importChart`, which saves a reference scheme's chart (such as RGS) parents first and maps its roles. An invalid chart saves nothing (`ACCOUNTING_CHART_INVALID`).
+  
+  No migration is needed.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`f43766b`](https://github.com/ScaleDockHQ/better-supabase/commit/f43766b1b4bf10ce82a1e8cb2c4c4473ddb44fe4) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase add <composite>` lists a composite block in `blocks` and writes the modules of all
+  its parts. `better-supabase remove <composite>` replaces the composite with the blocks it was made
+  of, and `remove <composite> --with-parts` removes the parts too, except any part another installed
+  block still needs.
+
+- [#671](https://github.com/ScaleDockHQ/better-supabase/pull/671) [`3addc61`](https://github.com/ScaleDockHQ/better-supabase/commit/3addc617ffa6667a9fcd69efa46bf5aaf153f2c0) Thanks [@martijn00](https://github.com/martijn00)! - New `clinical-decision-support` block (`better-supabase/blocks/clinical-decision-support`): alerts over a record's medication orders, with a versioned port for external engines.
+  
+  - `saveRule` keeps built-in rules: dose range, duplicate therapy and interaction.
+  - `evaluate` runs the built-in rules, then each engine passed as `engines` (a `ClinicalDecisionSupport` with `apiVersion: 1`), and stores the alerts.
+  - `alerts` lists open alerts, and `decide` acknowledges or overrides one with a reason. Every raise and decision is an event and an audit entry.
+  - `testClinicalDecisionSupport` in `better-supabase/testing` checks an engine.
+  - The permission keys are `clinical_decision_support.read`, `clinical_decision_support.write` and `clinical_decision_support.manage`.
+  
+  Run `better-supabase add clinical-decision-support` and generate a migration.
+
+- [#622](https://github.com/ScaleDockHQ/better-supabase/pull/622) [`ae05766`](https://github.com/ScaleDockHQ/better-supabase/commit/ae05766ee5b9671a6c0273a13a067b1ca833d002) Thanks [@martijn00](https://github.com/martijn00)! - The `invoices` block now collects. `recordPartyPayment(organizationId, payment)` splits one
+  payment from a customer over several of its invoices and keeps the rest as party credit on the
+  ledger, `applyPartyCredit(partyId, invoiceId, amount)` pays an invoice from it, and
+  `partyCredits(organizationId, partyId)` reads the credit per currency. Dunning levels
+  (`setDunningLevels`, `dunningLevels`) set the reminder, fee and final notice for each number of
+  days past due; `runDunning()` runs as the service role on the manifest's daily `dunning` schedule,
+  adds the level's fee as a charge, notifies the invoice's creator and records
+  `invoice.dunning_escalated`. `pauseDunning(invoiceId, until, reason?)` holds the reminders during a
+  dispute and needs the new `invoices.collect` permission. Invoices return `dunning: { level, at,
+  pausedUntil }`. The docs add a recurring invoice recipe on template schedules.
+  
+  The new `better-supabase/e-invoicing` subpath writes an issued invoice or credit note as UBL 2.1 per
+  EN 16931 and Peppol BIS Billing 3.0 (`toUbl`), reads a received one into purchase bill input
+  (`fromUbl`, which loads the new optional peer `fast-xml-parser`), and defines the
+  `EInvoiceChannel` port (`apiVersion: 1`, checked with `eInvoiceChannelOf`) for an access point.
+  None is bundled. Apply the new migration with `better-supabase upgrade`.
+
+- [#591](https://github.com/ScaleDockHQ/better-supabase/pull/591) [`6939a19`](https://github.com/ScaleDockHQ/better-supabase/commit/6939a199a429ce6b996e8879e178f407f56af31a) Thanks [@martijn00](https://github.com/martijn00)! - Compliance policy acknowledgements move onto the acknowledgements block (ADR 0131). `blocks.compliance` now requires `acknowledgements`, contributes the `compliance_policy` record type with its current version, and assigns a policy that requires acknowledgement to the `member` role when it is saved. The [0.46 to 0.47 guide](https://bettersupabase.com/docs/migration/0.46-to-0.47#policy-acknowledgements) lists every change.
+  
+  | Before (0.46)                                                  | After (0.47)                                                 |
+  | -------------------------------------------------------------- | ------------------------------------------------------------ |
+  | `acknowledge_compliance_policy(policy_id)`                     | `acknowledge('compliance_policy', policy_id::text)`          |
+  | `list_compliance_policies(..., pending_only)`                  | `list_my_acknowledgements(tenant)`                           |
+  | `compliance_policy_acknowledgements(policy_id)`                | `acknowledgement_status`, `acknowledgements_of`              |
+  | `policy_acknowledgements` table                                | `acknowledgements` rows of type `compliance_policy`          |
+  | `compliance.acknowledge` permission                            | `acknowledgements.acknowledge`                               |
+  | `policy.acknowledged`, `compliance_policy.acknowledged` events | `acknowledgement.created`                                    |
+  | `COMPLIANCE_POLICY_NOT_PUBLISHED` hint                         | `ACKNOWLEDGEMENT_NO_VERSION`, `ACKNOWLEDGEMENT_NOT_ASSIGNED` |
+  
+  - `upgrade` renders a data step that copies the stored acknowledgements, assigns the live policies to the `member` role and drops `policy_acknowledgements`.
+  - `PERMISSION_KEY_RENAMES` and `EVENT_TYPE_RENAMES` map the old permission and event; `codemod 0.47` lists the old calls for review.
+  - The compliance client keeps `acknowledgePolicy`, `acknowledgements(policyId)` and the `pendingOnly` option as deprecated wrappers over the acknowledgements functions until 0.48.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`5b7572c`](https://github.com/ScaleDockHQ/better-supabase/commit/5b7572cc1f3c9720c51aaa3dd4a36867141b84e6) Thanks [@martijn00](https://github.com/martijn00)! - Nineteen composite blocks are available from `better-supabase/blocks/<name>`: `saas`, `sales`,
+  `crm`, `commerce`, `procurement`, `finance`, `support`, `projects`, `service`, `people`,
+  `recruiting`, `scheduling`, `learning`, `events`, `cms`, `care`, `filespace`, `collaboration` and
+  `governance`. Each lists the blocks it is made of, carries their defaults, and adds helpers where a
+  flow spans parts (`crm.closeWon`, `finance.closePeriod`, `filespace.put`, `recruiting.hire`).
+  `crm` also declares a named read set. The named presets now list composites, and each resolves to
+  the same set of modules as before, except that `helpdesk` also installs the Chat SDK state tables.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`0934583`](https://github.com/ScaleDockHQ/better-supabase/commit/0934583604364b9f485f605266c72f61408d3448) Thanks [@martijn00](https://github.com/martijn00)! - `defineBlock` takes `composes` and `defaults` to build a block from other blocks. `createBlocks` hands the composite its parts' clients as `options.parts`, `resolvePreset` installs the parts with the reason `part of <composite>` and returns `partOptions`, `removeComposite` removes a composite with or without its parts, and the catalog lists `composes`, `defaults` and `composedBy`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`14f23ee`](https://github.com/ScaleDockHQ/better-supabase/commit/14f23ee138b81a578502b970273cb1363dde74a8) Thanks [@martijn00](https://github.com/martijn00)! - `collaboration` gains `discuss`, which posts a comment on a record and attaches tags to it, and
+  `scheduling` gains `bookWithReminder`, which confirms a booking and sets the caller's reminder on
+  it. Each stops at the first failed step and returns that error.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`abad3d2`](https://github.com/ScaleDockHQ/better-supabase/commit/abad3d25b1e370c6563a2936fcf6bee31557074b) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase gen` now writes a `blockConfig` entry for a composite block that has no SQL module
+  of its own once all of its parts are installed, and leaves it out while a part is missing. The
+  entry has the schema of its first part and no options. The "Composite blocks" page shows how to
+  build a composite next to its parts with `createBlocks`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`bbd44b5`](https://github.com/ScaleDockHQ/better-supabase/commit/bbd44b50b9f743b6632f768772f08c3d696dabaf) Thanks [@martijn00](https://github.com/martijn00)! - Add glue helpers to the remaining composites: `blocks.saas.inviteWithinSeats`, `blocks.commerce.payAndFulfil`, `blocks.support.openTicket`, `blocks.projects.approveAndInvoice`, `blocks.service.completeVisit`, `blocks.people.onboard` and `offboard`, `blocks.learning.assign`, `blocks.events.sellTicket`, `blocks.cms.publishWithVersion`, `blocks.care.prescribeWithConsent` and `blocks.governance.exportSubject`. Each chains existing part clients, takes one object and returns a `Result`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`7f3e462`](https://github.com/ScaleDockHQ/better-supabase/commit/7f3e4623ad8f75eeb7decfc0ce6cb6a2f22b3196) Thanks [@martijn00](https://github.com/martijn00)! - Commerce and finance blocks gain helpers that replace chains of calls, each taking one object and
+  returning a Result. New: `pipelines.default` and `pipelines.ensure`, `quotes.draftFromDeal`,
+  `orders.markPaid`, `orders.returnAndRefund` and `orders.fulfilAll`, `invoices.createAndIssue`,
+  `invoices.markPaid` and `invoices.issueAndSend`, `banking.reviewQueue` and `banking.acceptBestMatch`,
+  `catalog.createSimpleProduct`, `shipments.shipCheapest`, `rfqs.awardBest`, `accounting.initialize`
+  and `accounting.yearToDate`, `expenses.file` and `promotions.createWithCode`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`1b5e46d`](https://github.com/ScaleDockHQ/better-supabase/commit/1b5e46d4aad17e6605df47d371670491bcd01bb6) Thanks [@martijn00](https://github.com/martijn00)! - Platform blocks gain helpers that replace calls to several methods or raw `$api` and `$rpc`, each
+  taking one object and returning a Result. New: a `sessions` client (`listMine`, `end`, `endOthers`),
+  `profiles.setAvatar` with the `avatarUploader` and `avatarColumn` options, `flags.isEnabled` and
+  `flags.tenantsWith`, `webhooks.createEndpoint({ withSecret })` and `webhooks.setEnabled`,
+  `organizations.owner` and `organizations.memberRoles` (with the `ownerRole` option),
+  `teams.setMembers` and `teams.setArchived`, `entitlements.seatsLeft`, the onboarding step option
+  `completeOn`, `audit.correlated`, `dataLifecycle.exportNow` and `billing.startTrial`. Run
+  `better-supabase upgrade` to regenerate the onboarding module.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`cc8adda`](https://github.com/ScaleDockHQ/better-supabase/commit/cc8addad9e4c76f8987ac67d1aead3d24b429c1a) Thanks [@martijn00](https://github.com/martijn00)! - Add helpers that compose existing calls: `passes.scan`, `leave.workingDays`,
+  `attachments.uploadFile`, `comments.createWithFiles`, `reactions.who`,
+  `templates.variables` and `templates.preview`, `imports.run`, and `move(id, toIndex)` on tags,
+  custom field definitions and saved views.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`9a8a522`](https://github.com/ScaleDockHQ/better-supabase/commit/9a8a522ed12033618b0d4a9e81b7ed86a46f4fd1) Thanks [@martijn00](https://github.com/martijn00)! - Add `approvals.requestAndWait`, `inbox.inboxes.setup`, `timeTracking.logOn`, `switchTo` and
+  `submitAndRequest`, and `tasks.create({ custom })`. The `custom-fields` block now provides a
+  `customFields` port that `tasks` consumes.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`26c3f8f`](https://github.com/ScaleDockHQ/better-supabase/commit/26c3f8f3b6d512b8a2f980c5677b539a6ea06d2e) Thanks [@martijn00](https://github.com/martijn00)! - Add `enrollments.pause` and `enrollments.resume`, backed by the new `pause_enrollment` and
+  `resume_enrollment` SQL functions. Run `better-supabase upgrade` and apply the migration.
+
+- [#556](https://github.com/ScaleDockHQ/better-supabase/pull/556) [`89d7665`](https://github.com/ScaleDockHQ/better-supabase/commit/89d7665d7d69fb7a377fa9f52e13f2a66eb79099) Thanks [@martijn00](https://github.com/martijn00)! - Add the `consents` block (`better-supabase/blocks/consents`): consent per record and purpose. An organization saves the purposes it asks consent for with `db.consents.savePurpose`, each with a lawful basis, a version, an optional signature requirement and a validity in months; the service role saves system purposes every organization uses. `record` stores a granted or refused decision for any subject with who made it (the person or a representative contact), its scope and a signature, form submission or attachment as evidence, and replaces the grant before it. `isActive(subject, purposeKey)` answers whether processing may go ahead on the current purpose version, `list` returns the latest decision per purpose or the full history, `withdraw` ends a grant, and the daily `consents.expire` timer marks grants past their valid-until date expired.
+  
+  The permissions are `consents.read`, `consents.record` and `consents.manage`; members get none of them by default. A guest records and withdraws their own consent, and a guest whose person represents the record with `act` authority does so as a representative. The block writes `consent.granted`, `consent.refused`, `consent.withdrawn`, `consent.expired`, `consent_purpose.created` and `consent_purpose.updated` to the outbox, and ships the `consent-register` UI recipe.
+
+- [#645](https://github.com/ScaleDockHQ/better-supabase/pull/645) [`b4ec1cf`](https://github.com/ScaleDockHQ/better-supabase/commit/b4ec1cf96a63ab34352af7cd1d079e5b6278893b) Thanks [@martijn00](https://github.com/martijn00)! - New `dam` block (`better-supabase/blocks/dam`): renditions of drive files and usage rights with a territory, a channel and an expiry date.
+  
+  - `renderRenditions` makes the kinds you configure through the drive's `PreviewRenderer` port, stores the page and records the rendition. A renderer that throws leaves a `failed` rendition and the other kinds go on. `recordRendition` and `listRenditions` work with renditions your own job makes.
+  - `grantRight`, `revokeRight` and `listRights` keep usage rights. A right without a territory or channel covers all of them, and a revoked right stays in the history.
+  - `checkUsage` answers whether a file may be used on a day in a territory and channel.
+  - `notifyExpiring` notifies the member who granted each right that ends soon, once per expiry date.
+  - The permission keys are `dam.read` and `dam.write`.
+  
+  Run `better-supabase add dam` and generate a migration. Call `notifyExpiring` on a schedule.
+
+- [#626](https://github.com/ScaleDockHQ/better-supabase/pull/626) [`fae2239`](https://github.com/ScaleDockHQ/better-supabase/commit/fae22393436672b611d0fab95ba129a404728d85) Thanks [@martijn00](https://github.com/martijn00)! - `createDataImporter` in `better-supabase/blocks/data-lifecycle` restores an organization export. It
+  reads the NDJSON-per-table files, checks table and column names against `data_lifecycle_tables()`,
+  and writes each row through the `imports` record map in import mode with `source = 'restore'`, so a
+  second restore of the same files writes nothing. `dryRun` returns a per-table report with unknown
+  tables, unknown columns, row counts and conflicts. CSV exports are refused with a typed error
+  because they are lossy. The `data-lifecycle` module adds `data_restore_tables` and
+  `restore_data_row` and registers the `data_lifecycle_row` import target. Run
+  `better-supabase upgrade` and apply the new migrations.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`d93a5be`](https://github.com/ScaleDockHQ/better-supabase/commit/d93a5bef3fef208af19a38c6da6ff23102708d07) Thanks [@martijn00](https://github.com/martijn00)! - Modules declare their links to other modules' entities (`names.links`): references, relations and conversions such as a quote created from a deal or an invoice from an order. Every conversion records its `created_from` link through one helper. `resolvePreset` adds `relations` when a selected pair declares a conversion, and the `crm`, `helpdesk`, `erp`, `manufacturing`, `marketplace`, `people`, `psa`, `ats`, `invoicing` and `field-service` presets install it. `better-supabase blocks view` prints a Links line, and doctor reports BS353 when installed modules declare a link and `relations` is missing.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`ca42683`](https://github.com/ScaleDockHQ/better-supabase/commit/ca42683c3abe38942d042edbc4bfe604e4cc4092) Thanks [@martijn00](https://github.com/martijn00)! - Modules can declare tenant defaults in `BlockSql.seeds`, which render into an idempotent
+  `seed_<module>_defaults` function. `db seed --defaults` runs those functions for existing
+  organizations (`--tenant`, `--variant`, `--locale`), and `db seed --sample` applies generated sample
+  data from the Better Supabase cloud (`--demo-org`, `--size`, `--seed`, `--out`; needs a Pro plan).
+  The new `login`, `logout` and `whoami` commands manage the cloud login. `database.seed` gains
+  `defaults` and `sample` keys, and `better-supabase/sql` exports `seedDefaultsFunctions`.
+  
+  The CLI refreshes an expired login through `POST /api/cli/auth/refresh` and saves
+  the rotated tokens, so `whoami` and `db seed --sample` keep working past the
+  access token's lifetime.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`2ae41de`](https://github.com/ScaleDockHQ/better-supabase/commit/2ae41ded78e3b98cb16d23e536194e4359c44c5e) Thanks [@martijn00](https://github.com/martijn00)! - Development shows how many sequential database round trips a page waits on. `createNext` takes `devRoundTripBudget` (default 4, `false` turns it off) and warns when a render goes over it, naming read sets as the fix. The OpenTelemetry plugin sets `better_supabase.db.round_trips` on each database span, and `better-supabase doctor` reports BS609 for three or more database reads in one `Promise.all`.
+
+- [#649](https://github.com/ScaleDockHQ/better-supabase/pull/649) [`164684a`](https://github.com/ScaleDockHQ/better-supabase/commit/164684a70b0b8d76538e209fdd93d7df0d292080) Thanks [@martijn00](https://github.com/martijn00)! - The `catalog` block now keeps discount groups for customers and products and a matrix of rules between them, with a validity window, a quantity break, a discount in basis points and an optional fixed price. `resolveLineDiscount` returns the most specific rule for a customer, variant, quantity and date. The new `options.discountMatrix` of `quotes`, `orders` and `invoices` prices catalog lines through it; it is off by default, so existing documents price as before. The `inventory` block gains stock count documents (`openStockCount`, `recordCountLine`, `postStockCount`, `cancelStockCount`) that post adjustment movements once, and `shipments` gains `intrastat_lines` with `prepareIntrastat`, which derives arrival and dispatch lines and lists the ones that miss a trade code, country, net mass or value. The catalog and inventory contribute `discount_group`, `discount_rule` and `stock_count` import targets. Existing installations get the new tables from `better-supabase upgrade`; `catalog` moves to version 6, `inventory` to 5 and `shipments` to 3.
+
+- [#570](https://github.com/ScaleDockHQ/better-supabase/pull/570) [`385afbb`](https://github.com/ScaleDockHQ/better-supabase/commit/385afbb4808221688fcff9b1beb9d6eb78c87528) Thanks [@martijn00](https://github.com/martijn00)! - Doctor can accept the findings an existing project already has. Set `tooling.doctor.baseline` to a JSON file of `{ code, target, reason }` entries and run `doctor --update-baseline` to write it. Doctor then leaves those findings out and fails on an entry no finding matches, so the file only shrinks.
+  
+  BS351 also reports writes through the typed client's repositories, such as `db.webhookEndpoints.create()`, on a table a block creates. The block clients (`db.webhooksOut`) are not reported.
+  
+  At the root of a pnpm or npm workspace, the default `tooling.doctor.sources` now also scans `src/**/*.{ts,tsx}` in each package, so doctor sees the code of `apps/web` and the other workspace packages. A `sources` you set is used as it is.
+
+- [#651](https://github.com/ScaleDockHQ/better-supabase/pull/651) [`e9a8ba4`](https://github.com/ScaleDockHQ/better-supabase/commit/e9a8ba427441bd683cf59e9acee53315102dea4d) Thanks [@martijn00](https://github.com/martijn00)! - New `document-templates` block (`better-supabase/blocks/document-templates`): templates per legal entity and language for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements, with reusable text blocks and a snapshot that keeps an issued document stable.
+  
+  - `saveTemplate`, `setTemplateActive`, `getTemplate` and `listTemplates` keep one template per document type, name, legal entity and language. A body that names an unknown variable or filter, or leaves a block open, fails with the hint `DOCUMENT_TEMPLATE_UNKNOWN_VARIABLE`, `DOCUMENT_TEMPLATE_UNKNOWN_FILTER` or `DOCUMENT_TEMPLATE_SYNTAX`.
+  - `saveTextBlock` and `listTextBlocks` keep texts a template reads as `{{texts.key}}`.
+  - `resolveTemplate` picks the entity and language, the entity, the organization and language, then the organization, like `resolve_setting`.
+  - `render` returns the typed variables of a document with the chosen template and text blocks, in the buyer's language unless you pass one. `renderHtml` and `renderDocumentHtml` render to HTML in pure TypeScript with every value escaped.
+  - Issuing an invoice or credit note freezes its render in `rendered_documents`; `freeze` does the same for other documents, and `fresh: true` renders with today's templates.
+  - `contract` and `documentContract` publish the variable contract (version 1). Templates and text blocks are import targets (`document_template`, `document_text_block`).
+  - The permission keys are `document_templates.read` and `document_templates.manage`; members get `read`.
+  
+  Add `"document-templates": {}` to `blocks`, run `better-supabase add document-templates` and generate a migration. The block needs `legal-entities`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Domain helpers over open standards, all TypeScript with no new table or dependency. `courses` gains
+  `verifyLtiLaunch` (LTI 1.3), `xapiStatement` and `sendXapiStatements` (xAPI 2.0) and
+  `openBadgeCredential` (Open Badges 3.0, unsigned). `better-supabase/fhir` gains `createSmartLaunch`
+  and `createCdsHooksServer`. `banking` gains `berlinGroupFeed`, `dam` gains `readC2paManifest` and
+  `damUsageRightsToOdrl`, `content` gains `sitemapXml`, `robotsTxt` and `articleJsonLd`, and
+  `maintenance` gains `createTelemetryHandler`. `SPEC_PINS` adds `lti`, `xapi`, `openBadges`,
+  `smartAppLaunch`, `cdsHooks`, `berlinGroupXs2a`, `c2pa`, `odrl`, `sitemaps`, `rfc9309` and `jsonLd`.
+
+- [#582](https://github.com/ScaleDockHQ/better-supabase/pull/582) [`6c1bd52`](https://github.com/ScaleDockHQ/better-supabase/commit/6c1bd52de45978af0b6a3c919d46527691edda4d) Thanks [@martijn00](https://github.com/martijn00)! - Drive nodes take access requests. With `driveSubject({ accessRequests: true })` and the
+  access-requests block installed, `drive.requestAccess(nodeId, { action, reason, duration })` asks
+  for access and `drive.accessRequests(nodeId)` lists the requests. The node's owners approve, and
+  an approved request becomes a node grant that ends with the request. The access-requests client
+  gains `records(subjectType, subjectId)`, and reaches the drive through the new `recordAccess`
+  port.
+  
+  `drive.transferOwnership(organizationId, fromUserId, toUserId)` hands a member's owned items to
+  another member and records `drive.node_ownership_transferred` and `drive.ownership_transferred`.
+  `driveOffboardingSink` runs it from the outbox when a member leaves.
+  
+  With the settings block installed, the `drive.sharing` organization setting (`driveSettings`)
+  turns guest grants off and limits share links to `organization` or `none`, failing with
+  `DRIVE_SHARING_DISABLED`. Apply the new migration with `better-supabase upgrade`.
+
+- [#580](https://github.com/ScaleDockHQ/better-supabase/pull/580) [`100efc1`](https://github.com/ScaleDockHQ/better-supabase/commit/100efc1c2c67420ccdb12f7a26e434081b9ae016) Thanks [@martijn00](https://github.com/martijn00)! - Drive files can be controlled documents with a number, a type, an owner, a release workflow and periodic reviews.
+  
+  - `blocks.drive.options.control: { types, reviewMonths?, releaseRole? }` turns it on. It needs the `numbering`, `versions`, `approvals` and `state-machine` blocks, and an approvals policy for the `release` action on `drive_node`.
+  - The drive client gains `saveDocument`, `submitDocument`, `releaseDocument`, `obsoleteDocument`, `reviewDocument`, `documents` (the register, with `type`, `status`, `ownerId`, `reviewDue` and `search` filters) and `notifyDueReviews`. Each node carries `document` with its number, status, effective version and next review date.
+  - A document moves from `draft` through `in_review` to `effective` when its release request is approved, and to `obsolete` when withdrawn. Members below the write role download and read only the effective version, and the storage policy refuses the working copy for them.
+  - With acknowledgements on `drive_node`, each release asks the assigned members to acknowledge the new version. With relations, documents link through the `variant_of` kind.
+  - New events: `drive.node_document_saved`, `drive.node_submitted`, `drive.node_released`, `drive.node_obsoleted`, `drive.node_reviewed` and `drive.node_review_requested`.
+  - The `document-register` recipe shows the register in a ReUI data grid. Run `better-supabase upgrade` and generate a migration after setting `control`.
+
+- [#602](https://github.com/ScaleDockHQ/better-supabase/pull/602) [`4ed6979`](https://github.com/ScaleDockHQ/better-supabase/commit/4ed697925462f6220c91359071e690d586bd130f) Thanks [@martijn00](https://github.com/martijn00)! - Controlled document types in `blocks.drive.options.control.types` can set a number format with `{
+  name, numberFormat }`, such as `SOP-{n:4}`. A type with a format counts from its own sequence, and
+  the other types keep the shared `DOC-{n:5}` sequence. Apply the new migration with
+  `better-supabase upgrade`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`3ea6b80`](https://github.com/ScaleDockHQ/better-supabase/commit/3ea6b808eaf10b024e37bad47eb57a26e6612ade) Thanks [@martijn00](https://github.com/martijn00)! - New drive helpers: `drive.folder`, `drive.can`, `drive.search`, `drive.put`, `drive.shareMany` and `drive.grantsWithNames`. They use the new SQL functions `drive_node_access` and `drive_search`. Run `better-supabase upgrade` and apply the migration to get them.
+
+- [#655](https://github.com/ScaleDockHQ/better-supabase/pull/655) [`7e13cad`](https://github.com/ScaleDockHQ/better-supabase/commit/7e13cadd8a00b57a1c03ad18d427219a73d3f4b1) Thanks [@martijn00](https://github.com/martijn00)! - The `drive` block gets retention per label and a changes feed.
+  
+  - `sweepRetention` (service role) moves nodes into the bin when a label on them has a data lifecycle policy of kind `drive_label_<name>` and the node was last changed longer ago than the policy keeps it. Drive holds, legal holds and check-outs skip a node.
+  - `changes(organizationId, { cursor })` returns the nodes that changed after a cursor, oldest first, with binned nodes as `removed`, for sync clients.
+  - Moving a node into the bin or back now updates its `updated_at`.
+  
+  Run `better-supabase upgrade` and generate a migration.
+
+- [#613](https://github.com/ScaleDockHQ/better-supabase/pull/613) [`837514c`](https://github.com/ScaleDockHQ/better-supabase/commit/837514cb1e72c6567a3437f53e29b1c402c34bc7) Thanks [@martijn00](https://github.com/martijn00)! - Drive sync skips unchanged nodes and can mark missing ones instead of deleting them.
+  
+  - With the `imports` block installed, `drive_sync_batch` records each mirrored node in `import_records` (`source = 'drive:<connection>'`, `entity = 'drive_node'`) with a content hash. A node whose hash is unchanged is not written, and the function returns the number of nodes it wrote. The signature is unchanged. Without the imports block it behaves as before.
+  - `blocks.drive.options.sync.prune` is `'delete'` (the default, today's behavior) or `'mark'`, which keeps unlisted nodes and sets `missing_since` on their record. Legal holds keep their node in both modes. `'mark'` needs the imports block.
+  - Run `better-supabase upgrade` to refresh the function.
+
+- [#564](https://github.com/ScaleDockHQ/better-supabase/pull/564) [`909dfd2`](https://github.com/ScaleDockHQ/better-supabase/commit/909dfd2ca6c512bcbfd4eb505737f81d27231f9e) Thanks [@martijn00](https://github.com/martijn00)! - Drive files are searchable by their content and can be capped by a usage quota.
+  
+  - `createDriveText({ transport, storage, extractor, knowledge? })` from `better-supabase/blocks/drive` reads each clean upload through a `TextExtractor` and stores its text in the new `drive_node_texts` table, which follows the node's read grants. Run its `sink()` on the outbox relay. With a knowledge client, the text also becomes a knowledge document scoped to the node. `plainTextExtractor()` reads text, JSON, XML and YAML; `textExtractorOf` and `testTextExtractor` (from `better-supabase/testing`) check your own extractor.
+  - `driveSubject()` indexes a node's name and the first 100,000 characters of its text through the `drive_node_search` view.
+  - `blocks.drive.options.quota: { meter }` makes `drive_create_file` and `drive_upload_revision` check `within_quota` for the upload's size and fail with `DRIVE_QUOTA_EXCEEDED`. It needs the `usage` block. `maxTextBytes` (default 1 MB) caps the text kept per file.
+  - The drive and drive-files modules are version 2. Run `better-supabase upgrade` and generate a migration.
+
+- [#657](https://github.com/ScaleDockHQ/better-supabase/pull/657) [`3a38828`](https://github.com/ScaleDockHQ/better-supabase/commit/3a3882853c1a011f02670018318e3cbe94102f55) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/blocks/drive` exports `createWopiHost`, a WOPI host for
+  drive files: `CheckFileInfo`, `GetFile`, `PutFile` and the lock calls run on
+  the check-out lock, behind signed access tokens.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - New `e-prescribing` block (`better-supabase/blocks/e-prescribing`): prescriptions of medication orders with the states draft, signed, sent, dispensed and cancelled, signed only by their prescriber, and delivered through the versioned `PrescriptionGateway` port. `toFhirPrescription` in `better-supabase/fhir` builds the `MedicationRequest`, and `testPrescriptionGateway` in `better-supabase/testing` checks a gateway. Run `better-supabase upgrade` to add the `prescriptions` table and its `e_prescribing.*` permissions.
+
+- [#571](https://github.com/ScaleDockHQ/better-supabase/pull/571) [`d930e14`](https://github.com/ScaleDockHQ/better-supabase/commit/d930e14b6ed882e04320410fee778130844e5309) Thanks [@martijn00](https://github.com/martijn00)! - Employees and hiring take the options an HR app needs for safe edits and its own application columns.
+  
+  - Employees: `options.contractOverlap: "deny"` keeps the previous contract as it is and fails `addContract` and `updateContract` with `EMPLOYEE_CONTRACT_OVERLAP` when the dates overlap another contract.
+  - Employees: `update(changes, { atomic: true })` applies a batch as one unit, and a change with `expectedUpdatedAt` fails with `EMPLOYEE_STALE` when the employee changed since. Employees now return `updatedAt`.
+  - Employees: `delete(employeeId)` (`delete_employee` in SQL) removes an employee created by mistake, moves the reports, records `employee.deleted` and fails with `EMPLOYEE_IN_USE` while other rows point at it. It runs the `before_employee_delete` and `after_employee_delete` hooks.
+  - Employees: `options.offboarding: { reports: "keep" }` leaves the reports with an offboarded employee instead of moving them to the manager.
+  - Hiring: `options.applicationExtraColumns` adds columns to the applications table. `apply` writes them from `fields`, and applications return them under `fields`.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`17192fd`](https://github.com/ScaleDockHQ/better-supabase/commit/17192fd1c7ee8ba5ccbc92cc1178efb828320481) Thanks [@martijn00](https://github.com/martijn00)! - The composite blocks gain helpers that chain their parts. `crm` adds `route`, which picks an owner
+  from the assignment queues using the record's segments, and `attainment`, which sums target
+  progress per metric and lists the targets behind the period's pace. `saas` adds `rotateApiKey`
+  with a grace period in hours, and `better-supabase/blocks/saas` exports `createKeyRotator` for
+  apps that do not install every part. `support` adds `escalate`, `commerce` adds `processReturn`
+  with restock, quarantine and reject dispositions and an optional refund, and `projects` adds
+  `utilization`, `financials` and `retainerDrawdown`.
+
+- [#586](https://github.com/ScaleDockHQ/better-supabase/pull/586) [`cf2e0e1`](https://github.com/ScaleDockHQ/better-supabase/commit/cf2e0e11028274189f2f75af9b641031b30b436f) Thanks [@martijn00](https://github.com/martijn00)! - Block entity keys equal the entity's singular, and the subject types, hint codes and functions follow the new nouns (ADR 0130). Run `better-supabase codemod 0.47`; the [0.46 to 0.47 guide](https://bettersupabase.com/docs/migration/0.46-to-0.47) lists every rename. Old entity keys and subject types keep working until 0.48, with a warning, and doctor reports them (BS423).
+  
+  | Before (0.46)                                              | After (0.47)                                                                             |
+  | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | `blocks.tasks.entities.work_item`                          | `blocks.tasks.entities.task`                                                             |
+  | `blocks.activities.entities.engagement`                    | `blocks.activities.entities.activity`                                                    |
+  | `blocks.automations.entities.rule`                         | `blocks.automations.entities.automation`                                                 |
+  | `blocks.goals.entities.target`                             | `blocks.goals.entities.goal`                                                             |
+  | `blocks.compliance.entities.policy`                        | `blocks.compliance.entities.compliance_policy`                                           |
+  | `blocks.contracts.entities.obligation`                     | `blocks.contracts.entities.contract_obligation`                                          |
+  | `blocks.incidents.entities.postmortem`                     | `blocks.incidents.entities.incident_postmortem`                                          |
+  | `blocks.custom-fields.entities.field`                      | `blocks.custom-fields.entities.field_definition`                                         |
+  | generic keys (`request`, `entry`, `document`, `policy`)    | the block noun first (`leave_request`, `knowledge_document`)                             |
+  | subject types `work_item`, `engagement`, `policy`          | `task`, `activity`, `compliance_policy`                                                  |
+  | `WORK_ITEM_*`, `ENGAGEMENT_*`, `RULE_*`, `TARGET_*`        | `TASK_*`, `ACTIVITY_*`, `AUTOMATION_*`, `GOAL_*`                                         |
+  | `POLICY_*`, `OBLIGATION_*`, `POSTMORTEM_*`, `HIRING_JOB_*` | `COMPLIANCE_POLICY_*`, `CONTRACT_OBLIGATION_*`, `INCIDENT_POSTMORTEM_*`, `JOB_OPENING_*` |
+  | timeline `ACTIVITY_FORBIDDEN`                              | `TIMELINE_ENTRY_FORBIDDEN`                                                               |
+  | `create_work_item`, `log_engagement`, `save_target`        | `create_task`, `log_activity`, `save_goal`                                               |
+  | `publish_policy`, `save_obligation`, `save_postmortem`     | `publish_compliance_policy`, `save_contract_obligation`, `save_incident_postmortem`      |
+  | `workItemChecklistBinding`                                 | `taskChecklistBinding`                                                                   |
+  
+  - `ENTITY_KEY_RENAMES`, `SUBJECT_TYPE_RENAMES`, `HINT_RENAMES` and `legacyHintOf` are exported for code that maps stored names.
+  - `upgrade` renders a data step in the tasks, activities and compliance modules that moves stored subject types to the new ones in every installed subject type column. The subject functions accept the old types until 0.48.
+  - A `@bsb subject` tag that declares a type an installed block registers now fails with an error naming the table, instead of being skipped. An app whose own table is the `task` subject keeps the block on `names: { task: "work_item" }`.
+  - The tasks block's events are `task.*` (see the event type changeset), and its tables are `tasks`, `task_assignees` and `task_checklist_items` (see the module table changeset). An install that renames the entity keeps its own names.
+
+- [#662](https://github.com/ScaleDockHQ/better-supabase/pull/662) [`653e4bc`](https://github.com/ScaleDockHQ/better-supabase/commit/653e4bcb0b05369db1047d57bfc34ebc12053693) Thanks [@martijn00](https://github.com/martijn00)! - With the legal entities block and `options.on` listing `invoices`, `quotes` or `orders`, their
+  numbers are now unique per legal entity, so two entities can both hold `INV-0001`. An issued
+  invoice's header total now includes the payment-term credit restriction, as its tax lines do.
+
+- [#659](https://github.com/ScaleDockHQ/better-supabase/pull/659) [`c473de0`](https://github.com/ScaleDockHQ/better-supabase/commit/c473de03c90dd45d41c7c51d977c7dc8e37a954f) Thanks [@martijn00](https://github.com/martijn00)! - The `erp` and `manufacturing` presets now install `legal-entities`, `tax`, `imports`, `custom-fields`, `attachments` and `document-templates`, so an ERP or bookkeeping migration has its import runs, tax codes and numbering from the first `better-supabase upgrade`. Generate a migration after it. The new "ERP and bookkeeping imports" concept page walks the flow.
+
+- [#630](https://github.com/ScaleDockHQ/better-supabase/pull/630) [`586ea8e`](https://github.com/ScaleDockHQ/better-supabase/commit/586ea8e1694dddbb60b55c3825418a1d263af37c) Thanks [@martijn00](https://github.com/martijn00)! - The `erp` preset now installs `accounting`, `banking` and `approvals`, so sales invoices, purchase bills, payments, stock movements, expense reports and depreciation book into the journals, bank statements reconcile against the ledger, and purchase requisitions go through approvals. Each organization runs `db.accounting.setup(organizationId)` once before anything books. A project on `preset: "erp"` gets the new blocks on its next `better-supabase upgrade`; generate a migration after it.
+  
+  Add the `manufacturing` preset: `erp` plus `manufacturing`, `inspections`, `cases` and `qualifications`. It sets `purchaseSuggestions: "requisition"` on manufacturing, so material requirements raise purchase requisitions, and `receiptInspection: "inspection"` on inventory, so every receipt of a purchase order schedules an incoming inspection. `init --preset manufacturing` and `add --preset manufacturing` accept it, and both presets have a docs page that describes the postings, the three-way match and the bank reconciliation.
+
+- [#585](https://github.com/ScaleDockHQ/better-supabase/pull/585) [`6ae7ead`](https://github.com/ScaleDockHQ/better-supabase/commit/6ae7ead1ae94b2f0dc461a72f5b42400cd0885a2) Thanks [@martijn00](https://github.com/martijn00)! - Event types now follow one convention: `<entity>.<past verb>`, where the prefix is the entity the event is about. Each `saved` event is now `created` or `updated`, depending on whether the save inserted the row, and `party.enriched` is `company.enriched` or `person.enriched`, depending on the record. Run `better-supabase codemod 0.47` to rename the types in your code, config and SQL; it lists the split types, such as `agent.saved`, for review.
+  
+  | Old                                                                         | New                                                                                     |
+  | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+  | `work_item.*`                                                               | `task.*`                                                                                |
+  | `engagement.*`                                                              | `activity.*`                                                                            |
+  | `rule.*`, `rule.removed`                                                    | `automation.*`, `automation.deleted`                                                    |
+  | `access.requested`, `access.request_approved`, `access.ended`               | `access_request.requested`, `access_request.approved`, `access_request.ended`           |
+  | `custom_field.*`                                                            | `field_definition.*`                                                                    |
+  | `drive.node_*`                                                              | `drive_node.*`                                                                          |
+  | `forecast.snapshotted`                                                      | `forecast_snapshot.created`                                                             |
+  | `job.*` (hiring)                                                            | `job_opening.*`                                                                         |
+  | `leave.adjusted`                                                            | `leave_balance.adjusted`                                                                |
+  | the other `leave.*` events                                                  | `leave_request.*`                                                                       |
+  | `obligation.*`                                                              | `contract_obligation.*`                                                                 |
+  | `organization.domain_added`, `_removed`, `_updated`, `_verified`            | `sso_domain.created`, `.deleted`, `.updated`, `.verified`                               |
+  | `policy.*` (compliance)                                                     | `compliance_policy.*`                                                                   |
+  | `postmortem.*`                                                              | `incident_postmortem.*`                                                                 |
+  | `signature.*`                                                               | `signature_request.*`                                                                   |
+  | `support.*`                                                                 | `support_session.*`                                                                     |
+  | `time.invoiced`                                                             | `time_entry.invoiced`                                                                   |
+  | `variant.*`                                                                 | `product_variant.*`                                                                     |
+  | `waitlist.*`                                                                | `waitlist_entry.*`                                                                      |
+  | `webhook.*`                                                                 | `webhook_endpoint.*`                                                                    |
+  | `workflow.published`                                                        | `workflow_definition.published`                                                         |
+  | `segment.removed`, `hostname.removed`, `approval_policy.removed`            | `segment.deleted`, `hostname.deleted`, `approval_policy.deleted`                        |
+  | `marketplace_installation.removed`                                          | `marketplace_installation.deleted`                                                      |
+  | `credential.set`, `ai_tool_policy.set`                                      | `credential.updated`, `ai_tool_policy.updated`                                          |
+  | `flag.override_set`, `hostname.primary_set`, `incoming_webhook.enabled_set` | `flag.override_changed`, `hostname.primary_changed`, `incoming_webhook.enabled_changed` |
+  | `marketplace_invoice.state_changed`                                         | `marketplace_invoice.status_changed`                                                    |
+  | `<entity>.saved`, `marketplace_installation.upserted`                       | `<entity>.created` or `<entity>.updated`                                                |
+  | `party.enriched`                                                            | `company.enriched` or `person.enriched`                                                 |
+  
+  An install that renames an entity names its events after the new name, as before: with `blocks.tasks.entities.task.name` set to `ticket`, `work_item.created` stays `ticket.created`.
+  
+  The `sla.*` events keep their names: they are about a record's SLA clock, and neither an SLA policy nor a breach table fits them. Relation events such as `collection.entry_removed` keep `removed`, `field_value.set` keeps `set`, and notification types don't change.
+  
+  The outbox stores the new types. `upgrade` renders a data step that renames the stored types in the outbox events and dead letters, automation triggers and timeline entries, and adds the new types to the type lists of outbox consumers and webhook endpoints while keeping the old ones. The automations rule sink also tests a rule whose trigger is a split type, such as `rule.saved`, against the events it became. The outbox option `legacyEventTypes` (deprecated, off by default) relays a renamed type under its old name for receivers outside the app, with the new name in the `currenttype` CloudEvents extension, which the library's sinks read through the new `eventTypeOf` (`better-supabase/events`). Doctor reports old types in the app's code (BS424), and BS422 no longer reports `activity.*`, which is now an event pattern. `EVENT_TYPE_RENAMES`, `EVENT_TYPE_SPLITS`, `isOldEventType`, `currentEventTypes` and `legacyEventType` (`better-supabase`) export the maps.
+
+- [#587](https://github.com/ScaleDockHQ/better-supabase/pull/587) [`5cdbecc`](https://github.com/ScaleDockHQ/better-supabase/commit/5cdbecc9cc4120245bf7d6351ae4f9af57dc1934) Thanks [@martijn00](https://github.com/martijn00)! - The new `better-supabase/fhir` subpath maps the care blocks to base HL7 FHIR R4 (4.0.1) resources.
+  `toFhirPatient`, `toFhirRelatedPerson`, `toFhirCarePlan`, `toFhirGoal`, `toFhirObservation`,
+  `toFhirMedicationRequest`, `toFhirMedicationAdministration` and `toFhirConsent` each turn a block
+  row into one resource, and `toFhirBundle` wraps them in a `collection`, `searchset`, `transaction`
+  or `batch` Bundle. `fromFhirObservation` and `fromFhirMedicationRequest` read untrusted FHIR JSON
+  into an item for `db.observations.ingest` or an order for `db.medications.importOrders`, and
+  return a `validation` error with every issue instead of throwing. The functions are pure, with
+  structural types and no FHIR package, and run on every WinterTC runtime. `SPEC_PINS.fhirR4` pins
+  the version. National profiles are left to a profile layer on top of the base resources.
+
+- [#633](https://github.com/ScaleDockHQ/better-supabase/pull/633) [`f2b80ab`](https://github.com/ScaleDockHQ/better-supabase/commit/f2b80abaa325436961f1105e77433e980fff582b) Thanks [@martijn00](https://github.com/martijn00)! - Custom field definitions now name a registered subject type. `save_field_definition` fails with
+  `FIELD_ENTITY_UNKNOWN` for an entity that is not a key of `config.subjects` or a type an installed
+  block registers, and `blocks.custom-fields.options.entityMap` renames the entities you stored
+  before. Add field packs with `defineFieldPack`, the `packs` option and `install_field_pack`, which
+  installs definitions idempotently by pack and key. With the `legal-entities` block, `field_values`
+  gains a nullable `legal_entity_id`, and `readValues` and `setValue` take `{ legalEntity }`. The
+  `imports` block gets a `field_value` target, and `testFieldPack` checks a pack. Run
+  `better-supabase upgrade`, map old entities in `entityMap` and apply the new migrations.
+
+- [#583](https://github.com/ScaleDockHQ/better-supabase/pull/583) [`2ee8e0c`](https://github.com/ScaleDockHQ/better-supabase/commit/2ee8e0cda513b58941d7a556c918431cf6a229f9) Thanks [@martijn00](https://github.com/martijn00)! - Assets now carry a book value. `updateAsset` sets `acquisitionCost`, `acquiredOn`,
+  `usefulLifeMonths`, `residualValue`, `depreciationMethod` (`none`, `straight_line` or
+  `declining_balance`) and `depreciationRateBps`. `runDepreciation({ organizationId?, until? })`
+  books each month once into the new `asset_depreciations` table (service role only, so run it from
+  a cron route), `depreciations(assetId)` lists the months, and `dispose(assetId, { on, proceeds? })`
+  retires an asset and records its disposal. With `accounting` installed, depreciation posts through
+  the `depreciation_expense` and `accumulated_depreciation` roles and a disposal posts the gain or
+  loss through the new `disposal_gain` and `disposal_loss` roles, which fall back to the suspense
+  account until an organization maps them. Depreciating and disposing record `asset.depreciated` and
+  `asset.disposed`.
+  
+  Projects get costing. `saveProject` takes a `budget` (`Money`) and `budgetHours`, and with
+  `accounting` installed each project becomes a value of the `project` dimension on its next save.
+  Billable-time rates take a cost: `setRate` accepts `cost`, so the SQL `set_time_rate` function has
+  a new `cost_amount` argument and its old signature is dropped. `projectCosts(projectId)` sums the
+  time logged on the project's work items at cost and as billed, the accounting lines on the
+  project dimension, the margin and the share of the budget used. Apply the new migration with
+  `better-supabase upgrade`.
+
+- [#624](https://github.com/ScaleDockHQ/better-supabase/pull/624) [`ecc6662`](https://github.com/ScaleDockHQ/better-supabase/commit/ecc6662c05a1b3fb346355981ef4ff60db14bd04) Thanks [@martijn00](https://github.com/martijn00)! - The foreign key columns that point at a task or an activity are renamed: `work_item_id` is `task_id` in
+  `task_checklist_items` and `task_assignees`, and `engagement_id` is `activity_id` in `engagement_subjects`,
+  `engagement_recordings`, `engagement_notes` and `mail_threads`. `better-supabase upgrade` renames them in the
+  block tables, and a column of an entity you renamed or an adopted table keeps its name. Rename the columns in
+  your own SQL, views and policies; `codemod 0.47` lists the lines that use the old names.
+
+- [#609](https://github.com/ScaleDockHQ/better-supabase/pull/609) [`53700c8`](https://github.com/ScaleDockHQ/better-supabase/commit/53700c8a0621b2d85e1421a0265d2b89c3926338) Thanks [@martijn00](https://github.com/martijn00)! - New `funding` block (`better-supabase/blocks/funding`): funding products with a rate per unit, awards that grant a record units per period from a funder, deliveries registered against them, and claims a funder answers line by line.
+  
+  - `saveProduct` keeps the products a funder pays for, each with a unit and a rate as `Money`. `createAward`, `updateAward` and `endAward` record the units a funder (a contacts party with the `funder` role) awards a record in `config.subjects`, per week, per month or in total; `usage` returns the units used against the units awarded for each period.
+  - `registerDelivery` records care or service delivered on an active award. `registerFromTime` (service role) registers the approved time entries of the period on the record's one active award and returns the entries it couldn't match. `approveDeliveries` approves registered deliveries or rejects them.
+  - `buildClaim` collects a funder's approved deliveries of a period into a draft claim, numbered through numbering when it is installed. `send` renders it with a `FundingClaimFormat` and sends it through a `FundingClaimChannel` (both `apiVersion: 1`; no format or channel is bundled); `markSent` records a claim sent another way. `poll` and `recordResponse` record the funder's answer per line, and a rejected line puts its deliveries back to `approved` for a later claim. `invoiceClaim` creates an invoice to the funder when invoices is installed.
+  - Usage above an award records the `funding_award.exceeded` event and notifies the members who manage funding.
+  - `better-supabase/testing` gains `testFundingClaimFormat` and `testFundingClaimChannel` to check a format or channel.
+  - The permission keys are `funding.read`, `funding.write`, `funding.register`, `funding.approve`, `funding.claim` and `funding.manage`; members get `read` and `register`.
+  
+  Add `funding: {}` to `blocks`, run `better-supabase add funding` and generate a migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`f23c215`](https://github.com/ScaleDockHQ/better-supabase/commit/f23c215be043320ff240f081f301ffc7ded3191a) Thanks [@martijn00](https://github.com/martijn00)! - New block client helpers for content and records: `tags.replace`, `customFields.setMany`, `comments.reply` and `reopen`, `reactions.toggle`, `relations.walk`, `shareLinks.rotate` and `versions.restoreSafely`. Each one calls the hooked client, so `hooks` see every step.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`d676f3a`](https://github.com/ScaleDockHQ/better-supabase/commit/d676f3abe0866c5f0a40a07a3c399620f1d533fe) Thanks [@martijn00](https://github.com/martijn00)! - New block client helpers for people and scheduling: `leave.approve`, `reject` and `pending`, `shifts.rollout`, `fill` and `approveSwap`, `qualifications.check`, `consents.require`, `courses.createFromOutline` and `publish`, `medications.prescribeAndPlan`, `funding.awardsWithUsage`, `carePlans.createTree`, `bookings.book` and `bookings.public.book`. Each one calls the hooked client, so `hooks` see every step.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`7630608`](https://github.com/ScaleDockHQ/better-supabase/commit/7630608fb6e9d65479cb44c412affa3fe6548f21) Thanks [@martijn00](https://github.com/martijn00)! - New block client helpers: `entitlements.require` and `entitlements.all`, `usage.canConsume`, `deals.moveStage` and `tasks.move`. Each one calls the hooked client, so `hooks` see every step.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`493f497`](https://github.com/ScaleDockHQ/better-supabase/commit/493f497992531427eb4f4e2a7d2b3e0097176404) Thanks [@martijn00](https://github.com/martijn00)! - New block client helpers for work and support: `tasks.complete`, `cancel` and `reopen`, `approvals.decideForSubject` and `guarded`, `cases.tryClose`, `incidents.resolve`, `meetings.conclude`, `enrollments.restart` and `advance`, `inbox.conversations.reply` and `takeOver`, `rank.between` and `automations.installDefaults`. Each one calls the hooked client, so `hooks` see every step.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`88e31e9`](https://github.com/ScaleDockHQ/better-supabase/commit/88e31e909aa6561d63fc2a1d7ac8a1c42af06e08) Thanks [@martijn00](https://github.com/martijn00)! - New reads: `hiring.jobs`, `hiring.applications`, `hiring.pipeline` and `hiring.close`, and `bookings.resources` and `bookings.services`. They come from the new SQL functions `list_jobs`, `list_applications`, `list_booking_resources` and `list_booking_services`, which run as the caller. Run `better-supabase upgrade` and apply the migration to get them.
+
+- [#615](https://github.com/ScaleDockHQ/better-supabase/pull/615) [`dd2e88b`](https://github.com/ScaleDockHQ/better-supabase/commit/dd2e88b9852cba7fff0f4a4cd26433334cb8ffaf) Thanks [@martijn00](https://github.com/martijn00)! - Import runs now write in an import mode. `import_upsert_batch` begins an import session for its batch,
+  and `better_supabase.begin_import_session(run)` does it for a transaction you control (service role
+  only, on a running run). `better_supabase.import_run()` returns the run id inside a session and only
+  to the service role, so a user session can't turn the mode on.
+  
+  In the mode the outbox applies `blocks.imports.options.events` (an event type or `default` to
+  `skip`, `tag` or `emit`, skipping what is not listed), the audit log tags entries as `integration`
+  with the correlation id `import:<run>` and `options.audit: "summary"` writes one entry per entity
+  instead of one per row, and a state machine accepts any declared status on insert with one `imported`
+  history row and no event. Notifications, accounting auto-posting and the stock taken for paid orders
+  and shipped shipments are not run. SQL modules read the condition with `ctx.importing()`.
+  
+  An existing app changes behavior only inside an import run. Apply the new migration with
+  `better-supabase upgrade`.
+
+- [#605](https://github.com/ScaleDockHQ/better-supabase/pull/605) [`01c40b3`](https://github.com/ScaleDockHQ/better-supabase/commit/01c40b348902757d88380f4767ce9ca359eed71e) Thanks [@martijn00](https://github.com/martijn00)! - Imports keep an external record map, so a rerun inserts new keys, skips unchanged ones, updates
+  changed ones and leaves a row a user edited alone. This is a breaking change to the import run
+  table and its client.
+  
+  `import_runs.kind` is now `source`, and a run has the status `canceled`, the flags `dry_run` and
+  `full`, `input_checksum`, `correlation_id`, `scope_aliases`, `started_at` and `finished_at`. `counts`
+  is `{ <entity>: { inserted, updated, unchanged, conflicted, missing } }` and `errors` is `[{ entity,
+  key, code, message }]`. Only one run per tenant and source can be pending or running; a second
+  `start` fails with `IMPORT_RUN_ACTIVE`. The new table `import_records` maps `(tenant, source, scope,
+  entity, external key, role)` to the subject it imported.
+  
+  The imports client gains `runs.start`, `runs.get`, `runs.list`, `runs.cancel`, `markRunning`,
+  `upsertBatch`, `resolve` and `finish`. `import_upsert_batch` writes each item through an import
+  target, hashes `data` to decide between unchanged and changed, reports `conflicted` for a row
+  changed after the last import, reuses a scope alias's record and, for a dry run, rolls back and
+  returns the counts. `finish` marks the records a full run did not send as missing and never
+  deletes them, and it emits `import.entity_completed` for each entity. A block contributes a target
+  through the new `imports` contribution kind (`{ entity, subjectType, write, updatedAt? }`), and an
+  app lists its own in `blocks.imports.options.targets`. The hint codes are `IMPORT_RUN_ACTIVE`,
+  `IMPORT_RUN_NOT_RUNNING`, `IMPORT_TARGET_UNKNOWN` and `IMPORT_ITEM_INVALID`.
+  
+  `defineImport` and `appTableImport` take `source` instead of `kind`, and `defineImport` takes an
+  optional `target` that `runImport` writes through `hooks.upsertBatch`. Run `better-supabase codemod
+  0.47` to list the code to rename, then `better-supabase upgrade` and generate a migration. The
+  migration guide from 0.46 to 0.47 has the table of changes.
+
+- [#598](https://github.com/ScaleDockHQ/better-supabase/pull/598) [`7a75d8c`](https://github.com/ScaleDockHQ/better-supabase/commit/7a75d8ca3e9bc5eae97b2d3841fa48ab78a502c1) Thanks [@martijn00](https://github.com/martijn00)! - Inbox contacts are now people of the contacts block (ADR 0131). The inbox requires `contacts`, a conversation's `contactId` is a person id, and the inbox `contacts` and `contact_identities` tables and the `person_inbox_contacts` link are gone. A person's addresses on channels live in the new `person_identities` table (`person_id`, `channel`, `address`, `verified_at`), and `people` gains `avatar_url` and `metadata`. `upgrade` renders a data step that turns each inbox contact into a person (the linked one, else the active person with the same email, else a new person with the contact's id), copies the identities, points conversations and identity links at the person, then drops the old tables. Run `better-supabase add contacts` before `upgrade`.
+  
+  The contacts client gains `identities(personId)`, `addIdentity`, `removeIdentity` and `findByIdentity`, and drops `linkInboxContact`, `unlinkInboxContact` and `personForInboxContact`:
+  
+  ```ts
+  // Before
+  const person = await db.contacts
+    .personForInboxContact(conversation.contactId, { create: true })
+    .orThrow();
+  
+  // After
+  const person = await db.contacts
+    .findByIdentity(organizationId, "whatsapp", "+31612345678")
+    .orThrow();
+  await db.contacts
+    .addIdentity(personId, { channel: "whatsapp", address: "+31612345678" })
+    .orThrow();
+  ```
+  
+  `inbox.contacts.upsert` still finds or creates the person and is deprecated until 0.48. Deleting a user no longer erases their inbox contact; `purgeContact(personId)` erases the person and their conversations. `codemod 0.47` lists the old calls and tables, and doctor reports the removed methods. See the 0.46 to 0.47 guide.
+
+- [#596](https://github.com/ScaleDockHQ/better-supabase/pull/596) [`918d5b3`](https://github.com/ScaleDockHQ/better-supabase/commit/918d5b38b2a9f364426ae5bfd26064f0ad66cce7) Thanks [@martijn00](https://github.com/martijn00)! - New `inspections` block (`better-supabase/blocks/inspections`): audit programmes, inspections with a team and a checklist form, and findings that open cases.
+  
+  - `saveProgram`, `approveProgram` and `closeProgram` keep the programmes of a period. `schedule` plans an inspection of one of `options.kinds` against any auditee subject, numbered `AUD-2026-001` through the numbering block or `AUD-` and its position without it.
+  - An inspection moves from `planned` through `start`, `complete` and `close`, or stops with `cancel`. Its team gives each member the role of lead, auditor, observer or auditee; `saveChecklist` fills in the checklist form, and `complete` fails with `INSPECTION_CHECKLIST_INCOMPLETE` until it is submitted.
+  - `addFinding`, `updateFinding` and `deleteFinding` record findings typed by `options.findingTypes`, with a clause and a compliance control the inspection `assesses` through the relations block.
+  - A finding of a type in `options.caseFindingTypes` needs a case: `raiseCase` opens one through the cases block and links it as `created_from`, and `close` fails with `INSPECTION_FINDINGS_OPEN` until each such finding has one.
+  - The permission keys are `inspections.read`, `inspections.write` and `inspections.manage`. A member with `inspections.write` acts on the inspections they are on the team of, as their role allows.
+  
+  Add `inspections: {}` to `blocks`, run `better-supabase add inspections` and generate a migration.
+
+- [#574](https://github.com/ScaleDockHQ/better-supabase/pull/574) [`ada683f`](https://github.com/ScaleDockHQ/better-supabase/commit/ada683f73bf7c878dda13f245932e787f9618226) Thanks [@martijn00](https://github.com/martijn00)! - Knowledge collection grants keep their collection's tenant and type `team_id` with the teams id type, and `visibility` may be an enum on an adopted `knowledge_collections` table. Memory gains private organization and record memory, personal memory without a tenant, a cap on archival facts and a per-tenant purge.
+  
+  - `knowledge_collection_grants` gains `organization_id`, filled from the collection, so data lifecycle exports and deletes grants with the tenant. With the `teams` block installed, `team_id` takes the teams id type (`uuid` by default) and `set_knowledge_collection_grant` takes a team id of that type. `better-supabase upgrade` writes the column change for an existing install:
+  
+    ```sql
+    alter table better_supabase.knowledge_collection_grants add column if not exists organization_id uuid;
+    update better_supabase.knowledge_collection_grants x set organization_id = c.organization_id
+    from better_supabase.knowledge_collections c where c.id = x.collection_id;
+    alter table better_supabase.knowledge_collection_grants alter column team_id type uuid using team_id::uuid;
+    ```
+  
+    An adopted grants table needs the `organization_id` column too.
+  
+  - `knowledge_collections.visibility` is listed in `typed`: an adopted table may declare it as an enum, written and compared through the column's type and `blocks.knowledge.values`.
+  - A memory namespace takes `private: true` for `organization` and `record` scopes: the memory gets an owner, who reads and changes it without the manage permission, and nobody else reads it. The owner check constraint allows an owner on those scopes.
+  - `blocks.memory.options.tenant: false` lets personal memory have no tenant: pass `null` as the organization. `MemoryRecord.organizationId` is `string | null`.
+  - `blocks.memory.options.maxItems` keeps at most that many archival facts per owner (or shared namespace pool) in a tenant; saving one more forgets the oldest.
+  - `purge_memories` takes a `tenant` (`archival.purge({ organizationId })`) to purge one tenant. The two-argument function is dropped.
+
+- [#608](https://github.com/ScaleDockHQ/better-supabase/pull/608) [`dcd9a8f`](https://github.com/ScaleDockHQ/better-supabase/commit/dcd9a8f570bd8315994ba553268fbb5f8cb880ff) Thanks [@martijn00](https://github.com/martijn00)! - New `legal-entities` block (`better-supabase/blocks/legal-entities`): several companies inside one organization, with one default and a settings fallback. A single-company organization needs no configuration.
+  
+  - `create`, `update`, `setDefault`, `archive`, `restore`, `get` and `list` keep each legal entity's code, name, address, VAT number, chamber of commerce number, IBAN, BIC, logo, default currency and fiscal calendar (`fiscalYearStartMonth`, `taxPeriod`). The first entity becomes the default, a partial unique index allows one default per organization, and the default can't be archived.
+  - `of(id?)` calls `legal_entity_of(tenant, id)`: a null id resolves to the default entity, and an entity of another organization fails.
+  - `resolveSetting(key, legalEntityId?)` calls `resolve_setting(tenant, key, legal_entity)` and falls back from the legal entity to the organization to the code default. `settings`, `setSetting` and `resetSetting` keep the per-entity values in `legal_entity_settings`. The settings block's client gains `resolve`, which needs the legal-entities block.
+  - `blocks.legal-entities.options.on` adds a nullable `legal_entity_id` to the tables of `invoices`, `quotes`, `orders`, `numbering`, `accounting`, `inventory_locations` and `settings`. Null means the default entity. Contacts stay shared.
+  - The permission keys are `legal_entities.read` and `legal_entities.manage`; members get `read`. Events are `legal_entity.created` and `legal_entity.updated`.
+  
+  Add `"legal-entities": {}` to `blocks`, run `better-supabase add legal-entities` and generate a migration. List the modules to extend in `options.on`.
+
+- [#653](https://github.com/ScaleDockHQ/better-supabase/pull/653) [`d5d7e1a`](https://github.com/ScaleDockHQ/better-supabase/commit/d5d7e1a5dc558b0b990535bc3e8936ae71989a0b) Thanks [@martijn00](https://github.com/martijn00)! - New `lims` block (`better-supabase/blocks/lims`): laboratory samples tested with methods that have specification limits.
+  
+  - `saveMethod`, `archiveMethod` and `listMethods` keep methods with a unit, a lower and an upper limit and an optional form.
+  - `registerSample`, `getSample` and `listSamples` keep numbered samples (`SMP-1`) that move from registered to testing, completed and released or rejected.
+  - `recordResult` computes the outcome from the limits. An out of specification result opens a nonconformity case when the `cases` block is installed and emits `lims_result.flagged`.
+  - `releaseSample` refuses while the latest result of a method is out of specification.
+  - `options.instrumentQualification` requires every result to name an asset that holds that qualification on the test date. `instrumentStatus` answers the same question before the work starts.
+  - The permission keys are `lims.read`, `lims.write` and `lims.manage`.
+  
+  Run `better-supabase add lims` and generate a migration.
+
+- [#640](https://github.com/ScaleDockHQ/better-supabase/pull/640) [`8c93a0d`](https://github.com/ScaleDockHQ/better-supabase/commit/8c93a0d267b9ea9c22b7ce022e23210fba18c030) Thanks [@martijn00](https://github.com/martijn00)! - New `maintenance` block (`better-supabase/blocks/maintenance`): preventive maintenance plans by time or meter that open dispatch work orders with their spare parts, meter readings and calibrations.
+  
+  - `createPlan` takes a `time` plan (`everyDays`) or a `meter` plan (`meterId` and `everyValue`) with an optional asset, priority and spare parts. `updatePlan` pauses or changes it and `deletePlan` removes it.
+  - `generateWorkOrders` opens a dispatch work order, with the plan's parts, for every due plan that has none open. A work order that is done moves the plan's next due date, and a cancelled one frees the plan.
+  - `createMeter` and `recordReading` keep meters such as hours run. A reading never goes below the previous one.
+  - `recordCalibration` and `listCalibrations` keep calibration records with their due dates.
+  - The permission keys are `maintenance.read`, `maintenance.record` and `maintenance.manage`.
+  
+  Add `maintenance: {}` to `blocks` next to `dispatch`, run `better-supabase add maintenance` and generate a migration. Call `generateWorkOrders` on a schedule.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`ab5ab3b`](https://github.com/ScaleDockHQ/better-supabase/commit/ab5ab3b0e12a0c886938cb9e5b71a3c770534fd0) Thanks [@martijn00](https://github.com/martijn00)! - One dispatcher runs the recurring cleanups. The new `housekeeping` SQL module adds
+  `better_supabase.maintenance()`, which runs each due job and records the outcome, the
+  `maintenance_jobs` view, and `maintenance_schedule()`, which registers the dispatcher with
+  pg_cron when it is installed. The `approvals`, `trash`, `webhook-inbox`, `rate-limit`,
+  `idempotency` and `chat-sdk-state` modules contribute their purge and expiry functions as jobs,
+  and keep the function names. Run `better-supabase upgrade` to install the module.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - `maintenance` plans take calendar rules and required qualifications.
+  
+  - A plan of kind `rrule` takes an RFC 5545 `rrule`, a `dtstart` and a `tz`, next to the `time` and `meter` kinds. A plan falls due at the first occurrence after its last completion.
+  - Plans take `requiredQualifications` and calibrations take `qualifications` (qualification type keys). With `qualifications` installed, assigning a technician who lacks one to the plan's work order, or recording a calibration without them, fails with `MAINTENANCE_UNQUALIFIED`.
+  - Breaking for adopted tables: `maintenance_plans` gains `rrule`, `dtstart`, `tz` and `required_qualifications`, and `maintenance_calibrations` gains `qualifications`. Add them (the generated migration shows the definitions) before you upgrade.
+
+- [#599](https://github.com/ScaleDockHQ/better-supabase/pull/599) [`3c96019`](https://github.com/ScaleDockHQ/better-supabase/commit/3c960194920582bcc5f7f4f6ad23d0b8b9589a96) Thanks [@martijn00](https://github.com/martijn00)! - New `manufacturing` block (`better-supabase/blocks/manufacturing`): bills of materials, production orders over inventory, lot genealogy and material requirements.
+  
+  - `saveBom` saves a draft version of a variant's bill of materials with its components and routing, and `activateBom` makes it the active version and archives the previous one; a cycle fails with `BOM_CYCLE`. `explodeBom` and `whereUsed` walk every level.
+  - `saveWorkCenter` keeps the work centers, each with a cost rate per hour and, with the assets block, its machine.
+  - `createOrder` creates a production order numbered `MO-2026-0001`. `release` allocates the components and fails with `PRODUCTION_ORDER_SHORTAGE` unless `allowShortage`. `startOperation`, `finishOperation` and `recordConsumption` run it, and `complete` backflushes the rest and receives the output at the material cost plus labor. `cancel` returns what was consumed.
+  - `lotGenealogy` lists the lots a lot was made from or went into, and `lotRecall` the lots, stock, documents and orders a recall reaches.
+  - `requirements` suggests what to produce or buy, and `createFromRequirements` turns the suggestions into draft production orders and purchase orders.
+  - Inventory gains the movement reasons `consumption` and `production`, and `take_allocation`, which `fulfill_allocation` now calls. Accounting gains the `work_in_progress` role (account 1350 in the generic chart): stock movements of those reasons book to it, and a completed order's labor books as the `production_order` source.
+  - The permission keys are `manufacturing.read`, `manufacturing.write`, `manufacturing.produce` and `manufacturing.manage`; members get `read` and `produce`.
+  
+  Add `manufacturing: {}` to `blocks`, run `better-supabase add manufacturing` and generate a migration. Projects with inventory or accounting get the new reasons and role on their next `upgrade`. An organization that ran accounting `setup` before maps the role with `setAccountRole(organizationId, "work_in_progress", accountId)`; until then those lines book to `suspense`.
+
+- [#610](https://github.com/ScaleDockHQ/better-supabase/pull/610) [`57b3bb1`](https://github.com/ScaleDockHQ/better-supabase/commit/57b3bb1a4fb173f0697d1ecb2421ad9ed0ee4d26) Thanks [@martijn00](https://github.com/martijn00)! - Medications gain signatures, extra columns and guest reads. `approveOrder` approves an order with
+  the prescriber's completed signature, and `recordAdministration` takes a `signatureId`. The new
+  `medicationExtraColumns` and `administrationExtraColumns` options add columns to the catalog and
+  dose tables (`fields` on `saveMedication` and `recordAdministration`). `guestRead: true` lets a
+  guest with a read grant read a record's orders, doses and medications. `record_medication_administration`
+  has a new signature, so apply the new migration with `better-supabase upgrade` and regenerate your
+  bindings.
+
+- [#584](https://github.com/ScaleDockHQ/better-supabase/pull/584) [`47e6802`](https://github.com/ScaleDockHQ/better-supabase/commit/47e68029ea98a8340622b23c32bf1941889da683) Thanks [@martijn00](https://github.com/martijn00)! - Add the `medications` block (`better-supabase/blocks/medications`). An organization keeps a medication list, imported from a drug database through a versioned `MedicationCatalog` port (`testMedicationCatalog` in `better-supabase/testing` checks one) or added by hand. Prescribers order a medication for any record with a dose, route and schedule, or as needed with a maximum per day, and `importOrders` brings in a pharmacy's orders by external id. `planAdministrations` plans the doses, members record each one as given, refused or skipped, a high-risk dose needs a second member to check it, and `markMissed` marks late doses missed and notifies the members who manage medications. `chart` reads a record's orders and doses, and the example app adds a `medication-chart` recipe.
+
+- [#627](https://github.com/ScaleDockHQ/better-supabase/pull/627) [`e251538`](https://github.com/ScaleDockHQ/better-supabase/commit/e25153855076dfc18198e8ceb5151740c5d0c15e) Thanks [@martijn00](https://github.com/martijn00)! - New `meetings` block (`better-supabase/blocks/meetings`): meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
+  
+  - `create` plans a meeting of one of `options.kinds` with its attendees and agenda. `start`, `hold` and `cancel` move it through `planned`, `in_progress`, `held` and `canceled`; `setAttendee`, `removeAttendee`, `saveAgendaItem` and `deleteAgendaItem` change the team and the agenda.
+  - `recordDecision` adds a decision, attendees vote on it with the reactions block, and `decide` settles it from the votes or with a status you pass.
+  - `addActionItem` opens a task through the tasks block and links it to the meeting, an agenda item or a decision.
+  - A meeting has at most one chair. A member with `meetings.write` runs the meetings they created or chair or take the minutes of, and members without `meetings.read` read only the meetings they are invited to.
+  - The permission keys are `meetings.read`, `meetings.write` and `meetings.manage`. With `options.calendar` planned meetings mirror to a calendar, and with notifications an invited attendee is notified.
+  - The `qms` and `ehs` presets include the block, and the recipes `meeting-agenda` and `meeting-minutes` render the list and the minutes.
+  
+  Add `meetings: {}` to `blocks`, run `better-supabase add meetings` and generate a migration.
+
+- [#669](https://github.com/ScaleDockHQ/better-supabase/pull/669) [`34a7da9`](https://github.com/ScaleDockHQ/better-supabase/commit/34a7da9fce1f4bec8c35a0543b4f54fe8d471815) Thanks [@martijn00](https://github.com/martijn00)! - `meetings` takes custom fields: `blocks.meetings.options.extraColumns` adds columns to the `meetings` table, `create` and `update` take their values under `fields`, and reads return them under `fields`. Pass a Standard Schema as `fields` to `createMeetings` to type and validate them.
+  
+  `Meeting` gains a `fields` property (empty without extra columns). Run `better-supabase upgrade` and generate a migration after adding columns.
+
+- [#592](https://github.com/ScaleDockHQ/better-supabase/pull/592) [`7194013`](https://github.com/ScaleDockHQ/better-supabase/commit/719401306e683de673abfd29fcbf949eb091cb89) Thanks [@martijn00](https://github.com/martijn00)! - Module tables follow the naming convention (ADR 0130): a table is its entity's plural, or starts with its entity's singular. Run `better-supabase upgrade` and generate a migration; it renames each table in place with its indexes, policies, triggers, constraints and sequences, so no row moves and no table is dropped. The [0.46 to 0.47 guide](https://bettersupabase.com/docs/migration/0.46-to-0.47#table-names) lists every table.
+  
+  | Before (0.46)                                                    | After (0.47)                                                           |
+  | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+  | `work_items`, `work_item_assignees`, `work_item_checklist_items` | `tasks`, `task_assignees`, `task_checklist_items`                      |
+  | `engagements`, `targets`, `policies`                             | `activities`, `goals`, `compliance_policies`                           |
+  | `rules`, `rule_defaults`, `rule_versions`                        | `automations`, `automation_defaults`, `automation_versions`            |
+  | `leases` (idempotency), `lease_agreements`                       | `idempotency_leases`, `leases`                                         |
+  | `organization_domains`, `organization_sso_providers`             | `sso_domains`, `sso_providers`                                         |
+  | `status_pages`, `status_components`                              | `incident_status_pages`, `incident_status_components`                  |
+  | `fulfillments`, `shipping_rates`, `kitchen_stations`             | `order_fulfillments`, `order_shipping_rates`, `order_kitchen_stations` |
+  | `activity_entries`, `ai_message_embeddings`                      | `timeline_entries`, `memory_message_embeddings`                        |
+  
+  - `TABLE_RENAMES` is exported for code that maps stored table names.
+  - Tables you adopted through `blocks.<name>.tables`, and the tables of an entity you renamed, keep their names. Foreign key columns such as `work_item_id` keep theirs too.
+  - `codemod 0.47` lists queries on an old `better_supabase` table for review.
+  - The rename steps also rename the constraints and owned sequences that carry the old table name, so a schema diff after `upgrade` finds no drop and create pairs.
+  - `compliance` moves to version 3. An install at version 1 first moves its policy acknowledgements onto the `acknowledgements` block, reading `policies`, and then renames the table. An upgrade step that runs before a table rename always reads the table by its old name.
+
+- [#635](https://github.com/ScaleDockHQ/better-supabase/pull/635) [`1f78c6e`](https://github.com/ScaleDockHQ/better-supabase/commit/1f78c6e164d5ae08d759fc65c331afddd5c8557b) Thanks [@martijn00](https://github.com/martijn00)! - Numbering now supports imports and legal entities. Counters are kept per tenant, entity, legal
+  entity scope and period, and `series: "none"` lets credit notes share the invoice series. During an
+  import run, `issue_invoice` and `credit_invoice` take a historical `fixed_number`, other entities
+  take `set_fixed_number(entity, number)`, and the counters continue above the imported numbers.
+  `sync_number_sequences(tenant, entity, scope)` now returns `{ synced, mismatched }` and lists numbers
+  outside the current format as import run warnings, without rejecting them. `next_number` and
+  `preview_number` gain a trailing `p_scope` argument with a default. Run `better-supabase upgrade`
+  and apply the new migration. On an app's own sequences table it replaces the key with one over
+  tenant, entity, scope and period.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Block client methods that arrived with the e-invoicing, DSAR, regulatory filing, OSCAL, moderation, evals, guardrails, prompts, e-prescribing and agent checkout work now take one object input, like every other block method. For example `invoices.sendEInvoice({ invoice, format, channel })`, `dataLifecycle.verifyDataSubjectRequest({ requestId, method })` and `incidents.submitFiling({ incidentId, regime, stage, input })`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`bbcab28`](https://github.com/ScaleDockHQ/better-supabase/commit/bbcab28ffa79ad16cebb17d462a164c11fd13bfd) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: every block client method with two or more positional arguments takes one object. A required argument becomes a property of the same name, a trailing options object is merged into the object when all its fields are optional and moves under `options` otherwise, and hook arguments become `[input]`. For example `catalog.setPrice(variantId, price)` is now `catalog.setPrice({ variantId, input: price })`, `drive.shareDrive(id, principal, "editor")` is now `drive.shareDrive({ id, principal, role: "editor" })`, and `onboarding.complete(checklist, step, organizationId)` is now `onboarding.complete({ checklist, step, organizationId })`. Ports other libraries implement, queue backends and record-binding `load` and `run` stay positional. Run `better-supabase codemod 0.47` to rewrite your calls; `better-supabase doctor` reports the calls it can still rewrite as BS509, and a new test fails on any block client method with two or more parameters.
+
+- [#579](https://github.com/ScaleDockHQ/better-supabase/pull/579) [`9580b74`](https://github.com/ScaleDockHQ/better-supabase/commit/9580b74a1756eb7a0075ccfecd6c9cbf186fc49f) Thanks [@martijn00](https://github.com/martijn00)! - New `observations` block (`better-supabase/blocks/observations`): coded measurements of any record, such as vital signs.
+  
+  - A definition has a value type (`number`, `integer`, `boolean`, `code`, `text` or `components`), a UCUM unit, a code and valid, reference and critical ranges. `options.defaults: "vitals"` installs nine system definitions with their LOINC codes; `saveDefinition` adds an organization's own or overrides a system one.
+  - `record` and `recordMany` refuse a value outside the valid range and flag it `normal`, `low`, `high`, `critical_low` or `critical_high`. A critical value emits `observation.critical_recorded` and notifies the leads of the record's team.
+  - `amend` records a correction and marks the original `amended`; `markError` marks one `entered_in_error`. `ingest` takes device or import readings with the service role and skips an `externalId` it has seen.
+  - `list`, `latest`, `series` and `buckets` (per UTC hour, day, week or month) read a record's values. With the forms block, a field with `meta.observation` records an observation when a form about a record is submitted, and the forms field schema takes `meta`.
+  - `options.partitioned` partitions the observations table by month. The permission keys are `observations.read`, `observations.record` and `observations.manage`; the default member role reads and records.
+  - The `observation-chart` UI recipe renders a record's latest values with their flags and a sparkline.
+  
+  Add `observations: {}` to `blocks`, run `better-supabase add observations` and generate a migration.
+
+- [#650](https://github.com/ScaleDockHQ/better-supabase/pull/650) [`cc94ca6`](https://github.com/ScaleDockHQ/better-supabase/commit/cc94ca66dca0561f539b1109df13878c2ad11a77) Thanks [@martijn00](https://github.com/martijn00)! - The `invoices` block now lists open items per customer and supplier with ageing, and
+  `allocatePayment` spreads one payment over several documents (partial, over and under payment, and
+  the early-payment discount, posted through accounting). `unallocatePayment` reverses it. Purchase
+  bills get approval levels by amount with an approver per legal entity (`approvePurchaseInvoice`,
+  `approvalStatus`, the `invoices.approve` key). The `banking` block builds payment batches from
+  approved open supplier bills, exports them as SEPA credit transfers (pain.001.001.09) and closes
+  them when the bank debit is matched. The `open_item` import target loads opening lists with their
+  original dates. Run `better-supabase upgrade` and apply the new migrations.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`278c7a8`](https://github.com/ScaleDockHQ/better-supabase/commit/278c7a8244dae3068663a2af962acfcd46e8b2ad) Thanks [@martijn00](https://github.com/martijn00)! - New combined reads: `hiring.board`, `bookings.page`, `qualifications.matrix`, `documents.page` and `care.dossier`. Each runs the reads a page needs together over the existing SQL functions, so no upgrade or migration is needed.
+
+- [#600](https://github.com/ScaleDockHQ/better-supabase/pull/600) [`023a3f4`](https://github.com/ScaleDockHQ/better-supabase/commit/023a3f4f5d3b21211a4359db24ab9291a41fb3ca) Thanks [@martijn00](https://github.com/martijn00)! - Companies and people in the `contacts` block can carry roles, payment terms, a credit limit and a supplier status. The block adds `roles text[]` (checked against `blocks.contacts.options.roles`, default `customer`, `supplier`, `funder` and `partner`), `payment_terms_days`, `credit_limit` with `credit_currency` (a `Money` value in the client) and `supplier_status` (`approved`, `conditional` or `blocked`). `set_party_roles(party, roles)` replaces a party's roles. `set_supplier_status(party, status, reason)` needs the new `contacts.approve_supplier` permission, records an audit entry and emits `company.supplier_status_changed` or `person.supplier_status_changed` with the previous status and the reason. When the `qualifications` block is installed, `supplier_status_from_qualifications(party)` returns `approved` for a supplier with no missing or expired qualification and `conditional` otherwise; pass the result to `set_supplier_status` to keep the approved supplier list of ISO 9001 clause 8.4. `list_companies` and `list_people` take `role` and `supplier_status` filters. The client adds `db.contacts.setRoles()`, `setSupplierStatus()`, `supplierStatusFromQualifications()` and the `role` and `supplierStatus` options on `listCompanies()` and `listPeople()`. Grant `contacts.approve_supplier` to the roles that approve suppliers, then run `better-supabase upgrade` and generate a migration to pick up the columns and functions.
+
+- [#648](https://github.com/ScaleDockHQ/better-supabase/pull/648) [`52ba615`](https://github.com/ScaleDockHQ/better-supabase/commit/52ba6158888081e0523b699c3a6d8f8059b67db9) Thanks [@martijn00](https://github.com/martijn00)! - Add payment terms, dunning runs and credit blocks to `contacts` and `invoices`. `savePaymentTerm`
+  and `paymentTerms` manage terms with due days, an early-payment discount and a credit restriction
+  whose tax is computed on the reduced amount. Invoices copy the party's terms and store
+  `discount_due_on` and `discount_amount_early` when issued. Customers get `creditBlock` (`none`,
+  `soft` or `hard`), a `language` and `setDeliveryPreferences`. Dunning levels take a `textKey`,
+  `runDunning` records runs you read with `dunningRuns`, `dunningRunItems` and `dunningHistory`, and
+  `handOverToCollection` hands invoices to a collection agency (`invoice.collection_started`).
+  Payment terms and delivery preferences are import targets.
+  
+  Breaking: `payment_terms_days` and `paymentTermsDays` on companies and people are replaced by
+  `customer_terms_id` and `supplier_terms_id`. The 0.46 to 0.47 guide has the data step, and the
+  codemod lists the old names.
+
+- [#668](https://github.com/ScaleDockHQ/better-supabase/pull/668) [`550ced2`](https://github.com/ScaleDockHQ/better-supabase/commit/550ced2a5ddafb0e40b80824b83ef7a5e4012f08) Thanks [@martijn00](https://github.com/martijn00)! - `payroll-export` now counts only the time entries of weeks with an approved timesheet. A week that is open, submitted or rejected adds no line, and approving it adds its hours the next time the draft run is refreshed.
+  
+  `time-tracking` gains the `time_week_approved` function. Run `better-supabase upgrade` and generate a migration; it replaces `collect_payroll_lines` and adds that function.
+
+- [#632](https://github.com/ScaleDockHQ/better-supabase/pull/632) [`560c162`](https://github.com/ScaleDockHQ/better-supabase/commit/560c162bbf1ce3b59f8d01a24d9487689c49bcd7) Thanks [@martijn00](https://github.com/martijn00)! - New `payroll-export` block (`better-supabase/blocks/payroll-export`): payroll runs that add up the approved time, leave and scheduled shifts of a period per person and hand them to the payroll provider.
+  
+  - `create` collects a draft run for a period from `options.sources` (the installed ones of `time-tracking` and `leave` by default, `shifts` on request), `refresh` collects it again, and `get`, `list` and `delete` read and remove runs.
+  - `exportRun` renders the run through a `PayrollExportFormat`, a versioned port (`apiVersion: 1`), keeps the SHA-256 of the file on the run and locks it. `csvPayrollFormat` is the reference format; a provider's layout implements the port.
+  - A new run for a period that overlaps an exported run fails with `PAYROLL_PERIOD_EXPORTED`, and a locked run refuses a refresh, a delete or a different file (`PAYROLL_RUN_EXPORTED`).
+  - The permission keys are `payroll_export.read` and `payroll_export.export`; admins hold both. The `payroll-runs` recipe lists the runs.
+  
+  Add `"payroll-export": {}` to `blocks`, run `better-supabase add payroll-export` and generate a migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Peppol support in the invoices block, with one channel port.
+  
+  - `better-supabase/e-invoicing` now owns `EInvoiceFormat`, `EInvoiceChannel` and `EInvoiceDocument`, and adds `peppolBis3Format`. The channel's optional `lookup`, `status` and `receive` methods check a participant, ask the network and poll for documents. `testEInvoiceChannel` in `better-supabase/testing` is its conformance kit.
+  - The invoices block adds `invoice_e_endpoints` (participant ids of an organization, legal entity or company) and `invoice_e_deliveries` (the delivery log), the `invoices.send` permission, four `invoice.e_invoice_*` events, and the methods `sendEInvoice`, `recordEInvoiceDelivery`, `syncEInvoices`, `receiveEInvoices`, `setEInvoiceEndpoint`, `eInvoiceEndpoints` and `eInvoiceDeliveries`.
+  - Breaking: the `better-supabase/blocks/invoices` exports `sendEInvoice` (as a function), `EInvoiceChannel`, `EInvoiceFormat`, `EInvoiceContext`, `EInvoiceDocument`, `EInvoiceStatus`, `eInvoiceChannelOf` and `eInvoiceFormatOf` are gone. Import the types and the `of` functions from `better-supabase/e-invoicing` and call `invoices.sendEInvoice` instead.
+  
+  | Before                                                | After                                                              |
+  | ----------------------------------------------------- | ------------------------------------------------------------------ |
+  | `sendEInvoice({ invoice, format, channel })`          | `invoices.sendEInvoice({ invoice, format, channel })`              |
+  | channel `name`                                        | channel `key`                                                      |
+  | `send(document, context)` returning `{ externalRef }` | `send(document, { recipient, invoice })` returning `{ messageId }` |
+  | `status(externalRef, context)`                        | `status(messageId, context)`                                       |
+  | document `{ body, filename, contentType }`            | document `{ type, id, xml }`                                       |
+  
+  Run the new migration (or `better-supabase db diff`) to add the two tables and grant `invoices.send` to the roles that send invoices.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`f8aa3e9`](https://github.com/ScaleDockHQ/better-supabase/commit/f8aa3e924825fa138db2c84e28b4184f49613a4a) Thanks [@martijn00](https://github.com/martijn00)! - New `periods` block (`better-supabase/blocks/periods`): dated periods per kind with a close protocol that other blocks take part in.
+  
+  - `createPeriod`, `periodFor`, `isOpen`, `lock`, `close`, `reopen` and `listPeriods` keep ranges with an `open`, `locked` or `closed` status. `periodFor` creates a missing calendar period for kinds that have a cadence.
+  - A block adds a kind through `contributes.periods` with a blockers function and an on-close function. `close` runs every blocker check first and fails with the `PERIOD_CLOSE_BLOCKED` hint, then runs each closing step in one transaction.
+  - Accounting contributes `fiscal_period` and leave contributes `leave_year`. The existing `close_accounting_period` and `close_leave_year` keep their names and behavior.
+  - The permission keys are `periods.read`, `periods.write` and `periods.manage`.
+  
+  Run `better-supabase add periods` and generate a migration.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`369cd0d`](https://github.com/ScaleDockHQ/better-supabase/commit/369cd0dd562db9ff174231b701bb1b90a175491a) Thanks [@martijn00](https://github.com/martijn00)! - Postgres features are now opt-in. `searchColumn` on `contacts`, `deals`, `tasks`, `invoices` and `drive`, and the `@bsb search` table tag, add a stored `search_tsv` column with a GIN index. `noOverlap` on `leases`, `calendar` and `passes` adds exclusion constraints. `partitioned` on `field-history` partitions `field_changes` by month. `better-supabase doctor` gains BS360 for secret-named columns outside Vault.
+
+- [#621](https://github.com/ScaleDockHQ/better-supabase/pull/621) [`176d171`](https://github.com/ScaleDockHQ/better-supabase/commit/176d17144fd49a1765c8f350acbd62981578a975) Thanks [@martijn00](https://github.com/martijn00)! - Postmortem `actionItems` and the `action_items` column are removed from the `incidents` block. Write
+  action items with `addPostmortemAction` (the `tasks` block) and read a postmortem's `actions`. Run
+  `better-supabase upgrade` before you diff: its new step copies the items of an existing database into
+  tasks and then drops the column, and it stops with an error instead of dropping items it can't copy.
+  `codemod 0.47` lists the lines that use `actionItems`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`f387635`](https://github.com/ScaleDockHQ/better-supabase/commit/f387635cf6b9e745210a13fabf4ddfd2fb70755a) Thanks [@martijn00](https://github.com/martijn00)! - The `people`, `projects` and `field-service` presets list composite blocks (`recruiting`,
+  `collaboration` and `service`). `people` and `projects` install the same blocks as before.
+  `field-service` now also installs maintenance plans, cases and SLAs, which the `service` composite
+  brings with the dispatch board.
+
+- [#569](https://github.com/ScaleDockHQ/better-supabase/pull/569) [`15dff1a`](https://github.com/ScaleDockHQ/better-supabase/commit/15dff1a8aabdcd505a600984691d22edff958dad) Thanks [@martijn00](https://github.com/martijn00)! - Activities takes progress notes. An engagement has an `audience`: `team` keeps today's read rule, `subject` also lets guests with a read grant on a linked record read it, and `restricted` needs one of `restrictedRoles` on a linked record's team, the new `activities.read_restricted` permission, or to be its author or owner. Engagements also take a `category` (checked against `options.noteCategories`) and a `goalId`.
+  
+  Engagements of a `options.lockTypes` type (default `note` and `report`) lock `options.lockAfterHours` after they are logged (default 24). After that, `update`, `complete` and `remove` fail with `ACTIVITY_LOCKED`. Notes logged before this release keep no lock. `amend(id, body)` adds a linked addendum (`amend_activity`, event `engagement.amended`), and `markError(id, reason)` flags an engagement as entered in error and locks it (`mark_activity_error`, event `engagement.marked_error`).
+  
+  The subjects block adds `has_subject_role(subject_type, subject_id, roles)`, which checks the caller's record team roles.
+  
+  Upgrade: re-run `better-supabase add activities` and `better-supabase add subjects`, then generate a migration. On your own engagements table, map the new columns to `null` in `blocks.activities.columns.engagements` to leave them out. To keep every engagement editable, set `blocks.activities.options.lockTypes: []`.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - New `prompts` block (`better-supabase/blocks/prompts`) for versioned prompt templates. `create`
+  saves the next immutable version of a named prompt, per tenant or for the whole system, and
+  `setLabel` points a label such as `production` at a version. `get` reads a label or an exact
+  version, and `render` fills `{{name}}` placeholders and throws on a missing or unused variable.
+  Only the service role reads or writes the tables. Run `better-supabase add prompts` to install it.
+
+- [#638](https://github.com/ScaleDockHQ/better-supabase/pull/638) [`f44a202`](https://github.com/ScaleDockHQ/better-supabase/commit/f44a202cb52e74b41bd77df61a89333645f57c1e) Thanks [@martijn00](https://github.com/martijn00)! - Three new named presets: `psa` (professional services: clients, tasks, time tracked against rate cards, a staffing roster, expenses, quotes, contracts and invoices), `ats` (applicant tracking: hiring pipelines, application forms, interview scheduling, offers with signatures) and `intranet` (announcements, knowledge base, drive, channels, staff directory and policy acknowledgements).
+  
+  Use them with `npx better-supabase init --preset psa` or `defineConfig({ preset: "psa" })`. HR operations stay the `people` preset and the help desk stays `helpdesk`.
+
+- [#656](https://github.com/ScaleDockHQ/better-supabase/pull/656) [`012aadd`](https://github.com/ScaleDockHQ/better-supabase/commit/012aadde118ec1406a053736bd3a92e7dc6b82c4) Thanks [@martijn00](https://github.com/martijn00)! - Purchase bill lines and expense lines carry `dimensions`, so one bill or expense report can split its cost over several projects. A line of a purchase bill (`LineInput.dimensions`) overrides the bill's own `dimensions` per key, and an approved expense report books one expense line per distinct dimension set. `billableTime.projectCosts(projectId)` then counts each part on its project. `add_expense_line` and `update_expense_line` take a `dimensions` argument; a line table of yours without the column refuses it with `EXPENSE_DIMENSIONS_UNSUPPORTED`.
+  
+  Run `better-supabase upgrade` and generate a migration. `invoice_lines` and `expense_lines` gain a `dimensions jsonb not null default '{}'` column, also over your own tables, and the two `add_expense_line` and `update_expense_line` functions get an eighth argument.
+
+- [#612](https://github.com/ScaleDockHQ/better-supabase/pull/612) [`af03cc4`](https://github.com/ScaleDockHQ/better-supabase/commit/af03cc4051a136162314f24cdd1b5afd623afe5b) Thanks [@martijn00](https://github.com/martijn00)! - The `invoices` block keeps purchase bills next to sales invoices. An invoice created with `direction: "purchase"` is a bill from a supplier, with `supplierReference`, a `purchaseOrderId` and `dimensions`; bills number from their own sequence (`BILL-1`, credit notes `BCN-1`), every write on one needs the new `invoices.purchase` permission, and a bill books in the purchase journal (the payable against expense and deductible tax, or against the payable a stock receipt booked for product lines of a purchase order). `db.invoices.match(billId)` (`purchase_bill_match`) runs a three-way match of the bill against its purchase order and received quantities within `options.matchTolerance` (default `{ bps: 100, amount: 500 }`) and emits `invoice.match_checked`; paying a bill that doesn't match fails with `INVOICE_MATCH_FAILED` unless the caller holds `invoices.override_match`. `aging()` takes a `direction`.
+  
+  The `inventory` block adds purchase requisitions (`requestPurchase`, `decidePurchaseRequisition`, `purchaseOrderFromRequisitions`, decided through the `approvals` block when installed, with the `purchase_requisition.created` and `purchase_requisition.approved` events) and receipts: `receivePurchaseOrder` writes an `inventory_receipts` row with its lines, returns `receiptId` and emits `inventory_receipt.created`. With `options.receiptInspection` set to an inspections kind, each receipt schedules an incoming inspection. With `contacts` installed, a blocked supplier can't get a purchase order (`PURCHASE_ORDER_SUPPLIER_BLOCKED`).
+  
+  The `orders` block adds `purchaseOrderFromOrder(orderId, supplier)` for drop ship, with the order's shipping address as the purchase order's `ship_to`. With `contacts` installed, placing an order and issuing a sales invoice check the party's credit limit (`ORDER_CREDIT_LIMIT_EXCEEDED`, `INVOICE_CREDIT_LIMIT_EXCEEDED`) unless the caller holds the new `orders.override_credit` permission. `manufacturing` takes `purchaseSuggestions: "requisition"` to turn purchase suggestions into requisitions.
+  
+  Grant `invoices.purchase`, `invoices.override_match` and `orders.override_credit` to the roles that need them, then run `better-supabase upgrade` and generate a migration. The invoices table gains `direction`, `supplier_reference`, `purchase_order_id` and `dimensions`, also over your own invoices table, and its unique number index now includes `direction`.
+
+- [#597](https://github.com/ScaleDockHQ/better-supabase/pull/597) [`7a1f9b0`](https://github.com/ScaleDockHQ/better-supabase/commit/7a1f9b09d5759d37548348a1deef225af4e0d234) Thanks [@martijn00](https://github.com/martijn00)! - Add the `qms`, `ehs` and `isms` presets. `qms` installs SaaS with the quality blocks (controlled documents in the drive, cases, inspections, risks, qualifications, acknowledgements, courses, assets and metrics) and releases drive documents through an approvals policy. `ehs` installs the same blocks without posts or document control, and `isms` installs SaaS with compliance, risks, inspections, cases, acknowledgements and the drive. Each preset has a docs page, and `init --preset` and `add --preset` accept the new names. `codemod 0.47` now names the policy acknowledgement and sequence run items in its description, and the 0.46 to 0.47 guide gains before and after code for AI document versions and postmortem action items, plus a list of what 0.48 removes.
+
+- [#575](https://github.com/ScaleDockHQ/better-supabase/pull/575) [`ae542af`](https://github.com/ScaleDockHQ/better-supabase/commit/ae542afa62588426d2e6b7b367edf6bcb1c013a8) Thanks [@martijn00](https://github.com/martijn00)! - Quotes take `options.holds`, which needs the inventory block. Sending a quote allocates stock for each tracked catalog line of the published version through `allocate_stock` (document type `quote_version`), keeping what isn't in stock on backorder. The holds end when the quote is revised to draft, withdrawn, expires or is rejected, and when `order_from_quote` makes its order, which allocates its own lines. Sending the next revision releases the earlier versions' holds. `release_quote_holds(quoteId)` releases them for the service role.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`2f8cf9c`](https://github.com/ScaleDockHQ/better-supabase/commit/2f8cf9c07881d4b22d0d98b3e15997ef9812235f) Thanks [@martijn00](https://github.com/martijn00)! - Block reads in a read set know their tables and schema. `blockRead` takes the tables the function reads and the block's API schema, so `s.blocks.deals.board(...)` compiles against the right function without it being in your schema metadata, and `bsb.tags(readSet)` tags a `"use cache"` scope with those tables. `bsb.blockAction` takes `invalidates` (for example `reads.deals.board.tables`) to drop the tagged entries after a successful write. `readSetTables` includes the tables of a block read.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`ad6b8f3`](https://github.com/ScaleDockHQ/better-supabase/commit/ad6b8f3dddd5bdf5a8c1592e62454322b948c1d9) Thanks [@martijn00](https://github.com/martijn00)! - Read sets accept database functions through `s.$fn.<function>(args)`. The function runs as the caller inside the single `rs_<name>` round trip, must be stable or immutable, and falls back to one `$rpc` call when the read set runs without the generated function.
+
+- [#572](https://github.com/ScaleDockHQ/better-supabase/pull/572) [`14e8a98`](https://github.com/ScaleDockHQ/better-supabase/commit/14e8a986a34df01d19380aaac2b317537787a4d0) Thanks [@martijn00](https://github.com/martijn00)! - Access requests can name one record instead of a role. With the `subjects` block installed and a type that declares `team`, `request_record_access(subject_type, subject_id, action, reason, duration)` (the client's `requestRecord`) files a request for one action, `read` by default, for 7 days unless it names a duration. The record's team leads approve it, or the holders of `subjects.manage` when the record has no lead. The final approval adds a `subject_members` row whose new `ends_at` column is the end of the grant, and `end` or `expire_access_grants()` closes it without touching access the member already had. A block can contribute an `access-requests` grant for its own subject type, and the module calls its grant function instead. Invalid requests fail with `ACCESS_REQUEST_RECORD_INVALID`.
+  
+  Emergency access opens a record at once and is reviewed afterwards. `open_emergency_access` (`openEmergency`) needs the new `access_requests.emergency` key and a reason of at least 10 characters (`ACCESS_REQUEST_REASON_REQUIRED`), grants an emergency team row for `options.emergency.maxHours` (8 by default), notifies the record's leads and the holders of the new `access_requests.review` key, and emits `access_request.emergency_opened`. `review_emergency_access` (`reviewEmergency`) records a `justified` or `unjustified` verdict once, never on your own access (`ACCESS_REQUEST_REVIEW_INVALID`), and emits `access_request.emergency_reviewed`; `list_emergency_access` (`emergencies`) lists the grants, unreviewed ones by default.
+  
+  Breaking for TypeScript: `AccessRequest` is now `RoleAccessRequest | RecordAccessRequest`, told apart by `target`, and `AccessRequestEventData.role` is `string | null`. Code that reads `request.role` narrows on `target === "role"` first; `request()` still returns a `RoleAccessRequest`. The `access.*` events carry `target`, `subjectType`, `subjectId` and `action`, so an authorization provider's adapter that grants roles from `access.request_approved` checks `target`. With an authorization provider, list `access_requests.emergency` and `access_requests.review` among its permissions. Run `better-supabase upgrade` and generate a migration to pick up the columns and functions.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`df06190`](https://github.com/ScaleDockHQ/better-supabase/commit/df06190705cb04c2e5d66049ab3e6da9f60bf86a) Thanks [@martijn00](https://github.com/martijn00)! - New `bsb.recordAt(type, id)` with `can`, `copyTo`, `trash` and `restore`, a `copy` hook on record bindings, and `copyBindings`. The `custom-fields`, `field-history`, `reactions`, `drive` and `signatures` blocks now bind to a record, and the signatures client takes the request tenant.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - Five blocks gain regulatory workflows (ADR 0187). `moderation` records DSA statements of reasons,
+  notices from trusted flaggers and appeals, and exports a transparency report as CSV. `incidents`
+  keeps a regulatory profile per incident and one filing per NIS2, DORA or CRA deadline, with a
+  `reminders` rule for each when that block is installed. `consents` records Sec-GPC as an opt-out,
+  stores parsed IAB TCF v2.2 and GPP strings as evidence, and issues consent receipts.
+  `data-lifecycle` tracks GDPR data subject requests with identity verification, a 30 day due date
+  and one extension. `compliance` imports OSCAL catalogs and profiles and exports assessment
+  results. Each module gets an upgrade step, so run `better-supabase db diff` to pick up the new
+  tables and functions.
+
+- [#614](https://github.com/ScaleDockHQ/better-supabase/pull/614) [`247efb7`](https://github.com/ScaleDockHQ/better-supabase/commit/247efb7fb3fdf4c68b148d1c1eaa2a71ebee761d) Thanks [@martijn00](https://github.com/martijn00)! - Removed `acknowledgePolicy`, `acknowledgements(policyId)`, the `pendingOnly` list option and `policySubjectType` from the compliance client, and `inbox.contacts.upsert` with the `upsert_contact` function from the inbox. Use `db.acknowledgements.acknowledge`, `mine` and `status`, and `contacts.savePerson` with `contacts.addIdentity`. Run `better-supabase upgrade` to drop the function.
+
+- [#660](https://github.com/ScaleDockHQ/better-supabase/pull/660) [`8017283`](https://github.com/ScaleDockHQ/better-supabase/commit/8017283300d05a1f602333437b771ca1fb948791) Thanks [@martijn00](https://github.com/martijn00)! - New `rfqs` block (`better-supabase/blocks/rfqs`): requests for quotation sent to suppliers, their quotes side by side, and an award that creates a purchase order.
+  
+  - `createRfq`, `updateRfq`, `getRfq` and `listRfqs` keep numbered requests (`RFQ-1`) with lines that move from draft to open, closed and awarded or cancelled.
+  - `inviteSupplier` and `declineInvitation` name suppliers by party type and id. With the contacts block the party must be an active supplier.
+  - `recordQuote` stores a supplier's unit prices and revises them in place. `withdrawQuote` takes a quote out of the comparison.
+  - `compare` lists the live quotes cheapest first and marks the best unit price per line.
+  - `award` rejects the other quotes and, with the inventory block and a `location`, creates a draft purchase order at the quoted prices.
+  - The permission keys are `rfqs.read`, `rfqs.write` and `rfqs.manage`.
+  
+  Run `better-supabase add rfqs` and generate a migration.
+
+- [#637](https://github.com/ScaleDockHQ/better-supabase/pull/637) [`e356f74`](https://github.com/ScaleDockHQ/better-supabase/commit/e356f74b09c2e8182f2776953da0f38e5441c154) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/blocks/dispatch` orders route stops through a new versioned port, `RouteOptimizer` (`apiVersion: 1`).
+  
+  - `dispatch.optimizeRoute(technicianId, day, { locate, optimizer?, start?, end? })` orders a technician's day and plans it as their route.
+  - `nearestNeighbourOptimizer` is the fallback, `fetchRouteOptimizer` posts the stops to a routing service, and `optimizeStops` never throws: a failing optimizer or an invalid order falls back and reports `source: "fallback"`.
+  - `planVisits` orders the bookings of one shift for home care and flags visits that end after the shift.
+  
+  No migration is needed.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`7323dea`](https://github.com/ScaleDockHQ/better-supabase/commit/7323dea4723968a5205812afc6a6365866960f2d) Thanks [@martijn00](https://github.com/martijn00)! - Block tables write audit row entries through deferred row triggers, and a row that a block function already recorded in the same transaction appears once. `blocks.audit.options.blockTables` (`"entities"`, `"all"` or `"none"`) sets the scope, and `better-supabase table enable audit` writes the registration into your schema file. Run `better-supabase upgrade` and generate a migration.
+
+- [#647](https://github.com/ScaleDockHQ/better-supabase/pull/647) [`b53e08b`](https://github.com/ScaleDockHQ/better-supabase/commit/b53e08bf62fab0419fce57ef1a89bc1fb0196e40) Thanks [@martijn00](https://github.com/martijn00)! - Invoices, credit notes, quotes and orders can be imported as historical documents through the
+  `imports` block. Each keeps its number, original dates, final status, buyer snapshot and stored
+  totals, and writes no events, stock movement or accounting posting. A tax or total that differs from
+  the computed one is reported as an item warning, and `upsertBatch` now returns `warnings`. Document
+  lines gain `discountAmount`, `costSource`, `locationId`, `binId` and a billing party, and
+  `document_totals_by_billing_party` reports totals and cost per billing party.
+
+- [#654](https://github.com/ScaleDockHQ/better-supabase/pull/654) [`f8b8774`](https://github.com/ScaleDockHQ/better-supabase/commit/f8b8774f8a18d019118e6857f68a62c2f38b818f) Thanks [@martijn00](https://github.com/martijn00)! - Quotes and orders can have variants, and invoices can be built from several sources at once.
+  `quotes.createVariant`, `listVariants` and `selectVariant` (with `forward: "order" | "invoice"`) manage
+  alternative versions of one quote, and an unselected variant can't become an order or invoice.
+  `orders.setVariant`, `listVariants` and `selectVariant` do the same for orders. New columns on `quotes` and
+  `orders`: `variant_of`, `variant_label` and `is_selected`; existing databases get them from the migration
+  `sales_variants_collective_invoices`. `invoices.invoiceFromSources` bills delivered orders, shipments and
+  unbilled time for one party, one invoice per billing party and currency, keeps each line's origin in the
+  new `invoice_line_sources` table, invoices every source once, and supports partial quantities of order
+  lines. `invoices.sourcesReadyToInvoice` lists what is left to bill.
+
+- [#595](https://github.com/ScaleDockHQ/better-supabase/pull/595) [`e920e8d`](https://github.com/ScaleDockHQ/better-supabase/commit/e920e8dd81fd4ab5833efa52b875573f7fcf9c8f) Thanks [@martijn00](https://github.com/martijn00)! - Sequence runs are now enrollments (ADR 0131). Each run is a row in `enrollments` whose `program` is `sequence:<sequence id>`, and the `sequence_enrollments` table is gone. The run's own columns move onto `enrollments` with a `sequence_` prefix (`sequence_id`, `sequence_address`, `sequence_mail_thread_id` and the rest), the next step is the run's open `enrollment_steps` row with `due_at`, a paused run has the new `paused_at` column, and an exited run is `cancelled` with the reason in the new `cancel_reason` column. `upgrade` renders a data step that copies each `sequence_enrollments` row onto its enrollment and next step, then drops the table. The sequences client keeps its methods and the run shape it returns.
+  
+  ```sql
+  -- Before
+  select address, status, step, next_run_at
+  from better_supabase.sequence_enrollments
+  where sequence_id = $1;
+  
+  -- After
+  select x.sequence_address, x.status, x.paused_at, x.cancel_reason, s.step, s.due_at
+  from better_supabase.enrollments x
+  left join better_supabase.enrollment_steps s
+    on s.enrollment_id = x.id and s.completed_at is null
+  where x.sequence_id = $1;
+  ```
+  
+  Run events are the enrollment events, with `program` in the payload. The enrollments block adds `enrollment.paused` and `enrollment.resumed`, and `enrollment.cancelled` carries an optional `reason`.
+  
+  | Before                                                 | After                                                    |
+  | ------------------------------------------------------ | -------------------------------------------------------- |
+  | `sequence_enrollment.created`, `.step_completed`       | `enrollment.created`, `.step_completed`                  |
+  | `sequence_enrollment.paused`, `.resumed`, `.completed` | `enrollment.paused`, `.resumed`, `.completed`            |
+  | `sequence_enrollment.exited`                           | `enrollment.cancelled`, with the exit reason in `reason` |
+  
+  ```ts
+  // Before
+  await outbox.register("crm", { types: ["sequence_enrollment.completed"] });
+  
+  // After: other programs emit enrollment.completed too, so check data.program
+  await outbox.register("crm", { types: ["enrollment.completed"] });
+  ```
+  
+  `better-supabase codemod 0.47` lists the old types for review, doctor reports them (BS424) and `sequence_enrollments` in your code, and the stored-type data step renames them in the outbox, automations and timeline. Until 0.48, the outbox `legacyEventTypes` option relays a sequence run event under its old name, `legacyEventType(type, data)` returns it for a payload whose `program` starts with `sequence:`, and `SequenceEnrollmentEventData` is a deprecated alias of `EnrollmentEventData`. `PROGRAM_EVENT_MOVES` (`better-supabase`) lists the moves.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`b8664a1`](https://github.com/ScaleDockHQ/better-supabase/commit/b8664a1fb139ef71ca8c9ba4bee0cd0a6a390510) Thanks [@martijn00](https://github.com/martijn00)! - Recurrence rules expand in one place. The new `better-supabase/recurrence` entry exports
+  `expandRule` and `rruleOccurrences`, and the new `recurrence` SQL module adds
+  `better_supabase.rrule_occurrences` and `rrule_next`, which return the same instants. The
+  calendar block's `calendar_rule_starts` now wraps it, and the templates block gains
+  `due_template_occurrences`. Run `better-supabase upgrade` to install the module.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`e70ddb3`](https://github.com/ScaleDockHQ/better-supabase/commit/e70ddb3f70ad91cca733c8bc6d63917fdd96d5a9) Thanks [@martijn00](https://github.com/martijn00)! - SLA policies take an escalation ladder. `savePolicy` accepts `escalations`, a list of steps with `at` (the share of the clock's time), `action` (`notify`, `reassign` or `page`) and a `target` for `reassign`. `check()` fires each step once per clock, records it in `sla_escalations` and emits `sla.escalated`. A type's `on` binding takes an `owner` column that `reassign` writes.
+  
+  Run `better-supabase upgrade` and generate a migration: it adds `sla_policies.escalations` and the `sla_escalations` table.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`5510315`](https://github.com/ScaleDockHQ/better-supabase/commit/55103158d93c73f6b63eb43a0ef1024039c33f8a) Thanks [@martijn00](https://github.com/martijn00)! - The `comments`, `inbox`, `workflows`, `enrollments`, `automations` and `sequences` SQL modules now
+  call `before_` and `after_` hooks around their write functions: `create_comment`, `assign_comment`,
+  the inbox start, send, assign and status change functions, `create_workflow_schedule`,
+  `request_workflow_start`, `enroll`, `cancel_enrollment`, `save_rule`, `remove_rule`, `save_sequence`
+  and `enroll_in_sequence`. Define a function named after the hook (for example
+  `before_comment_create`) and the module calls it. Run `better-supabase upgrade` to regenerate the
+  module files.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`fa1a0f2`](https://github.com/ScaleDockHQ/better-supabase/commit/fa1a0f2a5fd1ffce3b98b66bcef197d891d0eef4) Thanks [@martijn00](https://github.com/martijn00)! - `deals.update` takes `{ changes, strict }` instead of the changes array. Both `deals.update` and `tasks.update` accept `strict: true`, which returns the first refused change as a `raised` error that keeps its hint as the code, instead of listing it in `rejected`. Wrap an existing call as `update({ changes })`.
+
+- [#581](https://github.com/ScaleDockHQ/better-supabase/pull/581) [`777dc23`](https://github.com/ScaleDockHQ/better-supabase/commit/777dc23d370a3470da432a19f09771bf9991dd93) Thanks [@martijn00](https://github.com/martijn00)! - Reads of a record can be logged. Set `subjects.<type>.auditReads: true` (it needs the `audit` block and a tenant column) and the block read functions for that type, `record_summary`, `list_comments`, `list_activity`, `list_status_history` and `read_field_values`, call `record_subject_read`, which writes one audit entry in the `read` category with `{ subjectType, subjectId, purpose, emergency, block, function }` and emits `subject.accessed`. Repeated reads by the same person with the same purpose collapse within `blocks.subjects.options.reads.collapseSeconds` (60 by default; 0 logs every read), and a read made during emergency access is flagged `emergency`. `subject_access_log(subject_type, subject_id, since, max_rows)` lists the reads to the record's team leads, `audit.read` holders, and through guests the client or a representative with `act` authority; anyone else gets `SUBJECT_READ_FORBIDDEN`. The client adds `db.subjects.reads.log()` and `reads.list()`. Plain PostgREST selects are not logged, so revoke `select` on the table when every read must go through a function. Block SQL gains `ctx.read()` and `ctx.readVolatility()` to log reads from its own functions. Run `better-supabase upgrade` and generate a migration to pick up the functions.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`091e9c1`](https://github.com/ScaleDockHQ/better-supabase/commit/091e9c17ee237f0b64971f378a860e2b2ed91eaa) Thanks [@martijn00](https://github.com/martijn00)! - `subjects.can`, `subjects.view` and `subjects.record(subject)` check a batch of actions through `can_subject` and read a record's header with them in one call. The `subjects` module now exposes `can_subject` to members.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`8b2b1d7`](https://github.com/ScaleDockHQ/better-supabase/commit/8b2b1d7fd727809875a2b2e66cf6c9a60b238449) Thanks [@martijn00](https://github.com/martijn00)! - The `@bsb` table tags gain `history`, `lifecycle` and a real `audit-reads`: `history title body` keeps the old and new value of those columns through `field-history`, `lifecycle stage=status pipeline=deals` binds the table to `pipelines`, and `audit-reads` turns on `auditReads` for the table's record type. `better-supabase table enable expose` writes the Data API grant into your schema file. Block entities can set `subject.realtime` to track their table for Realtime.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`b3881c6`](https://github.com/ScaleDockHQ/better-supabase/commit/b3881c64fe37bb72bee05cfd3562276d1ab501da) Thanks [@martijn00](https://github.com/martijn00)! - New `tasks.assignToMe({ workItemId, userId })`: it adds the user to the assignees and keeps the others. The caller passes the user id because the client has no signed-in user.
+
+- [#642](https://github.com/ScaleDockHQ/better-supabase/pull/642) [`d3a43b3`](https://github.com/ScaleDockHQ/better-supabase/commit/d3a43b3d411bae2d49d4c101308e307692e1d71e) Thanks [@martijn00](https://github.com/martijn00)! - The new `tax` block (`better-supabase/blocks/tax`, category commerce) keeps tax codes per organization
+  and legal entity, with a type (`sales`, `purchase`, `exempt`, `zero`, `reverse_charge`,
+  `intra_eu_goods`, `intra_eu_services`, `export` or `margin`), the accounts a code posts to and its
+  return boxes. Rates are dated: `saveRate` adds one, `rateOn(codeId, date)` reads the one valid on a
+  day, and a document uses the rate of its date. `computeDocumentTax` returns the totals per code; the
+  margin scheme taxes the margin (price less cost) and shows no tax amount, and `creditRestrictionBps`
+  taxes a reduced base. Issuing an invoice resolves its lines to codes (`tax_code_id`, or the
+  `tax_code` text) and writes `invoice_tax_lines`. `prepareReturn` builds a tax return with box totals
+  and the intra-EU sales list per customer VAT number, and `fileReturn` freezes it. Imports gain the
+  `tax_code` and `tax_rate` targets, events `tax_code.created`, `tax_code.updated` and
+  `tax_return.prepared`, and permissions `tax.read` and `tax.manage`.
+  
+  Breaking: tax codes moved out of `accounting`. The `accounting_tax_codes` table, the
+  `saveTaxCode` and `taxCodes` methods and the `save_accounting_tax_code` and
+  `list_accounting_tax_codes` functions are gone, `accounting` now requires `tax`, and
+  `accounting.taxReport` reads from `tax_codes`. Call `tax.saveCode` and `tax.codes` instead, and run
+  `better-supabase upgrade` and `db diff`. The migration guide has the SQL that copies the rows with
+  their ids. `better-supabase codemod 0.47` lists the old names.
+
+- [#665](https://github.com/ScaleDockHQ/better-supabase/pull/665) [`d4307c5`](https://github.com/ScaleDockHQ/better-supabase/commit/d4307c5b561eece814b2808fb6c6cb896ad6b423) Thanks [@martijn00](https://github.com/martijn00)! - New `tills` block (`better-supabase/blocks/tills`): till sessions, cash movements, end-of-day counts and bank deposits for a point of sale. The `pos` preset installs it.
+  
+  - `createTill` and `updateTill` keep cash drawers with a currency and an optional accounting cash account.
+  - `openSession` starts a shift with an opening float, and a till has one open session at a time.
+  - `recordMovement` records cash sales, refunds, cash in and cash out. A refund or cash out cannot take more than the drawer holds.
+  - `closeSession` counts the drawer from denominations or a total and books the variance in accounting.
+  - `deposit` takes counted cash to the bank, and `reconcileDeposit` matches it to a banking transaction.
+  - The permission keys are `tills.read`, `tills.write` and `tills.manage`.
+  
+  Run `better-supabase add tills` and generate a migration.
+
+- [#688](https://github.com/ScaleDockHQ/better-supabase/pull/688) [`d1188e8`](https://github.com/ScaleDockHQ/better-supabase/commit/d1188e84462b5686db129eea0ffebe0feb92be8a) Thanks [@martijn00](https://github.com/martijn00)! - The `usage` block turns its history into invoices. With `options.history` and the `invoices` block,
+  `usage.setPrice` stores a unit price and an included quantity per meter and currency, and
+  `usage.billPeriod({ organizationId, periodStart, periodEnd })` rates the period's usage into one
+  draft invoice, once per tenant and period. The module adds the `usage_meter_prices` and
+  `usage_billed_periods` tables and the service-only functions `set_usage_price` and
+  `bill_usage_period`, so run `better-supabase upgrade` to regenerate it.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - New subpath `better-supabase/verifiable-credentials` issues SD-JWT VC and W3C VC 2.0 credentials
+  through the OpenID4VCI 1.0 pre-authorized code flow and verifies OpenID4VP 1.0 presentations
+  (`SPEC_PINS.openid4vci`, `SPEC_PINS.openid4vp`, `SPEC_PINS.sdJwt`, `SPEC_PINS.sdJwtVc`,
+  `SPEC_PINS.vcDataModel`). `createCredentialIssuer` takes sources (`qualificationSource`,
+  `courseCompletionSource`, `passSource`) and an `IssuanceStore`; `signerFromSigningKeys` signs with
+  the `signing-keys` block. `StatusList` revokes credentials as a Token Status List or a Bitstring
+  Status List. The `mfa` controllers gain `registerPasskey` and `verifyPasskey` over Supabase Auth's
+  WebAuthn support, and the `contacts` block gains vCard 4.0 import and export with `.vcf` download
+  helpers (`SPEC_PINS.rfc6350`, `SPEC_PINS.webauthn`).
+
+- [#661](https://github.com/ScaleDockHQ/better-supabase/pull/661) [`9b3984c`](https://github.com/ScaleDockHQ/better-supabase/commit/9b3984c4ac8e2fcdfa10a239364939bcfad5946f) Thanks [@martijn00](https://github.com/martijn00)! - New `warehouse` block (`better-supabase/blocks/warehouse`): pick waves and pick lists made from `inventory` allocations, picking work items, and cycle count plans.
+  
+  - `createPickList` makes a line per open allocation of a document at a location, starting with the bin and lot that hold the most stock. `recordPick` confirms the bin, lot and serial numbers and the quantity found, and `completePickList` marks lines with less picked than asked for as `short`. Stock moves when the document ships, not when it is picked.
+  - `createPickWave`, `releasePickWave` and `cancelPickWave` group lists. With the `tasks` block each list gets a work item for the picker.
+  - `createCountPlan`, `runDueCountPlans` and `runCountPlan` open `inventory` stock counts on a schedule. `postCycleCount` posts a count through inventory and holds one with a line over the plan's variance limit (5 percent by default) until it is called with `approve: true`.
+  - The permission keys are `warehouse.read`, `warehouse.pick` and `warehouse.manage`.
+  
+  Add `warehouse: {}` to `blocks`, run `better-supabase add warehouse` and generate a migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`a66e4c6`](https://github.com/ScaleDockHQ/better-supabase/commit/a66e4c6a3818870127ffd68fbed849b615c493ef) Thanks [@martijn00](https://github.com/martijn00)! - The warehouse block suggests putaway (rules, bins that hold the variant, free bins by walking rank, also per goods receipt) and slotting (fast movers into the closest bins), saves walking routes on pick lists and orders them through the `RouteOptimizer` port with its nearest-neighbour fallback (`optimizePickRoute`), and `completePickList` now moves the picker's work item to done. New tables: `putaway_rules`, `bin_slots`, `variant_sizes`; new column `pick_lines.route_position`. See ADR 0181.
+
+### Patch Changes
+
+- [#617](https://github.com/ScaleDockHQ/better-supabase/pull/617) [`cbe085b`](https://github.com/ScaleDockHQ/better-supabase/commit/cbe085b7fa00da46e8becf48b45f8b06024bae5f) Thanks [@martijn00](https://github.com/martijn00)! - The `accounting` block now books invoice charges and write-offs. Adding a charge books receivable
+  against revenue, removing it or voiding the invoice reverses the entry, and `writeOff` books the
+  open balance as an expense. Named block instances book too when their `uses` binds an accounting
+  instance. `project_costs` leaves billed time out of the total when its revenue is already booked
+  to the project dimension. Two data steps backfill project dimension values for existing projects
+  and seed the missing `disposal_gain` and `disposal_loss` accounts. Run `better-supabase upgrade`
+  and apply the new migrations.
+
+- [#628](https://github.com/ScaleDockHQ/better-supabase/pull/628) [`8ffaffc`](https://github.com/ScaleDockHQ/better-supabase/commit/8ffaffc863a41552fa7d9dfbff36921b30e36d3a) Thanks [@martijn00](https://github.com/martijn00)! - Doctor rule BS425 reports a `members` table adopted for sequence runs in `blocks.sequences.tables`, which the 0.47 upgrade does not move, and `codemod 0.47` lists the key for review. The migration guide states that event subscriptions can't filter on a program.
+
+- [#609](https://github.com/ScaleDockHQ/better-supabase/pull/609) [`53700c8`](https://github.com/ScaleDockHQ/better-supabase/commit/53700c8a0621b2d85e1421a0265d2b89c3926338) Thanks [@martijn00](https://github.com/martijn00)! - The `audit.revealed` entry an export writes lists the revealed entry ids in the order they occurred, instead of the order Postgres happened to scan them.
+
+- [#623](https://github.com/ScaleDockHQ/better-supabase/pull/623) [`bf442aa`](https://github.com/ScaleDockHQ/better-supabase/commit/bf442aab787e747f51c0b7a30a7ffe48c947d610) Thanks [@martijn00](https://github.com/martijn00)! - - Seven blocks change manifest category to match their docs group: `incidents` and `assignment` to `work`, `enrollments` to `people`, `lead-scoring` to `crm`, and `trash`, `versions` and `imports` to `database`. Block page URLs do not change.
+
+- [#604](https://github.com/ScaleDockHQ/better-supabase/pull/604) [`3e28c97`](https://github.com/ScaleDockHQ/better-supabase/commit/3e28c9762fca75a41379a79e6d823294b9284d6b) Thanks [@martijn00](https://github.com/martijn00)! - A compliance policy that requires acknowledgement now reaches every member, owners and admins
+  included. It is assigned to the new every-member principal (a `role` assignment with the id `*`)
+  instead of the `member` role. `assign_acknowledgement` and `db.acknowledgements.assign` accept
+  `{ type: "role", id: "*" }`, and the data step moves existing policy assignments of the `member`
+  role onto it. Run `better-supabase add --adopt` after upgrading.
+
+- [#576](https://github.com/ScaleDockHQ/better-supabase/pull/576) [`a92ff7c`](https://github.com/ScaleDockHQ/better-supabase/commit/a92ff7c2158209bfdc7f970d69896850e54f8263) Thanks [@martijn00](https://github.com/martijn00)! - Fixes in `better-supabase/create/lite`:
+  
+  - `verifyQuery` reports a policy `to public` with the role `public`. It tested the joined `pg_roles` row, which role 0 doesn't have, so the policy applied to no role and the matrix marked it `denied`.
+  - `accessMatrixTests` tries a select as `select 1 from <table>`. The `count(*)` query always returned one row, so a select that row level security denies failed as `rows:1`.
+  - `verifyFiles` returns the files Postgres rejects as `sql_error` issues and the modules PGlite skips in `skipped`, as `validateDesign` does. Before, a rejected file dropped its tables from the catalog without an issue.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`d69559b`](https://github.com/ScaleDockHQ/better-supabase/commit/d69559b911e139e8b7cf22d934981a1508998193) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` no longer reports BS509 for a call on `$blocks.<block>` that names another block, or for a file that never reaches a block client.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`9054ec0`](https://github.com/ScaleDockHQ/better-supabase/commit/9054ec0377be11cfd26f9b570bb631e0cc6ae091) Thanks [@martijn00](https://github.com/martijn00)! - Doctor reports BS508 when an installed block declares timers and no source calls `blockTickHandler`.
+
+- [#611](https://github.com/ScaleDockHQ/better-supabase/pull/611) [`a58600c`](https://github.com/ScaleDockHQ/better-supabase/commit/a58600c06aa7cefd12c213d60445c0c741f224dd) Thanks [@martijn00](https://github.com/martijn00)! - `enrollment_ensure` now emits `enrollment.completed` when a resync removes the steps that were left and completes the enrollment. Run `better-supabase upgrade` to update the function.
+
+- [#674](https://github.com/ScaleDockHQ/better-supabase/pull/674) [`137b8d4`](https://github.com/ScaleDockHQ/better-supabase/commit/137b8d4ceb1b036797198d9511fb958ce7924eea) Thanks [@martijn00](https://github.com/martijn00)! - Four gaps of the ERP import work are closed. A document with no legal entity and a document of the
+  default entity now share one number series, so they can't hold the same number
+  (`LEGAL_ENTITY_NUMBER_TAKEN`), and `set_default_legal_entity` refuses a switch that would create a
+  duplicate. `legalEntities.disableCheck()` lists the numbers that block turning a kind of
+  `options.on` off, and the restore raises `LEGAL_ENTITIES_DISABLE_COLLISION` instead of a unique
+  violation. `invoices.recomputeTotals()` repairs the stored totals of invoices issued before the
+  credit restriction, as a dry run by default, audit logged and without touching posted ledger
+  entries. `prepareIntrastat` derives arrival lines from purchase receipts that name a member state,
+  lets a manual line win, and the Intrastat functions join the `api` schema without an
+  `api.functions` entry. Receipt lines of `receivePurchaseOrder` accept `country` and `netMassKg`. The
+  new option `blocks.invoices.options.correctionEvents` sends `invoice.totals_corrected` to the
+  outbox. Run `better-supabase upgrade` and apply the new migration.
+
+- [#689](https://github.com/ScaleDockHQ/better-supabase/pull/689) [`bc33514`](https://github.com/ScaleDockHQ/better-supabase/commit/bc33514a769d8a2812866b9aaecd9fe8c1da149f) Thanks [@martijn00](https://github.com/martijn00)! - Index the foreign keys of the moderation DSA tables: `moderation_notices.item_id`, `moderation_flaggers.user_id` and `moderation_appeals.appellant_id`. Run `better-supabase upgrade` and add the generated migration.
+
+- [#690](https://github.com/ScaleDockHQ/better-supabase/pull/690) [`c5f0b73`](https://github.com/ScaleDockHQ/better-supabase/commit/c5f0b730199977bff3582ac38cbac1714b40062a) Thanks [@martijn00](https://github.com/martijn00)! - The `moderation` block indexes the foreign keys of its DSA notices, flaggers and appeals tables, so
+  joins and cascading deletes no longer scan them. Run `better-supabase upgrade` to regenerate the
+  module. The MT940 parser also drops the `NOTPROVIDED` end-to-end id that German banks write when a
+  payment has none.
+
+- [#603](https://github.com/ScaleDockHQ/better-supabase/pull/603) [`fb67fe2`](https://github.com/ScaleDockHQ/better-supabase/commit/fb67fe25c742dcb5ae0f729d2c268e4639da9f25) Thanks [@martijn00](https://github.com/martijn00)! - The incidents module copies existing postmortem `action_items` into tasks. With `tasks` installed,
+  `better-supabase add --adopt` writes a data step that calls `add_incident_postmortem_action` for
+  each item, keeps the `action_items` column readable and skips a postmortem that already has linked
+  actions, so it is safe to run again.
+
+- [#629](https://github.com/ScaleDockHQ/better-supabase/pull/629) [`7e7e6c8`](https://github.com/ScaleDockHQ/better-supabase/commit/7e7e6c8a37329b7630f3946c3d7b930c9f09e58e) Thanks [@martijn00](https://github.com/martijn00)! - A preset's block options now merge key by key with the options you set on the same block in
+  `defineConfig`, so `blocks: { attachments: { options: { requireScan: true } } }` keeps the preset's
+  `publicBuckets` instead of replacing the whole `options` object.
+
+- [#607](https://github.com/ScaleDockHQ/better-supabase/pull/607) [`2cc6f51`](https://github.com/ScaleDockHQ/better-supabase/commit/2cc6f51fa15fd7953c954f031cc9243abf27ba0b) Thanks [@martijn00](https://github.com/martijn00)! - `activities_of`, `list_attachments` and `read_field_values` now log a read of the record they
+  return when its subject type sets `auditReads`. Nothing is logged for an empty result or a list
+  that names no single record. Apply the new migration with `better-supabase upgrade`.
+
+- [#631](https://github.com/ScaleDockHQ/better-supabase/pull/631) [`845f585`](https://github.com/ScaleDockHQ/better-supabase/commit/845f585b95ecda932676ea665bb3f538774819fd) Thanks [@martijn00](https://github.com/martijn00)! - The risk heatmap recipe shows an empty state instead of an error when the organization has no risk matrix yet.
+
+- [#568](https://github.com/ScaleDockHQ/better-supabase/pull/568) [`956e3b1`](https://github.com/ScaleDockHQ/better-supabase/commit/956e3b16b6cd4e62e263d2be6b85748f135c2d2d) Thanks [@martijn00](https://github.com/martijn00)! - The app table seal trigger no longer seals a value that already carries the `bsf1:` prefix, so an upsert stores its encrypted values once instead of wrapping the `excluded` ciphertext a second time. A row that moves to another owner with the value unchanged is still sealed again with the new owner's key, and a lookup hash is rewritten when its ciphertext changes. Run `better-supabase upgrade` and `supabase:diff` to pick up the new trigger.
+  
+  Doctor's BS352 (plain secret column) now also reports columns that end in `header_value`, such as `auth_header_value`. It skips columns marked in an `@bsb encrypted` table tag, and columns that a `before` row trigger seals when its function is listed in the new `tooling.doctor.sealTriggers` option.
+
+- [#691](https://github.com/ScaleDockHQ/better-supabase/pull/691) [`07d9d7a`](https://github.com/ScaleDockHQ/better-supabase/commit/07d9d7aa1a6f3c4aee1cda21e05dc2589174d0fa) Thanks [@martijn00](https://github.com/martijn00)! - `checkProject` now reports a `seeds.variants` entry that names an unknown block or a variant the block doesn't declare, as `unknown_seed_block` and `unknown_seed_variant` issues.
+
 ## 0.46.0
 
 ### Minor Changes
