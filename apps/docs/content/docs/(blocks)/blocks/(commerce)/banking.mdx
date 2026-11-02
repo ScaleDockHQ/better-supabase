@@ -330,3 +330,7 @@ const status = await banking.reconciliation(accountId).orThrow();
 const board = await db.banking.reconciliationBoard({ accountId }).orThrow();
 const unmatched = board.lines.filter((line) => line.status === "unmatched");
 ```
+
+## Write an adapter
+
+A package for the `BankFeed` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).

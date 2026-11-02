@@ -13,6 +13,10 @@ import type {
   CareDecisionContext,
   ClinicalDecisionSupport,
 } from "../blocks/clinical-decision-support/clinical-decision-support.ts";
+import type {
+  RouteOptimizer,
+  RouteRequest,
+} from "../core/route-optimizer.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type {
   PrescribedOrder,
@@ -907,6 +911,95 @@ export function testPrescriptionGateway(
   }
 
   return conform(`PrescriptionGateway "${gateway.key}"`, checks);
+}
+
+export interface TestRouteOptimizerOptions {
+  /** A route with at least three stops. Defaults to three stops in Amsterdam. */
+  readonly request?: RouteRequest;
+}
+
+const AMSTERDAM_ROUTE: RouteRequest = {
+  start: { latitude: 52.3702, longitude: 4.8952 },
+  stops: [
+    { id: "a", point: { latitude: 52.0907, longitude: 5.1214 } },
+    { id: "b", point: { latitude: 52.3676, longitude: 4.9041 } },
+    { id: "c", point: { latitude: 52.1601, longitude: 4.497 } },
+  ],
+};
+
+/**
+ * Proves a `RouteOptimizer` targets API 1, has a name, answers every stop of
+ * `options.request` exactly once and no other id, reports only finite
+ * non-negative totals, answers a single stop with that stop, and an empty route
+ * with an empty order. It calls the real service.
+ */
+export function testRouteOptimizer(
+  optimizer: RouteOptimizer,
+  options: TestRouteOptimizerOptions = {},
+): Promise<ConformanceReport> {
+  const request = options.request ?? AMSTERDAM_ROUTE;
+  const ids = request.stops.map((stop) => stop.id).toSorted();
+
+  const checks: Check[] = [
+    hasApiVersion(optimizer),
+    [
+      "has a name",
+      () => {
+        expect(optimizer.name.trim() !== "", "name must not be empty");
+      },
+    ],
+    [
+      "orders every stop exactly once",
+      async () => {
+        const answer = await optimizer.optimize(request);
+
+        expect(
+          same(answer.order.toSorted(), ids),
+          "the order must list each requested stop id once and no other",
+        );
+      },
+    ],
+    [
+      "reports finite, non-negative totals",
+      async () => {
+        const answer = await optimizer.optimize(request);
+
+        for (const total of [answer.distanceMeters, answer.durationSeconds]) {
+          expect(
+            total === undefined || (Number.isFinite(total) && total >= 0),
+            "distanceMeters and durationSeconds must be finite and not negative",
+          );
+        }
+      },
+    ],
+    [
+      "answers one stop with that stop",
+      async () => {
+        const [first] = request.stops;
+
+        if (first === undefined) {
+          return;
+        }
+
+        const answer = await optimizer.optimize({ ...request, stops: [first] });
+
+        expect(
+          same(answer.order, [first.id]),
+          "a single stop is its own order",
+        );
+      },
+    ],
+    [
+      "answers no stops with an empty order",
+      async () => {
+        const answer = await optimizer.optimize({ ...request, stops: [] });
+
+        expect(same(answer.order, []), "no stops give an empty order");
+      },
+    ],
+  ];
+
+  return conform(`RouteOptimizer "${optimizer.name}"`, checks);
 }
 
 export interface TestVulnerabilityFeedOptions {

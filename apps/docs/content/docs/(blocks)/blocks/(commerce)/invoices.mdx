@@ -821,3 +821,7 @@ result.skipped; // sources that were already invoiced
 ## Invoice helpers
 
 `createAndIssue({ organizationId, input, lines, issuedOn, dueOn })` creates a draft with its lines and issues it. `markPaid({ invoice, method, reference })` records a payment for the invoice's whole `balance`; the reference defaults to `paid:<id>`, so retries are safe. `issueAndSend({ invoiceId, format, channel })` issues the invoice, then sends it as an e-invoice, and returns `{ invoice, delivery }`.
+
+## Write an adapter
+
+A package for the `EInvoiceFormat` and `EInvoiceChannel` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).

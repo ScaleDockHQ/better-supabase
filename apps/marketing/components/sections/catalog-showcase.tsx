@@ -20,7 +20,7 @@ export function CatalogShowcase() {
     <Section
       id="blocks"
       eyebrow="Blocks"
-      title="Add the features every SaaS needs as SQL you own"
+      title="Every feature is a block of SQL you own"
       description={`${String(blocks.length)} blocks in ${String(groups.length)} categories: tables, policies, functions and a typed client for each. They install into your schema, so you read and change them like the rest of your code.`}
     >
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

@@ -20,7 +20,7 @@ export const ensureStatic = "navigation";
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name}: the typed layer for Supabase`,
+    default: `${site.name}: blocks of SQL you own for Supabase`,
     template: `%s | ${site.name}`,
   },
   description: site.tagline,
