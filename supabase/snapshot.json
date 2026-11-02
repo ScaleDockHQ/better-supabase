@@ -309560,6 +309560,17 @@
         ],
         "indexes": [
           {
+            "name": "moderation_appeals_appellant_idx",
+            "columns": [
+              "appellant_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "moderation_appeals_open_notice_idx",
             "columns": [
               "notice_id"
@@ -309893,6 +309904,17 @@
             ],
             "unique": true,
             "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "moderation_flaggers_user_idx",
+            "columns": [
+              "user_id"
+            ],
+            "unique": false,
+            "primary": false,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -310267,6 +310289,17 @@
           }
         ],
         "indexes": [
+          {
+            "name": "moderation_notices_item_idx",
+            "columns": [
+              "item_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
           {
             "name": "moderation_notices_notifier_idx",
             "columns": [

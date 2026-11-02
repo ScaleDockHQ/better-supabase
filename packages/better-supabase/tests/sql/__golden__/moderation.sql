@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:1dd69031a0c959fc3dbc89979d0a1e1717756a787cc87426bc142d3c2bf1e662
+-- @bsb-hash sha256:eb108612408f99106204df7eaaf4fdd107c658ccfb3d7c6b9778d32f882235dc
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,6 +215,7 @@ create table if not exists "better_supabase"."moderation_notices" (
 );
 create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -228,6 +229,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "created_at" timestamptz not null default now()
 );
 create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists "better_supabase"."moderation_appeals" (
@@ -246,6 +248,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
@@ -1372,7 +1375,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:c86ba2e38cd402049412fe18765f704894101d742904c2751880d26954f4bcd2
+-- @bsb-hash sha256:353fc1314cebc657828ccfdfd2ce4481a1a5ce8db8bfe7d71bc14acf15891623
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1586,6 +1589,7 @@ create table if not exists "better_supabase"."moderation_notices" (
 );
 create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -1599,6 +1603,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "created_at" timestamptz not null default now()
 );
 create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists "better_supabase"."moderation_appeals" (
@@ -1617,6 +1622,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
@@ -2847,7 +2853,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:4cd0ab67275955aceda55e97906ae37de436f98e8994e33c01380a9273125ff8
+-- @bsb-hash sha256:d5c58e17d55d589a845185cc77609d2663805f96790ddca9907df4b0942dba55
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3066,6 +3072,7 @@ create table if not exists "app_private"."moderation_notices" (
 );
 create index if not exists "moderation_notices_queue_idx" on "app_private"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "app_private"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "app_private"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -3079,6 +3086,7 @@ create table if not exists "app_private"."moderation_flaggers" (
   "created_at" timestamptz not null default now()
 );
 create unique index if not exists "moderation_flaggers_active_idx" on "app_private"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "app_private"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists "app_private"."moderation_appeals" (
@@ -3097,6 +3105,7 @@ create table if not exists "app_private"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "app_private"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "app_private"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "app_private"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "app_private"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "app_private"."moderation_items" enable row level security;
@@ -4223,7 +4232,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:a64277972a70063c5a097b583676a2fef1aebc4011a7d6579b9944168b0b504e
+-- @bsb-hash sha256:650f7b75feb71579e10ec76de37ff23b5265d0e70584cfbf2f173f9ef530f15b
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4437,6 +4446,7 @@ create table if not exists "better_supabase"."moderation_notices" (
 );
 create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -4450,6 +4460,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "created_at" timestamptz not null default now()
 );
 create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists "better_supabase"."moderation_appeals" (
@@ -4468,6 +4479,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
@@ -5769,7 +5781,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:299688499f8b383645754733ad6602faf0fed68552e9f3dcc406b4f128a88849
+-- @bsb-hash sha256:471f281af2fc2bcdca60c1b66cd4e1f0f0c5e0da5197022dc58709c93b7c1c62
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5992,6 +6004,7 @@ alter table "better_supabase"."moderation_notices" add column if not exists "dec
 alter table "better_supabase"."moderation_notices" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -6004,6 +6017,7 @@ alter table "better_supabase"."moderation_flaggers" add column if not exists "aw
 alter table "better_supabase"."moderation_flaggers" add column if not exists "revoked_at" timestamptz;
 alter table "better_supabase"."moderation_flaggers" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 -- better_supabase.moderation_appeals is the app's table: this block adds only the columns it needs.
@@ -6020,6 +6034,7 @@ alter table "better_supabase"."moderation_appeals" add column if not exists "dec
 alter table "better_supabase"."moderation_appeals" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
@@ -7138,7 +7153,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:94a8c8688ef6aa536f1a86a6926ee21f254beb56916dd8125ed1cf57a4c57b10
+-- @bsb-hash sha256:ac3ec89ffb020d8f028f467d175cff9b9dfe590bd88a09cf565cd88492e5df07
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7352,6 +7367,7 @@ create table if not exists "better_supabase"."moderation_notices" (
 );
 create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("org_id", "trusted" desc, "created_at") where "status" = 'received';
 create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
@@ -7365,6 +7381,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "created_at" timestamptz not null default now()
 );
 create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("org_id", "user_id") where "revoked_at" is null;
+create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
 create table if not exists "better_supabase"."moderation_appeals" (
@@ -7383,6 +7400,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
 create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("org_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
