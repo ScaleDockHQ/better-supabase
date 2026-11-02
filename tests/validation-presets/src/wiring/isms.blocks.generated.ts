@@ -15,6 +15,7 @@ import type { AcknowledgementsEvents } from "better-supabase/blocks/acknowledgem
 import type { RisksEvents } from "better-supabase/blocks/risks";
 import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { InspectionsEvents } from "better-supabase/blocks/inspections";
+import type { AdvisoriesEvents } from "better-supabase/blocks/advisories";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -36,6 +37,7 @@ import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-s
 import { risksBlock as risksBlockInstance } from "better-supabase/blocks/risks";
 import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
 import { inspectionsBlock as inspectionsBlockInstance } from "better-supabase/blocks/inspections";
+import { advisoriesBlock as advisoriesBlockInstance } from "better-supabase/blocks/advisories";
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
@@ -104,6 +106,10 @@ export const blockConfig = {
     options: {},
   },
   inspections: {
+    schema: "better_supabase",
+    options: {},
+  },
+  advisories: {
     schema: "better_supabase",
     options: {},
   },
@@ -194,6 +200,7 @@ export const blocks = {
   risks: risksBlockInstance,
   cases: casesBlockInstance,
   inspections: inspectionsBlockInstance,
+  advisories: advisoriesBlockInstance,
   drive: driveBlockInstance,
   entitlements: entitlementsBlockInstance,
   forms: formsBlockInstance,
@@ -219,6 +226,19 @@ export const permissions = {
     read: "acknowledgements.read",
     manage: "acknowledgements.manage",
     acknowledge: "acknowledgements.acknowledge",
+  },
+  advisories: {
+    read: "advisories.read",
+    write: "advisories.write",
+    publish: "advisories.publish",
+  },
+  advisory: {
+    read: "advisories.read",
+    write: "advisories.write",
+  },
+  advisory_product: {
+    read: "advisories.read",
+    write: "advisories.write",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -354,6 +374,10 @@ export const permissions = {
     restore: "versions.restore",
     manage: "versions.manage",
   },
+  vulnerability: {
+    read: "advisories.read",
+    write: "advisories.write",
+  },
 } as const;
 
 /**
@@ -361,13 +385,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "drive.create" | "drive.manage" | "drive.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "advisories.publish" | "advisories.read" | "advisories.write" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "drive.create" | "drive.manage" | "drive.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & RisksEvents & CasesEvents & InspectionsEvents & DriveEvents & FormsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SettingsEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & RisksEvents & CasesEvents & InspectionsEvents & AdvisoriesEvents & DriveEvents & FormsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SettingsEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -380,6 +404,12 @@ export const blockEvents: Events<BlockEvents> = {
     "acknowledgement.reminded",
     "acknowledgement_assignment.created",
     "acknowledgement_assignment.deleted",
+    "advisory.created",
+    "advisory.published",
+    "advisory.updated",
+    "advisory_product.created",
+    "advisory_product.updated",
+    "advisory_product_version.created",
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
@@ -517,6 +547,7 @@ export const blockEvents: Events<BlockEvents> = {
     "risk.updated",
     "risk_matrix.created",
     "risk_matrix.updated",
+    "sbom_component.imported",
     "subject.accessed",
     "subject_member.added",
     "subject_member.ended",
@@ -530,6 +561,10 @@ export const blockEvents: Events<BlockEvents> = {
     "version.created",
     "version.deleted",
     "version.restored",
+    "vex_statement.saved",
+    "vulnerability.created",
+    "vulnerability.enriched",
+    "vulnerability.exploited",
   ],
 };
 
@@ -542,6 +577,12 @@ export const blockEventSchemas = {
   "acknowledgement.reminded": true,
   "acknowledgement_assignment.created": true,
   "acknowledgement_assignment.deleted": true,
+  "advisory.created": true,
+  "advisory.published": true,
+  "advisory.updated": true,
+  "advisory_product.created": true,
+  "advisory_product.updated": true,
+  "advisory_product_version.created": true,
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,
@@ -679,6 +720,7 @@ export const blockEventSchemas = {
   "risk.updated": true,
   "risk_matrix.created": true,
   "risk_matrix.updated": true,
+  "sbom_component.imported": true,
   "subject.accessed": true,
   "subject_member.added": true,
   "subject_member.ended": true,
@@ -692,6 +734,10 @@ export const blockEventSchemas = {
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
+  "vex_statement.saved": true,
+  "vulnerability.created": true,
+  "vulnerability.enriched": true,
+  "vulnerability.exploited": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

@@ -1,0 +1,23 @@
+{
+  "name": "@better-supabase/example-blocks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Headless block examples that run in tests: tax, document templates, putaway and slotting, appraisal rubrics, field packs, numbering per legal entity, a custom route optimizer and the psa, ats and intranet presets.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-supabase": "workspace:*",
+    "temporal-polyfill": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

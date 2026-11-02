@@ -263,4 +263,28 @@ describe("better-supabase mcp", () => {
       capabilities: { tools: { listChanged: false } },
     });
   });
+
+  it("exposes tools only: no resources or prompts", async () => {
+    const { responses } = await session([
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-06-18" },
+      },
+      { jsonrpc: "2.0", id: 2, method: "resources/list" },
+      { jsonrpc: "2.0", id: 3, method: "prompts/list" },
+    ]);
+
+    expect(responses[0]?.result).toMatchObject({
+      capabilities: { tools: { listChanged: false } },
+    });
+
+    const result: object = responses[0]?.result ?? {};
+    const capabilities = "capabilities" in result ? result.capabilities : {};
+
+    expect(Object.keys(capabilities ?? {})).toEqual(["tools"]);
+    expect(responses[1]?.error?.code).toBe(-32_601);
+    expect(responses[2]?.error?.code).toBe(-32_601);
+  });
 });

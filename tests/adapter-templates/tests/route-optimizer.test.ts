@@ -1,3 +1,4 @@
+import { testRouteOptimizer } from "better-supabase/testing";
 import { describe, expect, it } from "vitest";
 
 import { createRouteOptimizer } from "../src/route-optimizer.ts";
@@ -12,6 +13,21 @@ const request = {
 };
 
 describe("route optimizer", () => {
+  it("passes the conformance block", async () => {
+    const optimizer = createRouteOptimizer({
+      ...OPTIONS,
+      fetch: fakeFetch((call) => ({
+        json: {
+          order: (call.body as { stops: { id: string }[] }).stops.map(
+            (stop) => stop.id,
+          ),
+        },
+      })).fetch,
+    });
+
+    await expect(testRouteOptimizer(optimizer)).resolves.toBeDefined();
+  });
+
   it("returns the service order and its totals", async () => {
     const optimizer = createRouteOptimizer({
       ...OPTIONS,
