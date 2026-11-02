@@ -24,7 +24,7 @@ export const cmsParts: {
 export type CmsParts = typeof cmsParts;
 
 /**
- * The `cms` composite (ADR 0177): content entries with versions, approvals and
+ * The `cms` composite (ADR 0196): content entries with versions, approvals and
  * public media. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */

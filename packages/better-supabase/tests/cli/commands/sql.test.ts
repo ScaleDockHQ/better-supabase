@@ -121,7 +121,9 @@ describe("runSql", () => {
 
     const added = await sql(["add", "billing"], config);
     expect(added.output).toContain("(billing)");
-    expect(added.output).not.toContain("(organizations)");
+    expect(added.output).toContain(
+      "Re-rendered organizations: it integrates with billing.",
+    );
 
     const path = /Created (supabase\/schemas\/\S+) \(billing\)/.exec(
       added.output ?? "",

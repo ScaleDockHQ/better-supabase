@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   EInvoiceChannel,
   EInvoiceFormat,
-} from "../../../src/blocks/invoices/index.ts";
+} from "../../../src/e-invoicing/channel.ts";
 
 import { createInvoices } from "../../../src/blocks/invoices/index.ts";
 import { money } from "../../../src/commerce/money.ts";
@@ -77,16 +77,16 @@ const format: EInvoiceFormat = {
   apiVersion: 1,
   key: "ubl",
   render: (invoice) => ({
-    body: "<Invoice/>",
-    filename: `${invoice.identifier}.xml`,
-    contentType: "application/xml",
+    type: "Invoice",
+    id: invoice.identifier ?? "",
+    xml: "<Invoice/>",
   }),
 };
 
 const channel: EInvoiceChannel = {
   apiVersion: 1,
   key: "memory",
-  send: () => Promise.resolve({ externalRef: "ref-1" }),
+  send: () => Promise.resolve({ messageId: "ref-1" }),
 };
 
 function setup() {
@@ -94,14 +94,20 @@ function setup() {
     create_invoice: () => DRAFT,
     issue_invoice: () => SENT,
     record_invoice_payment: () => ({ ...SENT, status: "paid", balance: "0" }),
-    record_invoice_delivery: () => ({
-      id: "d1",
-      invoiceId: "i1",
-      channel: "memory",
-      format: "ubl",
-      externalRef: "ref-1",
-      filename: "INV-1.xml",
-      sentAt: "2026-10-16T09:00:00Z",
+    invoice_e_endpoints: () => ({ buyer: { scheme: "0106", id: "12345678" } }),
+    list_e_invoice_deliveries: () => [],
+    record_e_invoice_delivery: () => ({
+      created: true,
+      delivery: {
+        id: "d1",
+        organizationId: "o",
+        invoiceId: "i1",
+        direction: "outbound",
+        format: "ubl",
+        channel: "memory",
+        messageId: "ref-1",
+        state: "pending",
+      },
     }),
   });
 
@@ -159,14 +165,16 @@ describe("invoices helpers", () => {
       .orThrow();
 
     expect(done.invoice.status).toBe("issued");
-    expect(done.delivery).toMatchObject({
+    expect(done.delivery.delivery).toMatchObject({
       invoiceId: "i1",
-      externalRef: "ref-1",
-      deliveryId: "d1",
+      messageId: "ref-1",
+      state: "pending",
     });
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "issue_invoice",
-      "record_invoice_delivery",
+      "invoice_e_endpoints",
+      "list_e_invoice_deliveries",
+      "record_e_invoice_delivery",
     ]);
   });
 

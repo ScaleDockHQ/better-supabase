@@ -247,6 +247,20 @@ returns its tracking updates. Tracking events come oldest first, and each has
 an id that the block records once. `testShippingProvider` is its conformance
 kit.
 
+## EInvoiceFormat and EInvoiceChannel
+
+A format renders an issued invoice as an e-invoice document and a channel
+carries it over a network such as Peppol. Both have `apiVersion: 1` and a
+`key`. `EInvoiceFormat` has `render(invoice, context)`, and
+`peppolBis3Format` is the one better-supabase ships. `EInvoiceChannel` has
+`send(document, { recipient, invoice })`, which returns a `messageId`, and
+three optional methods: `lookup(endpoint)` asks whether a participant is on
+the network, `status(messageId)` returns `pending`, `delivered` or `rejected`
+with a reason, and `receive()` returns the documents waiting for the
+organization. The invoices block calls them through `sendEInvoice`,
+`syncEInvoices` and `receiveEInvoices`. `testEInvoiceChannel` is the channel's
+conformance kit.
+
 ## AuthorizationProvider
 
 Hands the SQL modules, the Storage and Realtime policies and doctor to

@@ -5,7 +5,7 @@ import { sqlString } from "../core/template.ts";
 /**
  * `better_supabase.track_realtime(...)` for each entity of `ctx`'s module whose
  * subject sets `realtime`, when the `realtime-tables` module is installed (ADR
- * 0177). The statement keys the topic by the table's tenant column.
+ * 0196). The statement keys the topic by the table's tenant column.
  */
 export function rowRealtimeData(
   ctx: BlockSqlContext,

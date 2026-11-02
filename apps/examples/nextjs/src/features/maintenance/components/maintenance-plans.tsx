@@ -55,7 +55,25 @@ function TitleCell({ row }: PlanCell) {
 function KindCell({ row }: PlanCell) {
   const t = useExtracted("maintenance");
 
-  return <span>{row.original.kind === "time" ? t("Time") : t("Meter")}</span>;
+  switch (row.original.kind) {
+    case "time": {
+      return <span>{t("Time")}</span>;
+    }
+
+    case "meter": {
+      return <span>{t("Meter")}</span>;
+    }
+
+    case "rrule": {
+      return <span>{t("Calendar")}</span>;
+    }
+
+    default: {
+      const unreachable: never = row.original.kind;
+
+      return unreachable;
+    }
+  }
 }
 
 function NextDueCell({ row }: PlanCell) {
@@ -158,7 +176,7 @@ export function MaintenancePlans({
         <FrameTitle>{t("Maintenance plans")}</FrameTitle>
         <FrameDescription>
           {t(
-            "Plans fall due by time or by meter and open dispatch work orders.",
+            "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders.",
           )}
         </FrameDescription>
       </FrameHeader>
@@ -189,7 +207,7 @@ export function MaintenancePlans({
               <EmptyTitle>{t("No maintenance plans yet")}</EmptyTitle>
               <EmptyDescription>
                 {t(
-                  "Create a plan by time or meter, with the spare parts it needs, and work orders open when it falls due.",
+                  "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due.",
                 )}
               </EmptyDescription>
             </EmptyHeader>

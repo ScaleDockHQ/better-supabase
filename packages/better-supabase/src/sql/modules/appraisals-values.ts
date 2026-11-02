@@ -15,3 +15,11 @@ export const APPRAISAL_STATUSES = [
 
 /** Who writes a review. */
 export const APPRAISAL_REVIEW_KINDS = ["self", "peer", "manager"] as const;
+
+/**
+ * Who learns which peer reviewer wrote a review: `none` shows reviewers to
+ * everyone who sees the review, `subject` hides them from the appraised person
+ * and `all` shows a peer reviewer only to that reviewer (and the service
+ * role).
+ */
+export const APPRAISAL_ANONYMITY = ["none", "subject", "all"] as const;

@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/validation-crm",
       "tests/validation-monorepo",
       "tests/validation-request-context",
+      "tests/adapter-templates",
     ],
   },
 });

@@ -26,7 +26,7 @@ export const collaborationParts: {
 export type CollaborationParts = typeof collaborationParts;
 
 /**
- * The `collaboration` composite (ADR 0177): comments, tags, attachments, the
+ * The `collaboration` composite (ADR 0196): comments, tags, attachments, the
  * activity feed and reactions on any record. It installs its parts and sets
  * their defaults; the parts stay ordinary blocks in the config.
  */

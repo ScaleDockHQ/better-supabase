@@ -26,6 +26,7 @@
     "---APIs and other frameworks---",
     "orpc",
     "mcp",
+    "webmcp",
     "other"
   ]
 }

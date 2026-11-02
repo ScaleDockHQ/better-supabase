@@ -241,6 +241,64 @@ only through a graded submission. Quizzes reuse forms because the
 forms block grades submissions in SQL, which keeps scores out of the
 client's reach.
 
+## LTI, xAPI and Open Badges
+
+Three helpers connect a course to the learning standards around it. They are
+plain functions over `fetch` and WebCrypto, they bundle no SDK, and they need
+no SQL module, so they work with the client above or without it.
+
+```ts
+import {
+  courseCertificateBadge,
+  ltiJwksOf,
+  sendXapiStatements,
+  verifyLtiLaunch,
+  xapiLessonCompleted,
+} from "better-supabase/blocks/courses";
+```
+
+`verifyLtiLaunch` verifies the `id_token` of an LTI 1.3 launch. It checks the
+RS256 signature against the platform's JWK Set, then `iss`, `aud` (and `azp`
+for several audiences), `exp`, `iat`, the nonce you stored at the login
+redirect, the LTI version, the deployment id and the claims the message type
+needs. It returns a `Result`: a failed check is an `unauthorized` error whose
+`hint` names it, such as `LTI_NONCE` or `LTI_AUDIENCE`. It keeps no state, so
+you store the login `state` and nonce, delete the nonce after a good launch,
+and map `subject` to one of your users.
+
+```ts
+const jwks = ltiJwksOf(await (await fetch(platform.jwksUrl)).json());
+const launch = await verifyLtiLaunch(idToken, {
+  jwks,
+  issuer: platform.issuer,
+  clientId: platform.clientId,
+  nonce: stored.nonce,
+  deploymentIds: platform.deploymentIds,
+});
+
+if (launch.ok && ltiHasRole(launch.data.roles, "Instructor")) {
+  // open the instructor view of launch.data.resourceLink
+}
+```
+
+`xapiStatement` and the shortcuts `xapiLessonCompleted`, `xapiQuizResult` and
+`xapiCourseCompleted` write xAPI 2.0 statements that name the learner by an
+account (your origin and the user id), never an email address. They check what
+an LRS refuses: IRIs for verbs and activities, UUIDs, and a scaled score
+between 0 and 1. `sendXapiStatements` posts a batch with the
+`X-Experience-API-Version` header. A statement keeps its id, so sending it
+again after a timeout is safe. Call it from the `course_lesson.completed` and
+`course_certificate.issued` events through a sink or a job.
+
+`openBadgeCredential` and `courseCertificateBadge` write an Open Badges 3.0
+`OpenBadgeCredential`. The email goes into the credential as a salted SHA-256
+unless you turn hashing off. The result is not signed: it has no `proof`, so
+it is not yet a verifiable credential. Pass a `signer` that adds one, such as
+a function over `better-supabase/verifiable-credentials` when your release
+includes it, or hand the JSON to your own issuer. A revoked certificate is
+refused, because revoking a badge that was already issued needs a status list
+that the signer adds.
+
 ## Without the client
 
 `db.courses` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

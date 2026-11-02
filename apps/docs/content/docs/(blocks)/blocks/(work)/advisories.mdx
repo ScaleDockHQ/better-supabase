@@ -1,0 +1,192 @@
+---
+title: Advisories
+description: Security advisories for a software vendor, with products and versions, CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements and CSAF 2.0 advisories served from /.well-known/csaf.
+---
+
+`advisories` is for a software vendor that has to track vulnerabilities in its
+own products, as the EU Cyber Resilience Act (CRA) asks. You register products
+and versions, import a CycloneDX bill of materials per version, track
+vulnerabilities, say per version whether a product is affected, and publish a
+CSAF 2.0 advisory that customers and scanners can fetch.
+
+```bash
+better-supabase add advisories
+```
+
+```ts
+import { createAdvisories } from "better-supabase/blocks/advisories";
+```
+
+The module requires `tenant`, `permissions` and `subjects`. With
+[relations](/docs/blocks/relations) and [incidents](/docs/blocks/incidents) a
+vulnerability links to the incident that reports it to the authorities
+(`reported_as`). With [risks](/docs/blocks/risks) a vulnerability or advisory
+links to the risk that tracks it (`tracked_as`). With `outbox` it records the
+events, and with `audit` every change is audited. None of these is required.
+
+## Tables
+
+| Table                                    | Holds                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `advisory_products`                      | A product by `key`, with its vendor and description                                         |
+| `advisory_product_versions`              | A version of a product, its release and end of support dates and the BOM it was built from  |
+| `sbom_components`                        | The components of a version: package URL, name, version, type and licenses                  |
+| `vulnerabilities`                        | A tracked CVE or OSV id with its CVSS vector and score, EPSS, CISA KEV listing and packages |
+| `vex_statements`                         | The product's statement per vulnerability, for one version or all of them                   |
+| `advisories`, `advisory_vulnerabilities` | A CSAF advisory by tracking id, its revision history and the vulnerabilities it covers      |
+
+Members with `advisories.read` read every table. Writes go through the
+functions below and need `advisories.write`. Publishing needs
+`advisories.publish`.
+
+## Products and SBOMs
+
+```ts
+const product = await db.advisories
+  .saveProduct({ key: "acme-app", name: "Acme App", vendor: "Acme" })
+  .orThrow();
+
+const version = await db.advisories
+  .createVersion({ productId: product.id, version: "2.0.0" })
+  .orThrow();
+
+await db.advisories.importSbom({ versionId: version.id, bom }).orThrow();
+```
+
+`importSbom` takes a CycloneDX 1.4 to 1.7 JSON document and replaces the
+version's components. A component's `group` is prefixed to its name, so a
+Maven package keeps its coordinates. A document with more than 20,000
+components is refused.
+
+## Vulnerabilities and enrichment
+
+```ts
+await db.advisories
+  .saveVulnerability({
+    vulnId: "CVE-2021-44228",
+    cvssVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+  })
+  .orThrow();
+```
+
+The block parses the CVSS vector. A 3.0 or 3.1 vector gets its base score and
+severity. A 4.0 vector is validated and stored, but not scored: the 4.0
+score comes from a lookup table the block does not carry, so it keeps the
+vector and the score stays empty until a source provides it.
+
+`enrichDue` runs on the hourly `enrich` schedule. It reads the CISA KEV
+catalog once, then OSV (summary, severity, affected packages) and EPSS (the
+exploitation probability) for each vulnerability that was never enriched or
+whose enrichment is older than a day. Text you entered yourself is never
+overwritten. A vulnerability that none of the sources knows is stamped so it
+is not asked again at once. A rate limit stops the run and the rest stays
+due. When KEV lists a vulnerability for the first time, the block emits
+`vulnerability.exploited`, which is the trigger for a CRA early warning.
+
+`exposure(versionId)` lists the vulnerabilities whose affected packages match
+a version's components. It matches on the package, not on the version range,
+so treat it as a list of candidates to review, then record the answer as a
+VEX statement.
+
+### The feed port
+
+Sources are read through a `VulnerabilityFeed`, a versioned port over
+`fetch` (`apiVersion: 1`). The default, `publicVulnerabilityFeed()`, calls
+the public OSV, FIRST EPSS and CISA endpoints. Pass your own to use a mirror
+or an API key:
+
+```ts
+import {
+  createAdvisories,
+  publicVulnerabilityFeed,
+} from "better-supabase/blocks/advisories";
+
+const advisories = createAdvisories({
+  transport,
+  feed: publicVulnerabilityFeed({ fetch: myFetch }),
+});
+```
+
+`testVulnerabilityFeed` in `better-supabase/testing` checks a feed against
+the contract. The block bundles no vulnerability data.
+
+## VEX statements
+
+```ts
+await db.advisories
+  .saveVexStatement({
+    productId: product.id,
+    vulnerabilityId: vulnerability.id,
+    versionId: version.id,
+    status: "not_affected",
+    justification: "vulnerable_code_not_in_execute_path",
+  })
+  .orThrow();
+
+const vex = await db.advisories
+  .openVex({ productId: product.id, author: "Acme PSIRT" })
+  .orThrow();
+```
+
+A status is `not_affected`, `affected`, `fixed` or `under_investigation`.
+`not_affected` needs a justification. Leave out `versionId` to cover every
+version. `openVex` renders an OpenVEX 0.2.0 document.
+
+## CSAF advisories
+
+```ts
+const advisory = await db.advisories
+  .saveAdvisory({
+    trackingId: "ACME-SA-2026-001",
+    title: "Log4Shell in Acme App",
+    summary: "Acme App 2.0.0 bundles a vulnerable Log4j.",
+    productId: product.id,
+    vulnerabilityIds: [vulnerability.id],
+  })
+  .orThrow();
+
+await db.advisories
+  .publishAdvisory({ id: advisory.id, status: "final" })
+  .orThrow();
+```
+
+An advisory starts as a draft. Each publication raises its revision and adds
+a revision history entry. `renderCsaf` turns a published advisory into a CSAF
+2.0 document.
+
+`createCsafHandler` serves the documents the way the CSAF standard expects:
+`provider-metadata.json`, `white/index.txt`, `white/changes.csv`, each
+document and its `.sha256` and `.sha512` files. It reads over the service
+role, because the documents are public:
+
+```ts
+import { createCsafHandler } from "better-supabase/blocks/advisories";
+
+const handler = createCsafHandler({
+  source: serviceAdvisories.csafSource(organizationId),
+  publisher: {
+    name: "Acme",
+    namespace: "https://acme.example",
+    contactDetails: "security@acme.example",
+  },
+  baseUrl: "https://acme.example",
+});
+```
+
+Mount `handler` at `/.well-known/csaf`. It answers 404 for an unknown path,
+405 for anything but GET and HEAD, and caches answers for five minutes. It
+does not sign documents, so its role is `csaf_publisher`.
+
+## Specifications
+
+| Format    | Version                        |
+| --------- | ------------------------------ |
+| CycloneDX | 1.4 to 1.7, read               |
+| OpenVEX   | 0.2.0, written                 |
+| CSAF      | 2.0, written                   |
+| OSV       | 1.9, read                      |
+| CVSS      | 3.0 and 3.1 scored, 4.0 parsed |
+| EPSS      | v5, read                       |
+
+The versions are pinned in `SPEC_PINS` and listed on the
+[standards](/docs/standards) page.

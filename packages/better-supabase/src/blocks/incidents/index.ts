@@ -23,6 +23,12 @@ export {
   type PublicIncident,
   type PublicStatusComponent,
   type PublicStatusPage,
+  type RegulatoryFiling,
+  type RegulatoryFilingInput,
+  type RegulatoryProfile,
+  type RegulatoryProfileInput,
+  type RegulatoryRegime,
+  type RegulatoryStage,
   type PublicUptimeDay,
   type StatusComponent,
   type StatusComponentInput,
@@ -62,7 +68,9 @@ export {
 export { incidentsEvents } from "./events.ts";
 
 export type {
+  IncidentFilingSubmittedEventData,
   IncidentOpenedEventData,
+  IncidentProfileUpdatedEventData,
   IncidentResolvedEventData,
   IncidentsEvents,
   IncidentUpdatedEventData,

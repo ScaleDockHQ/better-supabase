@@ -142,3 +142,7 @@ bump is one commit series:
   `vercel.json already defines services`. CI has no link. Locally, set the
   folder aside outside the repo for the run (`mv .vercel /tmp/bsb-vercel`; a
   renamed folder in the repo is no longer gitignored) and put it back after.
+- A commit that stages only generated files (the examples' `src/lib/supabase/*`)
+  fails the `fix` hook with "No files found to lint", because Ultracite ignores
+  them. Stage one linted file with it, such as the changeset or the note that
+  explains the regeneration.

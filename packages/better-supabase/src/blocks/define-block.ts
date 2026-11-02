@@ -82,7 +82,7 @@ export type BlockInvalidates = Readonly<Record<string, readonly string[]>>;
 
 /**
  * What a composite sets on one of its parts when the app leaves it unset: the
- * part's `blocks.<part>.options` keys (ADR 0177). The app's own `blocks.<part>`
+ * part's `blocks.<part>.options` keys (ADR 0196). The app's own `blocks.<part>`
  * entry wins key by key.
  */
 export interface PartDefaults {
@@ -180,7 +180,7 @@ export interface BlockDefinition<
   readonly schedules?: readonly BlockSchedule[];
   /**
    * The blocks this one is built from, keyed by the block's name (a composite,
-   * ADR 0177). Installing the composite installs its parts, and `create`
+   * ADR 0196). Installing the composite installs its parts, and `create`
    * receives their clients as `options.parts`. A composite is an ordinary block
    * otherwise: one manifest, one name, one docs page. Parts may be composites;
    * a composite is a singleton.

@@ -37,6 +37,16 @@ export interface PolicyPublishedEventData {
   readonly number: number;
 }
 
+/** `control_framework.imported`: an OSCAL catalog became a framework. */
+export interface ControlFrameworkImportedEventData {
+  readonly organizationId: string;
+  readonly frameworkId: string;
+  /** `oscal-catalog`. */
+  readonly format: string;
+  /** How many controls the catalog held. */
+  readonly controls: number;
+}
+
 /** The events of the `compliance` block: type to data. */
 export type ComplianceEvents = {
   readonly "control.created": ControlSavedEventData;
@@ -44,6 +54,7 @@ export type ComplianceEvents = {
   readonly "control.evidence_added": ControlEvidenceAddedEventData;
   readonly "evidence_task.missed": EvidenceTaskMissedEventData;
   readonly "compliance_policy.published": PolicyPublishedEventData;
+  readonly "control_framework.imported": ControlFrameworkImportedEventData;
 };
 
 /** The `compliance` block's event types, for its manifest and `onBlockEvent`. */
@@ -53,4 +64,5 @@ export const complianceEvents: Events<ComplianceEvents> = defineEvents({
   "control.evidence_added": event<ControlEvidenceAddedEventData>(),
   "evidence_task.missed": event<EvidenceTaskMissedEventData>(),
   "compliance_policy.published": event<PolicyPublishedEventData>(),
+  "control_framework.imported": event<ControlFrameworkImportedEventData>(),
 });

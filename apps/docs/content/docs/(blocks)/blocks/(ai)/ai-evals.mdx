@@ -1,0 +1,151 @@
+---
+title: AI evals
+description: Datasets of test cases, runs against a prompt version and a model, scorers, a regression compare and a promptfoo export.
+---
+
+The `ai-evals` block stores the test cases for a prompt, runs them against a
+prompt version and a model, and compares two runs so you see which cases got
+worse. It runs no model itself: you pass a `task` function that produces the
+answer, so any AI SDK, gateway or provider works.
+
+```bash
+better-supabase add ai-evals
+```
+
+| Table           | Holds                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `eval_datasets` | The tenant (or none), name and description                                             |
+| `eval_items`    | The input, the expected output, metadata and the ai-chat chat and message it came from |
+| `eval_runs`     | The dataset, prompt name and version, model, scorers, status and summary               |
+| `eval_results`  | One row per run and item: output, scores, pass flag, error and latency                 |
+
+Inputs and outputs can hold user content, so only the service role reads or
+writes the tables. Create the block with a service transport. `prompt_name` and
+`prompt_version` match the `prompt_versions` table of the [prompts](/docs/blocks/prompts)
+block, but the block keeps them as plain values and does not require it.
+
+| Option     | Default | Sets                             |
+| ---------- | ------- | -------------------------------- |
+| `maxItems` | 1,000   | The most items one dataset holds |
+
+## Build a dataset
+
+```ts
+const dataset = await evals.datasets
+  .create("support.reply", { organizationId })
+  .orThrow();
+
+await evals.items
+  .add(dataset.id, [
+    {
+      input: { question: "Where is my order?" },
+      expected: "Track it under Orders.",
+    },
+  ])
+  .orThrow();
+```
+
+With the `ai-chat` block installed, `items.addFromFeedback({ datasetId })` copies
+rated replies into the dataset. The user message before the reply is the input,
+the rating, reason and comment go to the item metadata, and a thumbs up keeps
+the reply as the expected output. It reads thumbs down by default (`rating: -1`),
+skips replies already in the dataset and only takes the dataset tenant's chats.
+Without `ai-chat` it fails with `EVAL_FEEDBACK_UNAVAILABLE`.
+
+## Run
+
+```ts
+import {
+  createEvalJob,
+  exactMatch,
+  jsonSchema,
+  llmJudge,
+} from "better-supabase/blocks/ai-evals";
+
+const run = await evals.runs
+  .create(dataset.id, {
+    promptName: "support.reply",
+    promptVersion: 3,
+    model: "openai/gpt-4.1-mini",
+    scorers: [
+      exactMatch(),
+      llmJudge(judge, { criteria: "Polite and correct" }),
+    ],
+  })
+  .orThrow();
+
+export const evalJob = createEvalJob({
+  evals,
+  scorers: [exactMatch(), llmJudge(judge, { criteria: "Polite and correct" })],
+  task: async (item, run) =>
+    callModel(run.model, run.promptVersion, item.input),
+  budgetMs: 45_000,
+});
+
+await evalJob({ runId: run.id });
+```
+
+The job handler takes `{ runId }`, so any queue can call it. It scores the
+items that have no result yet and closes the run when none are left. A `task`
+that throws becomes that item's error and does not stop the run. With a
+`budgetMs` it returns `done: false` when time runs out, and you enqueue the same
+payload again to continue.
+
+## Scorers
+
+| Scorer       | Passes when                                                       |
+| ------------ | ----------------------------------------------------------------- |
+| `exactMatch` | The output equals the expected value, as trimmed text or as JSON  |
+| `jsonSchema` | The output parses as JSON and the Standard Schema accepts it      |
+| `llmJudge`   | Your judge function scores the output at or above the `threshold` |
+
+The judge is a port: `{ apiVersion: 1, judge(input) }` returns
+`{ score, reason? }` between 0 and 1. The block never calls a model for you. A
+judge that throws gives a failed score with the message as its reason.
+
+## Compare runs
+
+```ts
+const diff = await evals.runs.compare(baseRun.id, candidateRun.id).orThrow();
+
+if (diff.regressions.length > 0) {
+  throw new Error(`${diff.regressions.length} cases got worse`);
+}
+```
+
+`compare` needs two runs of one dataset. It returns both summaries, the change
+in pass rate, the items that regressed or improved with both scores and
+outputs, and counts of unchanged and missing items.
+
+## Export to promptfoo
+
+`evals.exportPromptfoo({ datasetId, prompt, model, scorers })` returns a
+promptfoo config as plain JSON: one test per item with the input as `vars` and
+one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
+`promptfooconfig.json` to run the same cases in promptfoo.
+
+## Functions
+
+| Function                                                                | Who     |
+| ----------------------------------------------------------------------- | ------- |
+| `create_eval_dataset(name, tenant, description)`                        | service |
+| `add_eval_items(dataset, items)`                                        | service |
+| `add_eval_items_from_feedback(dataset, rating, since)`                  | service |
+| `list_eval_items(dataset, after, pending_for, limit)`                   | service |
+| `create_eval_run(dataset, prompt_name, prompt_version, model, scorers)` | service |
+| `record_eval_result(run, item, output, scores, error, latency_ms)`      | service |
+| `finish_eval_run(run, status)`                                          | service |
+| `compare_eval_runs(base, candidate, tolerance)`                         | service |
+
+## Without the client
+
+```ts title="lib/evals.ts"
+import "server-only";
+
+import { createAiEvals, rpcTransport } from "better-supabase/blocks/ai-evals";
+
+export const evals = createAiEvals({
+  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
+  schema: "api",
+});
+```

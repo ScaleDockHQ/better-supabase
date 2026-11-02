@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -19,6 +20,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
+import { relationsBlock } from "better-supabase/blocks/relations";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -27,6 +29,7 @@ import { blockConfig } from "./invoicing.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
@@ -43,6 +46,7 @@ export const blockSet = defineBlocks(blockConfig, {
   contacts: contactsBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
+  relations: relationsBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,

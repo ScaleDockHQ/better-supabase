@@ -24,6 +24,7 @@ import {
 import { tableMoves } from "../table-renames.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
+import { OSCAL_CONTRACT, oscalFunctions } from "./compliance-oscal.ts";
 import {
   POLICY_ROLE,
   policyFunctions,
@@ -63,6 +64,10 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
   "compliance_policy.published": {
     subject: "policies",
     payload: ["organizationId", "policyId", "versionId", "number"],
+  },
+  "control_framework.imported": {
+    subject: "controls",
+    payload: ["organizationId", "frameworkId", "format", "controls"],
   },
 };
 
@@ -372,7 +377,7 @@ function build(ctx: BlockSqlContext): string {
 -- Compliance controls: frameworks of controls, evidence linked to them,
 -- recurring evidence tasks, and versioned policies members acknowledge
 -- through the acknowledgements block.
-${tables(ctx)}${complianceFunctions(ctx)}${policyFunctions(ctx)}`;
+${tables(ctx)}${complianceFunctions(ctx)}${policyFunctions(ctx)}${oscalFunctions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -443,6 +448,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "boolean"],
       returns: "jsonb",
     },
+    ...OSCAL_CONTRACT,
   ];
 }
 
@@ -527,6 +533,13 @@ drop function if exists ${ctx.fn("list_compliance_policies")}(${ctx.idType}, boo
   },
 };
 
+const TO_OSCAL: BlockSqlUpgrade = {
+  from: 3,
+  description:
+    "OSCAL: import_oscal_catalog turns a catalog into a framework with its controls, apply_oscal_profile marks the controls a profile includes as applicable, and export_oscal_assessment_results returns an assessment-results document with the evidence.",
+  sql: () => "",
+};
+
 const DEPRECATED: readonly BlockSqlDeprecation[] = [
   {
     kind: "table",
@@ -561,8 +574,8 @@ export const COMPLIANCE: BlockSqlDefinition = {
   integrates: ["attachments", "notifications", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
-  upgrades: [TO_ACKNOWLEDGEMENTS],
+  version: 4,
+  upgrades: [TO_ACKNOWLEDGEMENTS, TO_OSCAL],
   deprecated: DEPRECATED,
   names: NAMES,
   contract,

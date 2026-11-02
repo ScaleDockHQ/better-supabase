@@ -7,3 +7,6 @@ chat-sdk-state
 ai-cache
 tags
 timeline
+prompts
+ai-evals
+ai-guardrails

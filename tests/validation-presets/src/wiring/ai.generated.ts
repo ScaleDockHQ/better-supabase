@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
@@ -29,6 +30,7 @@ import { blockConfig } from "./ai.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   agents: agentsBlock,
   aiChat: aiChatBlock,

@@ -12,6 +12,7 @@
     "fhir",
     "e-invoicing",
     "audit-files",
+    "verifiable-credentials",
     "erp-imports",
     "nested-tenancy"
   ]

@@ -227,7 +227,7 @@ describe("data-lifecycle module", () => {
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
     expect(sql).toContain(
-      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'better_supabase.retention_policies', 'app.notes')",
+      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'better_supabase.retention_policies', 'better_supabase.data_subject_requests', 'app.notes')",
     );
     expect(sql).toContain("like 'public.%\\_log'");
     expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);
@@ -592,6 +592,44 @@ describe("data-lifecycle module", () => {
         "The exports table has no subject_type and subject_id columns",
       );
       expect(sql).not.toContain("data_export_contents");
+    });
+  });
+
+  describe("data subject requests", () => {
+    const sql = sqlOf(["data-lifecycle"]);
+
+    it("creates the request table and locks it", () => {
+      expect(sql).toContain(
+        'create table if not exists "better_supabase"."data_subject_requests"',
+      );
+      expect(sql).toContain(
+        `"kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability'))`,
+      );
+      expect(sql).toContain(
+        'alter table "better_supabase"."data_subject_requests" enable row level security;',
+      );
+    });
+
+    it("sets the due date 30 days out and extends it once to three months", () => {
+      expect(sql).toContain("now() + interval '30 days'");
+      expect(sql).toContain(`x."received_at" + interval '3 months'`);
+      expect(sql).toContain("the due date was already extended once");
+    });
+
+    it("fulfils access and portability through the record export and refuses an erasure under a hold", () => {
+      expect(sql).toContain(
+        `"better_supabase"."request_subject_export"(v_row."subject_type", v_row."subject_id", 'ndjson')`,
+      );
+      expect(sql).toContain(
+        `"better_supabase"."is_held"('data_subject_request', v_row."organization_id"::text)`,
+      );
+      expect(sql).toContain("verify the requester''s identity first");
+    });
+
+    it("keeps the workflow from anonymous callers", () => {
+      expect(sql).toContain(
+        'revoke execute on function "better_supabase"."open_data_subject_request"(uuid, text, text, text, text, text) from public, anon;',
+      );
     });
   });
 });

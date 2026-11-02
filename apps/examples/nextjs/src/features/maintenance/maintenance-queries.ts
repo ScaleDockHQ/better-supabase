@@ -29,7 +29,7 @@ async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
 export interface MaintenancePlanRow {
   readonly id: string;
   readonly title: string;
-  readonly kind: "time" | "meter";
+  readonly kind: "time" | "meter" | "rrule";
   readonly status: "active" | "paused";
   readonly due: boolean;
   readonly nextDueAt: string | null;

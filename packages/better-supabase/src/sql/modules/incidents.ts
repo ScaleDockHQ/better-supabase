@@ -19,6 +19,10 @@ import { tableMoves } from "../table-renames.ts";
 import { ACTION_ITEMS_TO_TASKS } from "./incidents-data.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
+  incidentsRegulatoryFunctions,
+  incidentsRegulatoryTables,
+} from "./incidents-regulatory.ts";
+import {
   INCIDENT_RESERVED,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
@@ -50,6 +54,22 @@ const EVENTS: BlockSqlEvents<IncidentsEvents> = {
   "incident_postmortem.published": {
     subject: "incidents",
     payload: ["organizationId", "postmortemId", "incidentId"],
+  },
+  "incident_profile.updated": {
+    subject: "incidents",
+    payload: ["organizationId", "incidentId", "regimes"],
+  },
+  "incident_filing.submitted": {
+    subject: "incidents",
+    payload: [
+      "organizationId",
+      "incidentId",
+      "id",
+      "regime",
+      "stage",
+      "dueAt",
+      "reference",
+    ],
   },
   "status_component.changed": {
     subject: "status-components",
@@ -215,6 +235,43 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       optional: ["createdAt"],
+    },
+    profiles: {
+      name: "incident_regulatory_profiles",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        incident: "incident_id",
+        tenant: "tenant_id",
+        regimes: "regimes",
+        awareAt: "aware_at",
+        classification: "classification",
+        classifiedAt: "classified_at",
+        significant: "significant",
+        activelyExploited: "actively_exploited",
+        measureAvailableAt: "measure_available_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    filings: {
+      name: "incident_regulatory_filings",
+      app: {},
+      lifecycle: { tenant: "tenant", user: "submittedBy", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        incident: "incident_id",
+        regime: "regime",
+        stage: "stage",
+        dueAt: "due_at",
+        reminder: "reminder_id",
+        submittedAt: "submitted_at",
+        submittedBy: "submitted_by",
+        reference: "reference",
+        notes: "notes",
+        createdAt: "created_at",
+      },
     },
     pages: {
       name: "incident_status_pages",
@@ -455,7 +512,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
-${tables(ctx)}${incidentsFunctions(ctx)}${statusPageFunctions(ctx)}`;
+${tables(ctx)}${incidentsRegulatoryTables(ctx)}${incidentsFunctions(ctx)}${incidentsRegulatoryFunctions(ctx)}${statusPageFunctions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -520,6 +577,26 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "get_status_page", args: ["{id}"], returns: "jsonb" },
     { name: "public_status_page", args: ["text", "integer"], returns: "jsonb" },
+    {
+      name: "save_incident_regulatory_profile",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "get_incident_regulatory_profile",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_incident_filings",
+      args: ["{id}", "boolean"],
+      returns: "jsonb",
+    },
+    {
+      name: "submit_incident_filing",
+      args: ["uuid", "text", "text", "text", "text", "timestamptz"],
+      returns: "jsonb",
+    },
   ];
 }
 
@@ -528,6 +605,7 @@ export const INCIDENTS: BlockSqlDefinition = {
     "incident_apply_impacts",
     "incident_postmortem_action_list",
     "incident_refresh_components",
+    "plan_incident_filings",
   ],
   name: "incidents",
   scopes: ["tenant"],
@@ -535,11 +613,20 @@ export const INCIDENTS: BlockSqlDefinition = {
   description:
     "Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.",
   requires: ["memberships", "permissions"],
-  integrates: ["notifications", "outbox", "audit", "tasks"],
+  integrates: ["notifications", "outbox", "audit", "tasks", "reminders"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
-  upgrades: [ACTION_ITEMS_TO_TASKS],
+  version: 4,
+  upgrades: [
+    ACTION_ITEMS_TO_TASKS,
+    {
+      from: 3,
+      description:
+        "Regulatory reporting profile and filings for NIS2, DORA and CRA deadlines",
+      // The module creates its tables and functions idempotently.
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

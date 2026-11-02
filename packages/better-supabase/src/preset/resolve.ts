@@ -46,7 +46,7 @@ export interface PresetConflict {
   readonly reason: string;
 }
 
-/** A composite in a resolved preset, with the parts it installs (ADR 0177). */
+/** A composite in a resolved preset, with the parts it installs (ADR 0196). */
 export interface ResolvedComposite {
   readonly name: string;
   /** Its parts' manifest names, composites among them. */
@@ -529,7 +529,7 @@ export interface CompositeRemoval {
 /**
  * Removing a composite takes out its glue and its defaults. Its parts stay as
  * ordinary blocks unless `withParts` is set, and even then a part another
- * selected block or composite still needs stays (ADR 0177).
+ * selected block or composite still needs stays (ADR 0196).
  */
 export function removeComposite(
   preset: Preset,

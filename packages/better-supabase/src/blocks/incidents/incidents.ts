@@ -177,6 +177,67 @@ export interface PostmortemActionInput {
   readonly dueAt?: Temporal.Instant;
 }
 
+/** A regime of the regulatory reporting profile. */
+export type RegulatoryRegime = "nis2" | "dora" | "cra";
+
+/** A filing stage; each regime names its own. */
+export type RegulatoryStage =
+  | "early_warning"
+  | "notification"
+  | "initial"
+  | "intermediate"
+  | "final";
+
+/** What the profile sets; a key left out keeps its value. */
+export interface RegulatoryProfileInput {
+  readonly regimes?: readonly RegulatoryRegime[];
+  /** When the organization became aware of the incident. */
+  readonly awareAt?: Temporal.Instant;
+  /** The DORA classification. */
+  readonly classification?: "major" | "non_major" | null;
+  readonly classifiedAt?: Temporal.Instant | null;
+  readonly significant?: boolean;
+  /** The CRA actively exploited vulnerability flag. */
+  readonly activelyExploited?: boolean;
+  /** When a corrective or mitigating measure became available (CRA). */
+  readonly measureAvailableAt?: Temporal.Instant | null;
+}
+
+/** One deadline of a regime and, once filed, its submission. */
+export interface RegulatoryFiling {
+  readonly id: string;
+  readonly incidentId: string;
+  readonly regime: RegulatoryRegime;
+  readonly stage: RegulatoryStage;
+  readonly dueAt?: Temporal.Instant;
+  readonly submittedAt?: Temporal.Instant;
+  readonly submittedBy?: string;
+  /** The reference the authority gave. */
+  readonly reference?: string;
+  readonly notes?: string;
+}
+
+/** The regulatory reporting profile of an incident with its filings. */
+export interface RegulatoryProfile {
+  readonly incidentId: string;
+  readonly regimes: readonly RegulatoryRegime[];
+  readonly awareAt: Temporal.Instant;
+  readonly classification?: "major" | "non_major";
+  readonly classifiedAt?: Temporal.Instant;
+  readonly significant: boolean;
+  readonly activelyExploited: boolean;
+  readonly measureAvailableAt?: Temporal.Instant;
+  readonly filings: readonly RegulatoryFiling[];
+}
+
+/** What `submitFiling` records. */
+export interface RegulatoryFilingInput {
+  readonly reference?: string;
+  readonly notes?: string;
+  /** Default: now. */
+  readonly submittedAt?: Temporal.Instant;
+}
+
 /** An incident with its timeline, oldest first, and its postmortem. */
 export interface IncidentDetail<
   F extends object = Record<never, never>,
@@ -365,6 +426,36 @@ export interface Incidents<F extends object = Record<never, never>> {
    * `incidents.write`.
    */
   removePostmortemAction(actionId: string): AsyncResult<Postmortem>;
+  /**
+   * Saves the regulatory reporting profile and plans its filings: the NIS2
+   * early warning (24 hours), notification (72 hours) and final report (one
+   * month after the notification), the DORA initial, intermediate and final
+   * reports, and the CRA early warning, notification and final report. With the
+   * reminders block, each open deadline is a reminder for the commander. Needs
+   * `incidents.write`.
+   */
+  saveRegulatoryProfile(input: {
+    incidentId: string;
+    input: RegulatoryProfileInput;
+  }): AsyncResult<RegulatoryProfile>;
+  regulatoryProfile(
+    incidentId: string,
+  ): AsyncResult<RegulatoryProfile | undefined>;
+  /** The open filings of an organization, the earliest deadline first. */
+  filings(input: {
+    readonly organizationId: string;
+    readonly pending?: boolean | undefined;
+  }): AsyncResult<readonly RegulatoryFiling[]>;
+  /**
+   * Records a submission to the authority. A later stage's deadline then counts
+   * from it. Needs `incidents.write`.
+   */
+  submitFiling(input: {
+    incidentId: string;
+    regime: RegulatoryRegime;
+    stage: RegulatoryStage;
+    input?: RegulatoryFilingInput | undefined;
+  }): AsyncResult<RegulatoryFiling>;
   /** Needs `incidents.manage`. */
   saveStatusPage(input: {
     organizationId: string;
@@ -525,6 +616,94 @@ function postmortemOf(value: unknown, fn: string): Postmortem {
     ...optional("publishedAt", optionalInstant(row["publishedAt"])),
     ...optional("authorId", optionalText(row["authorId"])),
   };
+}
+
+const REGIMES: readonly RegulatoryRegime[] = ["nis2", "dora", "cra"];
+
+const STAGES: readonly RegulatoryStage[] = [
+  "early_warning",
+  "notification",
+  "initial",
+  "intermediate",
+  "final",
+];
+
+function filingOf(value: unknown, fn: string): RegulatoryFiling {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    incidentId: textOf(row["incidentId"]),
+    regime: enumOrThrow(row["regime"], REGIMES, "regulatory regime"),
+    stage: enumOrThrow(row["stage"], STAGES, "regulatory stage"),
+    ...optional("dueAt", optionalInstant(row["dueAt"])),
+    ...optional("submittedAt", optionalInstant(row["submittedAt"])),
+    ...optional("submittedBy", optionalText(row["submittedBy"])),
+    ...optional("reference", optionalText(row["reference"])),
+    ...optional("notes", optionalText(row["notes"])),
+  };
+}
+
+function regulatoryProfileOf(value: unknown, fn: string): RegulatoryProfile {
+  const row = recordOf(value, fn);
+  const classification = optionalText(row["classification"]);
+  const regimes: unknown = row["regimes"];
+
+  return {
+    incidentId: textOf(row["incidentId"]),
+    regimes: (Array.isArray(regimes) ? regimes : []).map((item: unknown) =>
+      enumOrThrow(item, REGIMES, "regulatory regime"),
+    ),
+    awareAt: requiredInstant(row["awareAt"], "awareAt"),
+    significant: row["significant"] === true,
+    activelyExploited: row["activelyExploited"] === true,
+    filings: recordsOf(row["filings"] ?? [], fn).map((filing) =>
+      filingOf(filing, fn),
+    ),
+    ...optional(
+      "classification",
+      classification === undefined
+        ? undefined
+        : enumOrThrow(
+            classification,
+            ["major", "non_major"] as const,
+            "classification",
+          ),
+    ),
+    ...optional("classifiedAt", optionalInstant(row["classifiedAt"])),
+    ...optional(
+      "measureAvailableAt",
+      optionalInstant(row["measureAvailableAt"]),
+    ),
+  };
+}
+
+function optionalArg(value: Temporal.Instant | null | undefined): unknown {
+  return value === null
+    ? null
+    : value === undefined
+      ? undefined
+      : instantArg(value);
+}
+
+function profileAttrs(input: RegulatoryProfileInput): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {};
+
+  const set = (key: string, value: unknown): void => {
+    if (value !== undefined) {
+      attrs[key] = value;
+    }
+  };
+
+  set("regimes", input.regimes);
+  set("awareAt", optionalArg(input.awareAt));
+  set("classification", input.classification);
+  set("classifiedAt", optionalArg(input.classifiedAt));
+  set("significant", input.significant);
+  set("activelyExploited", input.activelyExploited);
+  set("measureAvailableAt", optionalArg(input.measureAvailableAt));
+
+  return attrs;
 }
 
 function detailOf(value: unknown, fn: string): IncidentDetail | undefined {
@@ -808,6 +987,47 @@ export function createIncidents<
         "remove_incident_postmortem_action",
         { action_id: actionId },
         postmortem("remove_incident_postmortem_action"),
+      ),
+    saveRegulatoryProfile: ({ incidentId, input }) =>
+      call(
+        "save_incident_regulatory_profile",
+        { incident_id: incidentId, attrs: profileAttrs(input) },
+        (value) =>
+          regulatoryProfileOf(value, "save_incident_regulatory_profile"),
+      ),
+    regulatoryProfile: (incidentId) =>
+      call(
+        "get_incident_regulatory_profile",
+        { incident_id: incidentId },
+        (value) =>
+          value === null || value === undefined
+            ? undefined
+            : regulatoryProfileOf(value, "get_incident_regulatory_profile"),
+      ),
+    filings: ({ organizationId, ...options }) =>
+      call(
+        "list_incident_filings",
+        { tenant: organizationId, pending: options.pending ?? true },
+        (value) =>
+          recordsOf(value, "list_incident_filings").map((filing) =>
+            filingOf(filing, "list_incident_filings"),
+          ),
+      ),
+    submitFiling: ({ incidentId, regime, stage, input }) =>
+      call(
+        "submit_incident_filing",
+        {
+          incident_id: incidentId,
+          regime,
+          stage,
+          reference: input?.reference ?? null,
+          notes: input?.notes ?? null,
+          submitted_at:
+            input?.submittedAt === undefined
+              ? null
+              : instantArg(input.submittedAt),
+        },
+        (value) => filingOf(value, "submit_incident_filing"),
       ),
     saveStatusPage: ({ organizationId, input }) =>
       call(

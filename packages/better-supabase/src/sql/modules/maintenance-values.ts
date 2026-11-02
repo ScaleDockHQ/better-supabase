@@ -1,8 +1,8 @@
 // The maintenance block's fixed values. This file imports nothing, so the
 // client entry can read them without the SQL builders.
 
-/** What makes a plan fall due. */
-export const MAINTENANCE_PLAN_KINDS = ["time", "meter"] as const;
+/** What makes a plan fall due: elapsed days, a meter, or an RRULE (RFC 5545). */
+export const MAINTENANCE_PLAN_KINDS = ["time", "meter", "rrule"] as const;
 
 /** Whether a plan creates work orders. */
 export const MAINTENANCE_PLAN_STATUSES = ["active", "paused"] as const;

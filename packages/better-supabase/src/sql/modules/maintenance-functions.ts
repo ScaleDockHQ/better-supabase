@@ -17,7 +17,7 @@ function planView(q: MaintenanceSql, row: string): string {
 
   return `${q.planJson(row)} || jsonb_build_object(
     'due', ${row}.${p("status")} = 'active' and ${row}.${p("workOrder")} is null and (
-      (${row}.${p("kind")} = 'time' and ${row}.${p("nextDueAt")} <= now())
+      (${row}.${p("kind")} in ('time', 'rrule') and ${row}.${p("nextDueAt")} <= now())
       or (${row}.${p("kind")} = 'meter' and exists (
         select 1 from ${meters} z
         where z.${m("id")} = ${row}.${p("meter")} and z.${m("reading")} >= coalesce(${row}.${p("lastDoneValue")}, 0) + ${row}.${p("everyValue")}
@@ -27,6 +27,28 @@ function planView(q: MaintenanceSql, row: string): string {
       select jsonb_agg(jsonb_build_object('id', y.${s("id")}, 'name', y.${s("name")}, 'quantity', y.${s("quantity")}::text, 'variantId', y.${s("variant")}) order by y.${s("name")}, y.${s("id")})
       from ${parts} y where y.${s("plan")} = ${row}.${p("id")}
     ), '[]'::jsonb))`;
+}
+
+/** The first occurrence of an RRULE after an instant, looking ten years ahead. */
+function nextOccurrence(ctx: BlockSqlContext): string {
+  const fn = ctx.fn("maintenance_next_occurrence");
+  const name = "maintenance_next_occurrence";
+
+  return `
+-- The first occurrence of an RRULE strictly after an instant, or null when
+-- the rule has ended (COUNT or UNTIL) or has none within ten years.
+create or replace function ${fn}(dtstart timestamptz, tz text, rrule text, after timestamptz)
+returns timestamptz
+language sql
+stable
+set search_path = ''
+as $$
+  select min(s) from ${ctx.fn("maintenance_rule_starts")}(
+    ${name}.dtstart, ${name}.tz, ${name}.rrule,
+    ${name}.after + interval '1 microsecond', ${name}.after + interval '10 years') s;
+$$;
+${userGrant(`${fn}(timestamptz, text, text, timestamptz)`)}
+`;
 }
 
 function planFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
@@ -41,11 +63,22 @@ function planFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
     v_meter := nullif(${src} ->> 'meterId', '')::uuid;
     v_asset := nullif(${src} ->> 'assetId', '')::uuid;
     v_priority := coalesce(nullif(${src} ->> 'priority', ''), 'normal');
-  exception when invalid_text_representation or numeric_value_out_of_range then
-    ${q.invalid("everyDays and everyValue are numbers, meterId and assetId are ids")}
+    v_rrule := nullif(trim(${src} ->> 'rrule'), '');
+    v_dtstart := (${src} ->> 'dtstart')::timestamptz;
+    v_tz := coalesce(nullif(trim(${src} ->> 'tz'), ''), 'UTC');
+    if ${src} ? 'requiredQualifications' then
+      if jsonb_typeof(${src} -> 'requiredQualifications') is distinct from 'array' then
+        ${q.invalid("requiredQualifications is a list of qualification type keys")}
+      end if;
+      select coalesce(array_agg(distinct k), '{}') into v_required from jsonb_array_elements_text(${src} -> 'requiredQualifications') k;
+    end if;
+  exception when invalid_text_representation or numeric_value_out_of_range or invalid_datetime_format or datetime_field_overflow or invalid_parameter_value then
+    ${q.invalid("everyDays and everyValue are numbers, meterId and assetId are ids, dtstart is a timestamp and requiredQualifications holds keys")}
   end;`;
 
-  const checks = `if coalesce(length(v_title), 0) not between 1 and 200 then
+  const checks = (
+    tenant: string,
+  ): string => `if coalesce(length(v_title), 0) not between 1 and 200 then
     ${q.invalid("a plan needs a title of 1 to 200 characters")}
   end if;
   if v_kind = 'time' and (v_days is null or v_days < 1 or v_meter is not null or v_value is not null) then
@@ -54,9 +87,22 @@ function planFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   if v_kind = 'meter' and (v_meter is null or v_value is null or v_value <= 0 or v_days is not null) then
     ${q.invalid("a meter plan needs a meterId and an everyValue above 0")}
   end if;
-  if v_kind is null or v_kind not in ('time', 'meter') then
-    ${q.invalid("the kind is time or meter")}
+  if v_kind = 'rrule' and (v_rrule is null or v_dtstart is null or v_days is not null or v_meter is not null or v_value is not null) then
+    ${q.invalid("a calendar plan needs an rrule and a dtstart, and no everyDays or meter")}
   end if;
+  if v_kind in ('time', 'meter') and (v_rrule is not null or v_dtstart is not null) then
+    ${q.invalid("only a plan of kind rrule takes an rrule and a dtstart")}
+  end if;
+  if v_kind = 'rrule' and (length(v_rrule) > 500 or v_rrule !~* '(^|[:;])FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;|$)') then
+    ${q.invalid("the rrule needs FREQ of DAILY, WEEKLY, MONTHLY or YEARLY and at most 500 characters")}
+  end if;
+  if v_kind = 'rrule' and not exists (select 1 from pg_catalog.pg_timezone_names n where n.name = v_tz) then
+    ${q.invalid("tz is an IANA time zone name")}
+  end if;
+  if v_kind is null or v_kind not in ('time', 'meter', 'rrule') then
+    ${q.invalid("the kind is time, meter or rrule")}
+  end if;
+  ${q.knownQualifications(tenant, "v_required")}
   if v_priority not in (${list(MAINTENANCE_PRIORITIES)}) then
     ${q.invalid("the priority is low, normal, high or urgent")}
   end if;`;
@@ -73,10 +119,13 @@ function planFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   end if;`;
 
   return `
--- Creates a plan. input is { title, kind: 'time' | 'meter', everyDays,
--- meterId, everyValue, assetId, priority, parts: [{ name, quantity,
--- variantId }] }. A time plan falls due everyDays from now; a meter plan
--- everyValue units above the meter's reading. Needs maintenance.manage.
+-- Creates a plan. input is { title, kind: 'time' | 'meter' | 'rrule',
+-- everyDays, meterId, everyValue, rrule, dtstart, tz, requiredQualifications,
+-- assetId, priority, parts: [{ name, quantity, variantId }] }. A time plan
+-- falls due everyDays from now; a meter plan everyValue units above the
+-- meter's reading; an rrule plan on the next occurrence of its RRULE after
+-- now. requiredQualifications are qualification type keys the technician of
+-- its work order must hold. Needs maintenance.manage.
 create or replace function ${fn("create_maintenance_plan")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
@@ -93,6 +142,10 @@ declare
   v_meter uuid;
   v_asset uuid;
   v_priority text;
+  v_rrule text;
+  v_dtstart timestamptz;
+  v_tz text;
+  v_required text[] := '{}';
   v_reading numeric;
 begin
   if not ${q.allowed("create_maintenance_plan.tenant", q.manage)} then
@@ -102,7 +155,7 @@ begin
     ${q.invalid("input must be an object")}
   end if;
   ${parse("create_maintenance_plan.input")}
-  ${checks}
+  ${checks("create_maintenance_plan.tenant")}
   if v_meter is not null then
     select z.${m("reading")} into v_reading from ${meters} z
     where z.${m("id")} = v_meter and z.${m("tenant")} = create_maintenance_plan.tenant;
@@ -115,9 +168,13 @@ begin
     ["jsonb", "create_maintenance_plan.input"],
   ])}
   begin
-    insert into ${plans} (${p("tenant")}, ${p("title")}, ${p("asset")}, ${p("kind")}, ${p("everyDays")}, ${p("meter")}, ${p("everyValue")}, ${p("priority")}, ${p("lastDoneValue")}, ${p("nextDueAt")}, ${p("createdBy")})
+    insert into ${plans} (${p("tenant")}, ${p("title")}, ${p("asset")}, ${p("kind")}, ${p("everyDays")}, ${p("meter")}, ${p("everyValue")}, ${p("priority")}, ${p("lastDoneValue")}, ${p("rrule")}, ${p("dtstart")}, ${p("tz")}, ${p("requiredQualifications")}, ${p("nextDueAt")}, ${p("createdBy")})
     values (create_maintenance_plan.tenant, v_title, v_asset, v_kind, v_days, v_meter, v_value, v_priority, v_reading,
-      case when v_kind = 'time' then now() + v_days * interval '1 day' end, auth.uid())
+      v_rrule, v_dtstart, v_tz, v_required,
+      case v_kind
+        when 'time' then now() + v_days * interval '1 day'
+        when 'rrule' then ${q.nextOccurrence("v_dtstart", "v_tz", "v_rrule", "now()")}
+      end, auth.uid())
     returning * into v_row;${partsInsert(`v_row.${p("id")}`, `v_row.${p("tenant")}`, "create_maintenance_plan.input")}
   exception when check_violation or not_null_violation or invalid_text_representation then
     ${q.invalid("a part needs a name of 1 to 200 characters and a quantity above 0")}
@@ -129,8 +186,8 @@ end;
 $$;
 ${userGrant(`${fn("create_maintenance_plan")}(${idType}, jsonb)`)}
 
--- Changes a plan: title, priority, assetId, everyDays, everyValue, status
--- ('active' or 'paused') and parts. The kind and the meter stay. Needs
+-- Changes a plan: title, priority, assetId, everyDays, everyValue, rrule,
+-- dtstart, tz, requiredQualifications, status ('active' or 'paused') and parts. The kind and the meter stay. Needs
 -- maintenance.manage.
 create or replace function ${fn("update_maintenance_plan")}(plan_id uuid, changes jsonb)
 returns jsonb
@@ -148,6 +205,10 @@ declare
   v_meter uuid;
   v_asset uuid;
   v_priority text;
+  v_rrule text;
+  v_dtstart timestamptz;
+  v_tz text;
+  v_required text[];
   v_status text;
 begin
   select * into v_row from ${plans} x where x.${p("id")} = update_maintenance_plan.plan_id for update;
@@ -171,16 +232,28 @@ begin
   v_value := case when update_maintenance_plan.changes ? 'everyValue' then v_value else v_row.${p("everyValue")} end;
   v_asset := case when update_maintenance_plan.changes ? 'assetId' then v_asset else v_row.${p("asset")} end;
   v_priority := case when update_maintenance_plan.changes ? 'priority' then v_priority else v_row.${p("priority")} end;
+  v_rrule := case when update_maintenance_plan.changes ? 'rrule' then v_rrule else v_row.${p("rrule")} end;
+  v_dtstart := case when update_maintenance_plan.changes ? 'dtstart' then v_dtstart else v_row.${p("dtstart")} end;
+  v_tz := case when update_maintenance_plan.changes ? 'tz' then v_tz else v_row.${p("tz")} end;
+  v_required := case when update_maintenance_plan.changes ? 'requiredQualifications' then v_required else v_row.${p("requiredQualifications")} end;
   v_status := coalesce(update_maintenance_plan.changes ->> 'status', v_row.${p("status")});
   if v_status not in ('active', 'paused') then
     ${q.invalid("the status is active or paused")}
   end if;
-  ${checks}
+  ${checks(`v_row.${p("tenant")}`)}
   begin
     update ${plans} x set
       ${p("title")} = v_title, ${p("asset")} = v_asset, ${p("everyDays")} = v_days, ${p("everyValue")} = v_value,
       ${p("priority")} = v_priority, ${p("status")} = v_status,
-      ${p("nextDueAt")} = case when v_kind = 'time' then coalesce(x.${p("lastDoneAt")}, x.${p("createdAt")}) + v_days * interval '1 day' end,
+      ${p("rrule")} = v_rrule, ${p("dtstart")} = v_dtstart, ${p("tz")} = v_tz, ${p("requiredQualifications")} = v_required,
+      ${p("nextDueAt")} = case v_kind
+        when 'time' then coalesce(x.${p("lastDoneAt")}, x.${p("createdAt")}) + v_days * interval '1 day'
+        when 'rrule' then case
+          when update_maintenance_plan.changes ? 'rrule' or update_maintenance_plan.changes ? 'dtstart' or update_maintenance_plan.changes ? 'tz'
+            then ${q.nextOccurrence("v_dtstart", "v_tz", "v_rrule", "now()")}
+          else x.${p("nextDueAt")}
+        end
+      end,
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;${partsInsert(`v_row.${p("id")}`, `v_row.${p("tenant")}`, "update_maintenance_plan.changes")}
@@ -328,7 +401,9 @@ function calibrationFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
 
   return `
 -- Records a calibration. input is { assetId, instrument, performedAt, dueAt,
--- result: 'pass' | 'fail' | 'adjusted', reference }. Needs maintenance.record.
+-- result: 'pass' | 'fail' | 'adjusted', reference, qualifications }. The
+-- caller must hold every qualification type key in qualifications on the day
+-- of performedAt. Needs maintenance.record.
 create or replace function ${fn("record_calibration")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
@@ -338,6 +413,9 @@ as $$
 #variable_conflict use_variable
 declare
   v_row ${calibrations};
+  v_key text;
+  v_quals text[] := '{}';
+  v_at timestamptz;
 begin
   if not ${q.allowed("record_calibration.tenant", q.record)} then
     ${q.forbidden("not allowed to record calibrations")}
@@ -345,11 +423,27 @@ begin
   if jsonb_typeof(record_calibration.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
+  if record_calibration.input ? 'qualifications' then
+    if jsonb_typeof(record_calibration.input -> 'qualifications') is distinct from 'array' then
+      ${q.invalid("qualifications is a list of qualification type keys")}
+    end if;
+    select coalesce(array_agg(distinct k), '{}') into v_quals from jsonb_array_elements_text(record_calibration.input -> 'qualifications') k;
+  end if;
   begin
-    insert into ${calibrations} (${c("tenant")}, ${c("asset")}, ${c("instrument")}, ${c("performedAt")}, ${c("dueAt")}, ${c("result")}, ${c("reference")}, ${c("performedBy")})
+    v_at := (record_calibration.input ->> 'performedAt')::timestamptz;
+  exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
+    ${q.invalid("performedAt is a timestamp")}
+  end;
+  ${q.knownQualifications("record_calibration.tenant", "v_quals")}
+  if cardinality(v_quals) > 0 and auth.uid() is null then
+    ${q.invalid("a calibration with qualifications needs a signed-in person who performed it")}
+  end if;
+  ${q.holdsQualifications("record_calibration.tenant", "v_quals", "auth.uid()", "v_at::date")}
+  begin
+    insert into ${calibrations} (${c("tenant")}, ${c("asset")}, ${c("instrument")}, ${c("performedAt")}, ${c("dueAt")}, ${c("result")}, ${c("reference")}, ${c("performedBy")}, ${c("qualifications")})
     values (record_calibration.tenant, nullif(record_calibration.input ->> 'assetId', '')::uuid, trim(record_calibration.input ->> 'instrument'),
-      (record_calibration.input ->> 'performedAt')::timestamptz, (record_calibration.input ->> 'dueAt')::timestamptz,
-      record_calibration.input ->> 'result', nullif(trim(record_calibration.input ->> 'reference'), ''), auth.uid())
+      v_at, (record_calibration.input ->> 'dueAt')::timestamptz,
+      record_calibration.input ->> 'result', nullif(trim(record_calibration.input ->> 'reference'), ''), auth.uid(), v_quals)
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
     ${q.invalid(`a calibration needs an instrument, a performedAt, a dueAt on or after it, and a result of ${MAINTENANCE_CALIBRATION_RESULTS.join(", ")}`)}
@@ -527,7 +621,11 @@ begin
     ${p("workOrder")} = null,
     ${p("lastDoneAt")} = v_done,
     ${p("lastDoneValue")} = v_reading,
-    ${p("nextDueAt")} = case when x.${p("kind")} = 'time' then v_done + x.${p("everyDays")} * interval '1 day' end,
+    ${p("nextDueAt")} = case x.${p("kind")}
+      when 'time' then v_done + x.${p("everyDays")} * interval '1 day'
+      -- Done early counts for the occurrence it was due on; done late skips the missed ones.
+      when 'rrule' then ${q.nextOccurrence(`x.${p("dtstart")}`, `x.${p("tz")}`, `x.${p("rrule")}`, `greatest(v_done, coalesce(x.${p("nextDueAt")}, v_done))`)}
+    end,
     ${p("updatedAt")} = now()
   where x.${p("id")} = v_plan.${p("id")}
   returning * into v_plan;
@@ -535,7 +633,7 @@ begin
   return new;
 end;
 $$;
-${triggerGrant(`${fn("maintenance_work_order_closed")}()`)}
+${triggerGrant(`${fn("maintenance_work_order_closed")}()`)}${assignmentTrigger(ctx, q, w, orders)}
 drop trigger if exists ${trigger} on ${orders};
 create trigger ${trigger} after update of ${w("status")} on ${orders}
   for each row when (new.${w("status")}::text in ('done', 'cancelled') and old.${w("status")}::text is distinct from new.${w("status")}::text)
@@ -543,8 +641,53 @@ create trigger ${trigger} after update of ${w("status")} on ${orders}
 `;
 }
 
+/** A work order's technician must hold the qualifications its plan requires. */
+function assignmentTrigger(
+  ctx: BlockSqlContext,
+  q: MaintenanceSql,
+  w: (column: string) => string,
+  orders: string,
+): string {
+  if (!ctx.installed("qualifications")) {
+    return "";
+  }
+
+  const { fn, p, plans } = q;
+  const trigger = ctx.naming.rename("bsb_maintenance_work_order_technician");
+
+  return `
+
+-- Assigning a technician to the work order of a plan that requires
+-- qualifications fails unless the technician holds them today.
+create or replace function ${fn("maintenance_work_order_assigned")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_plan ${plans};
+  v_key text;
+begin
+  for v_plan in
+    select * from ${plans} x
+    where x.${p("workOrder")} = new.${w("id")} and cardinality(x.${p("requiredQualifications")}) > 0
+  loop
+    ${q.holdsQualifications(`new.${w("tenant")}`, `v_plan.${p("requiredQualifications")}`, `new.${w("technician")}`, "current_date")}
+  end loop;
+  return new;
+end;
+$$;
+${triggerGrant(`${fn("maintenance_work_order_assigned")}()`)}
+drop trigger if exists ${trigger} on ${orders};
+create trigger ${trigger} before update of ${w("technician")} on ${orders}
+  for each row when (new.${w("technician")} is not null and old.${w("technician")} is distinct from new.${w("technician")})
+  execute function ${fn("maintenance_work_order_assigned")}();
+`;
+}
+
 export function maintenanceFunctions(ctx: BlockSqlContext): string {
   const q = maintenanceSql(ctx);
 
-  return `${planFunctions(ctx, q)}${meterFunctions(ctx, q)}${calibrationFunctions(ctx, q)}${dispatchFunctions(ctx, q)}`;
+  return `${nextOccurrence(ctx)}${planFunctions(ctx, q)}${meterFunctions(ctx, q)}${calibrationFunctions(ctx, q)}${dispatchFunctions(ctx, q)}`;
 }

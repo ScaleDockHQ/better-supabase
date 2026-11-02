@@ -44,3 +44,24 @@ export type {
   DamRenditionEventData,
   DamUsageRightEventData,
 } from "./events.ts";
+
+export {
+  C2PA_AI_SOURCE_TYPES,
+  c2paIsAiGenerated,
+  c2paReaderOf,
+  readC2paManifest,
+  type C2paAction,
+  type C2paIngredient,
+  type C2paManifest,
+  type C2paReader,
+  type C2paReading,
+} from "./c2pa.ts";
+
+export {
+  damUsageRightsToOdrl,
+  ODRL_CONTEXT,
+  type OdrlConstraint,
+  type OdrlOptions,
+  type OdrlPermission,
+  type OdrlPolicy,
+} from "./odrl.ts";

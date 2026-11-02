@@ -14,7 +14,7 @@ export const eventsParts: {
 export type EventsParts = typeof eventsParts;
 
 /**
- * The `events` composite (ADR 0177): bookings and admission passes for events.
+ * The `events` composite (ADR 0196): bookings and admission passes for events.
  * It installs its parts and sets their defaults; the parts stay ordinary blocks
  * in the config.
  */

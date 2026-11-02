@@ -20,7 +20,7 @@ export const governanceParts: {
 export type GovernanceParts = typeof governanceParts;
 
 /**
- * The `governance` composite (ADR 0177): the audit log, field history and data
+ * The `governance` composite (ADR 0196): the audit log, field history and data
  * lifecycle, for records that must stay accountable. It installs its parts and
  * sets their defaults; the parts stay ordinary blocks in the config.
  */

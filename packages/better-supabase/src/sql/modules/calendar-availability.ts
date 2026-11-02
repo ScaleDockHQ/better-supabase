@@ -52,13 +52,17 @@ const MAX_DAYS = 62;
 const MAX_USERS = 100;
 
 /**
- * `calendar_rule_starts`: the occurrence starts of an RRULE in [range_start,
- * range_end), a wrapper over `better_supabase.rrule_occurrences` (the
- * recurrence module), which expands the same rules as `expandRule` in
+ * `calendar_rule_starts` (or `name`, so another block can render its own copy
+ * without depending on calendar): the occurrence starts of an RRULE in
+ * [range_start, range_end), a wrapper over `better_supabase.rrule_occurrences`
+ * (the recurrence module), which expands the same rules as `expandRule` in
  * TypeScript.
  */
-function ruleStarts(ctx: BlockSqlContext): string {
-  const fn = ctx.fn("calendar_rule_starts");
+export function ruleStarts(
+  ctx: BlockSqlContext,
+  name = "calendar_rule_starts",
+): string {
+  const fn = ctx.fn(name);
 
   return `
 create or replace function ${fn}(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
@@ -68,10 +72,10 @@ stable
 set search_path = ''
 as $$
 begin
-  if calendar_rule_starts.dtstart is null or calendar_rule_starts.range_start is null or calendar_rule_starts.range_end is null then
+  if ${name}.dtstart is null or ${name}.range_start is null or ${name}.range_end is null then
     return;
   end if;
-  return query select o from better_supabase.rrule_occurrences(calendar_rule_starts.rrule, calendar_rule_starts.dtstart, calendar_rule_starts.tz, tstzrange(calendar_rule_starts.range_start, calendar_rule_starts.range_end, '[)')) o;
+  return query select o from better_supabase.rrule_occurrences(${name}.rrule, ${name}.dtstart, ${name}.tz, tstzrange(${name}.range_start, ${name}.range_end, '[)')) o;
 end;
 $$;
 ${userGrant(`${fn}(timestamptz, text, text, timestamptz, timestamptz)`)}

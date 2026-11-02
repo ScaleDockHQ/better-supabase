@@ -132,6 +132,43 @@ await db.collections
 
 The hooks are `before_dam_usage_right_create` and `after_dam_usage_right_create`.
 
+## Provenance and ODRL
+
+Two helpers, both pure TypeScript with no table behind them, cover provenance
+and rights exchange.
+
+```ts
+import {
+  damUsageRightsToOdrl,
+  readC2paManifest,
+} from "better-supabase/blocks/dam";
+```
+
+`readC2paManifest` runs a `C2paReader` over a file's bytes and returns what
+the DAM should keep: `absent`, `valid` or `invalid`, the manifest, the actions
+of a valid manifest and whether an action marks the media as generated (an
+IPTC `trainedAlgorithmicMedia` or `algorithmicMedia` source type). The reader
+is a versioned port (`apiVersion: 1`) that you implement over c2pa-rs,
+c2pa-node or a hosted verifier; better-supabase bundles none. A manifest that
+failed validation reports no actions, and a reader that throws gives an
+`unexpected` error with the hint `C2PA_READER_FAILED`. Call it from an
+upload hook and store the result in your own columns or in the file's
+metadata. It follows C2PA 2.2.
+
+`damUsageRightsToOdrl` exports the usage rights of one file as an ODRL 2.2
+`Set`: one permission per active right, with the dates, the territory
+(`spatial`) and the channel (`purpose`) as constraints. Revoked and upcoming
+rights are left out. The table stays the source of truth, and an ODRL policy
+read back is not imported.
+
+```ts
+const rights = await dam.usageRights({ nodeId }).orThrow();
+const policy = damUsageRightsToOdrl(rights, {
+  assigner: "https://brand.example.com",
+  target: `https://cdn.example.com/files/${nodeId}`,
+});
+```
+
 ## Without the client
 
 `record_rendition(tenant, node_id, kind, input)`, `list_renditions(tenant, node_id)`,

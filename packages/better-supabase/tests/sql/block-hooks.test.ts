@@ -241,6 +241,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_rfq_award",
     "after_rfq_award",
   ],
+  "e-prescribing": ["before_prescription_sign", "after_prescription_sign"],
   "clinical-decision-support": [
     "before_care_alert_decide",
     "after_care_alert_decide",

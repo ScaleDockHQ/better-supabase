@@ -72,3 +72,27 @@ export {
   partyListFilterSchema,
   personInputSchema,
 } from "./schemas.ts";
+
+export {
+  VCARD_MEDIA_TYPE,
+  VCARD_SPEC,
+  VCARD_VERSION,
+  companyVCard,
+  foldLine,
+  parseVCards,
+  personVCard,
+  toVCard,
+  toVCards,
+  vcardFile,
+  vcardFilename,
+  vcardListFile,
+  vcardResponse,
+  vcardToCompanyInput,
+  vcardToPersonInput,
+  type ParsedVCard,
+  type VCardAddress,
+  type VCardContact,
+  type VCardFile,
+  type VCardParseResult,
+  type VCardSkipped,
+} from "./vcard.ts";

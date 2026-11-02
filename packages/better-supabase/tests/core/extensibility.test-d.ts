@@ -69,6 +69,10 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../src/credentials/index.ts";
+import type {
+  EInvoiceChannel,
+  EInvoiceFormat,
+} from "../../src/e-invoicing/index.ts";
 import type { EveDocumentBackend } from "../../src/eve/index.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
@@ -176,6 +180,8 @@ describe("extension interfaces", () => {
     expectTypeOf<TaxProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(flatRateCarrier).returns.toExtend<ShippingProvider>();
     expectTypeOf<ShippingProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<EInvoiceChannel["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<EInvoiceFormat["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<FieldPack["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();

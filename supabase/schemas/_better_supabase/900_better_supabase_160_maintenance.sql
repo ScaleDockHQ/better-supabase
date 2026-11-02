@@ -1,7 +1,7 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:b78085cd46f7d8750d8a9536e04b7ebec18853348f8b514bcf43a7ef87104e3d
--- Preventive maintenance plans that fall due by time or by a meter, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts.
+-- @bsb-hash sha256:1a751f2ee28f6aa5a0baf7e5e1bae2572dfe5753aed3f38ed2cd8ca298488d5a
+-- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -137,7 +137,7 @@ create table if not exists "better_supabase"."maintenance_plans" (
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter')),
+  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
   "every_days" integer check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
@@ -150,14 +150,23 @@ create table if not exists "better_supabase"."maintenance_plans" (
   "next_due_at" timestamptz,
   -- The open work order, so a plan never has two at once.
   "work_order_id" uuid,
+  -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
+  -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
+  -- occurrence from dtstart, read in the time zone tz.
+  "rrule" text check ("rrule" is null or length("rrule") between 1 and 500),
+  "dtstart" timestamptz,
+  "tz" text not null default 'UTC',
+  -- Qualification type keys the technician of the work order must hold.
+  "required_qualifications" text[] not null default '{}',
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id"),
   check (
-    ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null)
-    or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null)
+    ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
+    or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
+    or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
 create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
@@ -203,6 +212,8 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
   "reference" text check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
+  -- Qualification type keys the person who calibrated held and the work needs.
+  "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
@@ -217,10 +228,45 @@ create policy maintenance_calibrations_read on "better_supabase"."maintenance_ca
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 
--- Creates a plan. input is { title, kind: 'time' | 'meter', everyDays,
--- meterId, everyValue, assetId, priority, parts: [{ name, quantity,
--- variantId }] }. A time plan falls due everyDays from now; a meter plan
--- everyValue units above the meter's reading. Needs maintenance.manage.
+create or replace function "better_supabase"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
+returns setof timestamptz
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  if maintenance_rule_starts.dtstart is null or maintenance_rule_starts.range_start is null or maintenance_rule_starts.range_end is null then
+    return;
+  end if;
+  return query select o from better_supabase.rrule_occurrences(maintenance_rule_starts.rrule, maintenance_rule_starts.dtstart, maintenance_rule_starts.tz, tstzrange(maintenance_rule_starts.range_start, maintenance_rule_starts.range_end, '[)')) o;
+end;
+$$;
+revoke execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
+
+
+-- The first occurrence of an RRULE strictly after an instant, or null when
+-- the rule has ended (COUNT or UNTIL) or has none within ten years.
+create or replace function "better_supabase"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
+returns timestamptz
+language sql
+stable
+set search_path = ''
+as $$
+  select min(s) from "better_supabase"."maintenance_rule_starts"(
+    maintenance_next_occurrence.dtstart, maintenance_next_occurrence.tz, maintenance_next_occurrence.rrule,
+    maintenance_next_occurrence.after + interval '1 microsecond', maintenance_next_occurrence.after + interval '10 years') s;
+$$;
+revoke execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
+
+-- Creates a plan. input is { title, kind: 'time' | 'meter' | 'rrule',
+-- everyDays, meterId, everyValue, rrule, dtstart, tz, requiredQualifications,
+-- assetId, priority, parts: [{ name, quantity, variantId }] }. A time plan
+-- falls due everyDays from now; a meter plan everyValue units above the
+-- meter's reading; an rrule plan on the next occurrence of its RRULE after
+-- now. requiredQualifications are qualification type keys the technician of
+-- its work order must hold. Needs maintenance.manage.
 create or replace function "better_supabase"."create_maintenance_plan"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -237,6 +283,10 @@ declare
   v_meter uuid;
   v_asset uuid;
   v_priority text;
+  v_rrule text;
+  v_dtstart timestamptz;
+  v_tz text;
+  v_required text[] := '{}';
   v_reading numeric;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -256,8 +306,17 @@ begin
     v_meter := nullif(create_maintenance_plan.input ->> 'meterId', '')::uuid;
     v_asset := nullif(create_maintenance_plan.input ->> 'assetId', '')::uuid;
     v_priority := coalesce(nullif(create_maintenance_plan.input ->> 'priority', ''), 'normal');
-  exception when invalid_text_representation or numeric_value_out_of_range then
-    raise exception 'everyDays and everyValue are numbers, meterId and assetId are ids' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+    v_rrule := nullif(trim(create_maintenance_plan.input ->> 'rrule'), '');
+    v_dtstart := (create_maintenance_plan.input ->> 'dtstart')::timestamptz;
+    v_tz := coalesce(nullif(trim(create_maintenance_plan.input ->> 'tz'), ''), 'UTC');
+    if create_maintenance_plan.input ? 'requiredQualifications' then
+      if jsonb_typeof(create_maintenance_plan.input -> 'requiredQualifications') is distinct from 'array' then
+        raise exception 'requiredQualifications is a list of qualification type keys' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+      end if;
+      select coalesce(array_agg(distinct k), '{}') into v_required from jsonb_array_elements_text(create_maintenance_plan.input -> 'requiredQualifications') k;
+    end if;
+  exception when invalid_text_representation or numeric_value_out_of_range or invalid_datetime_format or datetime_field_overflow or invalid_parameter_value then
+    raise exception 'everyDays and everyValue are numbers, meterId and assetId are ids, dtstart is a timestamp and requiredQualifications holds keys' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end;
   if coalesce(length(v_title), 0) not between 1 and 200 then
     raise exception 'a plan needs a title of 1 to 200 characters' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
@@ -268,8 +327,29 @@ begin
   if v_kind = 'meter' and (v_meter is null or v_value is null or v_value <= 0 or v_days is not null) then
     raise exception 'a meter plan needs a meterId and an everyValue above 0' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end if;
-  if v_kind is null or v_kind not in ('time', 'meter') then
-    raise exception 'the kind is time or meter' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  if v_kind = 'rrule' and (v_rrule is null or v_dtstart is null or v_days is not null or v_meter is not null or v_value is not null) then
+    raise exception 'a calendar plan needs an rrule and a dtstart, and no everyDays or meter' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind in ('time', 'meter') and (v_rrule is not null or v_dtstart is not null) then
+    raise exception 'only a plan of kind rrule takes an rrule and a dtstart' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind = 'rrule' and (length(v_rrule) > 500 or v_rrule !~* '(^|[:;])FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;|$)') then
+    raise exception 'the rrule needs FREQ of DAILY, WEEKLY, MONTHLY or YEARLY and at most 500 characters' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind = 'rrule' and not exists (select 1 from pg_catalog.pg_timezone_names n where n.name = v_tz) then
+    raise exception 'tz is an IANA time zone name' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind is null or v_kind not in ('time', 'meter', 'rrule') then
+    raise exception 'the kind is time, meter or rrule' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if exists (
+    select 1 from unnest(v_required) k
+    where not exists (
+      select 1 from "better_supabase"."qualification_types" o
+      where o."tenant_id" = create_maintenance_plan.tenant and o."key" = k and o."archived_at" is null
+    )
+  ) then
+    raise exception 'every required qualification is a qualification type key of this organization' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end if;
   if v_priority not in ('low', 'normal', 'high', 'urgent') then
     raise exception 'the priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
@@ -290,9 +370,13 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."maintenance_plans" ("tenant_id", "title", "asset_id", "kind", "every_days", "meter_id", "every_value", "priority", "last_done_value", "next_due_at", "created_by")
+    insert into "better_supabase"."maintenance_plans" ("tenant_id", "title", "asset_id", "kind", "every_days", "meter_id", "every_value", "priority", "last_done_value", "rrule", "dtstart", "tz", "required_qualifications", "next_due_at", "created_by")
     values (create_maintenance_plan.tenant, v_title, v_asset, v_kind, v_days, v_meter, v_value, v_priority, v_reading,
-      case when v_kind = 'time' then now() + v_days * interval '1 day' end, auth.uid())
+      v_rrule, v_dtstart, v_tz, v_required,
+      case v_kind
+        when 'time' then now() + v_days * interval '1 day'
+        when 'rrule' then "better_supabase"."maintenance_next_occurrence"(v_dtstart, v_tz, v_rrule, now())
+      end, auth.uid())
     returning * into v_row;
   if create_maintenance_plan.input ? 'parts' then
     if jsonb_typeof(create_maintenance_plan.input -> 'parts') is distinct from 'array' then
@@ -325,9 +409,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'rrule', v_row."rrule", 'dtstart', v_row."dtstart", 'tz', v_row."tz", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
     'due', v_row."status" = 'active' and v_row."work_order_id" is null and (
-      (v_row."kind" = 'time' and v_row."next_due_at" <= now())
+      (v_row."kind" in ('time', 'rrule') and v_row."next_due_at" <= now())
       or (v_row."kind" = 'meter' and exists (
         select 1 from "better_supabase"."maintenance_meters" z
         where z."id" = v_row."meter_id" and z."reading" >= coalesce(v_row."last_done_value", 0) + v_row."every_value"
@@ -342,8 +426,8 @@ $$;
 revoke execute on function "better_supabase"."create_maintenance_plan"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_maintenance_plan"(uuid, jsonb) to authenticated, service_role;
 
--- Changes a plan: title, priority, assetId, everyDays, everyValue, status
--- ('active' or 'paused') and parts. The kind and the meter stay. Needs
+-- Changes a plan: title, priority, assetId, everyDays, everyValue, rrule,
+-- dtstart, tz, requiredQualifications, status ('active' or 'paused') and parts. The kind and the meter stay. Needs
 -- maintenance.manage.
 create or replace function "better_supabase"."update_maintenance_plan"(plan_id uuid, changes jsonb)
 returns jsonb
@@ -361,6 +445,10 @@ declare
   v_meter uuid;
   v_asset uuid;
   v_priority text;
+  v_rrule text;
+  v_dtstart timestamptz;
+  v_tz text;
+  v_required text[];
   v_status text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -387,8 +475,17 @@ begin
     v_meter := nullif(update_maintenance_plan.changes ->> 'meterId', '')::uuid;
     v_asset := nullif(update_maintenance_plan.changes ->> 'assetId', '')::uuid;
     v_priority := coalesce(nullif(update_maintenance_plan.changes ->> 'priority', ''), 'normal');
-  exception when invalid_text_representation or numeric_value_out_of_range then
-    raise exception 'everyDays and everyValue are numbers, meterId and assetId are ids' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+    v_rrule := nullif(trim(update_maintenance_plan.changes ->> 'rrule'), '');
+    v_dtstart := (update_maintenance_plan.changes ->> 'dtstart')::timestamptz;
+    v_tz := coalesce(nullif(trim(update_maintenance_plan.changes ->> 'tz'), ''), 'UTC');
+    if update_maintenance_plan.changes ? 'requiredQualifications' then
+      if jsonb_typeof(update_maintenance_plan.changes -> 'requiredQualifications') is distinct from 'array' then
+        raise exception 'requiredQualifications is a list of qualification type keys' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+      end if;
+      select coalesce(array_agg(distinct k), '{}') into v_required from jsonb_array_elements_text(update_maintenance_plan.changes -> 'requiredQualifications') k;
+    end if;
+  exception when invalid_text_representation or numeric_value_out_of_range or invalid_datetime_format or datetime_field_overflow or invalid_parameter_value then
+    raise exception 'everyDays and everyValue are numbers, meterId and assetId are ids, dtstart is a timestamp and requiredQualifications holds keys' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end;
   v_kind := v_row."kind";
   v_meter := v_row."meter_id";
@@ -397,6 +494,10 @@ begin
   v_value := case when update_maintenance_plan.changes ? 'everyValue' then v_value else v_row."every_value" end;
   v_asset := case when update_maintenance_plan.changes ? 'assetId' then v_asset else v_row."asset_id" end;
   v_priority := case when update_maintenance_plan.changes ? 'priority' then v_priority else v_row."priority" end;
+  v_rrule := case when update_maintenance_plan.changes ? 'rrule' then v_rrule else v_row."rrule" end;
+  v_dtstart := case when update_maintenance_plan.changes ? 'dtstart' then v_dtstart else v_row."dtstart" end;
+  v_tz := case when update_maintenance_plan.changes ? 'tz' then v_tz else v_row."tz" end;
+  v_required := case when update_maintenance_plan.changes ? 'requiredQualifications' then v_required else v_row."required_qualifications" end;
   v_status := coalesce(update_maintenance_plan.changes ->> 'status', v_row."status");
   if v_status not in ('active', 'paused') then
     raise exception 'the status is active or paused' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
@@ -410,8 +511,29 @@ begin
   if v_kind = 'meter' and (v_meter is null or v_value is null or v_value <= 0 or v_days is not null) then
     raise exception 'a meter plan needs a meterId and an everyValue above 0' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end if;
-  if v_kind is null or v_kind not in ('time', 'meter') then
-    raise exception 'the kind is time or meter' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  if v_kind = 'rrule' and (v_rrule is null or v_dtstart is null or v_days is not null or v_meter is not null or v_value is not null) then
+    raise exception 'a calendar plan needs an rrule and a dtstart, and no everyDays or meter' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind in ('time', 'meter') and (v_rrule is not null or v_dtstart is not null) then
+    raise exception 'only a plan of kind rrule takes an rrule and a dtstart' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind = 'rrule' and (length(v_rrule) > 500 or v_rrule !~* '(^|[:;])FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;|$)') then
+    raise exception 'the rrule needs FREQ of DAILY, WEEKLY, MONTHLY or YEARLY and at most 500 characters' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind = 'rrule' and not exists (select 1 from pg_catalog.pg_timezone_names n where n.name = v_tz) then
+    raise exception 'tz is an IANA time zone name' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_kind is null or v_kind not in ('time', 'meter', 'rrule') then
+    raise exception 'the kind is time, meter or rrule' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if exists (
+    select 1 from unnest(v_required) k
+    where not exists (
+      select 1 from "better_supabase"."qualification_types" o
+      where o."tenant_id" = v_row."tenant_id" and o."key" = k and o."archived_at" is null
+    )
+  ) then
+    raise exception 'every required qualification is a qualification type key of this organization' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end if;
   if v_priority not in ('low', 'normal', 'high', 'urgent') then
     raise exception 'the priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
@@ -420,7 +542,15 @@ begin
     update "better_supabase"."maintenance_plans" x set
       "title" = v_title, "asset_id" = v_asset, "every_days" = v_days, "every_value" = v_value,
       "priority" = v_priority, "status" = v_status,
-      "next_due_at" = case when v_kind = 'time' then coalesce(x."last_done_at", x."created_at") + v_days * interval '1 day' end,
+      "rrule" = v_rrule, "dtstart" = v_dtstart, "tz" = v_tz, "required_qualifications" = v_required,
+      "next_due_at" = case v_kind
+        when 'time' then coalesce(x."last_done_at", x."created_at") + v_days * interval '1 day'
+        when 'rrule' then case
+          when update_maintenance_plan.changes ? 'rrule' or update_maintenance_plan.changes ? 'dtstart' or update_maintenance_plan.changes ? 'tz'
+            then "better_supabase"."maintenance_next_occurrence"(v_dtstart, v_tz, v_rrule, now())
+          else x."next_due_at"
+        end
+      end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -447,9 +577,9 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'title', v_row."title", 'kind', v_row."kind", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'rrule', v_row."rrule", 'dtstart', v_row."dtstart", 'tz', v_row."tz", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
     'due', v_row."status" = 'active' and v_row."work_order_id" is null and (
-      (v_row."kind" = 'time' and v_row."next_due_at" <= now())
+      (v_row."kind" in ('time', 'rrule') and v_row."next_due_at" <= now())
       or (v_row."kind" = 'meter' and exists (
         select 1 from "better_supabase"."maintenance_meters" z
         where z."id" = v_row."meter_id" and z."reading" >= coalesce(v_row."last_done_value", 0) + v_row."every_value"
@@ -498,7 +628,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'title', v_row."title", 'kind', v_row."kind", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'kind', v_row."kind", 'assetId', v_row."asset_id", 'everyDays', v_row."every_days", 'meterId', v_row."meter_id", 'everyValue', v_row."every_value"::text, 'priority', v_row."priority", 'status', v_row."status", 'lastDoneAt', v_row."last_done_at", 'lastDoneValue', v_row."last_done_value"::text, 'nextDueAt', v_row."next_due_at", 'workOrderId', v_row."work_order_id", 'rrule', v_row."rrule", 'dtstart', v_row."dtstart", 'tz', v_row."tz", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_maintenance_plan"(uuid) from public, anon;
@@ -602,7 +732,9 @@ revoke execute on function "better_supabase"."list_maintenance_meters"(uuid) fro
 grant execute on function "better_supabase"."list_maintenance_meters"(uuid) to authenticated, service_role;
 
 -- Records a calibration. input is { assetId, instrument, performedAt, dueAt,
--- result: 'pass' | 'fail' | 'adjusted', reference }. Needs maintenance.record.
+-- result: 'pass' | 'fail' | 'adjusted', reference, qualifications }. The
+-- caller must hold every qualification type key in qualifications on the day
+-- of performedAt. Needs maintenance.record.
 create or replace function "better_supabase"."record_calibration"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -612,6 +744,9 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."maintenance_calibrations";
+  v_key text;
+  v_quals text[] := '{}';
+  v_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -622,17 +757,45 @@ begin
   if jsonb_typeof(record_calibration.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end if;
+  if record_calibration.input ? 'qualifications' then
+    if jsonb_typeof(record_calibration.input -> 'qualifications') is distinct from 'array' then
+      raise exception 'qualifications is a list of qualification type keys' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+    end if;
+    select coalesce(array_agg(distinct k), '{}') into v_quals from jsonb_array_elements_text(record_calibration.input -> 'qualifications') k;
+  end if;
   begin
-    insert into "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "instrument", "performed_at", "due_at", "result", "reference", "performed_by")
+    v_at := (record_calibration.input ->> 'performedAt')::timestamptz;
+  exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
+    raise exception 'performedAt is a timestamp' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end;
+  if exists (
+    select 1 from unnest(v_quals) k
+    where not exists (
+      select 1 from "better_supabase"."qualification_types" o
+      where o."tenant_id" = record_calibration.tenant and o."key" = k and o."archived_at" is null
+    )
+  ) then
+    raise exception 'every required qualification is a qualification type key of this organization' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if cardinality(v_quals) > 0 and auth.uid() is null then
+    raise exception 'a calibration with qualifications needs a signed-in person who performed it' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  foreach v_key in array v_quals loop
+    if not coalesce("better_supabase"."qualified_holders"(record_calibration.tenant, v_key, 'member', v_at::date) ? (auth.uid())::text, false) then
+      raise exception 'the person doesn''t hold a qualification the work requires' using errcode = '42501', hint = 'MAINTENANCE_UNQUALIFIED';
+    end if;
+  end loop;
+  begin
+    insert into "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "instrument", "performed_at", "due_at", "result", "reference", "performed_by", "qualifications")
     values (record_calibration.tenant, nullif(record_calibration.input ->> 'assetId', '')::uuid, trim(record_calibration.input ->> 'instrument'),
-      (record_calibration.input ->> 'performedAt')::timestamptz, (record_calibration.input ->> 'dueAt')::timestamptz,
-      record_calibration.input ->> 'result', nullif(trim(record_calibration.input ->> 'reference'), ''), auth.uid())
+      v_at, (record_calibration.input ->> 'dueAt')::timestamptz,
+      record_calibration.input ->> 'result', nullif(trim(record_calibration.input ->> 'reference'), ''), auth.uid(), v_quals)
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
     raise exception 'a calibration needs an instrument, a performedAt, a dueAt on or after it, and a result of pass, fail, adjusted' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
   end;
   perform "better_supabase".emit_event('maintenance_calibration.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'assetId', v_row."asset_id", 'instrument', v_row."instrument", 'result', v_row."result"), 'maintenance-calibrations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/maintenance');
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'assetId', v_row."asset_id", 'instrument', v_row."instrument", 'performedAt', v_row."performed_at", 'dueAt', v_row."due_at", 'result', v_row."result", 'reference', v_row."reference", 'performedBy', v_row."performed_by");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'assetId', v_row."asset_id", 'instrument', v_row."instrument", 'performedAt', v_row."performed_at", 'dueAt', v_row."due_at", 'result', v_row."result", 'reference', v_row."reference", 'performedBy', v_row."performed_by", 'qualifications', to_jsonb(v_row."qualifications"));
 end;
 $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
@@ -655,7 +818,7 @@ begin
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by") order by y."performed_at" desc, y."id")
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
@@ -691,9 +854,9 @@ begin
   return coalesce((
     select jsonb_agg(y.view order by y.due_first, y.id)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
-      (x."kind" = 'time' and x."next_due_at" <= now())
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
         select 1 from "better_supabase"."maintenance_meters" z
         where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
@@ -748,9 +911,9 @@ begin
     order by x."next_due_at" nulls last, x."id"
     for update
   loop
-    v_view := jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'title', v_plan."title", 'kind', v_plan."kind", 'assetId', v_plan."asset_id", 'everyDays', v_plan."every_days", 'meterId', v_plan."meter_id", 'everyValue', v_plan."every_value"::text, 'priority', v_plan."priority", 'status', v_plan."status", 'lastDoneAt', v_plan."last_done_at", 'lastDoneValue', v_plan."last_done_value"::text, 'nextDueAt', v_plan."next_due_at", 'workOrderId', v_plan."work_order_id", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at") || jsonb_build_object(
+    v_view := jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'title', v_plan."title", 'kind', v_plan."kind", 'assetId', v_plan."asset_id", 'everyDays', v_plan."every_days", 'meterId', v_plan."meter_id", 'everyValue', v_plan."every_value"::text, 'priority', v_plan."priority", 'status', v_plan."status", 'lastDoneAt', v_plan."last_done_at", 'lastDoneValue', v_plan."last_done_value"::text, 'nextDueAt', v_plan."next_due_at", 'workOrderId', v_plan."work_order_id", 'rrule', v_plan."rrule", 'dtstart', v_plan."dtstart", 'tz', v_plan."tz", 'requiredQualifications', to_jsonb(v_plan."required_qualifications"), 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at") || jsonb_build_object(
     'due', v_plan."status" = 'active' and v_plan."work_order_id" is null and (
-      (v_plan."kind" = 'time' and v_plan."next_due_at" <= now())
+      (v_plan."kind" in ('time', 'rrule') and v_plan."next_due_at" <= now())
       or (v_plan."kind" = 'meter' and exists (
         select 1 from "better_supabase"."maintenance_meters" z
         where z."id" = v_plan."meter_id" and z."reading" >= coalesce(v_plan."last_done_value", 0) + v_plan."every_value"
@@ -826,7 +989,11 @@ begin
     "work_order_id" = null,
     "last_done_at" = v_done,
     "last_done_value" = v_reading,
-    "next_due_at" = case when x."kind" = 'time' then v_done + x."every_days" * interval '1 day' end,
+    "next_due_at" = case x."kind"
+      when 'time' then v_done + x."every_days" * interval '1 day'
+      -- Done early counts for the occurrence it was due on; done late skips the missed ones.
+      when 'rrule' then "better_supabase"."maintenance_next_occurrence"(x."dtstart", x."tz", x."rrule", greatest(v_done, coalesce(x."next_due_at", v_done)))
+    end,
     "updated_at" = now()
   where x."id" = v_plan."id"
   returning * into v_plan;
@@ -845,6 +1012,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_closed"() from public, anon, authenticated;
+
+-- Assigning a technician to the work order of a plan that requires
+-- qualifications fails unless the technician holds them today.
+create or replace function "better_supabase"."maintenance_work_order_assigned"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_plan "better_supabase"."maintenance_plans";
+  v_key text;
+begin
+  for v_plan in
+    select * from "better_supabase"."maintenance_plans" x
+    where x."work_order_id" = new."id" and cardinality(x."required_qualifications") > 0
+  loop
+    foreach v_key in array v_plan."required_qualifications" loop
+    if not coalesce("better_supabase"."qualified_holders"(new."tenant_id", v_key, 'member', current_date) ? (new."technician_id")::text, false) then
+      raise exception 'the person doesn''t hold a qualification the work requires' using errcode = '42501', hint = 'MAINTENANCE_UNQUALIFIED';
+    end if;
+  end loop;
+  end loop;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."maintenance_work_order_assigned"() from public, anon, authenticated;
+drop trigger if exists bsb_maintenance_work_order_technician on "better_supabase"."work_orders";
+create trigger bsb_maintenance_work_order_technician before update of "technician_id" on "better_supabase"."work_orders"
+  for each row when (new."technician_id" is not null and old."technician_id" is distinct from new."technician_id")
+  execute function "better_supabase"."maintenance_work_order_assigned"();
+
 drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
@@ -1003,6 +1202,24 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."maintenance_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
+returns setof timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."maintenance_rule_starts"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) from public, anon;
+grant execute on function "api"."maintenance_rule_starts"(timestamptz, text, text, timestamptz, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."maintenance_next_occurrence"($1, $2, $3, $4) $$;
+revoke execute on function "api"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) from public, anon;
+grant execute on function "api"."maintenance_next_occurrence"(timestamptz, text, text, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."create_maintenance_plan"(tenant uuid, input jsonb)
 returns jsonb

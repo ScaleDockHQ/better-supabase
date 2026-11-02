@@ -24,6 +24,9 @@ const PURE_BARRELS = [
   "blocks/ai-schedules",
   "blocks/push",
   "blocks/ai-cache",
+  "blocks/prompts",
+  "blocks/ai-evals",
+  "blocks/ai-guardrails",
   "blocks/ai-keys",
   "ai-sdk",
   "ai-sdk/chat",
@@ -82,7 +85,10 @@ const PURE_BARRELS = [
   "blocks/rfqs",
   "blocks/tills",
   "blocks/periods",
+  "blocks/agent-checkout",
   "blocks/clinical-decision-support",
+  "blocks/e-prescribing",
+  "blocks/advisories",
   "blocks/maintenance",
   "blocks/appraisals",
   "blocks/warehouse",
@@ -159,6 +165,7 @@ const PURE_BARRELS = [
   "list",
   "mcp",
   "mcp/sdk",
+  "webmcp",
   "next",
   "powersync",
   "tanstack-db",
@@ -196,6 +203,7 @@ const PURE_BARRELS = [
   "flags-sdk",
   "e-invoicing",
   "audit-files",
+  "verifiable-credentials",
 ];
 
 describe("subpath entries", () => {

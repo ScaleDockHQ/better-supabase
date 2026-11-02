@@ -1,9 +1,13 @@
 import type { EntitySchema } from "../entity-schema.ts";
 import type {
+  BinSlotInput,
   CountPlanInput,
   PickListInput,
   PickRecord,
   PickWaveInput,
+  PutawayRequest,
+  PutawayRuleInput,
+  SlottingOptions,
 } from "./warehouse.ts";
 
 import { entitySchema } from "../entity-schema.ts";
@@ -54,5 +58,63 @@ export const countPlanInputSchema: EntitySchema<CountPlanInput> =
       variantIds: { kind: "uuid", array: true, optional: true },
       varianceLimitPct: { kind: "number", optional: true, minimum: 0 },
       startsOn: { kind: "string", optional: true },
+    },
+  });
+
+/** What `savePutawayRule` takes. */
+export const putawayRuleInputSchema: EntitySchema<PutawayRuleInput> =
+  entitySchema<PutawayRuleInput>({
+    title: "PutawayRuleInput",
+    fields: {
+      id: { kind: "uuid", optional: true },
+      locationId: { kind: "uuid", optional: true },
+      binId: { kind: "uuid", optional: true },
+      variantId: { kind: "uuid", optional: true },
+      priority: {
+        kind: "integer",
+        optional: true,
+        minimum: 0,
+        maximum: 10_000,
+      },
+      maxQuantity: { kind: "number", optional: true },
+      active: { kind: "boolean", optional: true },
+    },
+  });
+
+/** What `saveBinSlot` takes. */
+export const binSlotInputSchema: EntitySchema<BinSlotInput> =
+  entitySchema<BinSlotInput>({
+    title: "BinSlotInput",
+    fields: {
+      binId: { kind: "uuid" },
+      walkRank: {
+        kind: "integer",
+        optional: true,
+        minimum: 0,
+        maximum: 100_000,
+      },
+      capacity: { kind: "number", optional: true },
+    },
+  });
+
+/** What `suggestPutaway` takes. */
+export const putawayRequestSchema: EntitySchema<PutawayRequest> =
+  entitySchema<PutawayRequest>({
+    title: "PutawayRequest",
+    fields: {
+      locationId: { kind: "uuid" },
+      variantId: { kind: "uuid" },
+      quantity: { kind: "number", description: "More than zero." },
+    },
+  });
+
+/** What `suggestSlotting` takes. */
+export const slottingOptionsSchema: EntitySchema<SlottingOptions> =
+  entitySchema<SlottingOptions>({
+    title: "SlottingOptions",
+    fields: {
+      locationId: { kind: "uuid" },
+      days: { kind: "integer", optional: true, minimum: 1, maximum: 365 },
+      limit: { kind: "integer", optional: true, minimum: 1, maximum: 500 },
     },
   });

@@ -29,7 +29,7 @@ export const filespaceParts: {
 export type FilespaceParts = typeof filespaceParts;
 
 /**
- * The `filespace` composite (ADR 0177): a drive with attachments, versions,
+ * The `filespace` composite (ADR 0196): a drive with attachments, versions,
  * share links, search and trash. It installs its parts and sets their defaults;
  * the parts stay ordinary blocks in the config.
  */

@@ -3,6 +3,14 @@ export {
   type Moderation,
   type ModerationAction,
   type ModerationActionKind,
+  type ModerationAppeal,
+  type ModerationAppealOutcome,
+  type ModerationNotice,
+  type ModerationNoticeDecision,
+  type ModerationRestriction,
+  type ModerationStatement,
+  type ModerationStatementInput,
+  type ModerationTrustedFlagger,
   type ModerationBan,
   type ModerationDecision,
   type ModerationItem,
@@ -39,10 +47,15 @@ export { moderationBinding } from "./record-binding.ts";
 export { moderationEvents } from "./events.ts";
 
 export type {
+  ModerationAppealDecidedEventData,
+  ModerationAppealFiledEventData,
   ModerationBanEventData,
   ModerationDecisionEventData,
   ModerationEvents,
+  ModerationNoticeDecidedEventData,
+  ModerationNoticeReceivedEventData,
   ModerationReportEventData,
+  ModerationStatementIssuedEventData,
 } from "./events.ts";
 
 export type { ModerationSqlOptions } from "./options.ts";

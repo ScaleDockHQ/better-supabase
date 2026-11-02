@@ -42,3 +42,18 @@ export { contentEntryInputSchema } from "./schemas.ts";
 export { contentEvents } from "./events.ts";
 
 export type { ContentEntryEventData, ContentEvents } from "./events.ts";
+
+export {
+  articleJsonLd,
+  breadcrumbJsonLd,
+  jsonLdScript,
+  robotsTxt,
+  SITEMAP_MAX_URLS,
+  sitemapChunks,
+  sitemapIndexXml,
+  sitemapXml,
+  type ArticleJsonLdOptions,
+  type JsonLd,
+  type RobotsOptions,
+  type SitemapOptions,
+} from "./seo.ts";

@@ -7,6 +7,17 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
+/** The `data_subject_request.*` events. */
+export interface DataSubjectRequestEventData {
+  readonly requestId: string;
+  readonly organizationId: string;
+  /** `access`, `erasure`, `rectification` or `portability`. */
+  readonly kind: string;
+  /** `received`, `verified`, `fulfilled` or `refused`, after the change. */
+  readonly status: string;
+  readonly dueAt: string;
+}
+
 /** The events of the `data-lifecycle` block: type to data. */
 export type DataLifecycleEvents = {
   readonly "data_export.requested": DataExportEventData;
@@ -17,6 +28,11 @@ export type DataLifecycleEvents = {
   readonly "organization.purged": OrganizationDeletionEventData;
   readonly "legal_hold.placed": LegalHoldEventData;
   readonly "legal_hold.released": LegalHoldEventData;
+  readonly "data_subject_request.received": DataSubjectRequestEventData;
+  readonly "data_subject_request.verified": DataSubjectRequestEventData;
+  readonly "data_subject_request.extended": DataSubjectRequestEventData;
+  readonly "data_subject_request.fulfilled": DataSubjectRequestEventData;
+  readonly "data_subject_request.refused": DataSubjectRequestEventData;
 };
 
 /**
@@ -32,4 +48,9 @@ export const dataLifecycleEvents: Events<DataLifecycleEvents> = defineEvents({
   "organization.purged": event<OrganizationDeletionEventData>(),
   "legal_hold.placed": event<LegalHoldEventData>(),
   "legal_hold.released": event<LegalHoldEventData>(),
+  "data_subject_request.received": event<DataSubjectRequestEventData>(),
+  "data_subject_request.verified": event<DataSubjectRequestEventData>(),
+  "data_subject_request.extended": event<DataSubjectRequestEventData>(),
+  "data_subject_request.fulfilled": event<DataSubjectRequestEventData>(),
+  "data_subject_request.refused": event<DataSubjectRequestEventData>(),
 });

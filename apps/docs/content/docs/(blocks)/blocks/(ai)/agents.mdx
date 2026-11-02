@@ -114,3 +114,55 @@ import { createAgents, rpcTransport } from "better-supabase/blocks/agents";
 export const agentsFor = (supabase: SupabaseClient) =>
   createAgents({ transport: rpcTransport(supabase) });
 ```
+
+## Calling agents from other agents (A2A)
+
+`agentCard` builds an A2A 1.0 Agent Card with one skill per public agent, and
+`agentCardResponse` serves it with an `ETag`. Organization agents appear only
+with `includeOrganization`. Serve it at `/.well-known/agent-card.json`.
+
+```ts
+import {
+  A2A_CARD_PATH,
+  agentCard,
+  agentCardResponse,
+} from "better-supabase/blocks/agents";
+
+const card = agentCard(await agents.list().orThrow(), {
+  name: "Acme agents",
+  description: "The agents of Acme",
+  version: "1.0.0",
+  url: "https://acme.example/a2a",
+});
+
+export const GET = (request: Request) => agentCardResponse(request, card);
+```
+
+`createA2AHandler` is a JSON-RPC endpoint for `SendMessage`,
+`SendStreamingMessage`, `GetTask` and `CancelTask`. A task is an
+[ai-chat](/docs/blocks/ai-chat) run and its context is the chat. `resolve`
+returns a chat client that acts as the caller, or nothing for a 401, and `start`
+runs the model for the chat and returns the run id, so your app keeps the AI SDK
+and the stream claim. Clients must send `A2A-Version: 1.0`. A streamed task polls
+the run and closes when it ends.
+
+```ts
+import { createA2AHandler } from "better-supabase/blocks/agents";
+
+export const POST = createA2AHandler({
+  resolve: async (request) => {
+    const user = await authenticate(request);
+
+    return (
+      user && {
+        chat: aiChatFor(user),
+        organizationId: user.organizationId,
+        start: ({ chatId, agent }) => runChat(user, chatId, agent),
+      }
+    );
+  },
+});
+```
+
+Only text parts and the JSON-RPC binding are supported, and push notifications
+are not. Pass the agent's slug as `params.metadata.agent` to pick one skill.

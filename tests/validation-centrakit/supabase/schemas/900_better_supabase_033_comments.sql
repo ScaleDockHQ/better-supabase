@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:360a7149f8527d0971dc6da20b5d91feb524c3ef8a9d31682514d110a9e19e46
+-- @bsb-hash sha256:e498822e14e9945d2e3b213910fedea67518bce601d03a17f6dafd9c27b105fa
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -207,6 +207,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -226,6 +234,14 @@ begin
     coalesce(create_comment.attachments, '{}')
   );
   perform "better_supabase"."comment_sent"((v_msg ->> 'id')::uuid);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;

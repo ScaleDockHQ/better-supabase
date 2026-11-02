@@ -24,7 +24,7 @@ export const supportParts: {
 export type SupportParts = typeof supportParts;
 
 /**
- * The `support` composite (ADR 0177): a shared inbox, tickets with SLAs and a
+ * The `support` composite (ADR 0196): a shared inbox, tickets with SLAs and a
  * knowledge base. It installs its parts and sets their defaults; the parts stay
  * ordinary blocks in the config.
  */

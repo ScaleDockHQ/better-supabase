@@ -267,6 +267,26 @@ export interface PolicyListOptions {
   readonly includeArchived?: boolean;
 }
 
+/** What `importOscalCatalog` made. */
+export interface OscalCatalogImport {
+  readonly frameworkId: string;
+  readonly key: string;
+  /** How many controls the catalog held, groups and nested controls included. */
+  readonly controls: number;
+}
+
+/** What `applyOscalProfile` did to the framework's controls. */
+export interface OscalProfileResult {
+  readonly frameworkId: string;
+  readonly applicable: number;
+  readonly notApplicable: number;
+  /** Ids the profile names that the framework has no control for. */
+  readonly unknownIds: readonly string[];
+}
+
+/** An OSCAL document: parsed JSON. */
+export type OscalDocument = Readonly<Record<string, unknown>>;
+
 export interface Compliance<F extends object = Record<never, never>> {
   /** Needs `compliance.manage`. */
   saveFramework(input: {
@@ -274,6 +294,32 @@ export interface Compliance<F extends object = Record<never, never>> {
     input: ControlFrameworkInput;
   }): AsyncResult<ControlFramework>;
   frameworks(organizationId: string): AsyncResult<readonly ControlFramework[]>;
+  /**
+   * Imports an OSCAL catalog (JSON) as a framework with a control per catalog
+   * control. The framework key defaults to the catalog uuid. Needs
+   * `compliance.manage`.
+   */
+  importOscalCatalog(
+    input: { organizationId: string; catalog: OscalDocument } & {
+      readonly key?: string;
+    },
+  ): AsyncResult<OscalCatalogImport>;
+  /**
+   * Marks the controls an OSCAL profile includes as applicable and the rest as
+   * not applicable. The profile's import href is not followed. Needs
+   * `compliance.manage`.
+   */
+  applyOscalProfile(input: {
+    frameworkId: string;
+    profile: OscalDocument;
+  }): AsyncResult<OscalProfileResult>;
+  /**
+   * An OSCAL assessment-results document for the framework: a finding per
+   * applicable control and an observation per piece of evidence.
+   */
+  exportOscalAssessmentResults(
+    input: { frameworkId: string } & { readonly title?: string },
+  ): AsyncResult<OscalDocument>;
   /** Needs `compliance.manage`. */
   saveControl(input: ControlInput<F>): AsyncResult<Control<F>>;
   getControl(controlId: string): AsyncResult<ControlDetail<F>>;
@@ -538,6 +584,44 @@ export function createCompliance<
         "list_control_frameworks",
         { tenant: organizationId },
         many("list_control_frameworks", frameworkOf),
+      ),
+    importOscalCatalog: ({ organizationId, catalog, ...options }) =>
+      call(
+        "import_oscal_catalog",
+        { tenant: organizationId, document: catalog, key: options.key ?? null },
+        (value) => {
+          const row = recordOf(value, "import_oscal_catalog");
+
+          return {
+            frameworkId: textOf(row["frameworkId"]),
+            key: textOf(row["key"]),
+            controls: numberOf(row["controls"]),
+          };
+        },
+      ),
+    applyOscalProfile: ({ frameworkId, profile }) =>
+      call(
+        "apply_oscal_profile",
+        { framework_id: frameworkId, document: profile },
+        (value) => {
+          const row = recordOf(value, "apply_oscal_profile");
+
+          return {
+            frameworkId: textOf(row["frameworkId"]),
+            applicable: numberOf(row["applicable"]),
+            notApplicable: numberOf(row["notApplicable"]),
+            unknownIds: (Array.isArray(row["unknownIds"])
+              ? row["unknownIds"]
+              : []
+            ).map(textOf),
+          };
+        },
+      ),
+    exportOscalAssessmentResults: ({ frameworkId, ...options }) =>
+      call(
+        "export_oscal_assessment_results",
+        { framework_id: frameworkId, title: options.title ?? null },
+        (value) => recordOf(value, "export_oscal_assessment_results"),
       ),
     saveControl: (input) =>
       fields

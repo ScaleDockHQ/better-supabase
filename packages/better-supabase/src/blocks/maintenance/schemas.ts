@@ -12,7 +12,7 @@ export const maintenancePlanInputSchema: EntitySchema<MaintenancePlanInput> =
     title: "MaintenancePlanInput",
     fields: {
       title: { kind: "string", minLength: 1, maxLength: 200 },
-      kind: { kind: "enum", values: ["time", "meter"] },
+      kind: { kind: "enum", values: ["time", "meter", "rrule"] },
       everyDays: {
         kind: "integer",
         optional: true,
@@ -25,6 +25,30 @@ export const maintenancePlanInputSchema: EntitySchema<MaintenancePlanInput> =
         optional: true,
         description:
           "A meter plan falls due this many units after the last one.",
+      },
+      rrule: {
+        kind: "string",
+        optional: true,
+        maxLength: 500,
+        description:
+          "An rrule plan's RFC 5545 rule, for example `FREQ=MONTHLY;BYDAY=1MO`.",
+      },
+      dtstart: {
+        kind: "instant",
+        optional: true,
+        description: "An rrule plan's first occurrence.",
+      },
+      tz: {
+        kind: "string",
+        optional: true,
+        description: "The IANA time zone of the rule. Default UTC.",
+      },
+      requiredQualifications: {
+        kind: "string",
+        array: true,
+        optional: true,
+        description:
+          "Qualification type keys the technician of the work order must hold.",
       },
       assetId: { kind: "uuid", optional: true, nullable: true },
       priority: {
@@ -56,6 +80,13 @@ export const maintenanceCalibrationInputSchema: EntitySchema<MaintenanceCalibrat
         optional: true,
         nullable: true,
         maxLength: 200,
+      },
+      qualifications: {
+        kind: "string",
+        array: true,
+        optional: true,
+        description:
+          "Qualification type keys the signed-in person must hold on performedAt.",
       },
     },
   });

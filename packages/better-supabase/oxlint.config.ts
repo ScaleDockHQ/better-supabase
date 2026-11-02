@@ -100,14 +100,14 @@ export default defineConfig({
       rules: { "eslint/max-lines": "off" },
     },
     {
-      // The drive client takes one object per method (ADR 0177), which
+      // The drive client takes one object per method (ADR 0196), which
       // expands its declarations; 1,021 code lines, 1 finding when measured.
       files: ["src/blocks/drive/drive.ts"],
       rules: { "eslint/max-lines": "off" },
     },
     {
       // The codemod's table of block client methods, one row per method
-      // (ADR 0177); 1,161 code lines, 1 finding when measured.
+      // (ADR 0196); 1,161 code lines, 1 finding when measured.
       files: ["src/cli/codemod-object-inputs-data.ts"],
       rules: { "eslint/max-lines": "off" },
     },

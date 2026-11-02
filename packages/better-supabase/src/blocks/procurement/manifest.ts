@@ -23,7 +23,7 @@ export const procurementParts: {
 export type ProcurementParts = typeof procurementParts;
 
 /**
- * The `procurement` composite (ADR 0177): requests for quotation, stock,
+ * The `procurement` composite (ADR 0196): requests for quotation, stock,
  * supplier bills and bank payments, from sourcing to payment. It installs its
  * parts and sets their defaults; the parts stay ordinary blocks in the config.
  */

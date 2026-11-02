@@ -117,6 +117,40 @@ and run it with the service role's client.
 const run = blockTickHandler({ "consents.expire": () => consents.expire() });
 ```
 
+## Signals and receipts
+
+A browser signal or a consent string is evidence, and the block stores it next
+to the decision it supports. `recordSignal` takes three kinds.
+
+```ts
+await db.consents
+  .recordSignal({
+    subject: { type: "visitor", id: visitorId },
+    kind: "gpc",
+    value: "1",
+    purposeKeys: ["marketing", "analytics"],
+  })
+  .orThrow();
+```
+
+- `gpc` is the `Sec-GPC: 1` header ([Global Privacy Control](https://privacycg.github.io/gpc-spec/)).
+  The block records a refused consent for each purpose in `purposeKeys`.
+- `tcf` is an IAB TCF v2.2 TC string. The database parses the core segment
+  (version, created and last updated dates, CMP id, consent language, vendor
+  list version, policy version and the purpose consent bits) and keeps the
+  string and its parsed fields as evidence for `consentId`.
+- `gpp` is an IAB GPP 1.1 string. The database parses the header (type,
+  version and section ids are kept as the raw header) and stores the string.
+
+The parsers don't decode the GPP section ids and don't read the TCF vendor
+sections. A string that doesn't parse is refused with `CONSENT_SIGNAL_INVALID`.
+`signals(subject)` lists what was recorded, the newest first.
+
+`issueReceipt(consentId)` returns a consent receipt: a JSON document with the
+subject, the purpose with its version and legal basis, the consent status and
+dates, the signals recorded for the record and a SHA-256 digest. The same consent and status give the same receipt, so a retry is safe.
+`receipts(subject)` lists them.
+
 ## Guests and representatives
 
 A [guest](/docs/blocks/guests) whose party is the record records and
@@ -171,6 +205,10 @@ The block writes `consent.granted`, `consent.refused`, `consent.withdrawn`,
 `consent.expired`, `consent_purpose.created` and `consent_purpose.updated`
 to the [outbox](/docs/blocks/outbox). See [Events](/docs/extending/events).
 
+`consent_signal.recorded` and `consent_receipt.issued` are written too, and
+`recordSignal` follows the same rule as `record`: the caller must be allowed to
+record a decision for that record.
+
 | Error code                   | When                                                           |
 | ---------------------------- | -------------------------------------------------------------- |
 | `CONSENT_FORBIDDEN`          | the caller lacks the permission or can't act for the record    |
@@ -180,6 +218,7 @@ to the [outbox](/docs/blocks/outbox). See [Events](/docs/extending/events).
 | `CONSENT_PURPOSE_ARCHIVED`   | the purpose is archived                                        |
 | `CONSENT_SIGNATURE_REQUIRED` | the purpose needs a signature to grant                         |
 | `CONSENT_ALREADY_WITHDRAWN`  | the consent was already withdrawn                              |
+| `CONSENT_SIGNAL_INVALID`     | a signal's kind, value or purposes don't validate              |
 
 The [consent register](/docs/registry/ui-recipes/consent-register) recipe
 lists an organization's purposes.

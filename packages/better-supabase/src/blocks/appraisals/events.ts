@@ -34,7 +34,8 @@ export interface AppraisalReviewEventData {
   /** The review. */
   readonly id: string;
   readonly appraisalId: string;
-  readonly reviewerId: string;
+  /** Unset (null) for a peer review when the cycle hides peer reviewers. */
+  readonly reviewerId: string | null;
   /** `self`, `peer` or `manager`. */
   readonly kind: string;
   /** 1 to 5. */

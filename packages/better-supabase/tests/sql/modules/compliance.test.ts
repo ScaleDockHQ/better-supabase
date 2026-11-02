@@ -171,4 +171,43 @@ describe("compliance module", () => {
       "kind must be one of standard, legal, internal, contract",
     );
   });
+
+  describe("OSCAL", () => {
+    const sql = sqlOf();
+
+    it("flattens catalog groups and nested controls, reading the statement prose", () => {
+      expect(sql).toContain(
+        `jsonb_path_query(v_catalog, 'strict $.**.controls[*]')`,
+      );
+      expect(sql).toContain(`(@.name == "statement").prose`);
+    });
+
+    it("applies a profile as the statement of applicability", () => {
+      expect(sql).toContain(`"include-controls"[*]."with-ids"[*]`);
+      expect(sql).toContain(`"exclude-controls"[*]."with-ids"[*]`);
+      expect(sql).toContain("the profile includes no controls");
+    });
+
+    it("exports assessment results with a finding per applicable control and its evidence", () => {
+      expect(sql).toContain("'assessment-results'");
+      expect(sql).toContain("'oscal-version', '1.2.3'");
+      expect(sql).toContain("'relevant-evidence'");
+      expect(sql).toContain("'satisfied'");
+      expect(sql).toContain("'not-satisfied'");
+    });
+
+    it("needs the manage permission to import and the read permission to export", () => {
+      expect(sql).toMatch(
+        /import_oscal_catalog[\s\S]*?can\('tenant', v_tenant, 'compliance\.manage'\)/,
+      );
+      expect(sql).toMatch(
+        /export_oscal_assessment_results[\s\S]*?'compliance\.read'/,
+      );
+    });
+
+    it("is a version 4 module with an upgrade step from 3", () => {
+      expect(COMPLIANCE.version).toBe(4);
+      expect(COMPLIANCE.upgrades?.some((step) => step.from === 3)).toBe(true);
+    });
+  });
 });

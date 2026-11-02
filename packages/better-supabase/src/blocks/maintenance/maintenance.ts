@@ -23,7 +23,7 @@ import {
   textOf,
 } from "../shared.ts";
 
-/** What triggers a plan: time or a meter. */
+/** What triggers a plan: elapsed days, a meter or an RRULE. */
 export type MaintenancePlanKind = (typeof MAINTENANCE_PLAN_KINDS)[number];
 
 /** Whether a plan generates work orders. */
@@ -57,6 +57,13 @@ export interface MaintenancePlan {
   readonly meterId?: string;
   /** A decimal string. */
   readonly everyValue?: string;
+  /** An `rrule` plan's recurrence rule (RFC 5545), read in `tz` from `dtstart`. */
+  readonly rrule?: string;
+  readonly dtstart?: Temporal.Instant;
+  /** The IANA time zone the rule is read in. Default `UTC`. */
+  readonly tz: string;
+  /** Qualification type keys the technician of its work order must hold. */
+  readonly requiredQualifications: readonly string[];
   readonly priority: MaintenancePriority;
   readonly status: MaintenancePlanStatus;
   readonly lastDoneAt?: Temporal.Instant;
@@ -94,6 +101,8 @@ export interface MaintenanceCalibration {
   readonly result: MaintenanceCalibrationResult;
   readonly reference?: string;
   readonly performedBy?: string;
+  /** The qualification type keys the person who calibrated held. */
+  readonly qualifications: readonly string[];
 }
 
 /** A work order the generator opened for a plan. */
@@ -111,6 +120,18 @@ export interface MaintenancePlanInput {
   readonly meterId?: string;
   /** Required for a meter plan, a decimal string. */
   readonly everyValue?: string;
+  /**
+   * Required for an `rrule` plan: `FREQ` of DAILY, WEEKLY, MONTHLY or YEARLY
+   * with INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST,
+   * for example `FREQ=MONTHLY;BYDAY=1MO`.
+   */
+  readonly rrule?: string;
+  /** Required for an `rrule` plan: the first occurrence's start. */
+  readonly dtstart?: Temporal.Instant;
+  /** The IANA time zone of the rule. Default `UTC`. */
+  readonly tz?: string;
+  /** Qualification type keys the technician must hold; needs `qualifications`. */
+  readonly requiredQualifications?: readonly string[];
   readonly assetId?: string | null;
   /** Default `normal`. */
   readonly priority?: MaintenancePriority;
@@ -137,6 +158,11 @@ export interface MaintenanceCalibrationInput {
   readonly dueAt: Temporal.Instant;
   readonly result: MaintenanceCalibrationResult;
   readonly reference?: string | null;
+  /**
+   * Qualification type keys the signed-in person must hold on `performedAt`;
+   * needs the `qualifications` block.
+   */
+  readonly qualifications?: readonly string[];
 }
 
 export interface MaintenancePlanListOptions {
@@ -222,6 +248,12 @@ const definedOf = (input: object): Record<string, unknown> =>
     Object.entries(input).filter(([, value]) => value !== undefined),
   );
 
+function keysOf(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((key): key is string => typeof key === "string")
+    : [];
+}
+
 function partOf(value: unknown, fn: string): MaintenancePart {
   const row = recordOf(value, fn);
 
@@ -252,6 +284,8 @@ function planOf(value: unknown, fn: string): MaintenancePlan {
       MAINTENANCE_PLAN_STATUSES,
       "plan status",
     ),
+    tz: optionalText(row["tz"]) ?? "UTC",
+    requiredQualifications: keysOf(row["requiredQualifications"]),
     due: row["due"] === true,
     parts: recordsOf(row["parts"] ?? [], fn).map((part) => partOf(part, fn)),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
@@ -263,6 +297,8 @@ function planOf(value: unknown, fn: string): MaintenancePlan {
     ),
     ...optional("meterId", optionalText(row["meterId"])),
     ...optional("everyValue", optionalText(row["everyValue"])),
+    ...optional("rrule", optionalText(row["rrule"])),
+    ...optional("dtstart", optionalInstant(row["dtstart"])),
     ...optional("lastDoneAt", optionalInstant(row["lastDoneAt"])),
     ...optional("nextDueAt", optionalInstant(row["nextDueAt"])),
     ...optional("workOrderId", optionalText(row["workOrderId"])),
@@ -298,6 +334,7 @@ function calibrationOf(value: unknown, fn: string): MaintenanceCalibration {
       MAINTENANCE_CALIBRATION_RESULTS,
       "calibration result",
     ),
+    qualifications: keysOf(row["qualifications"]),
     ...optional("assetId", optionalText(row["assetId"])),
     ...optional("reference", optionalText(row["reference"])),
     ...optional("performedBy", optionalText(row["performedBy"])),
@@ -307,10 +344,11 @@ function calibrationOf(value: unknown, fn: string): MaintenanceCalibration {
 function planArgs(
   input: Partial<MaintenancePlanInput> & { readonly status?: string },
 ): Record<string, unknown> {
-  const { parts, ...rest } = input;
+  const { parts, dtstart, ...rest } = input;
 
   return definedOf({
     ...rest,
+    dtstart: dtstart?.toString(),
     parts: parts?.map((part) =>
       definedOf({
         name: part.name,
@@ -323,8 +361,8 @@ function planArgs(
 }
 
 /**
- * Maintenance: preventive plans by time or meter that open dispatch work orders
- * with their spare parts, meter readings and calibrations.
+ * Maintenance: preventive plans by time, meter or RRULE that open dispatch work
+ * orders with their spare parts, meter readings and calibrations.
  */
 export function createMaintenance(options: MaintenanceOptions): Maintenance {
   applyTemporal(options);

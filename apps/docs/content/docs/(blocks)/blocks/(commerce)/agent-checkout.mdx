@@ -1,0 +1,146 @@
+---
+title: Agent checkout
+description: Checkout sessions for shopping agents (ACP and UCP), signed spending mandates (AP2) and an x402 payment-required helper.
+---
+
+`agent-checkout` lets an AI agent buy from your store. A checkout session is a
+thin record over an [orders](/docs/blocks/orders) cart that tracks what the
+agent has supplied. A mandate is a signed credential from the buyer that caps
+what the agent may spend. The block adds no payment code: completing a session
+runs the orders checkout, which takes the money through your payment provider.
+
+```bash
+better-supabase add agent-checkout
+```
+
+```ts
+import { createAgentCheckout } from "better-supabase/blocks/agent-checkout";
+```
+
+The module requires `memberships` and `permissions`. `orders` prices the cart and
+runs the checkout, `signing-keys` signs and verifies mandates, `outbox` records
+the events and `audit` audits every change. Without `orders` or `signing` the
+methods that need them answer an `invalid_request` error with a hint.
+
+## Tables
+
+| Table               | Holds                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| `checkout_sessions` | One session per cart and idempotency key: protocol, status, buyer details, order and expiry |
+| `agent_mandates`    | A mandate as presented: its type, status, subject, expiry, hash and the credential itself   |
+
+| Permission              | Allows                                           | Default roles |
+| ----------------------- | ------------------------------------------------ | ------------- |
+| `agent-checkout.read`   | reading sessions and mandates                    | owner, admin  |
+| `agent-checkout.write`  | creating and updating sessions, storing mandates | owner, admin  |
+| `agent-checkout.manage` | revoking mandates                                | owner, admin  |
+
+## Sessions
+
+A session belongs to one protocol, `acp` or `ucp`, and moves from `open` to
+`ready` (the buyer details are complete) to `completed`, or to `canceled`.
+`createSession` takes the agent's idempotency key: the same key with the same
+cart returns the same session with `replayed: true`, and the same key with
+another cart is refused.
+
+```ts
+const checkout = createAgentCheckout({
+  transport,
+  tenant: organizationId,
+  orders,
+  signing: {
+    keys: signingKeys,
+    owner: { kind: "organization", id: organizationId },
+  },
+});
+
+const session = await checkout
+  .createSession({
+    cartId,
+    protocol: "acp",
+    idempotencyKey: request.headers.get("idempotency-key")!,
+  })
+  .orThrow();
+
+await checkout.updateSession({
+  sessionId: session.id,
+  buyer: { email: "ada@example.com" },
+  status: "ready",
+});
+const { total } = await checkout.priceSession(session.id).orThrow();
+```
+
+`completeSession` is service-only, because the orders checkout is. It needs a
+`ready` session, prices the cart again and refuses a cart with problems, checks
+the mandate, runs `orders.checkout` and links the order. Completing a completed
+session returns it unchanged.
+
+```ts
+const { session: done, payment } = await admin
+  .completeSession({ sessionId: session.id, mandate: credential })
+  .orThrow();
+```
+
+## Mandates
+
+Mandates are compact signed JWTs that follow the claim names of AP2 v0.2: a
+`vct` of `mandate.checkout.open.1` or `mandate.checkout.1`, plus `sub`, `exp` and
+`jti`. An open mandate carries `max_total`, the most one checkout may total, and
+is checked on every checkout. A closed mandate binds one session and the hash of
+its cart and priced total, so a changed cart or price no longer matches, and it
+is used once. The credential is consumed before the payment runs: a checkout
+that fails after that burns the mandate and the agent asks the buyer again.
+
+```ts
+const credential = await checkout
+  .signMandate({
+    kind: "closed",
+    subject: userId,
+    sessionId: session.id,
+    expiresAt: Temporal.Now.instant().add({ minutes: 15 }),
+  })
+  .orThrow();
+```
+
+`mandates: "required"` makes `completeSession` refuse a session without one.
+The block signs and verifies the credential and stores it, but not the full AP2
+delegation chain or SD-JWT selective disclosure, and the amount claims are this
+block's own. [ADR 0189](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0189-agent-checkout.md)
+records the choices.
+
+## Charging for an API route with x402
+
+`withPayment` wraps a Request handler. A request without a payment gets a 402
+with a `PAYMENT-REQUIRED` header. A request with a `PAYMENT-SIGNATURE` header is
+verified by your facilitator, the handler runs, and the payment settles only if
+the handler answered below 400. The settlement goes into `PAYMENT-RESPONSE`.
+
+```ts
+import { money } from "better-supabase/commerce";
+import {
+  withPayment,
+  x402Requirement,
+} from "better-supabase/blocks/agent-checkout";
+
+export const GET = withPayment(async () => Response.json({ report: "..." }), {
+  resource: { url: "https://api.example.com/report" },
+  accepts: [
+    x402Requirement({
+      network: "eip155:8453",
+      asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      price: money(10_000n, "USD"),
+      payTo: "0xYourAddress",
+    }),
+  ],
+  facilitator,
+});
+```
+
+The facilitator is a structural interface with `verify` and `settle`; the block
+bundles no wallet or chain library.
+
+## Events
+
+`checkout_session.created`, `checkout_session.updated`, `checkout_session.completed`,
+`agent_mandate.created`, `agent_mandate.consumed` and `agent_mandate.revoked` go
+to the outbox, and every change is audited.

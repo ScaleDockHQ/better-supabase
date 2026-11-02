@@ -14,7 +14,7 @@ export const learningParts: {
 export type LearningParts = typeof learningParts;
 
 /**
- * The `learning` composite (ADR 0177): courses and the enrollments that track
+ * The `learning` composite (ADR 0196): courses and the enrollments that track
  * learners through them. It installs its parts and sets their defaults; the
  * parts stay ordinary blocks in the config.
  */

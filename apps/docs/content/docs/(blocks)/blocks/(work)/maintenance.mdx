@@ -1,10 +1,11 @@
 ---
 title: Maintenance
-description: Preventive maintenance plans by time or meter that open dispatch work orders with their spare parts, plus meter readings and calibrations.
+description: Preventive maintenance plans by time, meter or calendar rule that open dispatch work orders with their spare parts, plus meter readings and calibrations.
 ---
 
 `maintenance` decides when equipment needs work. A plan falls due after a
-number of days or after a meter has advanced by a number of units, and the
+number of days, after a meter has advanced by a number of units or on a
+calendar rule, and the
 block then opens a [dispatch](/docs/blocks/dispatch) work order with the plan's
 spare parts. It also keeps meter readings and calibration records.
 
@@ -20,7 +21,8 @@ The module requires `memberships`, `permissions`, `subjects` and
 [dispatch](/docs/blocks/dispatch). With [assets](/docs/blocks/assets) a plan
 and a calibration point at the equipment, with
 [inventory](/docs/blocks/inventory) a spare part points at a stock variant,
-with `outbox` it records the events, and with `audit` every change is audited.
+with [qualifications](/docs/blocks/qualifications) a plan and a calibration name
+the qualifications they need, with `outbox` it records the events, and with `audit` every change is audited.
 
 ## Tables
 
@@ -43,10 +45,19 @@ functions below. A plan is a subject of type `maintenance_plan`.
 
 ## Plans
 
-`createPlan` takes a `time` plan with `everyDays` or a `meter` plan with a
-`meterId` and an `everyValue`. A time plan falls due `everyDays` days after the
-last completion, or after the plan was created. A meter plan falls due when the
-reading is `everyValue` units above the reading at the last completion.
+`createPlan` takes a `time` plan with `everyDays`, a `meter` plan with a
+`meterId` and an `everyValue`, or an `rrule` plan with an `rrule` and a
+`dtstart`. A time plan falls due `everyDays` days after the last completion, or
+after the plan was created. A meter plan falls due when the reading is
+`everyValue` units above the reading at the last completion.
+
+An `rrule` plan follows an [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545)
+recurrence rule, such as `FREQ=MONTHLY;BYDAY=1MO`, expanded in the plan's `tz`
+(an IANA zone, `UTC` by default) from `dtstart`. The rule needs a `FREQ` of
+`DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`. The plan falls due at the first
+occurrence after the last completion, so finishing work late never leaves a
+backlog of missed occurrences. A rule with no occurrence in the next ten years
+is refused.
 
 ```ts
 const plan = await db.maintenance
@@ -61,10 +72,32 @@ const plan = await db.maintenance
   .orThrow();
 ```
 
-`updatePlan` changes the title, interval, priority, asset, parts and status
-(`active` or `paused`). The kind and the meter stay. `deletePlan` removes a
+`updatePlan` changes the title, interval, rule, priority, asset, parts and
+status (`active` or `paused`). The kind and the meter stay. `deletePlan` removes a
 plan and its parts. `listPlans` filters by `status`, `kind`, `assetId` and
 `due`, and each plan carries its parts and whether it is due now.
+
+## Qualifications
+
+With [qualifications](/docs/blocks/qualifications) installed, a plan lists
+`requiredQualifications` (qualification type keys). Assigning a technician to the
+work order a plan opened fails with `MAINTENANCE_UNQUALIFIED` unless the person
+holds each required qualification on the date of the assignment. A key that is
+not a qualification type is refused when the plan is saved. `recordCalibration`
+takes `qualifications` the same way and checks the person who performs it.
+
+```ts
+await db.maintenance
+  .createPlan({
+    title: "Weld inspection",
+    kind: "rrule",
+    rrule: "FREQ=MONTHLY;BYDAY=1MO",
+    dtstart: Temporal.Now.instant(),
+    tz: "Europe/Amsterdam",
+    requiredQualifications: ["welder"],
+  })
+  .orThrow();
+```
 
 ## Work orders
 
@@ -114,3 +147,36 @@ await db.maintenance
 
 The hooks are `before_maintenance_plan_create` and
 `after_maintenance_plan_create`.
+
+## Telemetry ingest
+
+A gateway can post readings instead of a person calling `recordReading`. The
+ingest helpers map devices to meters and write the highest reading per meter.
+A meter still refuses a reading that goes down.
+
+```ts
+import {
+  createMaintenance,
+  createTelemetryHandler,
+} from "better-supabase/blocks/maintenance";
+
+const maintenance = createMaintenance({ transport, tenant: organizationId });
+
+export const POST = createTelemetryHandler({
+  maintenance,
+  authorize: async (request) => (await deviceKey(request)) !== undefined,
+  meterFor: (device, metric) => meters.get(`${device}:${metric}`),
+});
+```
+
+The body is `{ "points": [{ "device", "metric", "value", "time" }] }`, or an
+OTLP/HTTP JSON metrics export with `format: "otlp"` (gauge and sum points,
+the device from the `device.id` or `service.instance.id` resource attribute).
+The handler answers 401 before it reads the body, 413 for a large body, 400
+for a point that is not valid and 202 with `accepted`, `unmapped`, `updated`
+and `failures`. A meter that refuses a reading is listed under `failures` and
+does not stop the others. `authorize` has no default, because the endpoint
+writes to your maintenance data. Use `ingestTelemetry` to run the same logic
+from a queue, and `parseTelemetryPoints` or `parseOtlpMetrics` on their own.
+A meter's `assetId` ties its readings to an [asset](/docs/blocks/assets), so
+`meterFor` can look a device up from the asset it belongs to.

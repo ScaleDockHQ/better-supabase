@@ -10,6 +10,19 @@ import { stackDbUrl } from "./stack-env.ts";
 
 export const dbUrl: string = stackDbUrl();
 
+/**
+ * Fires the deferred constraint triggers (the audit row triggers) queued so
+ * far, then defers them again. Postgres refuses DDL on a table that still has
+ * trigger events pending. Leaving them immediate would break the tests that
+ * assert on commit-time checks, such as the last-owner guard.
+ */
+export async function flushDeferred(client: {
+  query: (sql: string) => Promise<unknown>;
+}): Promise<void> {
+  await client.query("set constraints all immediate");
+  await client.query("set constraints all deferred");
+}
+
 export async function reachable(): Promise<boolean> {
   const pool = new Pool({
     connectionString: dbUrl,
@@ -121,6 +134,8 @@ export class BlockSession {
       $$`);
     }
 
+    await flushDeferred(this.client);
+
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);
@@ -217,6 +232,10 @@ export class BlockSession {
   }
 
   async rows<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (/\b(alter|create|drop)\s+(unique\s+)?(table|index)\b/i.test(sql)) {
+      await flushDeferred(this.client);
+    }
+
     const { rows } = await this.client.query(sql, params);
 
     // SAFETY: the test names the row shape of its own query.

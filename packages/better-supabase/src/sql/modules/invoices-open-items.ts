@@ -20,6 +20,7 @@ import {
   invoiceCollections,
   partyColumns,
 } from "./invoices-collections.ts";
+import { eDeliverySql } from "./invoices-e-delivery.ts";
 import { paymentKey } from "./invoices-ledger.ts";
 import { invoiceRepairSql } from "./invoices-repair.ts";
 import { lockModuleTable } from "./over-app.ts";
@@ -737,5 +738,5 @@ export function invoiceCollectionsAndOpenItems(
   n: InvoiceNames,
   h: CollectionHelpers,
 ): string {
-  return `${invoiceCollections(ctx, n, h)}${approvalSql(ctx, n, h)}${openItemsSql(ctx, n, h, (alias) => approvalStatusSql(ctx, n, alias))}${invoiceRepairSql(ctx, n, h)}`;
+  return `${invoiceCollections(ctx, n, h)}${approvalSql(ctx, n, h)}${eDeliverySql(ctx, n, h)}${openItemsSql(ctx, n, h, (alias) => approvalStatusSql(ctx, n, alias))}${invoiceRepairSql(ctx, n, h)}`;
 }

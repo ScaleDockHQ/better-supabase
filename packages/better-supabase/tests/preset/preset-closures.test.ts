@@ -33,7 +33,7 @@ const closureOf = (name: keyof typeof PRESETS): string[] =>
 
 describe("named presets that list composites", () => {
   // The fixture is each preset's closure from before the presets listed
-  // composites (ADR 0177). Changing a preset's closure is a breaking change,
+  // composites (ADR 0196). Changing a preset's closure is a breaking change,
   // so it needs a new fixture and a changeset, not a quiet edit.
   it.each(
     (Object.keys(PRESETS) as (keyof typeof PRESETS)[]).filter(

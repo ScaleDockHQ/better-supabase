@@ -1,10 +1,21 @@
 export {
   type EInvoiceChannel,
   eInvoiceChannelOf,
+  type EInvoiceContext,
   type EInvoiceDocument,
+  type EInvoiceFormat,
+  eInvoiceFormatOf,
   type EInvoiceReceived,
+  type EInvoiceSendContext,
   type EInvoiceSent,
+  type EInvoiceStatus,
 } from "./channel.ts";
+
+export {
+  PEPPOL_BIS_3_FORMAT,
+  peppolBis3Format,
+  type PeppolBis3FormatOptions,
+} from "./format.ts";
 
 export type {
   EInvoiceAddress,

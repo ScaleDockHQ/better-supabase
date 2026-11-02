@@ -1,6 +1,6 @@
 /**
  * Block client methods that took two or more positional arguments before 0.47
- * and take one object now (ADR 0177). Each row is `block path params`: `?`
+ * and take one object now (ADR 0196). Each row is `block path params`: `?`
  * marks an optional parameter and `...` an options object whose keys are merged
  * into the input. The codemod and doctor read this table; a conformance test
  * keeps new methods out of it.

@@ -1,10 +1,11 @@
 import type { ExtraColumn } from "../context.ts";
 import type { ApprovalNames } from "./invoices-approval.ts";
 import type { CollectionNames } from "./invoices-collections.ts";
+import type { EDeliveryNames } from "./invoices-e-delivery.ts";
 import type { PurchaseNames } from "./invoices-purchase.ts";
 
 export interface InvoiceNames
-  extends PurchaseNames, CollectionNames, ApprovalNames {
+  extends PurchaseNames, CollectionNames, ApprovalNames, EDeliveryNames {
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;

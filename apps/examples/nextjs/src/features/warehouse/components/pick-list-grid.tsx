@@ -44,7 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import type { Loaded, PickListRow } from "../warehouse-queries";
 
-import { completePickList } from "../warehouse-actions";
+import { completePickList, optimizePickRoute } from "../warehouse-actions";
 
 type GridRow = PickListRow & { readonly canComplete: boolean };
 
@@ -101,20 +101,36 @@ function CompleteCell({ row }: PickCell) {
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      type="button"
-      disabled={pending}
-      onClick={() => {
-        startTransition(async () => {
-          await completePickList({ pickListId: id });
-          router.refresh();
-        });
-      }}
-    >
-      {t("Complete")}
-    </Button>
+    <div className="flex gap-2">
+      <Button
+        size="sm"
+        variant="ghost"
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            await optimizePickRoute({ pickListId: id });
+            router.refresh();
+          });
+        }}
+      >
+        {t("Plan route")}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            await completePickList({ pickListId: id });
+            router.refresh();
+          });
+        }}
+      >
+        {t("Complete")}
+      </Button>
+    </div>
   );
 }
 
@@ -136,7 +152,7 @@ function Grid({
     },
     { id: "progress", header: t("Lines"), cell: ProgressCell, size: 120 },
     { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 160 },
-    { id: "actions", header: "", cell: CompleteCell, size: 120 },
+    { id: "actions", header: "", cell: CompleteCell, size: 220 },
   ];
 
   const table = useTable({

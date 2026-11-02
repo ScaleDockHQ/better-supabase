@@ -16,7 +16,7 @@ export const recruitingParts: {
 export type RecruitingParts = typeof recruitingParts;
 
 /**
- * The `recruiting` composite (ADR 0177): hiring and interviews on the calendar,
+ * The `recruiting` composite (ADR 0196): hiring and interviews on the calendar,
  * with hires becoming employees. It installs its parts and sets their defaults;
  * the parts stay ordinary blocks in the config.
  */

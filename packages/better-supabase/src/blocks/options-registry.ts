@@ -4,7 +4,9 @@ import type { ActivitiesSqlOptions } from "./activities/options.ts";
 import type { AgentsSqlOptions } from "./agents/options.ts";
 import type { AiCacheSqlOptions } from "./ai-cache/options.ts";
 import type { AiChatSqlOptions } from "./ai-chat/options.ts";
+import type { AiEvalsSqlOptions } from "./ai-evals/options.ts";
 import type { AiFilesSqlOptions } from "./ai-files/options.ts";
+import type { AiGuardrailsSqlOptions } from "./ai-guardrails/options.ts";
 import type { AiKeysSqlOptions } from "./ai-keys/options.ts";
 import type { AiSchedulesSqlOptions } from "./ai-schedules/options.ts";
 import type { AnnouncementsSqlOptions } from "./announcements/options.ts";
@@ -93,6 +95,7 @@ import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
+import type { PromptsSqlOptions } from "./prompts/options.ts";
 import type { PushSqlOptions } from "./push/options.ts";
 import type { QualificationsSqlOptions } from "./qualifications/options.ts";
 import type {
@@ -151,7 +154,9 @@ import { activitiesSqlOptions } from "./activities/options.ts";
 import { agentsSqlOptions } from "./agents/options.ts";
 import { aiCacheSqlOptions } from "./ai-cache/options.ts";
 import { aiChatSqlOptions } from "./ai-chat/options.ts";
+import { aiEvalsSqlOptions } from "./ai-evals/options.ts";
 import { aiFilesSqlOptions } from "./ai-files/options.ts";
+import { aiGuardrailsSqlOptions } from "./ai-guardrails/options.ts";
 import { aiKeysSqlOptions } from "./ai-keys/options.ts";
 import { aiSchedulesSqlOptions } from "./ai-schedules/options.ts";
 import { announcementsSqlOptions } from "./announcements/options.ts";
@@ -240,6 +245,7 @@ import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
+import { promptsSqlOptions } from "./prompts/options.ts";
 import { pushSqlOptions } from "./push/options.ts";
 import { qualificationsSqlOptions } from "./qualifications/options.ts";
 import {
@@ -306,8 +312,11 @@ export interface BlockOptionsRegistry {
   readonly activities: ActivitiesSqlOptions;
   readonly agents: AgentsSqlOptions;
   readonly "ai-cache": AiCacheSqlOptions;
+  readonly prompts: PromptsSqlOptions;
   readonly "ai-chat": AiChatSqlOptions;
+  readonly "ai-evals": AiEvalsSqlOptions;
   readonly "ai-files": AiFilesSqlOptions;
+  readonly "ai-guardrails": AiGuardrailsSqlOptions;
   readonly "ai-keys": AiKeysSqlOptions;
   readonly "ai-schedules": AiSchedulesSqlOptions;
   readonly announcements: AnnouncementsSqlOptions;
@@ -381,7 +390,10 @@ export interface BlockOptionsRegistry {
   readonly rfqs: Record<never, never>;
   readonly tills: Record<never, never>;
   readonly periods: Record<never, never>;
+  readonly "agent-checkout": Record<never, never>;
   readonly "clinical-decision-support": Record<never, never>;
+  readonly "e-prescribing": Record<never, never>;
+  readonly advisories: Record<never, never>;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
   readonly invoices: InvoicesSqlOptions;
@@ -486,8 +498,11 @@ export const BLOCK_OPTION_SCHEMAS: {
   activities: activitiesSqlOptions,
   agents: agentsSqlOptions,
   "ai-cache": aiCacheSqlOptions,
+  prompts: promptsSqlOptions,
   "ai-chat": aiChatSqlOptions,
+  "ai-evals": aiEvalsSqlOptions,
   "ai-files": aiFilesSqlOptions,
+  "ai-guardrails": aiGuardrailsSqlOptions,
   "ai-keys": aiKeysSqlOptions,
   "ai-schedules": aiSchedulesSqlOptions,
   announcements: announcementsSqlOptions,
@@ -576,7 +591,10 @@ export const BLOCK_OPTION_SCHEMAS: {
   rfqs: NO_OPTIONS,
   tills: NO_OPTIONS,
   periods: NO_OPTIONS,
+  "agent-checkout": NO_OPTIONS,
   "clinical-decision-support": NO_OPTIONS,
+  "e-prescribing": NO_OPTIONS,
+  advisories: NO_OPTIONS,
   memberships: membershipsSqlOptions,
   memory: memorySqlOptions,
   messaging: messagingSqlOptions,

@@ -418,7 +418,7 @@ describe("eInvoiceChannelOf", () => {
   it("accepts apiVersion 1 and refuses others", () => {
     const channel = {
       apiVersion: 1 as const,
-      name: "test",
+      key: "test",
       send: async () => ({ messageId: "m-1" }),
     };
 

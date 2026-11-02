@@ -18,10 +18,19 @@ export interface WarehouseSql {
   readonly l: (column: string) => string;
   /** A column of the count plans table. */
   readonly n: (column: string) => string;
+  /** A column of the putaway rules table. */
+  readonly r: (column: string) => string;
+  /** A column of the bin slots table. */
+  readonly s: (column: string) => string;
+  /** A column of the variant sizes table. */
+  readonly z: (column: string) => string;
   readonly waves: string;
   readonly lists: string;
   readonly lines: string;
   readonly plans: string;
+  readonly rules: string;
+  readonly slots: string;
+  readonly sizes: string;
   /** The inventory block's context. */
   readonly inventory: BlockSqlContext;
   /** The stock locations, the inventory block's or the assets block's. */
@@ -63,6 +72,9 @@ export function warehouseSql(ctx: BlockSqlContext): WarehouseSql {
   const p = (column: string): string => ctx.col("lists", column);
   const l = (column: string): string => ctx.col("lines", column);
   const n = (column: string): string => ctx.col("plans", column);
+  const r = (column: string): string => ctx.col("rules", column);
+  const s = (column: string): string => ctx.col("slots", column);
+  const z = (column: string): string => ctx.col("sizes", column);
   const inventory = ctx.of("inventory");
 
   const tasks =
@@ -79,10 +91,16 @@ export function warehouseSql(ctx: BlockSqlContext): WarehouseSql {
     p,
     l,
     n,
+    r,
+    s,
+    z,
     waves: ctx.table("waves"),
     lists: ctx.table("lists"),
     lines: ctx.table("lines"),
     plans: ctx.table("plans"),
+    rules: ctx.table("rules"),
+    slots: ctx.table("slots"),
+    sizes: ctx.table("sizes"),
     inventory,
     locations: locationsOf(inventory),
     tasks,

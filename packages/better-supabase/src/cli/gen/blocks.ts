@@ -274,7 +274,7 @@ export function blockConfigEntries(
  */
 /**
  * Whether a composite without a glue module of its own is installed: it
- * composes at least one part and every part is, recursively (ADR 0177).
+ * composes at least one part and every part is, recursively (ADR 0196).
  */
 function compositeInstalled(
   manifest: PresetCatalogManifest,

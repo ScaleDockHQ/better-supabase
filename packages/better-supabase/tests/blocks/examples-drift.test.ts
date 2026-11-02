@@ -20,7 +20,7 @@ const CLIENT_FUNCTION_NAMES: ReadonlySet<string> = new Set(
  * The calls that exist today, as `<file>:<function>`. The test fails on a call
  * that is not listed (new drift) and on a listed call that is gone (delete the
  * entry), so the list only shrinks. Each entry waits for a block client method
- * and the example moving onto it (ADR 0177).
+ * and the example moving onto it (ADR 0196).
  */
 const BASELINE: ReadonlySet<string> = new Set<string>();
 

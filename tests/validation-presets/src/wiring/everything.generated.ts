@@ -9,7 +9,9 @@ import { accountingBlock } from "better-supabase/blocks/accounting";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiCacheBlock } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
+import { aiEvalsBlock } from "better-supabase/blocks/ai-evals";
 import { aiFilesBlock } from "better-supabase/blocks/ai-files";
+import { aiGuardrailsBlock } from "better-supabase/blocks/ai-guardrails";
 import { aiKeysBlock } from "better-supabase/blocks/ai-keys";
 import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { announcementsBlock } from "better-supabase/blocks/announcements";
@@ -67,7 +69,10 @@ import { appraisalsBlock } from "better-supabase/blocks/appraisals";
 import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { rfqsBlock } from "better-supabase/blocks/rfqs";
 import { tillsBlock } from "better-supabase/blocks/tills";
+import { agentCheckoutBlock } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock } from "better-supabase/blocks/clinical-decision-support";
+import { ePrescribingBlock } from "better-supabase/blocks/e-prescribing";
+import { advisoriesBlock } from "better-supabase/blocks/advisories";
 import { manufacturingBlock } from "better-supabase/blocks/manufacturing";
 import { bankingBlock } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
@@ -93,6 +98,7 @@ import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { idempotencyBlock } from "better-supabase/blocks/queue";
+import { promptsBlock } from "better-supabase/blocks/prompts";
 import { queueBlock } from "better-supabase/blocks/queue";
 import { rateLimitBlock } from "better-supabase/blocks/queue";
 import { webhookInboxBlock } from "better-supabase/blocks/queue";
@@ -130,6 +136,7 @@ import { vercelMarketplaceBlock } from "better-supabase/blocks/vercel-marketplac
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { serviceAccountsBlock } from "better-supabase/blocks/service-accounts";
+import { sessionsBlock } from "better-supabase/blocks/sessions";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { securityEventsBlock } from "better-supabase/blocks/security-events";
@@ -163,7 +170,9 @@ export const blockSet = defineBlocks(blockConfig, {
   agents: agentsBlock,
   aiCache: aiCacheBlock,
   aiChat: aiChatBlock,
+  aiEvals: aiEvalsBlock,
   aiFiles: aiFilesBlock,
+  aiGuardrails: aiGuardrailsBlock,
   aiKeys: aiKeysBlock,
   aiSchedules: aiSchedulesBlock,
   announcements: announcementsBlock,
@@ -221,7 +230,10 @@ export const blockSet = defineBlocks(blockConfig, {
   warehouse: warehouseBlock,
   rfqs: rfqsBlock,
   tills: tillsBlock,
+  agentCheckout: agentCheckoutBlock,
   clinicalDecisionSupport: clinicalDecisionSupportBlock,
+  ePrescribing: ePrescribingBlock,
+  advisories: advisoriesBlock,
   manufacturing: manufacturingBlock,
   banking: bankingBlock,
   legalEntities: legalEntitiesBlock,
@@ -247,6 +259,7 @@ export const blockSet = defineBlocks(blockConfig, {
   inventory: inventoryBlock,
   invoices: invoicesBlock,
   idempotency: idempotencyBlock,
+  prompts: promptsBlock,
   queue: queueBlock,
   rateLimit: rateLimitBlock,
   webhookInbox: webhookInboxBlock,
@@ -284,6 +297,7 @@ export const blockSet = defineBlocks(blockConfig, {
   savedViews: savedViewsBlock,
   search: searchBlock,
   serviceAccounts: serviceAccountsBlock,
+  sessions: sessionsBlock,
   settings: settingsBlock,
   shareLinks: shareLinksBlock,
   securityEvents: securityEventsBlock,

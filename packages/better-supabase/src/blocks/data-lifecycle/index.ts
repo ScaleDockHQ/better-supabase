@@ -25,6 +25,9 @@ export {
   type DataExportStatus,
   type DataLifecycle,
   type DataLifecycleOptions,
+  type DataSubjectRequest,
+  type DataSubjectRequestKind,
+  type DataSubjectRequestStatus,
   type LifecycleBucket,
   type LifecycleStorage,
   type OrganizationDeletion,
@@ -64,4 +67,7 @@ export { dataLifecycleBlock } from "./manifest.ts";
 
 export { dataLifecycleEvents } from "./events.ts";
 
-export type { DataLifecycleEvents } from "./events.ts";
+export type {
+  DataLifecycleEvents,
+  DataSubjectRequestEventData,
+} from "./events.ts";

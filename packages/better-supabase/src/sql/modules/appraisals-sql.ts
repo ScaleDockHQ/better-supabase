@@ -17,11 +17,17 @@ export interface AppraisalsSql {
   readonly c: (column: string) => string;
   /** A column of the goal links table. */
   readonly g: (column: string) => string;
+  /** A column of the competencies table. */
+  readonly k: (column: string) => string;
+  /** A column of the review ratings table. */
+  readonly t: (column: string) => string;
   readonly cycles: string;
   readonly appraisals: string;
   readonly reviews: string;
   readonly calibrations: string;
   readonly goals: string;
+  readonly competencies: string;
+  readonly ratings: string;
   readonly subject: string;
   readonly read: string;
   readonly review: string;
@@ -50,6 +56,8 @@ export function appraisalsSql(ctx: BlockSqlContext): AppraisalsSql {
   const r = (column: string): string => ctx.col("reviews", column);
   const c = (column: string): string => ctx.col("calibrations", column);
   const g = (column: string): string => ctx.col("goals", column);
+  const k = (column: string): string => ctx.col("competencies", column);
+  const t = (column: string): string => ctx.col("ratings", column);
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`;
@@ -64,6 +72,10 @@ export function appraisalsSql(ctx: BlockSqlContext): AppraisalsSql {
     r,
     c,
     g,
+    k,
+    t,
+    competencies: ctx.table("competencies"),
+    ratings: ctx.table("ratings"),
     cycles: ctx.table("cycles"),
     appraisals: ctx.table("appraisals"),
     reviews: ctx.table("reviews"),
@@ -93,7 +105,7 @@ export function appraisalsSql(ctx: BlockSqlContext): AppraisalsSql {
       "P0002",
     ),
     cycleJson: (row) =>
-      `jsonb_build_object('id', ${row}.${y("id")}, 'organizationId', ${row}.${y("tenant")}, 'name', ${row}.${y("name")}, 'startsOn', ${row}.${y("startsOn")}, 'endsOn', ${row}.${y("endsOn")}, 'program', ${row}.${y("program")}, 'status', ${row}.${y("status")}, 'openedAt', ${row}.${y("openedAt")}, 'closedAt', ${row}.${y("closedAt")}, 'createdAt', ${row}.${y("createdAt")})`,
+      `jsonb_build_object('id', ${row}.${y("id")}, 'organizationId', ${row}.${y("tenant")}, 'name', ${row}.${y("name")}, 'startsOn', ${row}.${y("startsOn")}, 'endsOn', ${row}.${y("endsOn")}, 'program', ${row}.${y("program")}, 'status', ${row}.${y("status")}, 'anonymity', ${row}.${y("anonymity")}, 'shareFeedback', ${row}.${y("shareFeedback")}, 'openedAt', ${row}.${y("openedAt")}, 'closedAt', ${row}.${y("closedAt")}, 'createdAt', ${row}.${y("createdAt")}, 'competencies', coalesce((select jsonb_agg(jsonb_build_object('key', w.${k("key")}, 'name', w.${k("name")}, 'weight', w.${k("weight")}) order by w.${k("position")}) from ${ctx.table("competencies")} w where w.${k("cycle")} = ${row}.${y("id")}), '[]'::jsonb))`,
     recordCycle: (type, row, summary) =>
       ctx.record({
         type,
@@ -124,7 +136,7 @@ export function appraisalsSql(ctx: BlockSqlContext): AppraisalsSql {
     recordReview: (type, row, summary) =>
       ctx.record({
         type,
-        payload: `jsonb_build_object('organizationId', ${row}.${r("tenant")}, 'id', ${row}.${r("id")}, 'appraisalId', ${row}.${r("appraisal")}, 'reviewerId', ${row}.${r("reviewer")}, 'kind', ${row}.${r("kind")}, 'rating', ${row}.${r("rating")})`,
+        payload: `jsonb_build_object('organizationId', ${row}.${r("tenant")}, 'id', ${row}.${r("id")}, 'appraisalId', ${row}.${r("appraisal")}, 'reviewerId', case when ${row}.${r("kind")} = 'peer' and (select y.${y("anonymity")} from ${ctx.table("cycles")} y join ${ctx.table("appraisals")} p on p.${a("cycle")} = y.${y("id")} where p.${a("id")} = ${row}.${r("appraisal")}) <> 'none' then null else ${row}.${r("reviewer")} end, 'kind', ${row}.${r("kind")}, 'rating', ${row}.${r("rating")})`,
         subject: `'appraisals/' || ${row}.${r("appraisal")}::text`,
         tenant: `${row}.${r("tenant")}`,
         audit: {
