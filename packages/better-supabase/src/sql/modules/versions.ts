@@ -20,7 +20,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
   withExtraFields,
   writeExtraColumns,
@@ -464,7 +464,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := ${sha256Hex("coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, '')")};
+  v_hash text := ${sha256HexSql("coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, '')")};
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;

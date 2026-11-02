@@ -7,10 +7,10 @@ import type { Logger } from "../../core/logger.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
+import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { temporal } from "../../core/temporal-required.ts";
 import { amountsError, amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
@@ -362,15 +362,6 @@ const METHODS: readonly DepreciationMethod[] = [
   "declining_balance",
 ];
 
-const dateOf = (value: unknown): Temporal.PlainDate =>
-  temporal().PlainDate.from(textOf(value));
-
-function optionalDateOf(value: unknown): Temporal.PlainDate | undefined {
-  const text = optionalText(value);
-
-  return text === undefined ? undefined : temporal().PlainDate.from(text);
-}
-
 function optional<K extends string, V>(
   key: K,
   value: V | undefined,
@@ -474,11 +465,11 @@ function bookOf(row: Readonly<Record<string, unknown>>): Partial<Asset> {
       "depreciation method",
     ),
     ...optional("acquisitionCost", amount("acquisitionCost")),
-    ...optional("acquiredOn", optionalDateOf(row["acquiredOn"])),
+    ...optional("acquiredOn", optionalPlainDateOf(row["acquiredOn"])),
     ...optional("usefulLifeMonths", numberOf(row["usefulLifeMonths"])),
     ...optional("residualValue", amount("residualValue")),
     ...optional("depreciationRateBps", numberOf(row["depreciationRateBps"])),
-    ...optional("disposedOn", optionalDateOf(row["disposedOn"])),
+    ...optional("disposedOn", optionalPlainDateOf(row["disposedOn"])),
     ...optional("disposalAmount", amount("disposalAmount")),
   };
 }
@@ -491,7 +482,7 @@ function depreciationOf(value: unknown, fn: string): AssetDepreciation {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     assetId: textOf(row["assetId"]),
-    periodStart: dateOf(row["periodStart"]),
+    periodStart: plainDateOf(row["periodStart"]),
     amount: moneyOrThrow(row["amount"], currency),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...optional("entryId", optionalText(row["entryId"])),
@@ -832,7 +823,7 @@ export function createAssets(options: AssetsOptions): Assets {
           const row = recordOf(value, "run_asset_depreciation");
 
           return {
-            until: dateOf(row["until"]),
+            until: plainDateOf(row["until"]),
             assets: Number(row["assets"] ?? 0),
             months: Number(row["months"] ?? 0),
           };

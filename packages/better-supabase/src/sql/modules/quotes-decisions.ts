@@ -5,7 +5,7 @@ import type { QuoteKit } from "./quotes-kit.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   fail,
-  sha256Hex,
+  sha256HexSql,
   transitionActorSql,
   transitionReasonSql,
   userGrant,
@@ -330,7 +330,7 @@ as $$
 declare
   v_row ${t("quotes")};${headers}${restoreVars}
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256Hex("public_quote.token")};
+  select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256HexSql("public_quote.token")};
   if v_row.${q("id")} is null then
     ${fail("QUOTE_LINK_INVALID", "this link is not valid", "P0002")}
   end if;${viewer()}
@@ -356,7 +356,7 @@ declare
   v_row ${t("quotes")};${headers}
   v_claims text;${restoreVars}
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256Hex("respond_to_quote.token")} for update;
+  select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256HexSql("respond_to_quote.token")} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_LINK_INVALID", "this link is not valid", "P0002")}
   end if;${answer({ name: "respond_to_quote", by: "respond_to_quote.name", customer: true, expires: "true", deposit: true })}

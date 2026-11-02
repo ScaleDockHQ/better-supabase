@@ -18,7 +18,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
 } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -590,7 +590,7 @@ begin
     end if;
 
     -- jsonb text is key-ordered, so equal content hashes equally.
-    v_hash := ${sha256Hex("v_data::text")};
+    v_hash := ${sha256HexSql("v_data::text")};
 
     begin
       v_done := false;

@@ -13,6 +13,7 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { periodSeconds } from "../../core/ratelimit-headers.ts";
 import { AsyncResult } from "../../core/result.ts";
+import { sha256Hex } from "../../core/sha256.ts";
 import { applyTemporal, blockCall, run, seconds } from "../shared.ts";
 import { transportRows } from "./backends.ts";
 
@@ -129,17 +130,6 @@ export interface Idempotency {
   purgeJob(): JobHandler<unknown>;
 }
 
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
 const AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
 
 /** A hash of the credentials the request carries, or `''` without any. */
@@ -154,7 +144,7 @@ async function callerScope(request: Request): Promise<string> {
 
   const credential = authorization ?? cookies.join(";");
 
-  return credential === "" ? "" : `caller:${await sha256(credential)}`;
+  return credential === "" ? "" : `caller:${await sha256Hex(credential)}`;
 }
 
 interface StoredResponse {
@@ -357,7 +347,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
 
       const body = await request.clone().text();
 
-      const fingerprint = await sha256(
+      const fingerprint = await sha256Hex(
         `${request.method} ${instance}${url.search}\n${body}`,
       );
 

@@ -7,7 +7,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   updatedAt,
   fail,
   revokeTable,
@@ -338,7 +338,7 @@ ${renderPolicy(
       ["id", "v_id"],
       ["tenant", "tenant"],
       ["name", "name"],
-      ["tokenHash", sha256Hex("token")],
+      ["tokenHash", sha256HexSql("token")],
       ["verify", "verify"],
       ["secret", plain("secret")],
       ["secretId", stored("secret", "v_id")],
@@ -381,7 +381,7 @@ ${renderPolicy(
     ]);
 
   const rotateSet = [
-    `${c("tokenHash")} = ${sha256Hex("token")}`,
+    `${c("tokenHash")} = ${sha256HexSql("token")}`,
     ...assign([
       [
         "secret",
@@ -789,7 +789,7 @@ as $$
   select ${e("id")}, ${e("tenant")}::text, ${e("enabled")}, ${e("verify")}, ${current("e")}, ${read("e", "signatureHeader")}, ${read("e", "maxBodyBytes", String(maxBody))},
     ${previousSecret}, ${read("e", "metadata", "'{}'::jsonb")}
   from ${t} e${vaultJoins}
-  where ${e("tokenHash")} = ${sha256Hex("incoming_webhook_by_token.token")}
+  where ${e("tokenHash")} = ${sha256HexSql("incoming_webhook_by_token.token")}
 $$;
 
 -- Counts a delivery and keeps its HTTP status.

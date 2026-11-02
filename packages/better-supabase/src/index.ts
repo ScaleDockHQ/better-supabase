@@ -53,6 +53,7 @@ export type {
 export {
   DbException,
   dbError,
+  dbErrorOfStatus,
   isCheck,
   isConflict,
   isDbError,

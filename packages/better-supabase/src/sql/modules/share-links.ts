@@ -18,7 +18,7 @@ import {
   lockTable,
   schemaPreamble,
   SERVICE_CALLER,
-  sha256Hex,
+  sha256HexSql,
   userGrant,
   withExtraFields,
   writeExtraColumns,
@@ -147,7 +147,7 @@ export function liveShareLink(
     ? `\n    and ${l("passwordHash")} is null`
     : "";
 
-  return `${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
+  return `${l("tokenHash")} = ${sha256HexSql(`convert_to(${token}, 'utf8')`)}
     and ${l("subjectType")} = ${subjectType}
     and ${unspentShareLink(links, alias)}${open}`;
 }
@@ -696,7 +696,7 @@ ${allowedCheck(ctx)}${roleCheck(ctx)}
       : ""
   }
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "maxUses")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""}${protectedLink ? `, ${ctx.col("links", "passwordHash")}` : ""}${downloads ? `, ${ctx.col("links", "downloadAllowed")}` : ""})
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${hashed ? `coalesce(create_share_link.token_hash, ${sha256Hex("convert_to(v_token, 'utf8')")})` : sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""}${protectedLink ? ", v_password_hash" : ""}${downloads ? ", coalesce(create_share_link.download_allowed, true)" : ""})
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${hashed ? `coalesce(create_share_link.token_hash, ${sha256HexSql("convert_to(v_token, 'utf8')")})` : sha256HexSql("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""}${protectedLink ? ", v_password_hash" : ""}${downloads ? ", coalesce(create_share_link.download_allowed, true)" : ""})
   returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",
@@ -766,7 +766,7 @@ declare
 begin
   select * into v_link
   from ${links} l
-  where l.${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(resolve_share_link.token, 'utf8')")}
+  where l.${ctx.col("links", "tokenHash")} = ${sha256HexSql("convert_to(resolve_share_link.token, 'utf8')")}
     and ${unspentShareLink(ctx, "l")}
   for update;
   if not found then

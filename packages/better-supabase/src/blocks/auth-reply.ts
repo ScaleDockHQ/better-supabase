@@ -1,7 +1,7 @@
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 
-import { dbError } from "../core/errors.ts";
+import { dbError, dbErrorOfStatus } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
 
 /** A supabase-js Auth answer: `data` or an `AuthError`. */
@@ -33,32 +33,7 @@ function authFailure(error: object): DbError {
     return dbError("network", message, base);
   }
 
-  switch (status) {
-    case 400:
-    case 422: {
-      return dbError("invalid_input", message, base);
-    }
-
-    case 401: {
-      return dbError("unauthorized", message, base);
-    }
-
-    case 403: {
-      return dbError("forbidden", message, base);
-    }
-
-    case 404: {
-      return dbError("not_found", message, base);
-    }
-
-    case 429: {
-      return dbError("rate_limited", message, base);
-    }
-
-    default: {
-      return dbError("unexpected", message, base);
-    }
-  }
+  return dbErrorOfStatus(status, message, base);
 }
 
 /** Awaits an Auth call as a `Result`; a throw becomes its `DbError` too. */

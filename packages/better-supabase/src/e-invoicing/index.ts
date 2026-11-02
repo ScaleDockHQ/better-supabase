@@ -23,12 +23,9 @@ export type {
   EInvoiceParty,
 } from "./party.ts";
 
-export {
-  type FromUblOptions,
-  fromUbl,
-  type UblBill,
-  type XmlParserModule,
-} from "./read.ts";
+export { type FromUblOptions, fromUbl, type UblBill } from "./read.ts";
+
+export type { XmlParserModule } from "../core/xml.ts";
 
 export {
   PEPPOL_BIS_CUSTOMIZATION,

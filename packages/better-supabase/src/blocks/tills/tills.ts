@@ -4,7 +4,6 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { money } from "../../commerce/money.ts";
 import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
@@ -13,9 +12,9 @@ import {
   TILL_MOVEMENT_KINDS,
   TILL_SESSION_STATUSES,
 } from "../../sql/modules/tills-values.ts";
+import { moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
-  bigintOf,
   blockCall,
   enumOrThrow,
   optionalInstant,
@@ -258,9 +257,6 @@ const definedOf = (input: object): Record<string, unknown> =>
     Object.entries(input).filter(([, value]) => value !== undefined),
   );
 
-const amountOf = (value: unknown, currency: string): Money =>
-  money(bigintOf(value, "amount"), currency);
-
 function denominationsOf(
   value: unknown,
 ): Readonly<Record<string, number>> | undefined {
@@ -300,8 +296,8 @@ function sessionOf(value: unknown, fn: string): TillSession {
     tillId: textOf(row["tillId"]),
     organizationId: textOf(row["organizationId"]),
     status: enumOrThrow(row["status"], TILL_SESSION_STATUSES, "session status"),
-    openingFloat: amountOf(row["openingFloat"], currency),
-    expected: amountOf(row["expected"], currency),
+    openingFloat: moneyOf(row["openingFloat"], currency),
+    expected: moneyOf(row["expected"], currency),
     openedAt: requiredInstant(row["openedAt"], "openedAt"),
     ...optional("openedBy", optionalText(row["openedBy"])),
     ...optional("closedBy", optionalText(row["closedBy"])),
@@ -318,7 +314,7 @@ function movementOf(value: unknown, fn: string): TillMovement {
     id: textOf(row["id"]),
     sessionId: textOf(row["sessionId"]),
     kind: enumOrThrow(row["kind"], TILL_MOVEMENT_KINDS, "movement kind"),
-    amount: amountOf(row["amount"], currency),
+    amount: moneyOf(row["amount"], currency),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...optional("reason", optionalText(row["reason"])),
     ...optional("reference", optionalText(row["reference"])),
@@ -333,9 +329,9 @@ function countOf(value: unknown, fn: string): TillCount {
   return {
     id: textOf(row["id"]),
     sessionId: textOf(row["sessionId"]),
-    expected: amountOf(row["expected"], currency),
-    counted: amountOf(row["counted"], currency),
-    variance: amountOf(row["variance"], currency),
+    expected: moneyOf(row["expected"], currency),
+    counted: moneyOf(row["counted"], currency),
+    variance: moneyOf(row["variance"], currency),
     countedAt: requiredInstant(row["countedAt"], "countedAt"),
     ...optional("denominations", denominationsOf(row["denominations"])),
     ...optional("countedBy", optionalText(row["countedBy"])),
@@ -351,7 +347,7 @@ function depositOf(value: unknown, fn: string): TillDeposit {
   return {
     id: textOf(row["id"]),
     sessionId: textOf(row["sessionId"]),
-    amount: amountOf(row["amount"], currency),
+    amount: moneyOf(row["amount"], currency),
     depositedOn: plainDateOf(row["depositedOn"], "depositedOn"),
     status: enumOrThrow(row["status"], TILL_DEPOSIT_STATUSES, "deposit status"),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),

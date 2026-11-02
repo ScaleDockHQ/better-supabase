@@ -15,7 +15,7 @@ import {
   fail,
   insertExtraColumns,
   serviceGrant,
-  sha256Hex,
+  sha256HexSql,
   transitionActorSql,
   transitionReasonSql,
   triggerGrant,
@@ -511,7 +511,7 @@ begin
     ${fail("QUOTE_EMPTY", "a quote needs a line before it is sent", "23514")}
   end if;${actor("send_quote")}
   ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}${k.workingCopy ? `\n  v_linked := v_row.${q("tokenHash")} is not null;` : ""}
-  update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${k.workingCopy ? `coalesce(x.${q("tokenHash")}, ${sha256Hex("v_token")})` : sha256Hex("v_token")},
+  update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${k.workingCopy ? `coalesce(x.${q("tokenHash")}, ${sha256HexSql("v_token")})` : sha256HexSql("v_token")},
     ${q("revision")} = case when exists (select 1 from ${t("versions")} v where v.${v("quote")} = x.${q("id")} and v.${v("revision")} = x.${q("revision")}) then x.${q("revision")} + 1 else x.${q("revision")} end,
     ${decisionReset}${resent}${k.workingCopy ? `${q("unpublishedChanges")} = false, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}

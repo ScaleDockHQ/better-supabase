@@ -172,6 +172,60 @@ export function dbError<K extends DbErrorKind>(
 }
 
 /**
+ * The `DbError` for a failed HTTP response from a service: 400 and 422 are
+ * `invalid_input`, 401 `unauthorized`, 403 `forbidden`, 404 `not_found`, 409
+ * `conflict`, 408 and 504 `timeout`, 429 `rate_limited`, 5xx `network`, and
+ * anything else `unexpected`. `extra` carries `code` or similar detail.
+ */
+export function dbErrorOfStatus(
+  status: number,
+  message: string,
+  extra: Partial<
+    Pick<DbErrorBase<DbErrorKind>, "code" | "details" | "hint">
+  > = {},
+): DbError {
+  switch (status) {
+    case 400:
+    case 413:
+    case 415:
+    case 422: {
+      return dbError("invalid_input", message, extra);
+    }
+
+    case 401: {
+      return dbError("unauthorized", message, extra);
+    }
+
+    case 403: {
+      return dbError("forbidden", message, extra);
+    }
+
+    case 404: {
+      return dbError("not_found", message, extra);
+    }
+
+    case 408:
+    case 504: {
+      return dbError("timeout", message, extra);
+    }
+
+    case 409: {
+      return dbError("conflict", message, extra);
+    }
+
+    case 429: {
+      return dbError("rate_limited", message, extra);
+    }
+
+    default: {
+      return status >= 500
+        ? dbError("network", message, extra)
+        : dbError("unexpected", message, extra);
+    }
+  }
+}
+
+/**
  * A plain `DbError`. A `DbException` carries the same fields but is not one;
  * `dbErrorOf()` reads the `DbError` out of it.
  */

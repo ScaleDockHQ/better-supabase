@@ -1,6 +1,4 @@
-import type { DbError } from "better-supabase";
-
-import { AsyncResult, dbError, err, ok } from "better-supabase";
+import { AsyncResult, dbErrorOfStatus, err, ok } from "better-supabase";
 
 /** What every HTTP adapter template takes. */
 export interface HttpOptions {
@@ -8,31 +6,6 @@ export interface HttpOptions {
   readonly apiKey: string;
   /** Defaults to the global `fetch`; tests pass a fake. */
   readonly fetch?: typeof fetch;
-}
-
-/** Maps a failed response to the `DbError` a port's `Result` carries. */
-function errorOfStatus(status: number, body: string): DbError {
-  const message = body.slice(0, 200) || `HTTP ${status}`;
-
-  if (status === 401 || status === 403) {
-    return dbError("unauthorized", message);
-  }
-
-  if (status === 404) {
-    return dbError("not_found", message);
-  }
-
-  if (status === 409) {
-    return dbError("conflict", message);
-  }
-
-  if (status === 429) {
-    return dbError("rate_limited", message);
-  }
-
-  return status >= 400 && status < 500
-    ? dbError("invalid_input", message)
-    : dbError("network", message);
 }
 
 /**
@@ -67,7 +40,12 @@ export function requestJson(
     const text = await response.text();
 
     if (!response.ok) {
-      return err(errorOfStatus(response.status, text));
+      return err(
+        dbErrorOfStatus(
+          response.status,
+          text.slice(0, 200) || `HTTP ${response.status}`,
+        ),
+      );
     }
 
     const parsed: unknown = text === "" ? null : JSON.parse(text);

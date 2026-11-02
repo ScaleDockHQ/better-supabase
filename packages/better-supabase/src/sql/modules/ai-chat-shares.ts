@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 
-import { fail, sha256Hex, userGrant } from "../shared.ts";
+import { fail, sha256HexSql, userGrant } from "../shared.ts";
 import { AI_TOOL_SUBJECT } from "./ai-chat-extras.ts";
 import { liveShareLink } from "./share-links.ts";
 
@@ -88,7 +88,7 @@ begin
   end if;
   v_leaf := coalesce(share_ai_chat.leaf, v_leaf);
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
-  values (v_tenant, 'ai-chat', share_ai_chat.chat::text, ${sha256Hex("convert_to(v_token, 'utf8')")}, 'view', auth.uid()${ctx.has("links", "leaf") ? ", v_leaf" : ""})
+  values (v_tenant, 'ai-chat', share_ai_chat.chat::text, ${sha256HexSql("convert_to(v_token, 'utf8')")}, 'view', auth.uid()${ctx.has("links", "leaf") ? ", v_leaf" : ""})
   returning ${ctx.col("links", "id")} into v_id;
   return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf);
 end;

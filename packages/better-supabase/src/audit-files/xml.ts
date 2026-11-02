@@ -1,5 +1,6 @@
 import type { AuditFileSource, AuditParseLimits } from "./model.ts";
 
+import { escapeXml } from "../core/xml.ts";
 import { AuditFileError } from "./model.ts";
 
 /** An element read into memory: its own text and its children. */
@@ -35,7 +36,6 @@ const NAMED: Readonly<Record<string, string>> = {
 const NAME_START = /[A-Za-z_:]/u;
 const WHITESPACE = /\s/u;
 const ENTITY = /&(#x[0-9a-fA-F]+|#[0-9]+|[A-Za-z]+);/gu;
-const TO_ESCAPE = /[&<>"]/gu;
 
 function localName(name: string): string {
   const colon = name.indexOf(":");
@@ -541,34 +541,9 @@ export function childNode(node: XmlNode, name: string): XmlNode | undefined {
   return node.children.find((child) => child.name === name);
 }
 
-const ESCAPES: Readonly<Record<string, string>> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-};
-
-/** Escapes text; characters XML 1.0 forbids are dropped. */
-function escapeText(value: string): string {
-  let kept = "";
-
-  for (const character of value) {
-    const code = character.codePointAt(0) ?? 0;
-
-    if (code >= 0x20 || code === 0x09 || code === 0x0a || code === 0x0d) {
-      kept += character;
-    }
-  }
-
-  return kept.replaceAll(
-    TO_ESCAPE,
-    (character) => ESCAPES[character] ?? character,
-  );
-}
-
 /** An element with text, or nothing when the value is `undefined`. */
 export function tag(name: string, value: string | undefined): string {
-  return value === undefined ? "" : `<${name}>${escapeText(value)}</${name}>`;
+  return value === undefined ? "" : `<${name}>${escapeXml(value)}</${name}>`;
 }
 
 /** An element around already rendered children; nothing when empty. */

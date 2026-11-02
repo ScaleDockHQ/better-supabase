@@ -7,6 +7,7 @@ import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { sha256Hex } from "../../core/sha256.ts";
 import {
   PAYROLL_LINE_KINDS,
   PAYROLL_LINE_UNITS,
@@ -184,18 +185,6 @@ function runOf(value: unknown, fn: string): PayrollRun {
   };
 }
 
-/** The hex SHA-256 of the file's text, through Web Crypto. */
-async function checksumOf(body: string): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(body),
-  );
-
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 /** Creates the `payroll-export` client over a transport. */
 export function createPayrollExport(
   options: PayrollExportOptions,
@@ -257,7 +246,7 @@ export function createPayrollExport(
         }
 
         const file = await checked.render(found.data);
-        const checksum = await checksumOf(file.body);
+        const checksum = await sha256Hex(file.body);
 
         const marked = await call(
           "mark_payroll_run_exported",
