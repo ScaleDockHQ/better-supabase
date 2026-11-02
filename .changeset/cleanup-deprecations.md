@@ -1,5 +1,5 @@
 ---
-"better-supabase": major
+"better-supabase": minor
 ---
 
 Remove the deprecated aliases and options that were due, and share helpers that several modules
