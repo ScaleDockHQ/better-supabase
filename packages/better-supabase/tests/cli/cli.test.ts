@@ -1120,13 +1120,13 @@ describe("sql", () => {
       "supabase/tests/000_better_supabase_pgtap.test.sql",
     );
     expect(added.stdout).toContain(
-      "Added queue, pgtap to blocks in better-supabase.config.json.",
+      "Added queue, pgtap, housekeeping to blocks in better-supabase.config.json.",
     );
     expect(
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
-    ).toEqual({ blocks: ["invitations", "queue", "pgtap"] });
+    ).toEqual({ blocks: ["invitations", "queue", "pgtap", "housekeeping"] });
 
     const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).not.toMatch(/○ jobs/);

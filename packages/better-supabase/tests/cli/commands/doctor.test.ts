@@ -549,7 +549,7 @@ describe("doctor command", () => {
     const result = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot: await parseSnapshot(fixture) },
-      { ...config, blocks: ["rate-limit"] },
+      { ...config, blocks: ["rate-limit", "housekeeping"] },
     );
 
     expect(findings(result)).toEqual([]);

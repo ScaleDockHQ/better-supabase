@@ -88,7 +88,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "queue",
       "title": "Job queue",
       "category": "automation",
-      "requires": [],
+      "requires": [
+        "housekeeping"
+      ],
       "integrates": [
         "data-lifecycle"
       ],
