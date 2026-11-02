@@ -8,6 +8,8 @@ export type IssueSource =
   | "rules"
   /** Postgres rejected a file when it applied in PGlite. */
   | "sql"
+  /** `design.seeds` names a block or variant the catalog doesn't offer. */
+  | "seeds"
   /** A catalog check (`verifyCatalog`). */
   | "verifier"
   /** The migration plan (renames, data loss). */
@@ -43,6 +45,10 @@ export type IssueCode =
   | "set_null_required"
   /** A conflict in the preset itself, such as a block that needs tenants. */
   | "preset_conflict"
+  /** A seed variant for a block that isn't in the catalog. */
+  | "unknown_seed_block"
+  /** A seed variant the block doesn't declare. */
+  | "unknown_seed_variant"
   /** A file Postgres rejected when it applied. */
   | "sql_error"
   | `verify_${string}`

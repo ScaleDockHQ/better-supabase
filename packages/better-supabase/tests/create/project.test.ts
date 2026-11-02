@@ -86,3 +86,27 @@ describe("checkProject", () => {
     expect(issues.map((each) => each.code)).toContain("table_name_taken");
   });
 });
+
+describe("checkProject seeds", () => {
+  it("reports a seed variant a block does not declare", async () => {
+    const project = await projectOf({
+      preset: "saas",
+      seeds: { variants: { cases: "nope", ghost: "x" } },
+    });
+
+    const issues = await checkProject(project);
+
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["unknown_seed_variant", "unknown_seed_block"]),
+    );
+    expect(issues.every((issue) => issue.source === "seeds")).toBe(true);
+  });
+
+  it("accepts a design without seeds", async () => {
+    const project = await projectOf({ ...design, preset: "saas" });
+
+    expect(
+      (await checkProject(project)).filter((issue) => issue.source === "seeds"),
+    ).toEqual([]);
+  });
+});

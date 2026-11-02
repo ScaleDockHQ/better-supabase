@@ -138,3 +138,20 @@ The recurrence engine and the maintenance engine shipped on `feat/engine-mainten
   `webhooks-out`, `notifications-delivery`) still need their own schedule.
 - Docs examples: both engines have a docs page with an inline example. A runnable app under
   `apps/examples` is not added.
+
+## Audit of seeds and engines (feat/seeds-and-engines-2)
+
+The five engine branches were merged into the seeds branch and reached `main` through the
+composition PR. This change adds the issue check the seeds change left open: `checkProject` reports
+`unknown_seed_block` and `unknown_seed_variant` (source `seeds`) for a design whose `seeds.variants`
+names a block or variant the catalog doesn't offer.
+
+### Still deferred
+
+- Preset seed variants (`NamedPreset.seeds`) wait for a block that declares a variant. No block does
+  yet, so a preset default would fail the check above.
+- Module defaults that don't fit a declared table: inbox statuses are a check constraint, not rows;
+  pipelines are created per subject type and scope on first use; the accounting chart depends on
+  `setup_accounting` settings; permission roles are `permissions` overrides, not a catalog table.
+  Each needs a design of its own and a migration through the native stack.
+- Composite glue seeds and the format 9 docs page wait for the first composite with defaults.

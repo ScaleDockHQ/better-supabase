@@ -9,6 +9,7 @@ import { designIssues } from "./design-issues.ts";
 import { previewFiles } from "./preview-provider.ts";
 import { schemaData } from "./schema-meta.ts";
 import { parseSchema, tenantColumnOf } from "./schema.ts";
+import { seedIssues } from "./seed-issues.ts";
 
 /**
  * A project: the preset and design that say which blocks and app tables it has,
@@ -108,7 +109,10 @@ export async function checkProject(
     project.preset.tenantName,
   );
 
-  const issues = [...designIssues(project.design, data, project.preset)];
+  const issues = [
+    ...designIssues(project.design, data, project.preset),
+    ...seedIssues(project.design),
+  ];
 
   if (options.sql !== undefined) {
     issues.push(...(await options.sql(project.files)));
