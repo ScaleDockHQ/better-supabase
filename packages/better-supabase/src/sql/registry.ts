@@ -78,6 +78,7 @@ import { TARGETS } from "./modules/goals.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
+import { HOUSEKEEPING } from "./modules/housekeeping.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -437,6 +438,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(RECURRENCE),
+      built(HOUSEKEEPING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -98,19 +98,32 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "idempotency",
       "title": "Idempotency keys",
       "category": "automation",
-      "requires": [],
-      "integrates": [],
-      "manifest": "idempotency"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "idempotency",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "webhook-inbox",
       "title": "Webhook inbox",
       "category": "automation",
-      "requires": [],
+      "requires": [
+        "housekeeping"
+      ],
       "integrates": [
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
       "manifest": "webhook-inbox",
+      "contributes": [
+        "housekeeping"
+      ],
       "extraColumns": "messages"
     },
     {
@@ -183,9 +196,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "rate-limit",
       "title": "Write rate limits",
       "category": "automation",
-      "requires": [],
-      "integrates": [],
-      "manifest": "rate-limit"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "rate-limit",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "vector-search",
@@ -978,9 +998,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "chat-sdk-state",
       "title": "Chat SDK state",
       "category": "messaging",
-      "requires": [],
-      "integrates": [],
-      "manifest": "inbox"
+      "requires": [
+        "housekeeping"
+      ],
+      "integrates": [
+        "housekeeping"
+      ],
+      "manifest": "inbox",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "inbox",
@@ -2296,12 +2323,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "database",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "outbox",
         "audit",
         "data-lifecycle",
+        "housekeeping",
         "bulk"
       ],
       "manifest": "trash",
@@ -2309,6 +2338,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "bulk"
       ],
       "extraColumns": "items"
@@ -2367,7 +2397,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "work",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "housekeeping"
       ],
       "integrates": [
         "outbox",
@@ -2379,6 +2410,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "state-machine",
         "employees",
         "automations",
+        "housekeeping",
         "subjects"
       ],
       "manifest": "approvals",
@@ -2386,6 +2418,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "subjects"
       ],
       "extraColumns": "requests",
@@ -11023,6 +11056,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [],
       "integrates": [],
       "manifest": "reminders"
+    },
+    {
+      "name": "housekeeping",
+      "title": "Housekeeping",
+      "category": "automation",
+      "requires": [],
+      "integrates": [],
+      "manifest": "queue"
     },
     {
       "name": "rls-guard",
@@ -27960,7 +28001,8 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "queue",
       "sql": [
-        "queue"
+        "queue",
+        "housekeeping"
       ],
       "category": "automation",
       "client": {

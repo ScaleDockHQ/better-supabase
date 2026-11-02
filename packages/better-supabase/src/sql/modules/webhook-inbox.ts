@@ -1,4 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -494,12 +495,23 @@ ${serviceOnly([
 ])}`;
 }
 
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: () => [
+    {
+      job: "purge_webhooks",
+      function: "better_supabase.purge_webhooks",
+      every: "1 day",
+    },
+  ],
+};
+
 export const WEBHOOK_INBOX: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "webhook-inbox",
   title: "Webhook inbox",
   description:
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.",
-  requires: [],
+  requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed"],

@@ -1089,6 +1089,17 @@ export interface BlockNameRegistry {
     readonly primary: "job_opening";
     readonly formerKeys: "job";
   };
+  readonly "housekeeping": {
+    readonly tables: {
+      readonly "state": "job" | "lastRunAt" | "lastStatus" | "lastResult" | "lastError" | "runs";
+    };
+    readonly functions: "maintenance" | "maintenance_jobs" | "maintenance_schedule" | "maintenance_scheduler";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
+  };
   readonly "idempotency": {
     readonly tables: {
       readonly "keys": "scope" | "key" | "requestHash" | "status" | "statusCode" | "response" | "lockedUntil" | "createdAt" | "expiresAt" | "holder";
