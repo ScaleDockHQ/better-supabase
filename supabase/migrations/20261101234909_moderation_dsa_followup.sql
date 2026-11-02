@@ -3655,6 +3655,8 @@ CREATE INDEX incident_regulatory_filings_tenant_idx ON better_supabase.incident_
 
 CREATE INDEX incident_regulatory_profiles_tenant_idx ON better_supabase.incident_regulatory_profiles USING btree (tenant_id);
 
+CREATE INDEX moderation_appeals_appellant_idx ON better_supabase.moderation_appeals USING btree (appellant_id);
+
 CREATE UNIQUE INDEX moderation_appeals_open_notice_idx ON better_supabase.moderation_appeals USING btree (notice_id)
   WHERE ((status = 'open'::text) AND (notice_id IS NOT NULL));
 
@@ -3666,6 +3668,10 @@ CREATE INDEX moderation_appeals_tenant_idx ON better_supabase.moderation_appeals
 CREATE UNIQUE INDEX moderation_flaggers_active_idx ON better_supabase.moderation_flaggers USING btree (tenant_id, user_id)
   WHERE (revoked_at IS NULL);
 
+CREATE INDEX moderation_flaggers_user_idx ON better_supabase.moderation_flaggers USING btree (user_id);
+
+CREATE INDEX moderation_notices_item_idx ON better_supabase.moderation_notices USING btree (item_id);
+
 CREATE INDEX moderation_notices_notifier_idx ON better_supabase.moderation_notices USING btree (notifier_id);
 
 CREATE INDEX moderation_notices_queue_idx ON better_supabase.moderation_notices USING btree (tenant_id, TRUSTED DESC, created_at)
@@ -3674,38 +3680,6 @@ CREATE INDEX moderation_notices_queue_idx ON better_supabase.moderation_notices 
 CREATE INDEX moderation_statements_item_idx ON better_supabase.moderation_statements USING btree (item_id, created_at DESC);
 
 CREATE INDEX moderation_statements_tenant_idx ON better_supabase.moderation_statements USING btree (tenant_id, created_at DESC);
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.appraisal_competencies DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION
-    better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "appraisal_competency", "event_prefix": "appraisal_competency"}');
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.appraisal_review_ratings DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION
-    better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "appraisal_review_rating", "event_prefix": "appraisal_review_rating"}');
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.bin_slots DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "bin_slot", "event_prefix": "bin_slot"}');
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.prescriptions DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "prescription", "event_prefix": "prescription"}');
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.putaway_rules DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "putaway_rule", "event_prefix": "putaway_rule"}');
-
-CREATE CONSTRAINT TRIGGER bsb_audit
-  AFTER INSERT OR DELETE OR UPDATE ON better_supabase.variant_sizes DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW
-  EXECUTE FUNCTION better_supabase.audit_row_change('{"ignore": [], "redact": [], "key_columns": ["id"], "target_type": "variant_size", "event_prefix": "variant_size"}');
 
 CREATE POLICY "bsb_tenant_scope_delete" ON "better_supabase"."consent_receipts"
   AS RESTRICTIVE
@@ -4216,4 +4190,3 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT SELECT ON TABLE "better_supabase"."moderation_statements" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."moderation_statements" TO "service_role";
-

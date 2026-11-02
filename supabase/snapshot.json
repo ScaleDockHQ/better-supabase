@@ -266992,22 +266992,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"appraisal_competency\", \"event_prefix\": \"appraisal_competency\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",
@@ -267532,22 +267517,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"appraisal_review_rating\", \"event_prefix\": \"appraisal_review_rating\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",
@@ -272489,22 +272459,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"bin_slot\", \"event_prefix\": \"bin_slot\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",
@@ -321756,22 +321711,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"prescription\", \"event_prefix\": \"prescription\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",
@@ -326590,22 +326530,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"putaway_rule\", \"event_prefix\": \"putaway_rule\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",
@@ -345209,22 +345134,7 @@
             ]
           }
         ],
-        "triggers": [
-          {
-            "name": "bsb_audit",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update",
-              "delete"
-            ],
-            "level": "row",
-            "function": "better_supabase.audit_row_change",
-            "args": [
-              "{\"ignore\": [], \"redact\": [], \"key_columns\": [\"id\"], \"target_type\": \"variant_size\", \"event_prefix\": \"variant_size\"}"
-            ]
-          }
-        ],
+        "triggers": [],
         "grants": [
           {
             "role": "authenticated",

@@ -203,7 +203,7 @@ function detailsOf(
       .map((code) => german.get(code) ?? "")
       .join("");
 
-    const eref = /EREF\+(.*?)(?=[A-Z]{4}\+|$)/.exec(text)?.[1];
+    const eref = /EREF\+(.*?)(?=[A-Z]{4}\+|$)/.exec(text)?.[1]?.trim();
     const svwz = /SVWZ\+(.*?)(?=[A-Z]{4}\+|$)/.exec(text)?.[1];
     const iban = german.get("31");
     const name = `${german.get("32") ?? ""}${german.get("33") ?? ""}`.trim();
@@ -212,7 +212,7 @@ function detailsOf(
       ...(iban && IBAN.test(iban) ? { counterpartyIban: iban } : {}),
       ...(name ? { counterpartyName: name } : {}),
       remittance: (svwz ?? text).trim(),
-      ...(eref && eref !== "NOTPROVIDED" ? { endToEndId: eref.trim() } : {}),
+      ...(eref && eref !== "NOTPROVIDED" ? { endToEndId: eref } : {}),
     };
   }
 
