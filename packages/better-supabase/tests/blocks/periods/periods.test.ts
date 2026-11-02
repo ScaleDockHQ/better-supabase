@@ -33,7 +33,7 @@ describe("createPeriods", () => {
       .orThrow();
 
     const found = await periods
-      .periodFor("leave_year", PlainDate.from("2026-06-01"))
+      .periodFor({ kind: "leave_year", date: PlainDate.from("2026-06-01") })
       .orThrow();
 
     expect(created.status).toBe("open");
@@ -61,7 +61,10 @@ describe("createPeriods", () => {
 
     await expect(
       periods
-        .periodFor("other", temporal().PlainDate.from("2026-06-01"))
+        .periodFor({
+          kind: "other",
+          date: temporal().PlainDate.from("2026-06-01"),
+        })
         .orThrow(),
     ).resolves.toBeUndefined();
   });
@@ -93,7 +96,10 @@ describe("createPeriods", () => {
     ]);
     expect(
       await periods
-        .isOpen("leave_year", temporal().PlainDate.from("2026-02-01"))
+        .isOpen({
+          kind: "leave_year",
+          date: temporal().PlainDate.from("2026-02-01"),
+        })
         .orThrow(),
     ).toBe(false);
     expect(

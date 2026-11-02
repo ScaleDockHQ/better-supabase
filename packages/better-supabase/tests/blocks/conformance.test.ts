@@ -154,6 +154,8 @@ const NO_FIELDS: readonly string[] = [
   "passes",
   // Payroll runs and lines are fixed records that come from other blocks.
   "payroll-export",
+  // Periods are dated ranges the engine creates; app data goes on the records they cover.
+  "periods",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
   // Versions are immutable templates; nothing for an app to extend.
@@ -192,8 +194,6 @@ const NO_FIELDS: readonly string[] = [
   "tax",
   // Sessions, movements, counts and deposits are fixed records; app data goes on the till.
   "tills",
-  // Periods are dated ranges the engine creates; app data goes on the records they cover.
-  "periods",
   // Entries are written from the outbox by the activity sink; they record app events.
   "timeline",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.

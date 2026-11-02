@@ -60,12 +60,15 @@ export interface Periods {
    * The period of a kind that holds a date, or `undefined`. A kind with a
    * calendar cadence is created the first time a date in it is asked for.
    */
-  periodFor(
-    kind: string,
-    date: Temporal.PlainDate,
-  ): AsyncResultType<Period | undefined>;
+  periodFor(input: {
+    readonly kind: string;
+    readonly date: Temporal.PlainDate;
+  }): AsyncResultType<Period | undefined>;
   /** Whether writes dated on `date` may still land in the kind's period. */
-  isOpen(kind: string, date: Temporal.PlainDate): AsyncResultType<boolean>;
+  isOpen(input: {
+    readonly kind: string;
+    readonly date: Temporal.PlainDate;
+  }): AsyncResultType<boolean>;
   /** What keeps a period from closing, from every contributing block. */
   closeBlockers(periodId: string): AsyncResultType<readonly string[]>;
   /** Stops writes into an open period without closing it. */
@@ -134,7 +137,7 @@ export function createPeriods(options: PeriodsOptions): Periods {
           (value) => periodOf(value, "create_period"),
         ),
       ),
-    periodFor: (kind, date) =>
+    periodFor: ({ kind, date }) =>
       tenant().andThen((organizationId) =>
         call(
           "period_for",
@@ -145,7 +148,7 @@ export function createPeriods(options: PeriodsOptions): Periods {
               : periodOf(value, "period_for"),
         ),
       ),
-    isOpen: (kind, date) =>
+    isOpen: ({ kind, date }) =>
       tenant().andThen((organizationId) =>
         call(
           "period_is_open",

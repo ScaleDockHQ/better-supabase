@@ -1745,6 +1745,7 @@
               "grants",
               "guests",
               "hiring",
+              "housekeeping",
               "idempotency",
               "identities",
               "impersonation",
@@ -1784,6 +1785,7 @@
               "outbox",
               "passes",
               "payroll-export",
+              "periods",
               "permissions",
               "pgtap",
               "pipelines",
@@ -1800,6 +1802,7 @@
               "reactions",
               "read-sets",
               "realtime-tables",
+              "recurrence",
               "relations",
               "reminders",
               "reserved-slugs",
@@ -1933,6 +1936,7 @@
                   "grants",
                   "guests",
                   "hiring",
+                  "housekeeping",
                   "idempotency",
                   "identities",
                   "impersonation",
@@ -1972,6 +1976,7 @@
                   "outbox",
                   "passes",
                   "payroll-export",
+                  "periods",
                   "permissions",
                   "pgtap",
                   "pipelines",
@@ -1988,6 +1993,7 @@
                   "reactions",
                   "read-sets",
                   "realtime-tables",
+                  "recurrence",
                   "relations",
                   "reminders",
                   "reserved-slugs",
@@ -2260,6 +2266,9 @@
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
             },
+            "housekeeping": {
+              "$ref": "#/$defs/blocks/housekeeping"
+            },
             "idempotency": {
               "$ref": "#/$defs/blocks/idempotency"
             },
@@ -2377,6 +2386,9 @@
             "payroll-export": {
               "$ref": "#/$defs/blocks/payroll-export"
             },
+            "periods": {
+              "$ref": "#/$defs/blocks/periods"
+            },
             "permissions": {
               "$ref": "#/$defs/blocks/permissions"
             },
@@ -2424,6 +2436,9 @@
             },
             "realtime-tables": {
               "$ref": "#/$defs/blocks/realtime-tables"
+            },
+            "recurrence": {
+              "$ref": "#/$defs/blocks/recurrence"
             },
             "relations": {
               "$ref": "#/$defs/blocks/relations"
@@ -5747,6 +5762,17 @@
           }
         }
       },
+      "housekeeping": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "idempotency": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -6842,6 +6868,17 @@
           }
         }
       },
+      "periods": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "permissions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -7220,6 +7257,17 @@
         }
       },
       "realtime-tables": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "recurrence": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

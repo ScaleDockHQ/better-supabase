@@ -49,12 +49,15 @@ first time a date inside it is asked for.
 const periods = createPeriods({ transport, tenant: organizationId });
 
 const year = await periods
-  .periodFor("leave_year", Temporal.PlainDate.from("2026-06-15"))
+  .periodFor({
+    kind: "leave_year",
+    date: Temporal.PlainDate.from("2026-06-15"),
+  })
   .orThrow();
 // 2026-01-01 to 2026-12-31, open
 
 const open = await periods
-  .isOpen("leave_year", Temporal.PlainDate.from("2026-06-15"))
+  .isOpen({ kind: "leave_year", date: Temporal.PlainDate.from("2026-06-15") })
   .orThrow();
 ```
 
