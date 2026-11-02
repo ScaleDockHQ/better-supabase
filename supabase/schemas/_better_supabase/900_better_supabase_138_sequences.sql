@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:2f8888efb1984d91c3c03257137dac9aa67bb40e9a6866cdaed826b31d4336b2
+-- @bsb-hash sha256:05796b26203ea185e8c93d4473a58000d2ce73b74b9ecf792aacb9ea481df1eb
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -161,6 +161,9 @@ begin
         end if;
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           raise exception 'track must be true or false' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+        end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          raise exception 'consentPurpose must be a consent purpose key' using errcode = '22023', hint = 'SEQUENCE_INVALID';
         end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
           raise exception 'templateVersionId must be a uuid' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -841,6 +844,11 @@ begin
         continue;
       end if;
       if v_step ->> 'kind' = 'email' then
+        if v_step ? 'consentPurpose' and "better_supabase"."consent_missing"(v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_step ->> 'consentPurpose') then
+          perform "better_supabase"."sequence_step_done"(v_due, v_current);
+          v_ran := v_ran + 1;
+          continue;
+        end if;
         update "better_supabase"."enrollment_steps" y set "due_at" = now() + interval '10 minutes'
         where y."enrollment_id" = v_due and y."completed_at" is null;
         update "better_supabase"."enrollments" x

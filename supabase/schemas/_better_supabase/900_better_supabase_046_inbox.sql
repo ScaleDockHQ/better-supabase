@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:97e108bfbe2788212f47a70cf092d1d208384241ca0ceaa89234aab2afb86136
+-- @bsb-hash sha256:21748588f586aeccc7a07d36c67372feedfbade273b350b680915756785b96c8
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2418,6 +2418,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3038,6 +3054,15 @@ set search_path = ''
 as $$ select "better_supabase"."discard_inbox_draft"($1) $$;
 revoke execute on function "api"."discard_inbox_draft"(uuid) from public, anon;
 grant execute on function "api"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
+create or replace function "api"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_inbox_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

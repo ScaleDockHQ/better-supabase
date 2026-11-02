@@ -64,15 +64,17 @@ export function writeDesign(
     }
   }
 
-  for (const [key, value] of [
-    ["variants", design.seeds?.variants],
-    ["locale", design.seeds?.locale],
+  for (const [path, value] of [
+    [["database", "seed", "defaults", "variants"], design.seeds?.variants],
+    [["database", "seed", "defaults", "locale"], design.seeds?.locale],
+    [["database", "seed", "sample", "size"], design.seeds?.sample?.size],
+    [["database", "seed", "sample", "seed"], design.seeds?.sample?.seed],
   ] as const) {
     if (value === undefined) {
       continue;
     }
 
-    const problem = apply(["database", "seed", "defaults", key], value);
+    const problem = apply(path, value);
 
     if (problem !== undefined) {
       return { ok: false, reason: problem };

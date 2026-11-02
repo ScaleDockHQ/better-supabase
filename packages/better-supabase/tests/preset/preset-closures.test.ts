@@ -21,6 +21,8 @@ const composites = new Set(
  */
 const ADDED: Readonly<Record<string, readonly string[]>> = {
   helpdesk: ["chat-sdk-state"],
+  // Notification digests run as a housekeeping job.
+  "developer-api": ["housekeeping"],
   // The `service` composite adds maintenance plans, cases and SLAs to dispatch.
   "field-service": ["cases", "maintenance", "pipelines", "sla"],
   // Blocks the presets name since the closures were recorded; each only adds.
@@ -36,7 +38,8 @@ const ADDED: Readonly<Record<string, readonly string[]>> = {
 const closureOf = (name: keyof typeof PRESETS): string[] =>
   resolvePreset(presetOf(name), PRESET_CATALOG)
     .blocks.map((block) => block.name)
-    .filter((block) => !composites.has(block))
+    // `seeds` comes with `organizations`, which every closure here lists.
+    .filter((block) => !composites.has(block) && block !== "seeds")
     .toSorted();
 
 describe("named presets that list composites", () => {

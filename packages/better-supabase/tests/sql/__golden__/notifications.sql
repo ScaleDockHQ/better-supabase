@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:915a390fca130c53f753a2532b0733d0a3296c91b5044aa5904d203e1153f6ae
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:54900e100f9f30aedd9ecef7979136d38b0a766d6072958419add0d5ee8cf46d
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,6 +90,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -199,7 +207,7 @@ create table if not exists "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -264,6 +272,7 @@ create table if not exists "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
+  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -338,6 +347,30 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "better_supabase"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "organization_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."notification_digests" enable row level security;
+revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;
+grant all on "better_supabase"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -348,7 +381,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "better_supabase"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -472,7 +505,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -507,7 +540,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -980,6 +1013,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."organization_id"
   ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
@@ -1084,6 +1118,191 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "better_supabase"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "better_supabase"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
+    order by p."organization_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "better_supabase"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "better_supabase"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "better_supabase"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "better_supabase"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "better_supabase"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "better_supabase"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "better_supabase"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."organization_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "better_supabase"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "better_supabase"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "better_supabase"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -1547,21 +1766,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:a51c2c0922a60d05c6daf76fea1582681734ce54c645324c398b076fe83a642e
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:607ed07899b6e4b8e415be0c8baef1e622d7539549ce178bdbd6d2915b08bfa0
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,6 +1869,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1759,7 +1986,7 @@ create table if not exists "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -1824,6 +2051,7 @@ create table if not exists "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
+  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -1898,6 +2126,30 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "better_supabase"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "organization_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."notification_digests" enable row level security;
+revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;
+grant all on "better_supabase"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -1908,7 +2160,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "better_supabase"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -1997,6 +2249,10 @@ begin
         using notification;
     end if;
   end;
+  if nullif(notification ->> 'consent_purpose', '') is not null
+    and "better_supabase"."consent_missing"(v_tenant, v_subject_type, v_subject_id, notification ->> 'consent_purpose') then
+    return null;
+  end if;
   if to_regprocedure('"public"."notification_audience"(jsonb)') is not null then
     execute format('select %s($1)', to_regprocedure('"public"."notification_audience"(jsonb)')::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');
@@ -2056,7 +2312,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -2091,7 +2347,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -2598,6 +2854,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."organization_id"
   ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
@@ -2703,6 +2960,191 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "better_supabase"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "better_supabase"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
+    order by p."organization_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "better_supabase"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "better_supabase"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "better_supabase"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "better_supabase"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "better_supabase"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "better_supabase"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "better_supabase"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."organization_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "better_supabase"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "better_supabase"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "better_supabase"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -3181,21 +3623,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:b62405154474046c5b8a7f307253f3f503298867d2f6513fb5736d642be1ce43
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:e53da259ca5ed6b2ef071021bf461d3cd4ce31695b96f941cb1ed8a476e957c0
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3284,6 +3726,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "app_private"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3398,7 +3848,7 @@ create table if not exists "app_private"."notification_deliveries" (
   "recipient_id" uuid not null references "app_private"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -3463,6 +3913,7 @@ create table if not exists "app_private"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
+  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -3537,6 +3988,30 @@ create policy bsb_notification_delivery_events_read on "app_private"."notificati
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "app_private"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "organization_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "app_private"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "app_private"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "app_private"."notification_digests" enable row level security;
+revoke all on "app_private"."notification_digests" from public, anon, authenticated;
+grant all on "app_private"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "app_private"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -3547,7 +4022,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "app_private"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -3671,7 +4146,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "app_private"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -3706,7 +4181,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "app_private"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "app_private"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "app_private"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -4179,6 +4654,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."organization_id"
   ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
   from "app_private"."notification_preferences" p
@@ -4283,6 +4759,191 @@ revoke execute on function "app_private"."claim_notification_deliveries"(text, i
 grant execute on function "app_private"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "app_private"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "app_private"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "app_private"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
+    order by p."organization_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "app_private"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "app_private"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "app_private"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "app_private"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "app_private"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "app_private"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
+      min(case "app_private"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "app_private"."notification_deliveries" d
+    join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "app_private"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "app_private"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "app_private"."notification_deliveries" d
+      join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "app_private"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "app_private"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "app_private"."notification_deliveries" d
+    join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "app_private"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "app_private"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "app_private"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "app_private"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "app_private"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "app_private"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "app_private"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "app_private"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."organization_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "app_private"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "app_private"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "app_private"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "app_private"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "app_private"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "app_private"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -4746,21 +5407,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:0b0b69d388de8e6de038b1c809fba6f818e02b118cf5b5167073ae6265e0a1cf
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:a879f1c1c10756216d9d8e92c0155916ab77e72f6ea814baa71b750f535f9979
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4849,6 +5510,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4958,7 +5627,7 @@ create table if not exists "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -5023,6 +5692,7 @@ create table if not exists "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
+  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -5097,6 +5767,30 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "better_supabase"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "organization_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."notification_digests" enable row level security;
+revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;
+grant all on "better_supabase"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -5107,7 +5801,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "better_supabase"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -5231,7 +5925,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -5266,7 +5960,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -5739,6 +6433,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."organization_id"
   ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
@@ -5843,6 +6538,191 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "better_supabase"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "better_supabase"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
+    order by p."organization_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "better_supabase"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "better_supabase"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "better_supabase"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "better_supabase"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "better_supabase"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "better_supabase"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "better_supabase"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."organization_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "better_supabase"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "better_supabase"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "better_supabase"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -6500,6 +7380,51 @@ as $$ select "better_supabase"."complete_notification_delivery"($1, $2, $3, $4, 
 revoke execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "api"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
+create or replace function "api"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."notification_cadence"($1, $2, $3, $4) $$;
+revoke execute on function "api"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+create or replace function "api"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_notification_cadence"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "api"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."run_notification_digests"($1) $$;
+revoke execute on function "api"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "api"."run_notification_digests"(integer) to service_role;
+
+create or replace function "api"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."claim_notification_digests"($1, $2, $3) $$;
+revoke execute on function "api"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "api"."claim_notification_digests"(integer, interval, integer) to service_role;
+
+create or replace function "api"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."complete_notification_digest"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
+
 create or replace function "api"."suppress_notification_address"(address text, reason text, channel text default 'email', provider text default null, provider_event_id text default null, detail jsonb default '{}')
 returns boolean
 language sql
@@ -6570,21 +7495,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:26d48edfa9d58550d54b32c247ed7ff3ea63ea13cdee5667af3809266d1539d6
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:418dca6c71a5c272b25ca81699de093e10ab205e200f2718e842e5b8b978f365
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6673,6 +7598,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6773,7 +7706,7 @@ alter table "better_supabase"."notification_deliveries" add column if not exists
 alter table "better_supabase"."notification_deliveries" add column if not exists "recipient_id" uuid references "better_supabase"."notification_recipients" ("id") on delete cascade;
 alter table "better_supabase"."notification_deliveries" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."notification_deliveries" add column if not exists "channel" text;
-alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider" text;
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_message_id" text;
 alter table "better_supabase"."notification_deliveries" add column if not exists "error" text;
@@ -6832,6 +7765,7 @@ alter table "better_supabase"."notification_preferences" add column if not exist
 alter table "better_supabase"."notification_preferences" add column if not exists "type" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "channel" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "enabled" boolean not null default true;
+alter table "better_supabase"."notification_preferences" add column if not exists "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off'));
 alter table "better_supabase"."notification_preferences" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."notification_preferences" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "better_supabase"."notification_preferences";
@@ -6903,6 +7837,30 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "better_supabase"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "organization_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."notification_digests" enable row level security;
+revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;
+grant all on "better_supabase"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -6913,7 +7871,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "better_supabase"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -7037,7 +7995,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -7072,7 +8030,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -7545,6 +8503,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."organization_id"
   ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
@@ -7649,6 +8608,191 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "better_supabase"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "better_supabase"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
+    order by p."organization_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "better_supabase"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "better_supabase"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "better_supabase"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "better_supabase"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "better_supabase"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "better_supabase"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "better_supabase"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."organization_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "better_supabase"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "better_supabase"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "better_supabase"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -8112,21 +9256,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@9 managed
--- @bsb-hash sha256:006fb1d8d7d393a204a6c8beedf756af731be5d4df36e25ab61eacd4326e009f
+-- @bsb-block notifications@10 managed
+-- @bsb-hash sha256:cb0fa3de08dd5551e20820bf01cc8d9eca906344bfef4bad689640f3734c8cb1
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8215,6 +9359,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_preferences";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_digests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_digests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -8324,7 +9476,7 @@ create table if not exists "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "org_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -8389,6 +9541,7 @@ create table if not exists "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
+  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "org_id", "type", "channel")
 );
@@ -8463,6 +9616,30 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
       and r."user_id" = (select auth.uid())
   ));
 
+-- One email of the notifications a member held back: what was folded, and how
+-- sending it went.
+create table if not exists "better_supabase"."notification_digests" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "org_id" uuid,
+  "channel" text not null,
+  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "items" jsonb not null,
+  "item_count" integer not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "attempts" integer not null default 0,
+  "attempted_at" timestamptz,
+  "error" text,
+  "provider_message_id" text,
+  "sent_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_digests_user_idx on "better_supabase"."notification_digests" ("user_id");
+create index if not exists notification_digests_pending_idx on "better_supabase"."notification_digests" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."notification_digests" enable row level security;
+revoke all on "better_supabase"."notification_digests" from public, anon, authenticated;
+grant all on "better_supabase"."notification_digests" to service_role;
+
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
 create or replace function "better_supabase"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
@@ -8473,7 +9650,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select p."enabled"
+    select p."enabled" and p."cadence" is distinct from 'off'
     from "better_supabase"."notification_preferences" p
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
@@ -8597,7 +9774,7 @@ begin
   into v_want_members, v_want_channels
   from (
     select w.member, w.channel from (
-      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) as enabled
+      select distinct on (x, c) x as member, c as channel, coalesce(p."enabled", case c when 'in_app' then true else false end) and p."cadence" is distinct from 'off' as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
@@ -8632,7 +9809,7 @@ begin
   from unnest(v_recipients) x
   on conflict do nothing;
   insert into "better_supabase"."notification_deliveries" ("recipient_id", "org_id", "channel", "status", "delivered_at")
-  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else 'pending' end, case when c = 'in_app' then now() end
+  select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
   where rc."event_id" = v_event
@@ -9105,6 +10282,7 @@ as $$
     'type', p."type",
     'channel', p."channel",
     'enabled', p."enabled",
+    'cadence', p."cadence",
     'tenant', p."org_id"
   ) order by p."org_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
@@ -9209,6 +10387,191 @@ revoke execute on function "better_supabase"."claim_notification_deliveries"(tex
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
 revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
+
+-- How a member wants a type on a channel: immediate, daily, weekly or off,
+-- chosen the way notification_enabled chooses, immediate when nothing is set.
+create or replace function "better_supabase"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select p."cadence" from "better_supabase"."notification_preferences" p
+    where p."user_id" = notification_cadence.member
+      and p."channel" = notification_cadence.channel
+      and (p."type" = notification_cadence.type or p."type" = '*')
+      and (p."org_id" is null or p."org_id" = notification_cadence.tenant)
+    order by p."org_id" is null, p."type" = '*'
+    limit 1
+  ), 'immediate')
+$$;
+revoke execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."notification_cadence"(uuid, uuid, text, text) to service_role;
+
+-- Sets how often a type on a channel reaches the caller: immediate, daily,
+-- weekly or off, for one organization or everywhere (tenant null).
+create or replace function "better_supabase"."set_notification_cadence"(type text, channel text, cadence text, tenant uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to change notification preferences' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  if set_notification_cadence.cadence is null or set_notification_cadence.cadence not in ('immediate', 'daily', 'weekly', 'off') then
+    raise exception 'cadence must be immediate, daily, weekly or off' using errcode = '22023', hint = 'NOTIFICATION_CADENCE_UNKNOWN';
+  end if;
+  update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
+  where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
+    and x."channel" = set_notification_cadence.channel
+    and x."org_id" is not distinct from set_notification_cadence.tenant;
+  if not found then
+    insert into "better_supabase"."notification_preferences" ("user_id", "org_id", "type", "channel", "cadence")
+    values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_notification_cadence"(text, text, text, uuid) to authenticated, service_role;
+
+-- Folds each member's held deliveries into one pending digest per channel once
+-- the oldest of them is a day (daily) or a week (weekly) old. Returns how many
+-- digests and deliveries it folded. The 'digest_run' housekeeping job.
+create or replace function "better_supabase"."run_notification_digests"(max_digests integer default 100)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_group record;
+  v_ids uuid[];
+  v_digests integer := 0;
+  v_items integer := 0;
+  v_count integer;
+begin
+  for v_group in
+    select rc."user_id" as member, ev."org_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."org_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."status" = 'held'
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."org_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+    group by 1, 2, 3
+    limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
+  loop
+    select coalesce(array_agg(d."id"), '{}') into v_ids
+    from (
+      select d."id" from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where d."status" = 'held' and d."channel" = v_group.channel
+        and rc."user_id" = v_group.member and ev."org_id" is not distinct from v_group.tenant
+      for update of d skip locked
+    ) d;
+    if cardinality(v_ids) = 0 then
+      continue;
+    end if;
+    insert into "better_supabase"."notification_digests" ("user_id", "org_id", "channel", "cadence", "items", "item_count")
+    select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."org_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+    from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+    join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+    where d."id" = any(v_ids);
+    update "better_supabase"."notification_deliveries" d set "status" = 'digested' where d."id" = any(v_ids);
+    get diagnostics v_count = row_count;
+    v_digests := v_digests + 1;
+    v_items := v_items + v_count;
+  end loop;
+  return jsonb_build_object('digests', v_digests, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."run_notification_digests"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."run_notification_digests"(integer) to service_role;
+
+-- Leases up to max_items pending digests with the recipient's email, for a
+-- sender that mails each one.
+create or replace function "better_supabase"."claim_notification_digests"(max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claimed jsonb;
+begin
+  update "better_supabase"."notification_digests" x set "status" = 'failed', "error" = 'The lease ran out on the last attempt'
+  where x."status" = 'pending' and x."attempts" >= greatest(1, coalesce(claim_notification_digests.max_attempts, 5))
+    and x."attempted_at" < now() - claim_notification_digests.lease;
+  with picked as (
+    select x."id" as id from "better_supabase"."notification_digests" x
+    where x."status" = 'pending'
+      and (x."attempted_at" is null or x."attempted_at" < now() - claim_notification_digests.lease)
+    order by x."created_at"
+    limit claim_notification_digests.max_items
+    for update skip locked
+  ), leased as (
+    update "better_supabase"."notification_digests" x set "attempted_at" = now(), "attempts" = x."attempts" + 1
+    from picked where x."id" = picked.id
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'digest_id', l."id",
+    'user_id', l."user_id",
+    'email', u.email,
+    'channel', l."channel",
+    'cadence', l."cadence",
+    'tenant', l."org_id",
+    'item_count', l."item_count",
+    'items', l."items"
+  )), '[]') into claimed
+  from leased l left join auth.users u on u.id = l."user_id";
+  return claimed;
+end;
+$$;
+
+-- Records how sending a digest went: sent, failed, skipped, or pending to retry.
+create or replace function "better_supabase"."complete_notification_digest"(digest uuid, status text, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_outcome text := complete_notification_digest.status;
+begin
+  if v_outcome is null or v_outcome not in ('sent', 'failed', 'skipped', 'pending') then
+    raise exception 'status must be sent, failed, skipped or pending' using errcode = '22023', hint = 'NOTIFICATION_STATUS_UNKNOWN';
+  end if;
+  if v_outcome = 'pending' and exists (
+    select 1 from "better_supabase"."notification_digests" x
+    where x."id" = complete_notification_digest.digest
+      and x."attempts" >= greatest(1, coalesce(complete_notification_digest.max_attempts, 5))
+  ) then
+    v_outcome := 'failed';
+  end if;
+  update "better_supabase"."notification_digests" x set "status" = v_outcome,
+    "provider_message_id" = coalesce(complete_notification_digest.provider_message_id, x."provider_message_id"),
+    "error" = complete_notification_digest.error,
+    "sent_at" = case when v_outcome = 'sent' then now() else x."sent_at" end,
+    "attempted_at" = case when v_outcome = 'pending' then null else x."attempted_at" end
+  where x."id" = complete_notification_digest.digest;
+  return v_outcome;
+end;
+$$;
+revoke execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_notification_digests"(integer, interval, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_digest"(uuid, text, text, text, integer) to service_role;
 
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -9672,13 +11035,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:bfc5247523bcdb57cdb4645ed107de16d8675d27c58c33c43c97c28326b8dde3
+-- @bsb-hash sha256:10c9da14b23ab768473be51cde03c541274bca6ac3b7e67d519e426241f861e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 9, 'managed')
+values ('notifications', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

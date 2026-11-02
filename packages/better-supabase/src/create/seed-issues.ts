@@ -1,3 +1,4 @@
+import type { PresetCatalog } from "../preset/catalog-types.ts";
 import type { CreateDesign } from "../preset/design.ts";
 import type { Issue } from "./issue.ts";
 
@@ -9,12 +10,13 @@ import { PRESET_CATALOG } from "../preset/index.ts";
  */
 export function seedIssues(
   design: Pick<CreateDesign, "seeds">,
+  catalog: Pick<PresetCatalog, "blocks"> = PRESET_CATALOG,
 ): readonly Issue[] {
   const issues: Issue[] = [];
 
   for (const [block, variant] of Object.entries(design.seeds?.variants ?? {})) {
     const path = `/seeds/variants/${block.replaceAll("~", "~0").replaceAll("/", "~1")}`;
-    const entry = PRESET_CATALOG.blocks.find((item) => item.name === block);
+    const entry = catalog.blocks.find((item) => item.name === block);
 
     if (entry === undefined) {
       issues.push({

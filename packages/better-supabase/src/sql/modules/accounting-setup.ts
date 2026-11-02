@@ -1,14 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { seedFunctionName } from "../seeds.ts";
 import { fail, userGrant } from "../shared.ts";
 import {
   ACCOUNT_ROLES,
   ACCOUNT_TYPES,
   accountingConfig,
   accountingSql,
-  DEFAULT_JOURNALS,
-  GENERIC_CHART,
   JOURNAL_TYPES,
   sqlList,
 } from "./accounting-shared.ts";
@@ -92,34 +91,13 @@ export function accountingSetupFunctions(ctx: BlockSqlContext): string {
   const json = accountingJson(ctx);
   const { allowed } = sql;
 
+  // The generic chart is declared in `accounting.seeds` (variant "generic").
+  // `setup_accounting` applies it once, to an organization with no accounts.
   const chart =
     config.chart === "generic"
       ? `
   if not exists (select 1 from ${accounts} y where y.${a("tenant")} = setup_accounting.tenant) then
-    insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("reconcilable")}, ${a("normalSide")})
-    values
-      ${GENERIC_CHART.map(
-        (account) =>
-          `(setup_accounting.tenant, ${sqlString(account.code)}, ${sqlString(account.name)}, ${sqlString(account.type)}, ${sqlString(account.subtype)}, ${String(account.reconcilable ?? false)}, ${sqlString(account.type === "asset" || account.type === "expense" ? "debit" : "credit")})`,
-      ).join(",\n      ")};
-    insert into ${roles} (${r("tenant")}, ${r("role")}, ${r("account")})
-    select setup_accounting.tenant, c.role, y.${a("id")}
-    from (values ${GENERIC_CHART.flatMap((account) =>
-      account.role === undefined
-        ? []
-        : [`(${sqlString(account.role)}, ${sqlString(account.code)})`],
-    ).join(", ")}) c (role, code)
-    join ${accounts} y on y.${a("tenant")} = setup_accounting.tenant and y.${a("code")} = c.code
-    on conflict (${r("tenant")}, ${r("role")}) do nothing;
-  end if;
-  if not exists (select 1 from ${journals} y where y.${j("tenant")} = setup_accounting.tenant) then
-    insert into ${journals} (${j("tenant")}, ${j("code")}, ${j("name")}, ${j("type")}, ${j("defaultAccount")})
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y.${a("id")} from ${accounts} y where y.${a("tenant")} = setup_accounting.tenant and y.${a("code")} = c.account)
-    from (values ${DEFAULT_JOURNALS.map(
-      (journal) =>
-        `(${sqlString(journal.code)}, ${sqlString(journal.name)}, ${sqlString(journal.type)}, ${journal.account === undefined ? "null::text" : sqlString(journal.account)})`,
-    ).join(", ")}) c (code, name, type, account);
+    perform ${fn(seedFunctionName("accounting"))}(setup_accounting.tenant, 'generic');
   end if;`
       : "";
 

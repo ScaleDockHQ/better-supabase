@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:660de13c48d73cc46fc08d4a8847f8b4d703c742ee0ead268bdd93a16b1edd5d
+-- @bsb-hash sha256:9107c3ff6d2f5acd6b70c0271b990dabbac230e19167df7854cae80a7f1a4bcb
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,6 +61,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -231,7 +247,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -596,40 +612,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("tenant_id", "key") do nothing;
   if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("tenant_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "better_supabase"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -831,7 +814,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -3088,6 +3071,359 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3423,7 +3759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:7fa7e8f864136784ac3c1741d868ece7f736fae8bbeb288a3c06611d50c018c8
+-- @bsb-hash sha256:2dedfdacc75f824c731ed12bdedf1d1a2c07d92d0a35419f23c4d6a4938c3d56
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3483,6 +3819,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -3653,7 +4005,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -4036,40 +4388,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("tenant_id", "key") do nothing;
   if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("tenant_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "better_supabase"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -4271,7 +4590,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -6684,6 +7003,359 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7031,7 +7703,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:956c0f65f81f239c7325f2cc3af19da823bfcf655117a63bce769743a2538790
+-- @bsb-hash sha256:2be78a7298c34221ec480a7c75ed64efcf815604ef5c3b20b5d97628999b2fc2
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7091,6 +7763,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
@@ -7266,7 +7954,7 @@ create policy accounting_accounts_read on "app_private"."accounting_accounts"
 
 create table if not exists "app_private"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -7631,40 +8319,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("tenant_id", "key") do nothing;
   if not exists (select 1 from "app_private"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "app_private"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("tenant_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "app_private"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "app_private"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "app_private"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -7866,7 +8521,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -10123,6 +10778,359 @@ $$;
 revoke execute on function "app_private"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "app_private"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "app_private"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "app_private"."accounting_recognition_schedules" enable row level security;
+revoke all on "app_private"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "app_private"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "app_private"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "app_private"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_schedule_idx on "app_private"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "app_private"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "app_private"."accounting_recognition_rows" enable row level security;
+revoke all on "app_private"."accounting_recognition_rows" from anon, authenticated;
+grant all on "app_private"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "app_private"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "app_private"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "app_private"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "app_private"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "app_private"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "app_private"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "app_private"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "app_private"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -10458,7 +11466,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:bfc8f9d99229d790950c9bec3eff090141ab5194e8f45a24ecf8b50bf40b4d22
+-- @bsb-hash sha256:c9ec703614aac58c94ebf3650f5673a1a0c35bca7c076ee3cbad6bf78b90f484
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10518,6 +11526,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -10688,7 +11712,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -11053,40 +12077,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("tenant_id", "key") do nothing;
   if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("tenant_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "better_supabase"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -11288,7 +12279,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -13545,6 +14536,359 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -14305,6 +15649,15 @@ as $$ select "better_supabase"."accounting_budget_vs_actual"($1, $2) $$;
 revoke execute on function "api"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "api"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+create or replace function "api"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_accounting_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -14351,7 +15704,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:dfdaf74b66d648d18a37d7bef07e67a403c0601150d92281ffa0c79e37194071
+-- @bsb-hash sha256:60b7828a81017b25c1e3eaa40baa3e42327641907b97d96673f5625a3a2221d2
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14411,6 +15764,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -14571,7 +15940,7 @@ create policy bsb_accounting_accounts_select on "better_supabase"."accounting_ac
 
 -- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
 alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
@@ -14897,40 +16266,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("tenant_id", "key") do nothing;
   if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("tenant_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "better_supabase"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -15132,7 +16468,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -17382,6 +18718,353 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+-- better_supabase.accounting_recognition_schedules is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text check (length("source_type") between 1 and 100);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text check (length("source_id") between 1 and 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' check (length("line_ref") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "starts_on" date;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "ends_on" date;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "deferral_entry_id" uuid;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+-- better_supabase.accounting_recognition_rows is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "schedule_id" uuid references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "due_on" date;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'posted'));
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "entry_id" uuid;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "posted_at" timestamptz;
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."tenant_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."tenant_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -17717,7 +19400,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:5ce497dba540a6ae37c6de49ab495c0fed5be02371656718c58be0d57f01ce04
+-- @bsb-hash sha256:e31ed8f00fe8e24eb6bd1ce69b35103c49f4fee17f98cfe762e50d57e3617608
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17777,6 +19460,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -17947,7 +19646,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "org_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "role")
@@ -18312,40 +20011,7 @@ begin
   values (setup_accounting.tenant, 'cost_center', 'Cost center'), (setup_accounting.tenant, 'cost_object', 'Cost object')
   on conflict ("org_id", "key") do nothing;
   if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."org_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
-    values
-      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'),
-      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'),
-      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'),
-      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'),
-      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'),
-      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
-      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
-      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
-      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
-      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
-      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'),
-      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'),
-      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'),
-      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'),
-      (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
-    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
-    select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
-    join "better_supabase"."accounting_accounts" y on y."org_id" = setup_accounting.tenant and y."code" = c.code
-    on conflict ("org_id", "role") do nothing;
-  end if;
-  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."org_id" = setup_accounting.tenant) then
-    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
-    select setup_accounting.tenant, c.code, c.name, c.type,
-      (select y."id" from "better_supabase"."accounting_accounts" y where y."org_id" = setup_accounting.tenant and y."code" = c.account)
-    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+    perform "better_supabase"."seed_accounting_defaults"(setup_accounting.tenant, 'generic');
   end if;
   return jsonb_build_object('organizationId', v_row."org_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -18547,7 +20213,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -20803,6 +22469,359 @@ as $$
 $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
+
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("org_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "org_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("org_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
+-- Seeds the rows every organization starts with for accounting. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_accounting_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."accounting_dimensions" ("org_id", "key", "name")
+  select p_tenant, 'cost_center', 'Cost center'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."org_id" = p_tenant and x."key" is not distinct from 'cost_center');
+  insert into "better_supabase"."accounting_dimensions" ("org_id", "key", "name")
+  select p_tenant, 'cost_object', 'Cost object'
+  where not exists (select 1 from "better_supabase"."accounting_dimensions" x where x."org_id" = p_tenant and x."key" is not distinct from 'cost_object');
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Cash', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Inventory', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Work in progress', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1500');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1510');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '2100');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '2200');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '3900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4900', 'Exchange gains', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '4900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4910', 'Gains on asset disposals', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '4910');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '5000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '6000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '6800');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '6900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '6910');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1500' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1510' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '2000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '2100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '2200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '3900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '4900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '4910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '5000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '6000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '6800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '6900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '6910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if (p_variant is null or p_variant = 'generic') then
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'SAL', 'Sales', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'SAL');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'PUR', 'Purchases', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'PUR');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'CSH', 'Cash', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'CSH');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'GEN', 'General', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'GEN');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0100', 'Vaste activa', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '0100');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '0190', 'Cumulatieve afschrijvingen', 'asset', 'fixed_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '0190');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1000', 'Kas', 'asset', 'cash', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1100', 'Bank', 'asset', 'bank', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1100');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1200', 'Debiteuren', 'asset', 'receivable', true, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1200');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1300', 'Voorraad', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1300');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1350', 'Onderhanden werk', 'asset', 'inventory', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1350');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1400', 'Te vorderen btw', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1400');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '1900', 'Kruisposten', 'asset', 'current_asset', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '1900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2000', 'Eigen vermogen', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '2000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '2900', 'Overige reserves', 'equity', 'equity', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '2900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3000', 'Crediteuren', 'liability', 'payable', true, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '3000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3100', 'Te betalen btw', 'liability', 'tax', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '3100');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '3200', 'Vooruitontvangen opbrengsten', 'liability', 'current_liability', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '3200');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4000', 'Bedrijfskosten', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '4000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '4800', 'Afschrijvingen', 'expense', 'operating_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '4800');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '7000', 'Kostprijs van de omzet', 'expense', 'cogs', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '7000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8000', 'Omzet', 'income', 'revenue', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '8000');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8900', 'Koerswinsten', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '8900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '8910', 'Boekwinst op verkoop van activa', 'income', 'other_income', false, 'credit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '8910');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9900', 'Koersverliezen', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '9900');
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable", "normal_side")
+    select p_tenant, '9910', 'Boekverlies op verkoop van activa', 'expense', 'other_expense', false, 'debit'
+    where not exists (select 1 from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" is not distinct from '9910');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fixed_asset', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '0100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fixed_asset');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'accumulated_depreciation', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '0190' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'accumulated_depreciation');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'bank');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'receivable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'inventory', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1300' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'inventory');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'work_in_progress', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1350' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'work_in_progress');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'tax_receivable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1400' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'tax_receivable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'suspense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'suspense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'retained_earnings', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '2900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'retained_earnings');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '3000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'payable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'tax_payable', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '3100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'tax_payable');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'deferred_revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '3200' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'deferred_revenue');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '4000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'expense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'depreciation_expense', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '4800' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'depreciation_expense');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'cogs', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '7000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'cogs');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'revenue', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '8000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'revenue');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fx_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '8900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fx_gain');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'disposal_gain', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '8910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'disposal_gain');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'fx_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '9900' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'fx_loss');
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select p_tenant, 'disposal_loss', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '9910' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_account_roles" x where x."org_id" = p_tenant and x."role" is not distinct from 'disposal_loss');
+  end if;
+  if p_variant is not distinct from 'nl-rgs' then
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'VK', 'Verkoop', 'sales', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'VK');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'IK', 'Inkoop', 'purchase', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'IK');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'BNK', 'Bank', 'bank', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1100' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'BNK');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'KAS', 'Kas', 'cash', (select x."id" from "better_supabase"."accounting_accounts" x where x."org_id" = p_tenant and x."code" = '1000' limit 1)
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'KAS');
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select p_tenant, 'MEM', 'Memoriaal', 'general', null
+    where not exists (select 1 from "better_supabase"."accounting_journals" x where x."org_id" = p_tenant and x."code" is not distinct from 'MEM');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -379,6 +379,7 @@ describe("organizations module", () => {
       "memberships",
       "permissions",
       "organizations",
+      "seeds",
     ]);
     expect(
       moduleBody("organizations", {

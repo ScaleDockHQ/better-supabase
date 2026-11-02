@@ -18,6 +18,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
+import { pipelineSeeds } from "./pipelines-seeds.ts";
 import {
   defaultPipeline,
   manageFunctions,
@@ -414,4 +415,5 @@ export const PIPELINES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  seeds: pipelineSeeds,
 };

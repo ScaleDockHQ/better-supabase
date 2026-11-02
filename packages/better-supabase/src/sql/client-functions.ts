@@ -56,7 +56,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time wip_valuation",
   billing:
-    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_overview billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids link_billing_account link_billing_customer",
+    "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_overview billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids cancel_native_subscription create_native_subscription link_billing_account link_billing_customer prorate_change",
   bookings:
     "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings save_booking_resource save_booking_service set_booking_availability",
   bulk: "bulk_apply bulk_run bulk_step start_bulk",
@@ -130,6 +130,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
   hiring:
     "application_detail apply_to_job close_application list_applications list_jobs save_job schedule_interview submit_scorecard",
+  housekeeping: "maintenance maintenance_scheduler",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
   identities:
@@ -149,6 +150,10 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":
     "care_decision_context decide_care_alert delete_care_rule evaluate_care_rules list_care_alerts list_care_rules record_care_alerts save_care_rule",
+  commissions:
+    "accrue_commission assign_commission_plan build_commission_statement commission_payroll_lines end_commission_assignment finalize_commission_statement get_commission_statement list_commission_plans list_commission_statements list_commissions pay_commission_statement reverse_commission save_commission_plan",
+  referrals:
+    "attribute_referral create_referral_code list_referral_codes list_referrals qualify_referral void_referral",
   periods:
     "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   "agent-checkout":
@@ -196,7 +201,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   moderation:
     "ban_user decide_appeal decide_notice file_appeal issue_statement list_bans list_notices list_statements moderate moderation_item moderation_queue moderation_statuses report_content set_trusted_flagger submit_notice transparency_report unban_user",
   notifications:
-    "claim_notification_deliveries complete_notification_delivery dismiss_notifications get_notification list_notification_preferences list_notification_subscriptions list_notification_suppressions list_notifications list_subject_deliveries mark_notifications_read mark_notifications_unread notification_counts notification_page purge_notifications record_delivery_event resolve_notifications send_notification send_notifications set_notification_preference set_notification_subscription suppress_notification_address unsuppress_notification_address",
+    "claim_notification_deliveries claim_notification_digests complete_notification_delivery complete_notification_digest dismiss_notifications get_notification list_notification_preferences list_notification_subscriptions list_notification_suppressions list_notifications list_subject_deliveries mark_notifications_read mark_notifications_unread notification_counts notification_page purge_notifications record_delivery_event resolve_notifications send_notification send_notifications set_notification_preference set_notification_subscription suppress_notification_address unsuppress_notification_address",
   numbering: "next_number preview_number",
   "oauth-server":
     "create_oauth_authorization_code create_oauth_device_code decide_oauth_device_code delete_oauth_client is_oauth_token_revoked list_oauth_grants oauth_client oauth_device_request poll_oauth_device_code purge_oauth_server redeem_oauth_authorization_code register_oauth_client revoke_oauth_grant revoke_oauth_token rotate_oauth_client_secret update_oauth_client verify_oauth_client verify_oauth_registration_token",

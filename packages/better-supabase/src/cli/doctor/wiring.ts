@@ -3,6 +3,17 @@ import type { Rule, TextFile } from "./rules.ts";
 
 import { configInstances, wiringFor } from "../wiring.ts";
 
+/** The view the housekeeping module creates. */
+const MAINTENANCE_JOBS = /\bmaintenance_jobs\b/u;
+
+/** A call that registers pg_cron, not the function definition. */
+const MAINTENANCE_SCHEDULED =
+  /\bmaintenance_schedule\s*\(\s*(?:\)|')|cron\.schedule\s*\(\s*'[^'%][^;]*\bmaintenance\s*\(/u;
+
+/** The tick handler, or an app call of the dispatcher. */
+const MAINTENANCE_SOURCE =
+  /\bmaintenanceTick\b|["']maintenance(?:_schedule)?["']/u;
+
 const ENV_KEY = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
 function listedKeys(files: readonly TextFile[]): Set<string> {
@@ -159,6 +170,37 @@ export const WIRING_RULES: readonly Rule[] = [
             message: `${entry.block} schedules ${entry.runs} at \`${entry.cron}\`, but no source calls \`blockTickHandler\`. Drain the \`block_ticks\` queue with it.`,
             target: `${entry.block}.${entry.runs}`,
           }));
+    },
+  },
+  {
+    code: "BS510",
+    severity: "warning",
+    title: "Maintenance jobs have no scheduler",
+    description:
+      "The schema files install the housekeeping module (maintenance_jobs), but nothing schedules maintenance(): no `maintenance_schedule()` call for pg_cron, no cron.schedule line for it and no `maintenanceTick` handler on the block_ticks queue. The purges and expiries it dispatches never run. Run `select better_supabase.maintenance_schedule()`, or register `maintenanceTick` with `blockTickHandler` when pg_cron is not available.",
+    check: (context) => {
+      const sql = context.sqlFiles;
+
+      if (
+        sql === undefined ||
+        !sql.some((file) => MAINTENANCE_JOBS.test(file.text))
+      ) {
+        return [];
+      }
+
+      const scheduled =
+        sql.some((file) => MAINTENANCE_SCHEDULED.test(file.text)) ||
+        context.sources.some((file) => MAINTENANCE_SOURCE.test(file.text));
+
+      return scheduled
+        ? []
+        : [
+            {
+              message:
+                "The housekeeping module is installed, but nothing runs maintenance(). Call `select better_supabase.maintenance_schedule()` once (it registers pg_cron, or returns 'none'), or drain the block_ticks queue with `maintenanceTick`.",
+              target: "housekeeping",
+            },
+          ];
     },
   },
 ];

@@ -484,6 +484,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       }
 
       await client.query(`
+        delete from ${schema}.roles;
         insert into ${schema}.roles (id, key) values
           ('00000000-0000-4000-8000-00000000f001', 'owner'),
           ('00000000-0000-4000-8000-00000000f002', 'member');
@@ -1526,6 +1527,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       }
 
       await client.query(`
+        delete from ${schema}.roles;
         insert into ${schema}.roles (id, key, scope) values
           ('${role(1)}', 'owner', 'tenant'), ('${role(2)}', 'member', 'tenant'),
           ('${role(3)}', 'lead', 'tenant'), ('${role(4)}', 'inviter', 'platform'),

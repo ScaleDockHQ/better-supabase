@@ -24,7 +24,10 @@ export type SeedValue =
       readonly ref: {
         readonly table: string;
         readonly tenantColumn: string;
-        readonly match: Readonly<Record<string, string | number | boolean>>;
+        /** A `null` matches a column that is null, such as an unscoped row. */
+        readonly match: Readonly<
+          Record<string, string | number | boolean | null>
+        >;
         readonly column?: string;
       };
     }
@@ -53,6 +56,11 @@ export interface SeedTable {
   readonly rows: readonly SeedRow[];
   /** The named variant these rows belong to; rows without one are always seeded. */
   readonly variant?: string;
+  /**
+   * Also seed these rows when no variant is given, so one variant is the
+   * default of the module. Needs `variant`.
+   */
+  readonly defaultVariant?: boolean;
   /** The locales these rows are seeded for; every locale when unset. */
   readonly locales?: readonly string[];
 }
@@ -120,8 +128,10 @@ function valueSql(value: SeedValue): string {
 
   const conditions = [
     `x.${sqlIdent(ref.tenantColumn)} = p_tenant`,
-    ...Object.entries(ref.match).map(
-      ([column, expected]) => `x.${sqlIdent(column)} = ${valueSql(expected)}`,
+    ...Object.entries(ref.match).map(([column, expected]) =>
+      expected === null
+        ? `x.${sqlIdent(column)} is null`
+        : `x.${sqlIdent(column)} = ${valueSql(expected)}`,
     ),
   ];
 
@@ -166,7 +176,9 @@ function tableSql(entry: SeedTable): string {
   const guards = [
     entry.variant === undefined
       ? undefined
-      : `p_variant is not distinct from ${sqlString(entry.variant)}`,
+      : entry.defaultVariant === true
+        ? `(p_variant is null or p_variant = ${sqlString(entry.variant)})`
+        : `p_variant is not distinct from ${sqlString(entry.variant)}`,
     entry.locales === undefined
       ? undefined
       : `p_locale = any (array[${entry.locales.map((locale) => sqlString(locale)).join(", ")}])`,
@@ -216,7 +228,14 @@ export function renderSeedUmbrella(
   schema: string,
   idType: string,
   functions: readonly { readonly module: string; readonly fn: string }[],
+  defaults: {
+    readonly variants?: Readonly<Record<string, string>>;
+    readonly locale?: string;
+  } = {},
 ): string {
+  const variants = JSON.stringify(defaults.variants ?? {});
+  const locale = defaults.locale ?? "en";
+
   const calls = functions
     .map(
       ({ module, fn }) =>
@@ -227,14 +246,14 @@ export function renderSeedUmbrella(
   return `
 -- Applies the defaults of every installed module to an organization. Call it
 -- from the organization's create hook or with \`better-supabase db seed --defaults\`.
-create or replace function ${schema}.seed_tenant_defaults(p_tenant ${idType}, p_variants jsonb default '{}'::jsonb, p_locale text default 'en')
+create or replace function ${schema}.seed_tenant_defaults(p_tenant ${idType}, p_variants jsonb default ${sqlString(variants)}::jsonb, p_locale text default ${sqlString(locale)})
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-${calls}
+${calls === "" ? "  null;" : calls}
 end;
 $$;
 ${serviceGrant(`${schema}.seed_tenant_defaults(${idType}, jsonb, text)`)}

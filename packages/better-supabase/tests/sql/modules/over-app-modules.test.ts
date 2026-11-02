@@ -119,6 +119,8 @@ const MODULES = [
   "rfqs",
   "tills",
   "periods",
+  "commissions",
+  "referrals",
   "clinical-decision-support",
   "e-prescribing",
   "agent-checkout",

@@ -12,6 +12,10 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { consentsFunctions } from "./consents-functions.ts";
 import {
+  consentGateFunctions,
+  contributedPurposeData,
+} from "./consents-gate.ts";
+import {
   consentsSignalFunctions,
   consentsSignalTables,
 } from "./consents-signals.ts";
@@ -252,7 +256,8 @@ function build(ctx: BlockSqlContext): string {
 ${tables(ctx)}
 ${consentsSignalTables(ctx, consentsSql(ctx))}
 ${consentsFunctions(ctx)}
-${consentsSignalFunctions(ctx)}`;
+${consentsSignalFunctions(ctx)}
+${consentGateFunctions(ctx)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -305,6 +310,11 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "expire_consents", args: [], returns: "integer" },
     {
+      name: "requires_consent",
+      args: ["text", "text", "text"],
+      returns: "boolean",
+    },
+    {
       name: "record_consent_signal",
       args: ["text", "text", "text", "text", "text[]", "uuid"],
       returns: "jsonb",
@@ -316,7 +326,7 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 export const CONSENTS: BlockSqlDefinition = {
-  internal: ["parse_tc_string", "parse_gpp_string"],
+  internal: ["parse_tc_string", "parse_gpp_string", "consent_missing"],
   name: "consents",
   scopes: ["tenant"],
   title: "Consents",
@@ -335,7 +345,7 @@ export const CONSENTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -343,8 +353,15 @@ export const CONSENTS: BlockSqlDefinition = {
         "Consent signals (Sec-GPC, TCF v2.2, GPP) and consent receipts. New tables and functions only; the module file creates them.",
       sql: () => "",
     },
+    {
+      from: 2,
+      description:
+        "requires_consent(subject_type, subject_id, purpose_key) tells whether a send has to wait for consent, and blocks contribute system purposes through contributes.consents. New functions and rows only; the module file creates them.",
+      sql: () => "",
+    },
   ],
   names: NAMES,
   contract,
   build,
+  data: contributedPurposeData,
 };

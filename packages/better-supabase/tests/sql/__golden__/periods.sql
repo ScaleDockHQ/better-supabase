@@ -403,7 +403,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:cc8cf0a42bf2692da44a77a4ac6d734957959f5dc1e4fb2dd2b70b49d21ee649
+-- @bsb-hash sha256:5067cfc630661acc1f7e791c06672dde58fd83a2f75fe3730627a1c574f8e87d
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -461,7 +461,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
--- Kinds installed now: leave_year, fiscal_period.
+-- Kinds installed now: leave_year, fiscal_period, commission_period.
 create table if not exists "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -535,7 +535,7 @@ revoke execute on function "better_supabase"."create_period"(uuid, text, date, d
 grant execute on function "better_supabase"."create_period"(uuid, text, date, date) to authenticated, service_role;
 
 -- The period of a kind that holds a date, or null. A kind a block gave a
--- cadence (leave_year: year) gets its calendar period created the first time
+-- cadence (leave_year: year, commission_period: month) gets its calendar period created the first time
 -- a date in it is asked for. Needs periods.read.
 create or replace function "better_supabase"."period_for"(tenant uuid, kind text, on_date date)
 returns jsonb
@@ -562,6 +562,14 @@ begin
   if period_for.kind = 'leave_year' then
       insert into "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on")
       values (period_for.tenant, period_for.kind, date_trunc('year', period_for.on_date::timestamp)::date, (date_trunc('year', period_for.on_date::timestamp) + case 'year' when 'week' then interval '1 week' when 'month' then interval '1 month' when 'quarter' then interval '3 months' else interval '1 year' end - interval '1 day')::date)
+      on conflict do nothing;
+      select * into v_row from "better_supabase"."periods" x
+      where x."tenant_id" = period_for.tenant and x."kind" = period_for.kind
+        and period_for.on_date between x."starts_on" and x."ends_on";
+    end if;
+  if period_for.kind = 'commission_period' then
+      insert into "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on")
+      values (period_for.tenant, period_for.kind, date_trunc('month', period_for.on_date::timestamp)::date, (date_trunc('month', period_for.on_date::timestamp) + case 'month' when 'week' then interval '1 week' when 'month' then interval '1 month' when 'quarter' then interval '3 months' else interval '1 year' end - interval '1 day')::date)
       on conflict do nothing;
       select * into v_row from "better_supabase"."periods" x
       where x."tenant_id" = period_for.tenant and x."kind" = period_for.kind
@@ -704,6 +712,9 @@ begin
   end if;
   if v_row."kind" = 'fiscal_period' then
     perform "better_supabase"."accounting_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");
+  end if;
+  if v_row."kind" = 'commission_period' then
+    perform "better_supabase"."commission_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");
   end if;
   update "better_supabase"."periods" x set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
   where x."id" = v_row."id" returning * into v_row;

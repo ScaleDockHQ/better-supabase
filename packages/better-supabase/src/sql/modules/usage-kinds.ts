@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { UsageMeter } from "./usage-meters.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -212,3 +213,26 @@ export function usageKindsContract(
       : []),
   ];
 }
+
+/** The jobs `usage` adds to the housekeeping dispatcher. */
+export const USAGE_CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) =>
+    own.mode === "custom"
+      ? []
+      : [
+          {
+            job: own.fnName("purge_usage_events"),
+            function: own.fn("purge_usage_events"),
+            every: "1 day",
+          },
+          ...(usageKindsOf(own).computed.length > 0
+            ? [
+                {
+                  job: own.fnName("usage_refresh"),
+                  function: own.fn("usage_refresh"),
+                  every: "1 hour",
+                },
+              ]
+            : []),
+        ],
+};

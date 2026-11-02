@@ -276,6 +276,13 @@ export interface BlockSqlFile {
 }
 
 export interface BlockSqlLayout {
+  /** `config.seed.defaults`: what the `seeds` module calls each module with. */
+  readonly seedDefaults?: {
+    readonly enabled: boolean;
+    readonly onCreate: boolean;
+    readonly locale: string;
+    readonly variants: Readonly<Record<string, string>>;
+  };
   /**
    * `config.instances`. An instance that installs a block under another name
    * renders its own files; `modules` holds the instances named after their

@@ -1709,6 +1709,7 @@
               "clinical-decision-support",
               "collections",
               "comments",
+              "commissions",
               "compliance",
               "connectors",
               "consents",
@@ -1803,6 +1804,7 @@
               "read-sets",
               "realtime-tables",
               "recurrence",
+              "referrals",
               "relations",
               "reminders",
               "reserved-slugs",
@@ -1814,6 +1816,7 @@
               "scores",
               "search",
               "security-events",
+              "seeds",
               "segments",
               "sequences",
               "service-accounts",
@@ -1900,6 +1903,7 @@
                   "clinical-decision-support",
                   "collections",
                   "comments",
+                  "commissions",
                   "compliance",
                   "connectors",
                   "consents",
@@ -1994,6 +1998,7 @@
                   "read-sets",
                   "realtime-tables",
                   "recurrence",
+                  "referrals",
                   "relations",
                   "reminders",
                   "reserved-slugs",
@@ -2005,6 +2010,7 @@
                   "scores",
                   "search",
                   "security-events",
+                  "seeds",
                   "segments",
                   "sequences",
                   "service-accounts",
@@ -2157,6 +2163,9 @@
             },
             "comments": {
               "$ref": "#/$defs/blocks/comments"
+            },
+            "commissions": {
+              "$ref": "#/$defs/blocks/commissions"
             },
             "compliance": {
               "$ref": "#/$defs/blocks/compliance"
@@ -2440,6 +2449,9 @@
             "recurrence": {
               "$ref": "#/$defs/blocks/recurrence"
             },
+            "referrals": {
+              "$ref": "#/$defs/blocks/referrals"
+            },
             "relations": {
               "$ref": "#/$defs/blocks/relations"
             },
@@ -2472,6 +2484,9 @@
             },
             "security-events": {
               "$ref": "#/$defs/blocks/security-events"
+            },
+            "seeds": {
+              "$ref": "#/$defs/blocks/seeds"
             },
             "segments": {
               "$ref": "#/$defs/blocks/segments"
@@ -3839,6 +3854,10 @@
               "autoPost": {
                 "type": "boolean",
                 "default": true
+              },
+              "recognition": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4901,6 +4920,21 @@
               "notify": {
                 "type": "boolean",
                 "default": true
+              }
+            }
+          }
+        }
+      },
+      "commissions": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "invoices": {
+                "type": "boolean"
               }
             }
           }
@@ -7278,6 +7312,21 @@
           }
         }
       },
+      "referrals": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "invitations": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
       "relations": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -7498,6 +7547,17 @@
                 "default": "7 days"
               }
             }
+          }
+        }
+      },
+      "seeds": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

@@ -122,17 +122,29 @@ describe("declared defaults", () => {
     expect(declared.length).toBeGreaterThan(0);
   });
 
+  // A module whose defaults come from other modules' contributions needs one
+  // that contributes.
+  const LAYOUTS: Record<string, readonly string[]> = { pipelines: ["deals"] };
+
   it.each(declared.map((module) => module.name))(
     "%s renders idempotent, tenant-scoped inserts",
     (name) => {
-      const files = renderBlocks([...SQL_MODULES[name]!.requires, name], {});
+      const files = renderBlocks(
+        [...SQL_MODULES[name]!.requires, ...(LAYOUTS[name] ?? []), name],
+        {},
+      );
 
       const sql = files
         .filter((file) => file.module === name)
         .map((file) => file.contents)
         .join("\n");
 
-      const start = sql.indexOf(`"${seedFunctionName(name)}"(`);
+      const start = sql.search(
+        new RegExp(
+          `create or replace function [^\\n]*"${seedFunctionName(name)}"\\(`,
+        ),
+      );
+
       const body = sql.slice(start, sql.indexOf("\n$$;", start));
       const inserts = body.match(/insert into /g)?.length ?? 0;
 

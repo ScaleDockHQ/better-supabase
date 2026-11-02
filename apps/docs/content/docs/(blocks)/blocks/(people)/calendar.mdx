@@ -729,6 +729,20 @@ export function Component(props: { calendarId: string }) {
 }
 ```
 
+## Public holiday calendars
+
+`seed_calendar_defaults` creates a "Public holidays" calendar with one all-day event per holiday, chosen by the locale you pass to `seed_tenant_defaults`:
+
+| Locale  | Calendar             | Holidays                                                      |
+| ------- | -------------------- | ------------------------------------------------------------- |
+| `nl`    | Public holidays (NL) | Dutch national days, King's Day moved off a Sunday            |
+| `de`    | Public holidays (DE) | Days every German state observes                              |
+| `fr`    | Public holidays (FR) | The eleven jours fériés                                       |
+| `en-gb` | Public holidays (GB) | Bank holidays of England and Wales, with substitute days      |
+| `en-us` | Public holidays (US) | Federal holidays on their actual dates, without observed days |
+
+Other locales, including `en`, get no calendar. The events cover the fixed years 2026 to 2030, so the rows are the same on every run. Each event has a stable `uid` such as `holiday-nl-2026-04-27`, starts at midnight in the calendar's time zone and ends at the next midnight. Running the defaults again keeps existing events, and a release that adds years adds only the new events.
+
 ## Hooks
 
 `before_calendar_event_save(tenant, calendar, item)` runs before an insert or

@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:26ebc6b9aa0fa3598bebefb9595bc4660d545e0ff9a12a1f693840a7c0450e36
+-- @bsb-hash sha256:9e7afbaf2c8d3d867109a1ecdd1719bda8fc4b771acc4929e5fb01cb879eed45
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,23 +224,18 @@ begin
   end if;
   case default_pipeline.subject_type
     when 'deal' then
-      insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
-      values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
-      on conflict do nothing
-      returning "id" into v_id;
-      if v_id is null then
-        return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
-      end if;
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
-      from (values
-          ('qualified', 'Qualified', 'open', 'open', 20::smallint, '8'),
-          ('discovery', 'Discovery', 'open', 'open', 35::smallint, 'G'),
-          ('proposal', 'Proposal', 'open', 'open', 55::smallint, 'O'),
-          ('negotiation', 'Negotiation', 'open', 'open', 75::smallint, 'W'),
-          ('closed_won', 'Closed won', 'won', 'success', 100::smallint, 'e'),
-          ('closed_lost', 'Closed lost', 'lost', 'failure', 0::smallint, 'm')
-      ) x(key, name, category, outcome, probability, rank);
+      begin
+        perform "better_supabase"."seed_pipelines_defaults"(default_pipeline.tenant, 'b2b-sales');
+      exception when unique_violation then
+        null;
+      end;
+      select x."id" into v_id from "better_supabase"."pipelines" x
+      where x."tenant_id" = default_pipeline.tenant
+        and x."subject_type" = default_pipeline.subject_type
+        and x."scope_id" is null
+        and x."archived_at" is null
+      order by x."is_default" desc, x."rank" collate "C"
+      limit 1;
     when 'work_item' then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
@@ -1647,6 +1642,45 @@ $$;
 revoke execute on function "better_supabase"."list_pipelines"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."list_pipelines"(uuid, text) to authenticated, service_role;
 
+-- Seeds the rows every organization starts with for pipelines. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_pipelines_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (p_variant is null or p_variant = 'b2b-sales') then
+    insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
+    select p_tenant, 'deal', null, 'default', 'Default', (not exists (select 1 from "better_supabase"."pipelines" d where d."tenant_id" = p_tenant and d."subject_type" = 'deal' and d."scope_id" is null and d."is_default" and d."archived_at" is null))
+    where not exists (select 1 from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" is not distinct from 'deal' and x."scope_id" is not distinct from null and x."key" is not distinct from 'default');
+  end if;
+  if (p_variant is null or p_variant = 'b2b-sales') then
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'qualified', 'Qualified', ('open'), ('open'), '8', 'qualified', 20
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'qualified');
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'discovery', 'Discovery', ('open'), ('open'), 'G', 'discovery', 35
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'discovery');
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'proposal', 'Proposal', ('open'), ('open'), 'O', 'proposal', 55
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'proposal');
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'negotiation', 'Negotiation', ('open'), ('open'), 'W', 'negotiation', 75
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'negotiation');
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'closed_won', 'Closed won', ('won'), ('success'), 'e', 'closed_won', 100
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_won');
+    insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
+    select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'closed_lost', 'Closed lost', ('lost'), ('failure'), 'm', 'closed_lost', 0
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_lost');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_pipelines_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_pipelines_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1885,6 +1919,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_pipelines"($1, $2) $$;
 revoke execute on function "api"."list_pipelines"(uuid, text) from public, anon;
 grant execute on function "api"."list_pipelines"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."seed_pipelines_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_pipelines_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_pipelines_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_pipelines_defaults"(uuid, text, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

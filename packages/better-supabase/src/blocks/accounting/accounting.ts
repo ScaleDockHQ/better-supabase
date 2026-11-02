@@ -81,6 +81,7 @@ export type AccountRole =
   | "work_in_progress"
   | "tax_payable"
   | "tax_receivable"
+  | "deferred_revenue"
   | "retained_earnings"
   | "fx_gain"
   | "fx_loss"

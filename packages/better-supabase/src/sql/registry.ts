@@ -48,6 +48,7 @@ import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { CLINICAL_DECISION_SUPPORT } from "./modules/clinical-decision-support.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { COMMISSIONS } from "./modules/commissions.ts";
 import { COMPLIANCE } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { CONSENTS } from "./modules/consents.ts";
@@ -140,6 +141,7 @@ import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { RECURRENCE } from "./modules/recurrence.ts";
+import { REFERRALS } from "./modules/referrals.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -151,6 +153,7 @@ import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SHARED_SIGNALS } from "./modules/security-events.ts";
+import { SEEDS } from "./modules/seeds.ts";
 import { SEGMENTS } from "./modules/segments.ts";
 import { SEQUENCES } from "./modules/sequences.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-accounts.ts";
@@ -445,8 +448,11 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(PERIODS),
+      built(COMMISSIONS),
+      built(REFERRALS),
       built(RECURRENCE),
       built(HOUSEKEEPING),
+      built(SEEDS),
       built(E_PRESCRIBING),
       built(AGENT_CHECKOUT),
       built(ADVISORIES),

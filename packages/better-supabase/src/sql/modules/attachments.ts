@@ -56,6 +56,7 @@ import {
   attachmentsOnlineSql,
 } from "./attachments-offline.ts";
 import { pathExpression, pathTemplate } from "./attachments-path.ts";
+import { attachmentsSeeds } from "./attachments-seeds.ts";
 import {
   attachmentsTopicOf,
   attachmentsTopicSql,
@@ -1097,4 +1098,5 @@ export const ATTACHMENTS: BlockSqlDefinition = {
     ),
   build,
   data,
+  seeds: attachmentsSeeds,
 };

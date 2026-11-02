@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:f466740406872e4cf3a6fdbb79978bfe29a035b75771f15cba1670335f20339d
+-- @bsb-hash sha256:df9a6ba069d8908f21873658b53bc3201b59ac9b379603a66664c7b2db3d5fe4
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,6 +124,7 @@ begin
   returning "id" into organization;
   insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
   values (organization, owner, 'owner');
+  perform "better_supabase"."seed_tenant_defaults"(organization);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_organization_create"(uuid, uuid)');
   begin

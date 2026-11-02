@@ -45,6 +45,17 @@ function runner(ctx: BlockSqlContext): string {
           case when v_row.${e("enrolledBy")} is null then '{}'::uuid[] else array[v_row.${e("enrolledBy")}] end);
       end if;`;
 
+  // An email step that names a consent purpose is skipped, and counts as run,
+  // for a recipient whose record has no consent in force for it.
+  const consent = ctx.installed("consents")
+    ? `
+        if v_step ? 'consentPurpose' and ${ctx.of("consents").fn("consent_missing")}(v_row.${e("tenant")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_step ->> 'consentPurpose') then
+          perform ${fn("sequence_step_done")}(v_due, v_current);
+          v_ran := v_ran + 1;
+          continue;
+        end if;`
+    : "";
+
   const forbidden = q.forbidden("only the service role runs sequences");
 
   // Loads the run into v_row; a stale result, for a run that moved on or
@@ -114,7 +125,7 @@ begin
         perform ${fn("sequence_place")}(v_due);
         continue;
       end if;
-      if v_step ->> 'kind' = 'email' then
+      if v_step ->> 'kind' = 'email' then${consent}
         update ${q.done} y set ${d("dueAt")} = now() + interval '${String(LEASE_MINUTES)} minutes'
         where y.${d("enrollment")} = v_due and y.${d("completedAt")} is null;
         update ${q.enrollments} x

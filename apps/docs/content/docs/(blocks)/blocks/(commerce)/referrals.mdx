@@ -1,0 +1,83 @@
+---
+title: Referrals
+description: Referral codes per member, attribution when the referred user signs up and a reward posted once to the ledger when the referral qualifies.
+---
+
+`referrals` lets a member share a code. When the referred user or organization
+signs up with it, the referral is attributed. When a qualifying event happens,
+such as the first paid invoice, the referral qualifies and its reward is posted
+once to the [ledger](/docs/blocks/ledger).
+
+```bash
+better-supabase add referrals
+```
+
+```ts
+import { createReferrals } from "better-supabase/blocks/referrals";
+```
+
+The module requires `memberships`, `permissions` and `ledger`. `outbox` records
+the events and `audit` audits every change.
+
+## Tables and permissions
+
+| Table            | Holds                                                                             |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `referral_codes` | A code, its referrer, an optional invitation, a reward, a use limit and an expiry |
+| `referrals`      | One referred user or organization per code and its status                         |
+
+| Permission         | Allows                                 | Default roles |
+| ------------------ | -------------------------------------- | ------------- |
+| `referrals.read`   | reading codes and referrals            | owner, admin  |
+| `referrals.write`  | creating codes and attributing signups | owner, admin  |
+| `referrals.manage` | qualifying and voiding referrals       | owner, admin  |
+
+A member always reads their own codes and referrals.
+
+## Codes and attribution
+
+```ts
+const referrals = createReferrals({ transport, tenant: organizationId });
+
+const code = await referrals
+  .createCode({ reward: { amount: 500n, unit: "EUR" } })
+  .orThrow();
+
+const referral = await referrals
+  .attribute({ code: code.code, referredUserId: newUserId })
+  .orThrow();
+```
+
+A code is four to 32 letters or digits, generated when omitted. Attributing the
+same user again returns the first referral, and a code past its `maxUses` or
+expiry is refused. The reward is copied to the referral when it is attributed,
+so a later change to the code does not change what was promised.
+
+Set `blocks.referrals.options.invitations` to `true` and a code made with an
+`invitationId` attributes the referral to the user who accepts that invitation.
+It needs the invitations block with its `acceptedBy` column.
+
+## Qualifying and the reward
+
+Call `qualify` from the event that earns the reward, for example when billing
+marks the first invoice paid. It marks the referral `qualified`, posts the reward
+and marks it `rewarded`. Calling it again returns the same referral without a
+second posting, and it resolves to `undefined` when nothing referred the user.
+
+```ts
+await referrals
+  .qualify({ referredOrganizationId: orgId, source: `invoices/${invoiceId}` })
+  .orThrow();
+```
+
+The posting debits `referrals:expense:<unit>` and credits the referrer's
+`referrals:rewards:<referrer>:<unit>`. `void` marks a referral `void` and
+reverses a reward already posted.
+
+## Events
+
+| Event                                                          | Carries                                                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `referral_code.created`                                        | `organizationId`, `id`, `code`, `referrerId`                                               |
+| `referral.attributed`, `referral.qualified`, `referral.voided` | `organizationId`, `id`, `codeId`, `referrerId`, `referredUserId`, `referredOrganizationId` |
+| `referral.rewarded`                                            | the same, and `amount` and `unit`                                                          |

@@ -18,6 +18,8 @@ export interface BlockNameRegistry {
   };
   readonly "accounting": {
     readonly tables: {
+      readonly "recognitionSchedules": "id" | "tenant" | "sourceType" | "sourceId" | "lineRef" | "amount" | "currency" | "startsOn" | "endsOn" | "deferralEntry" | "createdAt";
+      readonly "recognitionRows": "id" | "schedule" | "tenant" | "dueOn" | "amount" | "status" | "entry" | "postedAt";
       readonly "settings": "tenant" | "functionalCurrency" | "fiscalYearStartMonth" | "lockDate" | "createdAt" | "updatedAt";
       readonly "accounts": "id" | "tenant" | "code" | "name" | "type" | "subtype" | "parent" | "currency" | "reconcilable" | "normalSide" | "level" | "defaultTaxCode" | "active" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "roles": "tenant" | "role" | "account" | "updatedAt";
@@ -32,7 +34,7 @@ export interface BlockNameRegistry {
       readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_close_range" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_range_close_blockers" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
+    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_close_range" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_range_close_blockers" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "seed_accounting_defaults" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
@@ -429,10 +431,11 @@ export interface BlockNameRegistry {
   };
   readonly "billing": {
     readonly tables: {
+      readonly "native": "id" | "tenant" | "plan" | "currency" | "unitAmount" | "quantity" | "interval" | "status" | "periodStart" | "periodEnd" | "canceledAt" | "createdAt";
       readonly "customers": "tenant" | "customer" | "account" | "createdAt";
       readonly "subscriptions": "tenant" | "subscription" | "status" | "price" | "plan" | "periodEnd" | "cancelAt" | "eventAt" | "updatedAt";
     };
-    readonly functions: "billing_account" | "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_overview" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "link_billing_account" | "link_billing_customer";
+    readonly functions: "billing_account" | "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_overview" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "cancel_native_subscription" | "create_native_subscription" | "link_billing_account" | "link_billing_customer" | "prorate_change";
     readonly actions: "read" | "manage" | "viewAll";
     readonly hooks: never;
     readonly entities: {};
@@ -636,6 +639,25 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "commissions": {
+    readonly tables: {
+      readonly "plans": "id" | "tenant" | "name" | "kind" | "rateBps" | "tiers" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "assignments": "id" | "tenant" | "plan" | "seller" | "subjectType" | "subjectId" | "startsOn" | "endsOn" | "createdAt";
+      readonly "entries": "id" | "tenant" | "plan" | "seller" | "sourceType" | "sourceId" | "basis" | "amount" | "currency" | "occurredOn" | "status" | "statement" | "ledgerTransaction" | "reversedAt" | "createdAt";
+      readonly "statements": "id" | "tenant" | "seller" | "currency" | "startsOn" | "endsOn" | "status" | "total" | "ledgerTransaction" | "finalizedAt" | "paidAt" | "paidBy" | "createdAt";
+    };
+    readonly functions: "accrue_commission" | "assign_commission_plan" | "build_commission_statement" | "commission_accrue" | "commission_amount" | "commission_close_range" | "commission_payroll_lines" | "commission_plan_for" | "commission_statement_build" | "commission_statement_finalize" | "commission_tiers_valid" | "end_commission_assignment" | "finalize_commission_statement" | "get_commission_statement" | "list_commission_plans" | "list_commission_statements" | "list_commissions" | "pay_commission_statement" | "reverse_commission" | "save_commission_plan";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "commission_plan": "id" | "tenant_id" | "name" | "kind" | "rate_bps" | "tiers" | "archived_at" | "created_at" | "updated_at";
+      readonly "commission_assignment": "id" | "tenant_id" | "plan_id" | "seller_id" | "subject_type" | "subject_id" | "starts_on" | "ends_on" | "created_at";
+      readonly "commission": "id" | "tenant_id" | "plan_id" | "seller_id" | "source_type" | "source_id" | "basis" | "amount" | "currency" | "occurred_on" | "status" | "statement_id" | "ledger_transaction_id" | "reversed_at" | "created_at";
+      readonly "commission_statement": "id" | "tenant_id" | "seller_id" | "currency" | "starts_on" | "ends_on" | "status" | "total" | "ledger_transaction_id" | "finalized_at" | "paid_at" | "paid_by" | "created_at";
+    };
+    readonly primary: "commission_plan";
+    readonly formerKeys: never;
+  };
   readonly "compliance": {
     readonly tables: {
       readonly "frameworks": "id" | "tenant" | "key" | "name" | "kind" | "version" | "description" | "createdAt" | "updatedAt";
@@ -679,7 +701,7 @@ export interface BlockNameRegistry {
       readonly "signals": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "raw" | "parsed" | "consents" | "createdBy" | "receivedAt";
       readonly "receipts": "id" | "tenant" | "subjectType" | "subjectId" | "consent" | "status" | "receipt" | "digest" | "issuedAt";
     };
-    readonly functions: "archive_consent_purpose" | "consent_active" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "save_consent_purpose" | "withdraw_consent";
+    readonly functions: "archive_consent_purpose" | "consent_active" | "consent_missing" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "requires_consent" | "save_consent_purpose" | "withdraw_consent";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
@@ -1691,10 +1713,11 @@ export interface BlockNameRegistry {
       readonly "deliveries": "id" | "recipient" | "tenant" | "channel" | "status" | "provider" | "providerMessageId" | "error" | "attempts" | "attemptedAt" | "nextAttemptAt" | "deliveredAt" | "providerStatus" | "providerStatusAt" | "templateKey" | "createdAt";
       readonly "deliveryEvents": "id" | "delivery" | "tenant" | "kind" | "provider" | "providerEventId" | "occurredAt" | "detail" | "createdAt";
       readonly "subscriptions": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "level" | "createdAt" | "updatedAt";
-      readonly "preferences": "id" | "user" | "tenant" | "type" | "channel" | "enabled" | "createdAt" | "updatedAt";
+      readonly "preferences": "id" | "user" | "tenant" | "type" | "channel" | "enabled" | "cadence" | "createdAt" | "updatedAt";
+      readonly "digests": "id" | "user" | "tenant" | "channel" | "cadence" | "items" | "itemCount" | "status" | "attempts" | "attemptedAt" | "error" | "providerMessageId" | "sentAt" | "createdAt";
       readonly "suppressions": "id" | "channel" | "address" | "user" | "reason" | "provider" | "providerEventId" | "detail" | "createdAt";
     };
-    readonly functions: "broadcast_notification" | "claim_notification_deliveries" | "complete_notification_delivery" | "dismiss_notifications" | "get_notification" | "list_notification_preferences" | "list_notification_subscriptions" | "list_notification_suppressions" | "list_notifications" | "list_subject_deliveries" | "mark_notifications_read" | "mark_notifications_unread" | "notification_counts" | "notification_enabled" | "notification_page" | "notify" | "purge_notifications" | "record_delivery_event" | "resolve_notifications" | "send_notification" | "send_notifications" | "set_notification_preference" | "set_notification_subscription" | "suppress_notification_address" | "unsuppress_notification_address";
+    readonly functions: "broadcast_notification" | "claim_notification_deliveries" | "claim_notification_digests" | "complete_notification_delivery" | "complete_notification_digest" | "dismiss_notifications" | "get_notification" | "list_notification_preferences" | "list_notification_subscriptions" | "list_notification_suppressions" | "list_notifications" | "list_subject_deliveries" | "mark_notifications_read" | "mark_notifications_unread" | "notification_cadence" | "notification_counts" | "notification_enabled" | "notification_page" | "notify" | "purge_notifications" | "record_delivery_event" | "resolve_notifications" | "run_notification_digests" | "send_notification" | "send_notifications" | "set_notification_cadence" | "set_notification_preference" | "set_notification_subscription" | "suppress_notification_address" | "unsuppress_notification_address";
     readonly actions: "send" | "read";
     readonly hooks: "notification_audience" | "before_notification_send" | "after_notify";
     readonly entities: {};
@@ -2060,6 +2083,21 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "referrals": {
+    readonly tables: {
+      readonly "codes": "id" | "tenant" | "code" | "referrer" | "invitation" | "rewardAmount" | "rewardUnit" | "maxUses" | "uses" | "active" | "expiresAt" | "createdAt";
+      readonly "referrals": "id" | "tenant" | "code" | "referrer" | "referredUser" | "referredOrganization" | "referredEmail" | "status" | "rewardAmount" | "rewardUnit" | "qualifiedAt" | "qualifiedBy" | "rewardedAt" | "ledgerTransaction" | "voidedAt" | "createdAt";
+    };
+    readonly functions: "attribute_referral" | "create_referral_code" | "list_referral_codes" | "list_referrals" | "qualify_referral" | "referral_attribute" | "void_referral";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "referral_code": "id" | "tenant_id" | "code" | "referrer_id" | "invitation_id" | "reward_amount" | "reward_unit" | "max_uses" | "uses" | "active" | "expires_at" | "created_at";
+      readonly "referral": "id" | "tenant_id" | "code_id" | "referrer_id" | "referred_user_id" | "referred_organization_id" | "referred_email" | "status" | "reward_amount" | "reward_unit" | "qualified_at" | "qualified_by" | "rewarded_at" | "ledger_transaction_id" | "voided_at" | "created_at";
+    };
+    readonly primary: "referral_code";
+    readonly formerKeys: never;
+  };
   readonly "relations": {
     readonly tables: {
       readonly "relations": "id" | "tenant" | "kind" | "sourceType" | "sourceId" | "targetType" | "targetId" | "data" | "createdBy" | "createdAt";
@@ -2207,6 +2245,15 @@ export interface BlockNameRegistry {
       readonly "received": "issuer" | "jti" | "receivedAt";
     };
     readonly functions: "create_ssf_stream" | "delete_ssf_stream" | "forget_ssf_received" | "note_ssf_verification" | "poll_ssf_events" | "purge_shared_signals" | "queue_ssf_set" | "record_ssf_received" | "set_ssf_stream_status" | "ssf_stream" | "ssf_streams" | "ssf_streams_for_event" | "update_ssf_stream";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+    readonly formerKeys: never;
+  };
+  readonly "seeds": {
+    readonly tables: {};
+    readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

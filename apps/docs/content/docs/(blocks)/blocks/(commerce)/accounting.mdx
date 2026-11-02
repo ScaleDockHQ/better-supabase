@@ -81,6 +81,22 @@ imports its own chart (a national chart such as RGS, through the
 [imports](/docs/blocks/imports) block or `saveAccount`) and maps the roles
 itself.
 
+The chart is a declared default of the block. `seed_accounting_defaults(organization, variant)`
+adds the cost center and cost object dimensions, then a chart with its account
+roles and journals, and `setup` calls it for an organization that has no
+accounts. Two variants exist, and rows that exist are kept, so it can run twice.
+
+| Variant   | Accounts                                                                  | Journals                          |
+| --------- | ------------------------------------------------------------------------- | --------------------------------- |
+| `generic` | The default, also used when no variant is named. Codes 1000 to 6910.      | `SAL`, `PUR`, `BNK`, `CSH`, `GEN` |
+| `nl-rgs`  | A Dutch chart grouped like the RGS, with Dutch names. Codes 0100 to 9910. | `VK`, `IK`, `BNK`, `KAS`, `MEM`   |
+
+Every account role has an account in both charts. `nl-rgs` uses the numeric
+codes small Dutch companies book with, not the alphanumeric RGS reference codes;
+import the full scheme when you need those. Pick the variant with
+`database.seed.defaults.variants` or `db seed --defaults --variant accounting=nl-rgs`.
+With `chart: "none"` only the dimensions are declared.
+
 ```ts title="better-supabase.config.ts"
 blocks: {
   accounting: {
@@ -93,13 +109,14 @@ blocks: {
 },
 ```
 
-| Option                 | Default                  | What it does                                                  |
-| ---------------------- | ------------------------ | ------------------------------------------------------------- |
-| `chart`                | `"generic"`              | `"generic"` seeds a chart with every role mapped; `"none"`    |
-| `functionalCurrency`   | `"EUR"`                  | the default currency `setup` writes                           |
-| `fiscalYearStartMonth` | `1`                      | the default first month of the fiscal year                    |
-| `subtypes`             | bank, cash, receivable … | the account subtypes `saveAccount` accepts                    |
-| `autoPost`             | `true`                   | whether entries other blocks book post at once or stay drafts |
+| Option                 | Default                  | What it does                                                    |
+| ---------------------- | ------------------------ | --------------------------------------------------------------- |
+| `chart`                | `"generic"`              | `"generic"` seeds a chart with every role mapped; `"none"`      |
+| `functionalCurrency`   | `"EUR"`                  | the default currency `setup` writes                             |
+| `fiscalYearStartMonth` | `1`                      | the default first month of the fiscal year                      |
+| `subtypes`             | bank, cash, receivable … | the account subtypes `saveAccount` accepts                      |
+| `autoPost`             | `true`                   | whether entries other blocks book post at once or stay drafts   |
+| `recognition`          | `false`                  | whether revenue recognition schedules are available (see below) |
 
 An account has a `code` that is unique in the organization, a `type`
 (`asset`, `liability`, `equity`, `income` or `expense`), a subtype, an
@@ -250,6 +267,31 @@ Posting into a locked period fails with `ACCOUNTING_PERIOD_LOCKED`, and so does
 a ledger import. `unlockPeriod(periodId, reason)` puts it back to closed. A
 closed period still refuses normal posting, but an import run (the `imports`
 block's `accounting_entry` target) may post into it.
+
+## Revenue recognition
+
+With `recognition: true`, a sale that covers a service period is earned month by
+month instead of when it is invoiced. Call `schedule_revenue_recognition` (service
+role or a member with `accounting.post`) with the tenant, a source type and id
+(for an invoice line, `invoice` and the invoice id), the amount in minor units,
+the currency, the first and last day of the service period and an optional line
+reference. It returns the schedule and books the deferral, which moves the amount
+from revenue to the new `deferred_revenue` account (`2200` in the generic chart)
+on the first day. Calling it again for the same source line returns the first
+schedule.
+
+The amount is split into one row per calendar month in proportion to the days in
+it, and the last row takes the rounding. The `revenue_recognition` period kind
+closes month by month: `close_period` posts every pending row due in the month
+(deferred revenue back to revenue) in the same transaction. A row whose
+accounting period is already closed or locked blocks the close until an
+accountant reopens that period. `list_revenue_recognition` returns the rows of a
+source with their status and entry.
+
+Invoice lines carry no service period, so scheduling is an explicit call, for
+example from an invoice event handler that knows the period. A source line is
+scheduled once and its schedule can't be edited; reverse the entries and add a new
+line reference to change it.
 
 ## Opening balances and the year-end carry forward
 

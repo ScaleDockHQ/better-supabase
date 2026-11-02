@@ -77,6 +77,9 @@ begin
         if v_step ? 'track' and jsonb_typeof(v_step -> 'track') <> 'boolean' then
           ${invalid("track must be true or false")}
         end if;
+        if v_step ? 'consentPurpose' and coalesce(v_step ->> 'consentPurpose', '') !~ '^[a-z][a-z0-9_.-]{0,62}$' then
+          ${invalid("consentPurpose must be a consent purpose key")}
+        end if;
         if v_step ? 'templateVersionId' and coalesce(v_step ->> 'templateVersionId', '') !~ '${UUID}' then
           ${invalid("templateVersionId must be a uuid")}
         end if;

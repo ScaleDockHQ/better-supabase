@@ -630,6 +630,7 @@ export function createNotifications<
       channels: input.channels,
       include_actor: input.includeActor,
       activity: input.activity,
+      consent_purpose: input.consentPurpose,
       resolved: input.resolved,
       actor: input.actorId,
       watchers: input.watchers,

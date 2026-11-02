@@ -2,9 +2,9 @@ import type { HiringEvents } from "../../blocks/hiring/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
-  ExtraColumn,
   BlockSqlEvents,
   BlockSqlNames,
+  ExtraColumn,
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
@@ -972,15 +972,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 /** The application state each stage category writes. */
-const APPLICATION_STATES: Readonly<Record<string, string>> = {
-  active: "active",
-  hired: "hired",
-  rejected: "rejected",
-  withdrawn: "withdrawn",
-};
+const APPLICATION_STATES: Readonly<Record<string, string>> = Object.fromEntries(
+  ["active", "hired", "rejected", "withdrawn"].map((state) => [state, state]),
+);
 
 /** The stage categories and stages of an application's first pipeline. */
 const APPLICATION_PIPELINE: Readonly<Record<string, unknown>> = {
+  variant: "recruiting",
   categories: {
     active: "open",
     hired: "success",

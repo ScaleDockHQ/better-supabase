@@ -75,3 +75,12 @@ at a time, each with its own `pnpm db:gen` and migration. A token refresh is
 not implemented: an expired login asks for `login` again. Design format 9
 (`seeds` in a Create design), preset variants and doctor findings for unknown
 variants are follow-ups.
+
+## Update: the seeds umbrella
+
+The organizations block now installs the `seeds` module. It renders `seed_tenant_defaults`
+from the installed modules whose defaults produce rows, with the configured locale and
+variants as argument defaults, and `create_organization` calls it unless
+`database.seed.defaults` turns it off. Because `organizations` requires `seeds`, every
+preset that installs organizations gets the function. Modules that now declare defaults:
+pipelines, accounting, permissions, inbox, attachments, calendar, cases, leave, risks and tax.

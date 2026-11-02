@@ -1,6 +1,6 @@
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:502d0ef8e21a7826d7cfad24c6649836c57242b37b6049fad9e13fc497dbdeda
+-- @bsb-hash sha256:74cefb1a2c5a3897f68ed078378cc2b59d0ca13c9b622d76c474f2b898b5318e
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,7 +58,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
--- Kinds installed now: fiscal_period.
+-- Kinds installed now: fiscal_period, commission_period.
 create table if not exists "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -132,7 +132,7 @@ revoke execute on function "better_supabase"."create_period"(uuid, text, date, d
 grant execute on function "better_supabase"."create_period"(uuid, text, date, date) to authenticated, service_role;
 
 -- The period of a kind that holds a date, or null. A kind a block gave a
--- cadence gets its calendar period created the first time
+-- cadence (commission_period: month) gets its calendar period created the first time
 -- a date in it is asked for. Needs periods.read.
 create or replace function "better_supabase"."period_for"(tenant uuid, kind text, on_date date)
 returns jsonb
@@ -144,6 +144,9 @@ as $$
 declare
   v_row "better_supabase"."periods";
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (period_for.tenant is not null and coalesce(better_supabase.can('tenant', period_for.tenant, 'periods.read'), false))) then
     raise exception 'not allowed to read periods' using errcode = '42501', hint = 'PERIOD_FORBIDDEN';
   end if;
@@ -153,6 +156,14 @@ begin
   if found then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'status', v_row."status", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'createdAt', v_row."created_at");
   end if;
+  if period_for.kind = 'commission_period' then
+      insert into "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on")
+      values (period_for.tenant, period_for.kind, date_trunc('month', period_for.on_date::timestamp)::date, (date_trunc('month', period_for.on_date::timestamp) + case 'month' when 'week' then interval '1 week' when 'month' then interval '1 month' when 'quarter' then interval '3 months' else interval '1 year' end - interval '1 day')::date)
+      on conflict do nothing;
+      select * into v_row from "better_supabase"."periods" x
+      where x."tenant_id" = period_for.tenant and x."kind" = period_for.kind
+        and period_for.on_date between x."starts_on" and x."ends_on";
+    end if;
   if v_row."id" is null then
     return null;
   end if;
@@ -284,6 +295,9 @@ begin
   end if;
   if v_row."kind" = 'fiscal_period' then
     perform "better_supabase"."accounting_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");
+  end if;
+  if v_row."kind" = 'commission_period' then
+    perform "better_supabase"."commission_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");
   end if;
   update "better_supabase"."periods" x set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
   where x."id" = v_row."id" returning * into v_row;

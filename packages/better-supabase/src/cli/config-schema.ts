@@ -973,6 +973,12 @@ const DesignSchema = v.strictObject({
     v.strictObject({
       variants: v.optional(v.record(v.string(), v.string())),
       locale: v.optional(v.string()),
+      sample: v.optional(
+        v.strictObject({
+          size: v.picklist(["s", "m", "l"]),
+          seed: v.pipe(v.number(), v.integer(), v.minValue(0)),
+        }),
+      ),
     }),
   ),
 });
