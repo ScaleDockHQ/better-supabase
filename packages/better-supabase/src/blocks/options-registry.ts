@@ -362,6 +362,7 @@ export interface BlockOptionsRegistry {
   readonly grants: GrantsSqlOptions;
   readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
+  readonly housekeeping: None;
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly impersonation: ImpersonationSqlOptions;
@@ -422,6 +423,7 @@ export interface BlockOptionsRegistry {
   readonly "rate-limit": RateLimitSqlOptions;
   readonly reactions: ReactionsSqlOptions;
   readonly "read-sets": None;
+  readonly recurrence: None;
   readonly "realtime-tables": None;
   readonly relations: RelationsSqlOptions;
   readonly reminders: RemindersSqlOptions;
@@ -543,6 +545,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   goals: goalsSqlOptions,
   guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
+  housekeeping: NO_OPTIONS,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,
   imports: importsSqlOptions,
@@ -600,6 +603,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "rate-limit": rateLimitSqlOptions,
   reactions: reactionsSqlOptions,
   "read-sets": NO_OPTIONS,
+  recurrence: NO_OPTIONS,
   "realtime-tables": NO_OPTIONS,
   relations: relationsSqlOptions,
   reminders: remindersSqlOptions,

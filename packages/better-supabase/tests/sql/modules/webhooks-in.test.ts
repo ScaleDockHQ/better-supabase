@@ -58,6 +58,7 @@ describe("webhooks-in module", () => {
       "webhook-inbox",
       "permissions",
       "webhooks-in",
+      "housekeeping",
     ]);
     expect(
       modulePermissionKeys({}, ["webhooks-in"]).filter(
