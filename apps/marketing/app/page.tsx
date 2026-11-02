@@ -1,11 +1,16 @@
+import { AdoptLadder } from "@/components/sections/adopt-ladder";
+import { AgentsSection } from "@/components/sections/agents";
+import { BeforeAfter } from "@/components/sections/before-after";
 import { CatalogShowcase } from "@/components/sections/catalog-showcase";
-import { CliSection } from "@/components/sections/cli";
 import { Closer } from "@/components/sections/closer";
 import { FaqSection } from "@/components/sections/faq";
 import { FeatureGrid } from "@/components/sections/feature-grid";
 import { GetStarted } from "@/components/sections/get-started";
 import { HomeHero } from "@/components/sections/home-hero";
+import { HowItWorks } from "@/components/sections/how-it-works";
 import { LogoCloud } from "@/components/sections/logo-cloud";
+import { PresetGallery } from "@/components/sections/preset-gallery";
+import { ProofStrip } from "@/components/sections/proof-strip";
 import { RecipesStrip } from "@/components/sections/recipes-strip";
 import { Section } from "@/components/sections/section";
 import { JsonLd } from "@/components/site/json-ld";
@@ -18,18 +23,23 @@ export default function HomePage() {
   return (
     <>
       <HomeHero />
+      <ProofStrip />
+      <HowItWorks />
+      <PresetGallery />
+      <CatalogShowcase />
+      <AdoptLadder />
+      <BeforeAfter />
+      <RecipesStrip />
       <Section
         id="features"
-        eyebrow="What you get"
+        eyebrow="The typed layer"
         title="The glue code every Supabase app rewrites, done once"
-        description="Auth wiring, typed repositories, pagination, includes, nested filters, soft delete, timestamps, upserts, cache invalidation, list pages, storage paths and realtime topics."
+        description="Under the blocks sits the library: generated types, a typed repository, auth wiring, cache invalidation and adapters for your framework."
       >
         <FeatureGrid items={features} />
       </Section>
-      <CatalogShowcase />
-      <RecipesStrip />
+      <AgentsSection />
       <LogoCloud />
-      <CliSection />
       <GetStarted />
       <FaqSection />
       <Closer />

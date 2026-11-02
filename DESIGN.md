@@ -26,7 +26,7 @@ The neutrals are grayscale (`oklch` with zero chroma). `brand` is the only
 hue in the chrome; in light mode it is dark enough (4.5:1 on `background`) to
 carry text.
 
-The ten catalog categories each have a Tailwind palette hue in
+The sixteen catalog categories each have a Tailwind palette hue in
 `features/blocks/categories.ts` (`text`, `tint`, `solid`, `soft`, `ring`,
 every light class with its `dark:` pair). The hue marks which category a
 block belongs to and appears only in catalog visuals: previews, category

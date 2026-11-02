@@ -6,11 +6,11 @@ export function Closer() {
     <section className="mx-auto w-full max-w-7xl px-6 pb-20 md:px-8">
       <div className="flex flex-col items-center gap-6 rounded-2xl border border-border bg-card px-6 py-14 text-center">
         <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Stop rewriting the glue code every Supabase app needs
+          Start from a product and keep the SQL
         </h2>
         <p className="max-w-xl text-base leading-7 text-muted-foreground">
-          Start with one table and one query. Keep supabase-js for everything
-          else.
+          Pick a preset, or add one block over a table you have. Keep
+          supabase-js for everything else.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <LinkButton size="lg" href={site.getStarted}>

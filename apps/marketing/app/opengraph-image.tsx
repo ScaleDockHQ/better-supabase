@@ -7,7 +7,7 @@ export const contentType = "image/png";
 
 export default function Image() {
   return OgImage({
-    title: "The typed layer for Supabase",
+    title: "Blocks of SQL you own for Supabase",
     description: site.tagline,
   });
 }
