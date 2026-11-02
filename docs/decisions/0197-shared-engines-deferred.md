@@ -12,7 +12,7 @@ between blocks, and Postgres features (pg_cron schedules and similar).
 
 ## Decision
 
-None of the five engines ships with the seeds change (ADR 0196). Each is a
+None of the five engines ships with the seeds change (ADR 0205). Each is a
 public API and needs its own docs page, example, exports entry and baselines
 (architecture invariant 9), and a half-built engine without a consumer would
 fail Knip. They move to their own changes, in this order: recurrence, periods

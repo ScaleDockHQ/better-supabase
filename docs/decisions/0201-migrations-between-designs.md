@@ -1,4 +1,4 @@
-# 0050: Migrations between designs re-render the app-table file
+# 0201: Migrations between designs re-render the app-table file
 
 - Status: accepted
 - Date: 2026-10-20

@@ -92,7 +92,6 @@ topic with the tenant claim in the token, which stays valid until the token
 expires. It asks `member_organization_ids()`, so a removed member stops
 receiving at once. Each module already owns one receive policy per topic
 family on `realtime.messages`; the remaining gap was this stale claim.
-||||||| 333a4de2f
 
 ## Update: templates are tokenized
 

@@ -119,7 +119,7 @@ export interface SeedConfig {
    */
   readonly perTenant?: string;
   /**
-   * Tenant defaults (ADR 0196): the rows every organization starts with, from
+   * Tenant defaults (ADR 0205): the rows every organization starts with, from
    * the blocks' `seed_<block>_defaults` functions. `false` turns them off; an
    * object sets what `seed_tenant_defaults` is called with.
    */
