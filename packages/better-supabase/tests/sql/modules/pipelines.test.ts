@@ -73,7 +73,11 @@ describe("pipelines module", () => {
     expect(sql).toContain(
       'create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id" on "hr"."applications"',
     );
-    expect(sql).toContain("('lead', 'Lead', 'open', 'open', 10::smallint");
+    // The unscoped deal pipeline is declared; the job-scoped one is built on first use.
+    expect(sql).toContain("'lead', 'Lead', ('open'), ('open')");
+    expect(sql).toContain(
+      '"seed_pipelines_defaults"(default_pipeline.tenant, null)',
+    );
     expect(sql).toContain(
       "('active', 'Active', 'active', 'open', null::smallint",
     );

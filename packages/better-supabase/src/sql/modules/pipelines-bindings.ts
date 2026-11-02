@@ -17,6 +17,7 @@ const PIPELINE_OUTCOMES = ["open", "success", "failure"] as const;
 type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
+const VARIANT = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** A default stage a subject's first pipeline starts with. */
@@ -39,6 +40,8 @@ export interface PipelineBinding {
   readonly probability?: string;
   readonly owner?: string;
   readonly scope?: string;
+  /** The named stage-template set of `pipelines.seeds` this binding belongs to. */
+  readonly variant?: string;
   readonly categories: Readonly<Record<string, PipelineOutcome>>;
   readonly status?: {
     readonly column: string;
@@ -283,6 +286,16 @@ export function pipelineBindings(
     const probability = optional("probability");
     const owner = optional("owner");
     const scope = optional("scope");
+    const variant = entry["variant"];
+
+    if (
+      variant !== undefined &&
+      (typeof variant !== "string" || !VARIANT.test(variant))
+    ) {
+      throw new TypeError(
+        `${where}.variant must be a lowercase name such as "b2b-sales"`,
+      );
+    }
 
     return {
       type,
@@ -300,6 +313,7 @@ export function pipelineBindings(
       ...(probability !== undefined && { probability }),
       ...(owner !== undefined && { owner }),
       ...(scope !== undefined && { scope }),
+      ...(variant !== undefined && { variant }),
       ...(status !== undefined && { status }),
     };
   });
