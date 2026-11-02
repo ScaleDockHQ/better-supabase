@@ -1,6 +1,6 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:7b57a3da940e809cc55ac30909aac50dfdc16c48c4ffb5b80494b3aaec2fa5b2
+-- @bsb-hash sha256:1046e64035cb9f99d457961e2e8c0d4d32147e947a071fca9d66ccf79f69143f
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,10 +106,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
   v_found boolean := false;
 begin
-  if pg_catalog.to_regclass('cron.job') is not null then
-    execute 'select exists (select 1 from cron.job where jobname = ''better-supabase-maintenance'')' into v_found;
+  if v_jobs is not null then
+    execute pg_catalog.format('select exists (select 1 from %s where jobname = ''better-supabase-maintenance'')', v_jobs) into v_found;
   end if;
   return case when v_found then 'pg_cron' else 'none' end;
 end;
