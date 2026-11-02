@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:76dc68c0ff186436de2ab0d95cde8abee3be65f19fde28e2fbfd2fd4bdb14994
+-- @bsb-hash sha256:406a7528b6d7360861497d4b6efedba37f44bf8a9dd59891843e0b779797bc41
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,7 +178,7 @@ grant execute on function "better_supabase"."create_referral_code"(uuid, uuid, t
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -189,13 +189,13 @@ declare
   v_code "better_supabase"."referral_codes";
   v_ref "better_supabase"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -209,7 +209,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -223,7 +223,7 @@ grant execute on function "better_supabase"."referral_attribute"(uuid, text, uui
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -234,7 +234,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "better_supabase"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "better_supabase"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -246,7 +246,7 @@ grant execute on function "better_supabase"."attribute_referral"(uuid, text, uui
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -266,7 +266,7 @@ begin
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
@@ -486,7 +486,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:87cfc1955a9fe64def1794b27b91defd4bda9dc5d4ddba33520ea3a6636e397d
+-- @bsb-hash sha256:ec068b8f46bd6fab2c6ed7be8fcf23713912d2b0768301edfaffa41c405c6343
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -673,7 +673,7 @@ grant execute on function "better_supabase"."create_referral_code"(uuid, uuid, t
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -684,13 +684,13 @@ declare
   v_code "better_supabase"."referral_codes";
   v_ref "better_supabase"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -704,7 +704,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -727,7 +727,7 @@ grant execute on function "better_supabase"."referral_attribute"(uuid, text, uui
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -738,7 +738,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "better_supabase"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "better_supabase"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -750,7 +750,7 @@ grant execute on function "better_supabase"."attribute_referral"(uuid, text, uui
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -770,7 +770,7 @@ begin
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
@@ -1025,7 +1025,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:6cbf24ffd9a4026a3519f7ff3a558acb2a2de45ccf638388a21d83202de18578
+-- @bsb-hash sha256:e0ee103a82ccd7c3dbe89cb5d3cd3e18e135bc93fdc4ee642e08c93bf158c772
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1207,7 +1207,7 @@ grant execute on function "app_private"."create_referral_code"(uuid, uuid, text,
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "app_private"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "app_private"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1218,13 +1218,13 @@ declare
   v_code "app_private"."referral_codes";
   v_ref "app_private"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "app_private"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -1238,7 +1238,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "app_private"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "app_private"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -1252,7 +1252,7 @@ grant execute on function "app_private"."referral_attribute"(uuid, text, uuid, u
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "app_private"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "app_private"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1263,7 +1263,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "app_private"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "app_private"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -1275,7 +1275,7 @@ grant execute on function "app_private"."attribute_referral"(uuid, text, uuid, u
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "app_private"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "app_private"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1295,7 +1295,7 @@ begin
   select * into v_ref from "app_private"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
@@ -1515,7 +1515,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:4ff57c539c7b8c835e97333661ec68fa91e6813025f750b1ba801e6420c2a2ec
+-- @bsb-hash sha256:46be89e1c606367454f4c1fcf7de43b037b1c5d0c74ddb10cc43db3256fdf30e
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1692,7 +1692,7 @@ grant execute on function "better_supabase"."create_referral_code"(uuid, uuid, t
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1703,13 +1703,13 @@ declare
   v_code "better_supabase"."referral_codes";
   v_ref "better_supabase"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -1723,7 +1723,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -1737,7 +1737,7 @@ grant execute on function "better_supabase"."referral_attribute"(uuid, text, uui
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1748,7 +1748,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "better_supabase"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "better_supabase"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -1760,7 +1760,7 @@ grant execute on function "better_supabase"."attribute_referral"(uuid, text, uui
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1780,7 +1780,7 @@ begin
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
@@ -2001,7 +2001,7 @@ as $$ select "better_supabase"."create_referral_code"($1, $2, $3, $4, $5, $6, $7
 revoke execute on function "api"."create_referral_code"(uuid, uuid, text, uuid, bigint, text, integer, timestamptz) from public, anon;
 grant execute on function "api"."create_referral_code"(uuid, uuid, text, uuid, bigint, text, integer, timestamptz) to authenticated, service_role;
 
-create or replace function "api"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "api"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language sql
 security invoker
@@ -2010,7 +2010,7 @@ as $$ select "better_supabase"."referral_attribute"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."referral_attribute"(uuid, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."referral_attribute"(uuid, text, uuid, uuid, text) to service_role;
 
-create or replace function "api"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "api"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language sql
 security invoker
@@ -2019,7 +2019,7 @@ as $$ select "better_supabase"."attribute_referral"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
 grant execute on function "api"."attribute_referral"(uuid, text, uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "api"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language sql
 security invoker
@@ -2085,7 +2085,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:1408c9058aabc8e68bf52a16ca2390ea2982e0a725fd6dea598f9f9ee01788c5
+-- @bsb-hash sha256:6b96b11aa95ca3733757b7f8316aea2e57a5b319b544a3a27600f4d744a5dbb3
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2251,7 +2251,7 @@ grant execute on function "better_supabase"."create_referral_code"(uuid, uuid, t
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2262,13 +2262,13 @@ declare
   v_code "better_supabase"."referral_codes";
   v_ref "better_supabase"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -2282,7 +2282,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -2296,7 +2296,7 @@ grant execute on function "better_supabase"."referral_attribute"(uuid, text, uui
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2307,7 +2307,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "better_supabase"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "better_supabase"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -2319,7 +2319,7 @@ grant execute on function "better_supabase"."attribute_referral"(uuid, text, uui
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2339,7 +2339,7 @@ begin
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
@@ -2559,7 +2559,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:4d58a4bece6264d2a932656ac20f762788b8d55174e5cffacdebc8dc8dfe3016
+-- @bsb-hash sha256:8095114cebb82b80bac57b49e8ff72a0d8adafecbeeadb345b2b61b223fd8fa7
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2736,7 +2736,7 @@ grant execute on function "better_supabase"."create_referral_code"(uuid, uuid, t
 -- Attributes a referral without checking the caller: attribute_referral and
 -- the invitation trigger call it. Attributing a user or an organization that
 -- already has a referral returns that referral.
-create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."referral_attribute"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2747,13 +2747,13 @@ declare
   v_code "better_supabase"."referral_codes";
   v_ref "better_supabase"."referrals";
 begin
-  if referral_attribute.referred_user is null and referral_attribute.referred_organization is null and nullif(trim(referral_attribute.referred_email), '') is null then
+  if referral_attribute.referred_user is null and referral_attribute.referred_org is null and nullif(trim(referral_attribute.referred_email), '') is null then
     raise exception 'name the referred user, organization or email' using errcode = '22023', hint = 'REFERRAL_INVALID';
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."org_id" = referral_attribute.tenant
     and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
-      or (referral_attribute.referred_organization is not null and x."referred_organization_id" = referral_attribute.referred_organization));
+      or (referral_attribute.referred_org is not null and x."referred_organization_id" = referral_attribute.referred_org));
   if found then
     return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."org_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_organization_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
@@ -2767,7 +2767,7 @@ begin
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
   insert into "better_supabase"."referrals" ("org_id", "code_id", "referrer_id", "referred_user_id", "referred_organization_id", "referred_email", "reward_amount", "reward_unit")
-  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_organization,
+  values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
@@ -2781,7 +2781,7 @@ grant execute on function "better_supabase"."referral_attribute"(uuid, text, uui
 -- Attributes the user or organization that signed up with a code. Calling it
 -- again for the same user or organization returns the first referral. Needs
 -- referrals.write.
-create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_organization uuid default null, referred_email text default null)
+create or replace function "better_supabase"."attribute_referral"(tenant uuid, code text, referred_user uuid default null, referred_org uuid default null, referred_email text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2792,7 +2792,7 @@ begin
     raise exception 'not allowed to attribute referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   return "better_supabase"."referral_attribute"(attribute_referral.tenant, attribute_referral.code, attribute_referral.referred_user,
-    attribute_referral.referred_organization, attribute_referral.referred_email);
+    attribute_referral.referred_org, attribute_referral.referred_email);
 end;
 $$;
 revoke execute on function "better_supabase"."attribute_referral"(uuid, text, uuid, uuid, text) from public, anon;
@@ -2804,7 +2804,7 @@ grant execute on function "better_supabase"."attribute_referral"(uuid, text, uui
 -- debited and the referrer's payable rewards account credited, once per
 -- referral. source names what qualified it. Qualifying again returns the
 -- referral. Needs referrals.manage.
-create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_organization uuid default null, source text default null)
+create or replace function "better_supabase"."qualify_referral"(tenant uuid, referred_user uuid default null, referred_org uuid default null, source text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2824,7 +2824,7 @@ begin
   select * into v_ref from "better_supabase"."referrals" x
   where x."org_id" = qualify_referral.tenant
     and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
-      or (qualify_referral.referred_organization is not null and x."referred_organization_id" = qualify_referral.referred_organization))
+      or (qualify_referral.referred_org is not null and x."referred_organization_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;

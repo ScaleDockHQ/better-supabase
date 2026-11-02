@@ -38,7 +38,8 @@ const ADDED: Readonly<Record<string, readonly string[]>> = {
 const closureOf = (name: keyof typeof PRESETS): string[] =>
   resolvePreset(presetOf(name), PRESET_CATALOG)
     .blocks.map((block) => block.name)
-    .filter((block) => !composites.has(block))
+    // `seeds` comes with `organizations`, which every closure here lists.
+    .filter((block) => !composites.has(block) && block !== "seeds")
     .toSorted();
 
 describe("named presets that list composites", () => {

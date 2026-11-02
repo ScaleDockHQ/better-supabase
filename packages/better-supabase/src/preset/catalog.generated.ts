@@ -273,7 +273,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs"
+        "reserved-slugs",
+        "seeds"
       ],
       "manifest": "organizations",
       "scopes": [
@@ -11458,6 +11459,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [],
       "integrates": [],
       "manifest": "queue"
+    },
+    {
+      "name": "seeds",
+      "title": "Seeds",
+      "category": "tenancy",
+      "requires": [],
+      "integrates": [],
+      "manifest": "organizations"
     },
     {
       "name": "e-prescribing",
@@ -30941,7 +30950,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "organizations",
       "sql": [
         "organizations",
-        "invitations"
+        "invitations",
+        "seeds"
       ],
       "category": "tenancy",
       "client": {

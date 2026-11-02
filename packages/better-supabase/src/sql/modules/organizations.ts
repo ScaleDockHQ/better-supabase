@@ -314,7 +314,11 @@ const unquoted = (ident: string): string =>
 const event = (organization: string, user: string, extra = ""): string =>
   `jsonb_build_object('organizationId', ${organization}::text, 'userId', ${user}${extra})`;
 
-function create(ctx: BlockSqlContext, n: OrganizationNames): string {
+function create(
+  ctx: BlockSqlContext,
+  n: OrganizationNames,
+  layout: BlockSqlLayout,
+): string {
   const id = ctx.idType;
   const columns = attributeColumns(ctx);
   const fixed = ctx.has("organizations", "slug") ? 2 : 1;
@@ -353,6 +357,13 @@ function create(ctx: BlockSqlContext, n: OrganizationNames): string {
     extra_columns,
     extra_values
   ) into organization using attrs, owner;`;
+
+  const seedCall =
+    ctx.installed("seeds") &&
+    layout.seedDefaults?.enabled === true &&
+    layout.seedDefaults.onCreate
+      ? `perform ${ctx.of("seeds").fn("seed_tenant_defaults")}(organization);\n  `
+      : "";
 
   const permission = ctx.permissionKey("create", "");
 
@@ -397,7 +408,7 @@ begin
   ${insert}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
   values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole), "organization")});
-  ${ctx.hook("after_organization_create", [
+  ${seedCall}${ctx.hook("after_organization_create", [
     [id, "organization"],
     ["uuid", "owner"],
   ])}
@@ -1045,7 +1056,7 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     .join("\n");
 
   return `${schemaPreamble(ctx)}
-${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${organizationDeletion(
+${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n, layout)}${organizationDeletion(
     ctx,
     n,
     { platformOverride: platformOverride(ctx, "deletePlatform"), event },
@@ -1067,7 +1078,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
   title: "Organizations",
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
-  requires: ["memberships", "permissions", "updated-at"],
+  requires: ["memberships", "permissions", "seeds", "updated-at"],
   integrates: [
     "audit",
     "billing",

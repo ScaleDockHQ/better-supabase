@@ -73,6 +73,10 @@ stacks hold.
 
 Side effects: Writes to the database, writes files with --file.
 
+## Tenant defaults
+
+The `organizations` block installs `better_supabase.seed_tenant_defaults(tenant, variants, locale)`. It calls the `seed_<block>_defaults` function of every installed block that declares rows (pipelines, the accounting chart, inbox statuses, leave types, tax codes, and others), in install order, and each function skips rows that exist. `create_organization` calls it for the new organization. Set `database.seed.defaults` to `false` to leave it out, or `{ onCreate: false }` to call it yourself. `locale` and `variants` in the same object are the defaults of the function's second and third argument.
+
 ## seed
 
 Define fixtures once, in app casing, checked against your Insert types:

@@ -155,3 +155,21 @@ names a block or variant the catalog doesn't offer.
   `setup_accounting` settings; permission roles are `permissions` overrides, not a catalog table.
   Each needs a design of its own and a migration through the native stack.
 - Composite glue seeds and the format 9 docs page wait for the first composite with defaults.
+
+## Shipped in feat/seeds-defaults-and-money-engines
+
+- Seeds: defaults for pipelines, accounting charts (`generic`, `nl-rgs`), permission catalog roles,
+  inbox statuses, attachments document types, calendar holiday sets, cases, leave, risks and tax
+  codes; preset variants; the `seeds` umbrella called from `create_organization`; doctor findings
+  for declared defaults that are not installed.
+- Money and engines: `commissions` and `referrals` blocks, notification digests (a housekeeping
+  job), the `requires_consent` gate, revenue recognition schedules in accounting, native
+  subscriptions with proration in billing, and the remaining maintenance and glue wiring.
+
+### Still deferred
+
+- Moving the templates TypeScript client onto the SQL occurrence function, and a doctor finding for
+  "jobs are due and no scheduler runs" (needs a live database check).
+- Schedules for the purge functions of `audit-retention`, `queue` archive, `workflow-sdk`,
+  `support`, `usage-kinds`, `webhooks-out` and `notifications-delivery`.
+- An example app per new engine under `apps/examples`.

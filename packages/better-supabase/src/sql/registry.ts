@@ -153,6 +153,7 @@ import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SHARED_SIGNALS } from "./modules/security-events.ts";
+import { SEEDS } from "./modules/seeds.ts";
 import { SEGMENTS } from "./modules/segments.ts";
 import { SEQUENCES } from "./modules/sequences.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-accounts.ts";
@@ -451,6 +452,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(REFERRALS),
       built(RECURRENCE),
       built(HOUSEKEEPING),
+      built(SEEDS),
       built(E_PRESCRIBING),
       built(AGENT_CHECKOUT),
       built(ADVISORIES),

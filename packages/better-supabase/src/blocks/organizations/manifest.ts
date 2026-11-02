@@ -13,7 +13,7 @@ export const organizationsBlock: BlockOf<
   OrganizationsEvents
 > = defineBlock({
   name: "organizations",
-  sql: ["organizations", "invitations"],
+  sql: ["organizations", "invitations", "seeds"],
   options: {
     organizations: organizationsSqlOptions,
     invitations: invitationsSqlOptions,

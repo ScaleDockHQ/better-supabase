@@ -43,6 +43,14 @@ function registry(): BlockSqlRegistry {
 }
 
 /**
+ * The registered SQL module `name`, for a module that reads others'
+ * declarations.
+ */
+export function registeredModule(name: string): BlockSql | undefined {
+  return registry().modules[name];
+}
+
+/**
  * The context a module renders with for `layout`; with `instance`, the context
  * of that instance of the module.
  */

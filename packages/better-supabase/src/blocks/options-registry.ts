@@ -379,6 +379,7 @@ export interface BlockOptionsRegistry {
   readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
   readonly housekeeping: None;
+  readonly seeds: None;
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly impersonation: ImpersonationSqlOptions;
@@ -571,6 +572,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
   housekeeping: NO_OPTIONS,
+  seeds: NO_OPTIONS,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,
   imports: importsSqlOptions,

@@ -31,6 +31,7 @@ export function moduleLayout(
     ...(config.authorization?.delegation?.scopes
       ? { delegationScopes: config.authorization.delegation.scopes }
       : {}),
+    seedDefaults: config.seed.defaults,
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,

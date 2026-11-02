@@ -1816,6 +1816,7 @@
               "scores",
               "search",
               "security-events",
+              "seeds",
               "segments",
               "sequences",
               "service-accounts",
@@ -2009,6 +2010,7 @@
                   "scores",
                   "search",
                   "security-events",
+                  "seeds",
                   "segments",
                   "sequences",
                   "service-accounts",
@@ -2482,6 +2484,9 @@
             },
             "security-events": {
               "$ref": "#/$defs/blocks/security-events"
+            },
+            "seeds": {
+              "$ref": "#/$defs/blocks/seeds"
             },
             "segments": {
               "$ref": "#/$defs/blocks/segments"
@@ -7542,6 +7547,17 @@
                 "default": "7 days"
               }
             }
+          }
+        }
+      },
+      "seeds": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

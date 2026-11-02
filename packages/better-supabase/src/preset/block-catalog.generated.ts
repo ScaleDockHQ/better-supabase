@@ -413,6 +413,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "requires": [
         "memberships",
         "permissions",
+        "seeds",
         "updated-at"
       ],
       "integrates": [
@@ -5096,6 +5097,21 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/sql"
     },
     {
+      "name": "seeds",
+      "title": "Seeds",
+      "category": "Tenancy & accounts",
+      "description": "seed_tenant_defaults(tenant, variants, locale) applies the defaults every installed block declares, in install order. The organizations block calls it when an organization is created.",
+      "requires": [],
+      "integrates": [],
+      "modes": [
+        "managed"
+      ],
+      "events": [],
+      "subpath": null,
+      "react": null,
+      "docs": "/docs/blocks/sql"
+    },
+    {
       "name": "e-prescribing",
       "title": "E-prescribing",
       "category": "People",
@@ -5295,7 +5311,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "billing",
         "onboarding",
         "teams",
-        "enrollments"
+        "enrollments",
+        "seeds"
       ]
     },
     {
@@ -5362,7 +5379,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "forecasts",
         "sequences",
         "lead-scoring",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5400,7 +5418,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollments",
         "messaging",
         "timeline",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5445,7 +5464,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollments",
         "messaging",
         "timeline",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5475,7 +5495,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "reactions",
         "enrollments",
         "messaging",
-        "channels"
+        "channels",
+        "seeds"
       ]
     },
     {
@@ -5505,7 +5526,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "orders",
         "promotions",
         "ledger",
-        "enrollments"
+        "enrollments",
+        "seeds"
       ]
     },
     {
@@ -5542,7 +5564,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "messaging",
         "content",
         "dam",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5598,7 +5621,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "document-templates",
         "rfqs",
         "periods",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5661,7 +5685,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "document-templates",
         "rfqs",
         "periods",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5697,7 +5722,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "search",
         "catalog",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5731,7 +5757,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts",
         "invoices",
         "ledger",
-        "enrollments"
+        "enrollments",
+        "seeds"
       ]
     },
     {
@@ -5762,7 +5789,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "bookings",
         "enrollments",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5799,7 +5827,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "automations",
         "enrollments",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5852,7 +5881,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "messaging",
         "timeline",
         "shifts",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5902,7 +5932,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "messaging",
         "timeline",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -5946,7 +5977,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "messaging",
         "channels",
         "acknowledgements",
-        "recurrence"
+        "recurrence",
+        "seeds"
       ]
     },
     {
@@ -5980,7 +6012,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "drive",
         "drive-files",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6016,7 +6049,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollments",
         "messaging",
         "timeline",
-        "recurrence"
+        "recurrence",
+        "seeds"
       ]
     },
     {
@@ -6048,7 +6082,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "quotes",
         "invoices",
         "ledger",
-        "enrollments"
+        "enrollments",
+        "seeds"
       ]
     },
     {
@@ -6080,7 +6115,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "templates",
         "enrollments",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6118,7 +6154,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "guests",
         "leases",
         "messaging",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6163,7 +6200,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "dispatch",
         "cases",
         "maintenance",
-        "recurrence"
+        "recurrence",
+        "seeds"
       ]
     },
     {
@@ -6202,7 +6240,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "guests",
         "field-encryption",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6263,6 +6302,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "clinical-decision-support",
         "recurrence",
         "housekeeping",
+        "seeds",
         "e-prescribing"
       ]
     },
@@ -6295,7 +6335,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "forms",
         "enrollments",
         "courses",
-        "messaging"
+        "messaging",
+        "seeds"
       ]
     },
     {
@@ -6329,7 +6370,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "signing-keys",
         "enrollments",
         "passes",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6365,7 +6407,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "enrollments",
         "billable-time",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6397,7 +6440,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "enrollments",
         "expenses",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6430,7 +6474,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts",
         "enrollments",
         "contracts",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6466,7 +6511,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "automations",
         "scores",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6496,7 +6542,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts",
         "assets",
         "enrollments",
-        "shipments"
+        "shipments",
+        "seeds"
       ]
     },
     {
@@ -6529,7 +6576,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "promotions",
         "ledger",
         "enrollments",
-        "tills"
+        "tills",
+        "seeds"
       ]
     },
     {
@@ -6562,7 +6610,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollments",
         "passes",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6594,7 +6643,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "goals",
         "ledger",
         "enrollments",
-        "donations"
+        "donations",
+        "seeds"
       ]
     },
     {
@@ -6631,7 +6681,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "assets",
         "enrollments",
         "incidents",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6660,7 +6711,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "versions",
         "enrollments",
         "compliance",
-        "acknowledgements"
+        "acknowledgements",
+        "seeds"
       ]
     },
     {
@@ -6726,7 +6778,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "appraisals",
         "warehouse",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6786,7 +6839,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "appraisals",
         "warehouse",
         "recurrence",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6825,6 +6879,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "acknowledgements",
         "cases",
         "inspections",
+        "seeds",
         "advisories"
       ]
     },
@@ -6862,7 +6917,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "assets",
         "enrollments",
         "messaging",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6897,7 +6953,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "sla",
         "enrollments",
         "messaging",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -6933,7 +6990,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollments",
         "messaging",
         "channels",
-        "posts"
+        "posts",
+        "seeds"
       ]
     },
     {
@@ -6969,7 +7027,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "moderation",
         "enrollments",
         "messaging",
-        "posts"
+        "posts",
+        "seeds"
       ]
     },
     {
@@ -7005,7 +7064,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "teams",
         "versions",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7041,7 +7101,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "teams",
         "versions",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7076,6 +7137,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "approvals",
         "enrollments",
         "housekeeping",
+        "seeds",
         "prompts",
         "ai-evals",
         "ai-guardrails"
@@ -7108,7 +7170,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "service-accounts",
         "signing-keys",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7141,7 +7204,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "teams",
         "automations",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7175,7 +7239,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "approvals",
         "access-requests",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7206,7 +7271,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "metrics",
         "approvals",
         "enrollments",
-        "housekeeping"
+        "housekeeping",
+        "seeds"
       ]
     },
     {
@@ -7390,6 +7456,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "referrals",
         "recurrence",
         "housekeeping",
+        "seeds",
         "e-prescribing",
         "agent-checkout",
         "advisories",

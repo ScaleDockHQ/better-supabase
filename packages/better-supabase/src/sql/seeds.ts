@@ -228,7 +228,14 @@ export function renderSeedUmbrella(
   schema: string,
   idType: string,
   functions: readonly { readonly module: string; readonly fn: string }[],
+  defaults: {
+    readonly variants?: Readonly<Record<string, string>>;
+    readonly locale?: string;
+  } = {},
 ): string {
+  const variants = JSON.stringify(defaults.variants ?? {});
+  const locale = defaults.locale ?? "en";
+
   const calls = functions
     .map(
       ({ module, fn }) =>
@@ -239,14 +246,14 @@ export function renderSeedUmbrella(
   return `
 -- Applies the defaults of every installed module to an organization. Call it
 -- from the organization's create hook or with \`better-supabase db seed --defaults\`.
-create or replace function ${schema}.seed_tenant_defaults(p_tenant ${idType}, p_variants jsonb default '{}'::jsonb, p_locale text default 'en')
+create or replace function ${schema}.seed_tenant_defaults(p_tenant ${idType}, p_variants jsonb default ${sqlString(variants)}::jsonb, p_locale text default ${sqlString(locale)})
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-${calls}
+${calls === "" ? "  null;" : calls}
 end;
 $$;
 ${serviceGrant(`${schema}.seed_tenant_defaults(${idType}, jsonb, text)`)}
