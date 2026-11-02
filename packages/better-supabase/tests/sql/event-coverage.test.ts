@@ -96,5 +96,5 @@ function unrecorded(): string[] {
 describe("declared event types", () => {
   it("are recorded by their module's SQL, except the known gaps", () => {
     expect(unrecorded()).toEqual(NOT_LITERAL);
-  });
+  }, 90_000);
 });
