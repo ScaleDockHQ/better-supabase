@@ -83,7 +83,10 @@ describe("createTills", () => {
       .createTill({ name: "Front", currency: "EUR", accountId: "a1" })
       .orThrow();
 
-    const archived = await tills.updateTill("t1", { archived: true }).orThrow();
+    const archived = await tills
+      .updateTill({ tillId: "t1", input: { archived: true } })
+      .orThrow();
+
     const listed = await tills.listTills({ includeArchived: true }).orThrow();
 
     expect(created).toMatchObject({ name: "Front", accountId: "a1" });
@@ -113,11 +116,14 @@ describe("createTills", () => {
     const tills = createTills({ transport: t, tenant: "org-1" });
 
     const session = await tills
-      .openSession("t1", { openingFloat: money(10_000n, "EUR") })
+      .openSession({ tillId: "t1", openingFloat: money(10_000n, "EUR") })
       .orThrow();
 
     const movement = await tills
-      .recordMovement("s1", "cash_sale", money(2500n, "EUR"), {
+      .recordMovement({
+        sessionId: "s1",
+        kind: "cash_sale",
+        amount: money(2500n, "EUR"),
         reference: "ORD-1",
       })
       .orThrow();
@@ -157,7 +163,10 @@ describe("createTills", () => {
     const tills = createTills({ transport: t, tenant: "org-1" });
 
     const closed = await tills
-      .closeSession("s1", { denominations: { "500": 25 } })
+      .closeSession({
+        sessionId: "s1",
+        input: { denominations: { "500": 25 } },
+      })
       .orThrow();
 
     expect(closed.status).toBe("closed");
@@ -211,13 +220,18 @@ describe("createTills", () => {
     const tills = createTills({ transport: t, tenant: "org-1" });
 
     const deposit = await tills
-      .deposit("s1", {
-        amount: money(12_000n, "EUR"),
-        depositedOn: temporal().PlainDate.from("2026-10-30"),
+      .deposit({
+        sessionId: "s1",
+        input: {
+          amount: money(12_000n, "EUR"),
+          depositedOn: temporal().PlainDate.from("2026-10-30"),
+        },
       })
       .orThrow();
 
-    const reconciled = await tills.reconcileDeposit("d1", "b1").orThrow();
+    const reconciled = await tills
+      .reconcileDeposit({ depositId: "d1", bankTransactionId: "b1" })
+      .orThrow();
 
     expect(deposit.status).toBe("pending");
     expect(reconciled).toMatchObject({
@@ -245,7 +259,7 @@ describe("createTills", () => {
     });
 
     const tills = createTills({ transport: t, tenant: "org-1" });
-    const result = await tills.openSession("t1");
+    const result = await tills.openSession({ tillId: "t1" });
 
     expect(result.ok).toBe(false);
   });

@@ -39,7 +39,10 @@ describe("inbox drafts", () => {
     const { drafts } = createInbox({ transport });
 
     const saved = await drafts
-      .upsert("c1", { body: "Hi there", kind: "note", replyTo: "m1" })
+      .upsert({
+        conversationId: "c1",
+        input: { body: "Hi there", kind: "note", replyTo: "m1" },
+      })
       .orThrow();
 
     expect(saved).toMatchObject({
@@ -61,7 +64,11 @@ describe("inbox drafts", () => {
     });
 
     const suggested = await drafts
-      .suggest("c1", { body: "Try this" }, { model: "m" })
+      .suggest({
+        conversationId: "c1",
+        input: { body: "Try this" },
+        metadata: { model: "m" },
+      })
       .orThrow();
 
     expect(suggested).toMatchObject({
@@ -88,14 +95,17 @@ describe("inbox drafts", () => {
 
     const { drafts } = createInbox({ transport });
 
-    const message = await drafts.send("d1", { body: "Edited" }).orThrow();
+    const message = await drafts
+      .send({ draftId: "d1", edits: { body: "Edited" } })
+      .orThrow();
+
     expect(message.id).toBe(messageRow["id"]);
     expect(call.mock.calls[0]?.[2]).toEqual({
       draft: "d1",
       input: { body: "Edited" },
     });
 
-    await drafts.send("d1").orThrow();
+    await drafts.send({ draftId: "d1" }).orThrow();
     expect(call.mock.calls[1]?.[2]).toEqual({ draft: "d1", input: null });
 
     await drafts.discard("d1").orThrow();

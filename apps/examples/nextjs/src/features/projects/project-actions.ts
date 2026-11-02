@@ -117,10 +117,10 @@ export const moveTask = bsb.action(
     requireTenant: true,
   },
   async ({ id, status, previousId, nextId }, { db, auth }) => {
-    const moved = await db.rank.move(TASK_SUBJECT, id, {
-      previous: previousId,
-      next: nextId,
-      group: status,
+    const moved = await db.rank.move({
+      subjectType: TASK_SUBJECT,
+      subjectId: id,
+      target: { previous: previousId, next: nextId, group: status },
     });
 
     await refreshCaller(auth);
@@ -307,7 +307,7 @@ export const restoreProjectFields = bsb.action(
       );
     }
 
-    const restored = await versions.restoreFields(versionId, fields);
+    const restored = await versions.restoreFields({ id: versionId, fields });
 
     if (!restored.ok) {
       return restored;

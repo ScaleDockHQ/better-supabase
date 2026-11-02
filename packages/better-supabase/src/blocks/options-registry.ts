@@ -45,6 +45,7 @@ import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
+import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { FundingSqlOptions } from "./funding/options.ts";
@@ -194,6 +195,7 @@ import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
+import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { fundingSqlOptions } from "./funding/options.ts";
@@ -364,13 +366,14 @@ export interface BlockOptionsRegistry {
   readonly entitlements: None;
   readonly expenses: ExpensesSqlOptions;
   readonly "field-encryption": None;
-  readonly "field-history": None;
+  readonly "field-history": FieldHistorySqlOptions;
   readonly forecasts: None;
   readonly forms: FormsSqlOptions;
   readonly goals: GoalsSqlOptions;
   readonly grants: GrantsSqlOptions;
   readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
+  readonly housekeeping: None;
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly impersonation: ImpersonationSqlOptions;
@@ -386,6 +389,7 @@ export interface BlockOptionsRegistry {
   readonly warehouse: Record<never, never>;
   readonly rfqs: Record<never, never>;
   readonly tills: Record<never, never>;
+  readonly periods: Record<never, never>;
   readonly "agent-checkout": Record<never, never>;
   readonly "clinical-decision-support": Record<never, never>;
   readonly "e-prescribing": Record<never, never>;
@@ -434,6 +438,7 @@ export interface BlockOptionsRegistry {
   readonly "rate-limit": RateLimitSqlOptions;
   readonly reactions: ReactionsSqlOptions;
   readonly "read-sets": None;
+  readonly recurrence: None;
   readonly "realtime-tables": None;
   readonly relations: RelationsSqlOptions;
   readonly reminders: RemindersSqlOptions;
@@ -552,12 +557,13 @@ export const BLOCK_OPTION_SCHEMAS: {
   expenses: expensesSqlOptions,
   flags: flagsSqlOptions,
   "field-encryption": NO_OPTIONS,
-  "field-history": NO_OPTIONS,
+  "field-history": fieldHistorySqlOptions,
   forecasts: NO_OPTIONS,
   forms: formsSqlOptions,
   goals: goalsSqlOptions,
   guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
+  housekeeping: NO_OPTIONS,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,
   imports: importsSqlOptions,
@@ -584,6 +590,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   warehouse: NO_OPTIONS,
   rfqs: NO_OPTIONS,
   tills: NO_OPTIONS,
+  periods: NO_OPTIONS,
   "agent-checkout": NO_OPTIONS,
   "clinical-decision-support": NO_OPTIONS,
   "e-prescribing": NO_OPTIONS,
@@ -618,6 +625,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "rate-limit": rateLimitSqlOptions,
   reactions: reactionsSqlOptions,
   "read-sets": NO_OPTIONS,
+  recurrence: NO_OPTIONS,
   "realtime-tables": NO_OPTIONS,
   relations: relationsSqlOptions,
   reminders: remindersSqlOptions,

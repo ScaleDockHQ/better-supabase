@@ -23,21 +23,21 @@ export interface Numbering {
    * would commit the number before the document does. Documents take their
    * number from the column trigger instead.
    */
-  next(
-    organizationId: string,
-    entity: string,
-    at?: string,
-  ): AsyncResult<string>;
+  next(input: {
+    organizationId: string;
+    entity: string;
+    at?: string | undefined;
+  }): AsyncResult<string>;
   /**
    * The number the next document would get, formatted, without assigning it.
    * Needs the `assign` permission in the organization; a concurrent document
    * can still take it first.
    */
-  preview(
-    organizationId: string,
-    entity: string,
-    at?: string,
-  ): AsyncResult<string>;
+  preview(input: {
+    organizationId: string;
+    entity: string;
+    at?: string | undefined;
+  }): AsyncResult<string>;
 }
 
 export function createNumbering(options: NumberingOptions): Numbering {
@@ -52,7 +52,7 @@ export function createNumbering(options: NumberingOptions): Numbering {
   };
 
   const client: Numbering = {
-    next: (organizationId, entity, at) =>
+    next: ({ organizationId, entity, at }) =>
       call(
         "next_number",
         { tenant: organizationId, p_entity: entity, at: at ?? null },
@@ -68,7 +68,7 @@ export function createNumbering(options: NumberingOptions): Numbering {
           throw new TypeError("next_number did not return a number");
         },
       ),
-    preview: (organizationId, entity, at) =>
+    preview: ({ organizationId, entity, at }) =>
       call(
         "preview_number",
         {

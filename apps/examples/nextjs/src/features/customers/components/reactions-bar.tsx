@@ -94,7 +94,7 @@ export function ReactionsBar({
                     disabled={!canReact || busy !== null}
                     onClick={() => {
                       setBusy(emoji);
-                      void toggle(subject, emoji).finally(() => {
+                      void toggle({ subject, emoji }).finally(() => {
                         setBusy(null);
                       });
                     }}

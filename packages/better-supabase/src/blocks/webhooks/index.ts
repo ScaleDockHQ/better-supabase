@@ -60,6 +60,7 @@ export type {
   RetryPolicy,
   WebhookDelivery,
   WebhookEndpoint,
+  WebhookEndpointWithSecret,
   WebhookEndpointFields,
   WebhookEndpoints,
   Webhooks,

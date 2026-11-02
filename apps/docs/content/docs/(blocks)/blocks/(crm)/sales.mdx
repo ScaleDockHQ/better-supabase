@@ -1,0 +1,57 @@
+---
+title: Sales
+description: Contacts, pipelines, deals, quotes, orders and invoices, with helpers that move a deal from won to billed.
+---
+
+Covers the path from a deal to an invoice. The helpers call the hooked part clients one after the other, so hooks you set on `deals` or `quotes` also run, and each step is idempotent, so a retry after a failure in the middle finishes the chain.
+
+```bash
+better-supabase add sales
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { sales: {} } });
+```
+
+`add` lists `sales` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/sales` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { salesBlock } from "better-supabase/blocks/sales";
+```
+
+## Parts
+
+Installing `sales` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`contacts`](/docs/blocks/contacts)
+- [`pipelines`](/docs/blocks/pipelines)
+- [`deals`](/docs/blocks/deals)
+- [`quotes`](/docs/blocks/quotes)
+- [`orders`](/docs/blocks/orders)
+- [`invoices`](/docs/blocks/invoices)
+
+## Helpers
+
+| Helper                                                     | What it does                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `closeWon({ dealId, note, quote })`                        | Wins the deal first, then drafts its quote once when `quote` is set. A refused move leaves nothing behind.                                  |
+| `closeLost({ dealId, reason, withdraw })`                  | Loses the deal, then withdraws each quote id in `withdraw` with the reason.                                                                 |
+| `acceptQuote({ quoteId, dealId, by, note, then })`         | Records the acceptance, wins the deal when `dealId` is given, then orders or invoices the quote (`then`). A rejected quote does none of it. |
+| `billQuote({ quoteId, depositBps, depositAmount, issue })` | Creates the invoice of an accepted quote, in full or as a deposit, and issues it when `issue` is set.                                       |
+
+```ts
+const won = await blocks.sales.closeWon({ dealId, quote: true }).orThrow();
+
+await blocks.sales
+  .acceptQuote({ quoteId: won.quote.id, dealId, then: "invoice" })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove sales
+better-supabase remove sales --with-parts
+```
+
+The first command replaces `sales` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

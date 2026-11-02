@@ -2,8 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { WarehouseSql } from "./warehouse-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdFromLink } from "../links.ts";
 import { pageSize, userGrant } from "../shared.ts";
-import { createdFromLink } from "./quotes-functions.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
 
 /** Whether the caller reads the list: a reader or the picker it is assigned to. */

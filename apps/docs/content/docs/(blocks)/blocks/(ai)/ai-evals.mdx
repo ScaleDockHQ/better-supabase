@@ -45,7 +45,7 @@ await evals.items
   .orThrow();
 ```
 
-With the `ai-chat` block installed, `items.addFromFeedback(datasetId)` copies
+With the `ai-chat` block installed, `items.addFromFeedback({ datasetId })` copies
 rated replies into the dataset. The user message before the reply is the input,
 the rating, reason and comment go to the item metadata, and a thumbs up keeps
 the reply as the expected output. It reads thumbs down by default (`rating: -1`),
@@ -119,7 +119,7 @@ outputs, and counts of unchanged and missing items.
 
 ## Export to promptfoo
 
-`evals.exportPromptfoo(datasetId, { prompt, model, scorers })` returns a
+`evals.exportPromptfoo({ datasetId, prompt, model, scorers })` returns a
 promptfoo config as plain JSON: one test per item with the input as `vars` and
 one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
 `promptfooconfig.json` to run the same cases in promptfoo.

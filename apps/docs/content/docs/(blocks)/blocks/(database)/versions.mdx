@@ -149,3 +149,7 @@ const v = await versions
 const patch = await versions.diff(previousId, v.id).orThrow();
 await versions.restore(previousId).orThrow();
 ```
+
+## Restore with a safety snapshot
+
+`restoreSafely(id)` snapshots the subject as it is, labeled `before restore`, then restores the version. Nothing is restored when the snapshot fails.

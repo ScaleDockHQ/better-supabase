@@ -63,7 +63,7 @@ export function tenantGatewayOptions(
   } = {},
 ): AsyncResult<{ readonly gateway: GatewayOptions }> {
   return providers.keys
-    .resolve(context.organizationId, options)
+    .resolve({ organizationId: context.organizationId, ...options })
     .map((keys) => gatewayOptions(context, { ...extra, ...byokOptions(keys) }));
 }
 

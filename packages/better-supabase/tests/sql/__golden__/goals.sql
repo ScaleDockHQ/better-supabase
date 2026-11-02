@@ -222,7 +222,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:70ae2f7d52c8d482f8d299452b096e77ca1607ab93b31631548c14c341b60772
+-- @bsb-hash sha256:aed47da38459a64cc3de798572d8618cf784647a124fbf2032e4c4adbbc6f1d4
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -426,6 +426,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.goals', target_type => 'goal', event_prefix => 'goal', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

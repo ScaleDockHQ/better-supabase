@@ -3,6 +3,8 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
+import { recruitingBlock } from "better-supabase/blocks/recruiting";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
@@ -14,12 +16,15 @@ import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { hiringBlock } from "better-supabase/blocks/hiring";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { relationsBlock } from "better-supabase/blocks/relations";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { automationsBlock } from "better-supabase/blocks/automations";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -30,6 +35,8 @@ import { blockConfig } from "./people.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
+  recruiting: recruitingBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
@@ -41,12 +48,15 @@ export const blockSet = defineBlocks(blockConfig, {
   employees: employeesBlock,
   entitlements: entitlementsBlock,
   hiring: hiringBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
+  relations: relationsBlock,
+  reminders: remindersBlock,
   automations: automationsBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,

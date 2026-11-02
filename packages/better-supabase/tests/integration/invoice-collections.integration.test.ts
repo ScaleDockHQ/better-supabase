@@ -35,25 +35,28 @@ describe.skipIf(!live)("invoice collections", () => {
     await s.as(owner);
 
     const { id: party } = await createContacts({ transport })
-      .saveCompany(org, { name: "Collections customer" })
+      .saveCompany({
+        organizationId: org,
+        input: { name: "Collections customer" },
+      })
       .orThrow();
 
     const list = [];
 
     for (let index = 0; index < count; index += 1) {
       const draft = await invoices
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: `Retainer ${index + 1}`,
             company: { type: "company", id: party },
             termsDays: 10,
           },
-          [{ description: "Work", unitAmount: eur(1000n) }],
-        )
+          lines: [{ description: "Work", unitAmount: eur(1000n) }],
+        })
         .orThrow();
 
-      list.push(await invoices.issue(draft.id).orThrow());
+      list.push(await invoices.issue({ invoiceId: draft.id }).orThrow());
     }
 
     return { owner, outsider, org, party, invoices, list };
@@ -67,14 +70,17 @@ describe.skipIf(!live)("invoice collections", () => {
       const [first, second, third] = list;
 
       const payment = await invoices
-        .recordPartyPayment(org, {
-          partyId: party,
-          amount: eur(1500n),
-          allocations: [
-            { invoiceId: first!.id, amount: eur(1000n) },
-            { invoiceId: second!.id, amount: eur(300n) },
-          ],
-          reference: "bank-1",
+        .recordPartyPayment({
+          organizationId: org,
+          payment: {
+            partyId: party,
+            amount: eur(1500n),
+            allocations: [
+              { invoiceId: first!.id, amount: eur(1000n) },
+              { invoiceId: second!.id, amount: eur(300n) },
+            ],
+            reference: "bank-1",
+          },
         })
         .orThrow();
 
@@ -85,30 +91,45 @@ describe.skipIf(!live)("invoice collections", () => {
       });
 
       const replay = await invoices
-        .recordPartyPayment(org, {
-          partyId: party,
-          amount: eur(1500n),
-          allocations: [
-            { invoiceId: first!.id, amount: eur(1000n) },
-            { invoiceId: second!.id, amount: eur(300n) },
-          ],
-          reference: "bank-1",
+        .recordPartyPayment({
+          organizationId: org,
+          payment: {
+            partyId: party,
+            amount: eur(1500n),
+            allocations: [
+              { invoiceId: first!.id, amount: eur(1000n) },
+              { invoiceId: second!.id, amount: eur(300n) },
+            ],
+            reference: "bank-1",
+          },
         })
         .orThrow();
 
       expect(replay.credit).toEqual(eur(200n));
 
       const paid = await invoices
-        .applyPartyCredit(party, third!.id, eur(200n))
+        .applyPartyCredit({
+          partyId: party,
+          invoiceId: third!.id,
+          amount: eur(200n),
+        })
         .orThrow();
 
       expect(paid).toMatchObject({ balance: eur(800n) });
       expect(paid.payments.at(-1)?.method).toBe("credit");
-      expect(await invoices.partyCredits(org, party).orThrow()).toEqual([
-        eur(0n),
-      ]);
       expect(
-        hint(await invoices.applyPartyCredit(party, third!.id, eur(1n))),
+        await invoices
+          .partyCredits({ organizationId: org, partyId: party })
+          .orThrow(),
+      ).toEqual([eur(0n)]);
+      expect(
+        hint(
+          await invoices.applyPartyCredit({
+            partyId: party,
+            invoiceId: third!.id,
+            amount: eur(1n),
+          }),
+        ),
       ).toBe("INVOICE_CREDIT_INSUFFICIENT");
     } finally {
       await s.close();
@@ -123,17 +144,20 @@ describe.skipIf(!live)("invoice collections", () => {
       const [first, second] = list;
 
       await invoices
-        .setDunningLevels(org, [
-          { daysAfterDue: 7, templateKey: "reminder" },
-          { daysAfterDue: 21, templateKey: "second", fee: 500n },
-        ])
+        .setDunningLevels({
+          organizationId: org,
+          levels: [
+            { daysAfterDue: 7, templateKey: "reminder" },
+            { daysAfterDue: 21, templateKey: "second", fee: 500n },
+          ],
+        })
         .orThrow();
       await invoices
-        .pauseDunning(
-          second!.id,
-          Temporal.Now.plainDateISO().add({ days: 60 }),
-          "Disputed",
-        )
+        .pauseDunning({
+          invoiceId: second!.id,
+          until: Temporal.Now.plainDateISO().add({ days: 60 }),
+          reason: "Disputed",
+        })
         .orThrow();
 
       await s.asRole(owner);
@@ -163,7 +187,9 @@ describe.skipIf(!live)("invoice collections", () => {
 
       expect(raised?.dunning_level).toBe(2);
 
-      const charged = await invoices.pauseDunning(first!.id, null).orThrow();
+      const charged = await invoices
+        .pauseDunning({ invoiceId: first!.id, until: null })
+        .orThrow();
 
       expect(charged.dunning).toMatchObject({ level: 2 });
       expect(charged.balance).toEqual(eur(1500n));

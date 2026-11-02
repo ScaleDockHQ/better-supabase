@@ -43,13 +43,16 @@ describe("inventory purchase requisitions", () => {
     const { calls, transport } = recorder(REQUISITION);
 
     const requisition = await createInventory({ transport })
-      .requestPurchase("org", {
-        locationId: "l1",
-        supplier: { type: "company", id: "s1" },
-        reason: "Low stock",
-        lines: [
-          { variantId: "v1", quantity: 2.5, unitCost: money(450n, "EUR") },
-        ],
+      .requestPurchase({
+        organizationId: "org",
+        input: {
+          locationId: "l1",
+          supplier: { type: "company", id: "s1" },
+          reason: "Low stock",
+          lines: [
+            { variantId: "v1", quantity: 2.5, unitCost: money(450n, "EUR") },
+          ],
+        },
       })
       .orThrow();
 
@@ -86,11 +89,18 @@ describe("inventory purchase requisitions", () => {
     const inventory = createInventory({ transport });
 
     expect(
-      (await inventory.decidePurchaseRequisition("q1", true).orThrow()).status,
+      (
+        await inventory
+          .decidePurchaseRequisition({ requisitionId: "q1", approve: true })
+          .orThrow()
+      ).status,
     ).toBe("approved");
     expect(
       await inventory
-        .purchaseOrderFromRequisitions(["q1", "q2"], { currency: "EUR" })
+        .purchaseOrderFromRequisitions({
+          requisitionIds: ["q1", "q2"],
+          currency: "EUR",
+        })
         .orThrow(),
     ).toEqual({ id: "po1" });
     expect(
@@ -118,7 +128,10 @@ describe("inventory purchase requisitions", () => {
 
     expect(
       await createInventory({ transport })
-        .receivePurchaseOrder("po1", [{ lineId: "pl1", quantity: 2 }])
+        .receivePurchaseOrder({
+          purchaseOrderId: "po1",
+          lines: [{ lineId: "pl1", quantity: 2 }],
+        })
         .orThrow(),
     ).toEqual({
       status: "partially_received",

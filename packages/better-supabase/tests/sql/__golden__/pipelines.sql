@@ -770,7 +770,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:4f767693065fd96dc5e07cda363ca84a4427c91078d7b00ba84ef34b2aab5ea9
+-- @bsb-hash sha256:6649799664845642398a1ceffcfb03cb86610a195de894cef40cdfcabf00148e
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2331,6 +2331,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_sta
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.pipelines', target_type => 'pipeline', event_prefix => 'pipeline', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

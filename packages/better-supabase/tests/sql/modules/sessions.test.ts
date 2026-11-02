@@ -34,6 +34,17 @@ describe("sessions bootstrap wrappers", () => {
     ).toMatchFileSnapshot("../__golden__/sessions-bootstrap.sql");
   });
 
+  it("calls the function a read set installs", () => {
+    const sql = sessions({
+      options: { bootstrap: { home: { readSet: "home" } } },
+    });
+
+    expect(sql).toContain("'data', to_jsonb(public.rs_home(args))");
+    expect(() =>
+      sessions({ options: { bootstrap: { home: { readSet: "Home;" } } } }),
+    ).toThrow(/read set name/);
+  });
+
   it("rejects a name or a function it can't render safely", () => {
     expect(() => sessions({ options: { bootstrap: ["app.home"] } })).toThrow(
       /must map names to functions/,

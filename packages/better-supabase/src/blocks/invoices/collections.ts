@@ -149,30 +149,29 @@ export interface InvoiceCollections<I> {
    * Records one payment from a party over several of its invoices. What the
    * allocations leave over becomes the party's credit.
    */
-  recordPartyPayment(
-    organizationId: string,
-    payment: PartyPaymentInput,
-  ): AsyncResult<PartyPayment>;
+  recordPartyPayment(input: {
+    organizationId: string;
+    payment: PartyPaymentInput;
+  }): AsyncResult<PartyPayment>;
   /** Pays an open invoice from its party's credit, in the invoice's currency. */
   applyPartyCredit(
-    partyId: string,
-    invoiceId: string,
-    amount: Money,
-    options?: { readonly actor?: TransitionActor },
+    input: { partyId: string; invoiceId: string; amount: Money } & {
+      readonly actor?: TransitionActor;
+    },
   ): AsyncResult<I>;
   /** A party's unallocated credit, one amount per currency. */
-  partyCredits(
-    organizationId: string,
-    partyId: string,
-  ): AsyncResult<readonly Money[]>;
+  partyCredits(input: {
+    organizationId: string;
+    partyId: string;
+  }): AsyncResult<readonly Money[]>;
   dunningLevels(
     organizationId: string,
   ): AsyncResult<readonly InvoiceDunningLevel[]>;
   /** Replaces the organization's reminder levels. */
-  setDunningLevels(
-    organizationId: string,
-    levels: readonly InvoiceDunningLevelInput[],
-  ): AsyncResult<readonly InvoiceDunningLevel[]>;
+  setDunningLevels(input: {
+    organizationId: string;
+    levels: readonly InvoiceDunningLevelInput[];
+  }): AsyncResult<readonly InvoiceDunningLevel[]>;
   /**
    * Raises each overdue invoice to the reminder level it reached and records
    * `invoice.dunning_escalated`. Service role only; returns how many moved.
@@ -183,8 +182,7 @@ export interface InvoiceCollections<I> {
   }): AsyncResult<number>;
   /** The runs of `runDunning` for an organization, newest first. */
   dunningRuns(
-    organizationId: string,
-    options?: { readonly limit?: number },
+    input: { organizationId: string } & { readonly limit?: number },
   ): AsyncResult<readonly InvoiceDunningRun[]>;
   /** The invoices a run picked, grouped by customer. */
   dunningRunItems(
@@ -200,16 +198,16 @@ export interface InvoiceCollections<I> {
    * `invoices.collect`. Returns the ids handed over.
    */
   handOverToCollection(
-    invoiceIds: readonly string[],
-    agencyPartyId: string,
-    options?: { readonly note?: string },
+    input: { invoiceIds: readonly string[]; agencyPartyId: string } & {
+      readonly note?: string;
+    },
   ): AsyncResult<readonly string[]>;
   /** Holds an invoice's reminders until a date; `null` resumes them. */
-  pauseDunning(
-    invoiceId: string,
-    until: Temporal.PlainDate | null,
-    reason?: string,
-  ): AsyncResult<I>;
+  pauseDunning(input: {
+    invoiceId: string;
+    until: Temporal.PlainDate | null;
+    reason?: string | undefined;
+  }): AsyncResult<I>;
 }
 
 /** The invoice row keys dunning reads. */
@@ -366,7 +364,7 @@ export function invoiceCollections<I>(
   ) => AsyncResult<I>,
 ): InvoiceCollections<I> {
   return {
-    recordPartyPayment: (organizationId, payment) =>
+    recordPartyPayment: ({ organizationId, payment }) =>
       call(
         "record_party_payment",
         {
@@ -386,14 +384,14 @@ export function invoiceCollections<I>(
         },
         partyPaymentOf,
       ),
-    applyPartyCredit: (partyId, invoiceId, amount, options = {}) =>
+    applyPartyCredit: ({ partyId, invoiceId, amount, ...options }) =>
       invoice("apply_party_credit", {
         party_id: partyId,
         invoice: invoiceId,
         amount: amountText(amount),
         ...(options.actor === undefined ? {} : { actor: options.actor }),
       }),
-    partyCredits: (organizationId, partyId) =>
+    partyCredits: ({ organizationId, partyId }) =>
       call(
         "list_party_credits",
         { tenant: organizationId, party_id: partyId },
@@ -404,7 +402,7 @@ export function invoiceCollections<I>(
       ),
     dunningLevels: (organizationId) =>
       call("list_invoice_dunning_levels", { tenant: organizationId }, levelsOf),
-    setDunningLevels: (organizationId, levels) =>
+    setDunningLevels: ({ organizationId, levels }) =>
       call(
         "set_invoice_dunning_levels",
         {
@@ -428,7 +426,7 @@ export function invoiceCollections<I>(
         },
         (value) => Number(value ?? 0),
       ),
-    dunningRuns: (organizationId, options = {}) =>
+    dunningRuns: ({ organizationId, ...options }) =>
       call(
         "list_invoice_dunning_runs",
         { tenant: organizationId, max: options.limit ?? 50 },
@@ -438,7 +436,7 @@ export function invoiceCollections<I>(
       call("list_invoice_dunning_run_items", { run: runId }, runCustomersOf),
     dunningHistory: (invoiceId) =>
       call("list_invoice_dunning_history", { invoice: invoiceId }, historyOf),
-    handOverToCollection: (invoiceIds, agencyPartyId, options = {}) =>
+    handOverToCollection: ({ invoiceIds, agencyPartyId, ...options }) =>
       call(
         "hand_over_to_collection",
         {
@@ -451,7 +449,7 @@ export function invoiceCollections<I>(
             textOf(row["id"]),
           ),
       ),
-    pauseDunning: (invoiceId, until, reason) =>
+    pauseDunning: ({ invoiceId, until, reason }) =>
       invoice("pause_invoice_dunning", {
         invoice: invoiceId,
         until: until === null ? null : until.toString(),

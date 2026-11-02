@@ -143,17 +143,22 @@ describe("createConsents", () => {
       evidence: { submissionId: "s1" },
     });
 
-    expect(await consents.isActive(subject, "marketing.email").orThrow()).toBe(
-      true,
-    );
-    expect(await consents.list(subject).orThrow()).toHaveLength(1);
+    expect(
+      await consents
+        .isActive({ subject, purposeKey: "marketing.email" })
+        .orThrow(),
+    ).toBe(true);
+    expect(await consents.list({ subject }).orThrow()).toHaveLength(1);
     expect(call).toHaveBeenLastCalledWith("better_supabase", "list_consents", {
       subject_type: "people",
       subject_id: "person-1",
       include_history: false,
     });
 
-    const withdrawn = await consents.withdraw("c1", "asked").orThrow();
+    const withdrawn = await consents
+      .withdraw({ consentId: "c1", reason: "asked" })
+      .orThrow();
+
     expect(withdrawn).toMatchObject({
       status: "withdrawn",
       withdrawnReason: "asked",
@@ -192,5 +197,105 @@ describe("createConsents", () => {
       ]),
     );
     expect(consentsBlock.name).toBe("consents");
+  });
+
+  it("records signals, issues receipts and lists them", async () => {
+    const SIGNAL = {
+      id: "s1",
+      organizationId: "org",
+      subjectType: "people",
+      subjectId: "person-1",
+      kind: "gpc",
+      raw: "1",
+      parsed: { optOut: true },
+      consentIds: ["c1"],
+      receivedAt: AT,
+    };
+
+    const RECEIPT = {
+      receiptId: "r1",
+      format: "kantara-1.1",
+      issuedAt: AT,
+      organizationId: "org",
+      subject: { type: "people", id: "person-1" },
+      purpose: {
+        key: "marketing.email",
+        title: "Marketing email",
+        version: "1",
+        legalBasis: "consent",
+      },
+      consent: {
+        id: "c1",
+        status: "granted",
+        givenBy: "self",
+        grantedAt: AT,
+        scope: { channels: ["email"] },
+        validUntil: UNTIL,
+        withdrawnAt: AT,
+      },
+      evidence: { ip: "::1" },
+      digest: "abc",
+    };
+
+    const { transport, call } = fakeTransport({
+      record_consent_signal: SIGNAL,
+      list_consent_signals: [{ ...SIGNAL, parsed: null, consentIds: null }],
+      issue_consent_receipt: RECEIPT,
+      list_consent_receipts: [
+        {
+          ...RECEIPT,
+          consent: {
+            ...RECEIPT.consent,
+            scope: null,
+            validUntil: null,
+            withdrawnAt: null,
+          },
+          evidence: null,
+        },
+      ],
+    });
+
+    const consents = createConsents({ transport, tenant: "org" });
+    const subject = { type: "people", id: "person-1" };
+
+    const signal = await consents
+      .recordSignal({
+        subject,
+        kind: "gpc",
+        value: "1",
+        purposeKeys: ["a"],
+        consentId: "c1",
+      })
+      .orThrow();
+
+    expect(signal).toMatchObject({
+      kind: "gpc",
+      consentIds: ["c1"],
+      parsed: { optOut: true },
+    });
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "record_consent_signal",
+      expect.objectContaining({ purpose_keys: ["a"], consent_id: "c1" }),
+    );
+
+    await consents.recordSignal({ subject, kind: "tcf", value: "x" }).orThrow();
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "record_consent_signal",
+      expect.objectContaining({ purpose_keys: [], consent_id: null }),
+    );
+
+    const [listed] = await consents.signals(subject).orThrow();
+    expect(listed).toMatchObject({ parsed: {}, consentIds: [] });
+
+    const receipt = await consents.issueReceipt("c1").orThrow();
+    expect(receipt.consent.withdrawnAt?.toString()).toBe(AT);
+    expect(receipt.evidence).toEqual({ ip: "::1" });
+
+    const [bare] = await consents.receipts(subject).orThrow();
+    expect(bare?.consent).toMatchObject({ scope: {} });
+    expect(bare?.consent.validUntil).toBeUndefined();
+    expect(bare?.evidence).toEqual({});
   });
 });

@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { aiFilesBlock } from "better-supabase/blocks/ai-files";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -14,6 +15,7 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -27,6 +29,7 @@ import { blockConfig } from "./spend.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   aiFiles: aiFilesBlock,
   apiKeys: apiKeysBlock,
@@ -38,6 +41,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   expenses: expensesBlock,
   entitlements: entitlementsBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,

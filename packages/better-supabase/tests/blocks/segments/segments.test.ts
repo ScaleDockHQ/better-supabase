@@ -57,7 +57,10 @@ describe("createSegments", () => {
     const segments = createSegments({ transport });
 
     const saved = await segments
-      .upsert("org", { subjectType: "company", name: "SaaS", conditions })
+      .upsert({
+        organizationId: "org",
+        segment: { subjectType: "company", name: "SaaS", conditions },
+      })
       .orThrow();
 
     expect(saved).toMatchObject({
@@ -75,12 +78,16 @@ describe("createSegments", () => {
     });
 
     expect(await segments.remove("s1").orThrow()).toBe(true);
-    expect(await segments.list("org").orThrow()).toHaveLength(1);
+    expect(
+      await segments.list({ organizationId: "org" }).orThrow(),
+    ).toHaveLength(1);
     expect(call).toHaveBeenLastCalledWith("better_supabase", "segments_list", {
       tenant: "org",
       subject_type: null,
     });
-    await segments.list("org", { subjectType: "company" }).orThrow();
+    await segments
+      .list({ organizationId: "org", subjectType: "company" })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith("better_supabase", "segments_list", {
       tenant: "org",
       subject_type: "company",
@@ -91,7 +98,7 @@ describe("createSegments", () => {
     expect(got?.description).toBe("Software");
     expect(got?.refreshedAt?.toString()).toBe(AT);
 
-    const members = await segments.members("s1").orThrow();
+    const members = await segments.members({ segmentId: "s1" }).orThrow();
 
     expect(members).toEqual([
       { subjectId: "c1", enteredAt: Temporal.Instant.from(AT) },
@@ -102,7 +109,7 @@ describe("createSegments", () => {
       { segment: "s1", after: null, max_count: null },
     );
     await segments
-      .members("s1", { after: Temporal.Instant.from(AT), limit: 10 })
+      .members({ segmentId: "s1", after: Temporal.Instant.from(AT), limit: 10 })
       .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",

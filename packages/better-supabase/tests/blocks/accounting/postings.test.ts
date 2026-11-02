@@ -109,8 +109,13 @@ describe("accounting postings", () => {
 
     const books = createAccounting({ transport: t });
 
-    const entry = await books.postSource("invoice", "inv-1").orThrow();
-    const none = await books.postSource("invoice", "draft-1").orThrow();
+    const entry = await books
+      .postSource({ sourceType: "invoice", sourceId: "inv-1" })
+      .orThrow();
+
+    const none = await books
+      .postSource({ sourceType: "invoice", sourceId: "draft-1" })
+      .orThrow();
 
     expect(entry?.sourceType).toBe("invoice");
     expect(entry?.status).toBe("posted");
@@ -126,11 +131,11 @@ describe("accounting postings", () => {
     const books = createAccounting({ transport: t });
 
     const report = await books
-      .taxReport(
-        "org-1",
-        Temporal.PlainDate.from("2026-01-01"),
-        Temporal.PlainDate.from("2026-03-31"),
-      )
+      .taxReport({
+        organizationId: "org-1",
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-03-31"),
+      })
       .orThrow();
 
     expect(t.calls).toEqual([
@@ -160,11 +165,11 @@ describe("accounting postings", () => {
     });
 
     const report = await createAccounting({ transport: t })
-      .taxReport(
-        "org-1",
-        Temporal.PlainDate.from("2026-01-01"),
-        Temporal.PlainDate.from("2026-03-31"),
-      )
+      .taxReport({
+        organizationId: "org-1",
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-03-31"),
+      })
       .orThrow();
 
     expect(report.codes).toEqual([]);
@@ -186,38 +191,50 @@ describe("accounting postings", () => {
     const books = createAccounting({ transport: t });
 
     const saved = await books
-      .saveBudget("org-1", {
-        name: "Plan 2026",
-        fiscalYear: 2026,
-        lines: [
-          {
-            accountCode: "8000",
-            periodNumber: 1,
-            amount: 300_000n,
-            dimensions: { department: "sales" },
-          },
-          { accountId: "a1", periodNumber: 2, amount: 0n },
-        ],
+      .saveBudget({
+        organizationId: "org-1",
+        input: {
+          name: "Plan 2026",
+          fiscalYear: 2026,
+          lines: [
+            {
+              accountCode: "8000",
+              periodNumber: 1,
+              amount: 300_000n,
+              dimensions: { department: "sales" },
+            },
+            { accountId: "a1", periodNumber: 2, amount: 0n },
+          ],
+        },
       })
       .orThrow();
 
     await books
-      .saveBudget("org-1", {
-        name: "Plan 2026",
-        fiscalYear: 2026,
-        status: "approved",
-        budgetId: "b1",
+      .saveBudget({
+        organizationId: "org-1",
+        input: {
+          name: "Plan 2026",
+          fiscalYear: 2026,
+          status: "approved",
+          budgetId: "b1",
+        },
       })
       .orThrow();
 
     const read = await books.budget("b1").orThrow();
     const missing = await books.budget("b2").orThrow();
-    const listed = await books.budgets("org-1", 2026).orThrow();
 
-    await books.budgets("org-1").orThrow();
+    const listed = await books
+      .budgets({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
 
-    const year = await books.budgetVsActual("b1").orThrow();
-    const period = await books.budgetVsActual("b1", 1).orThrow();
+    await books.budgets({ organizationId: "org-1" }).orThrow();
+
+    const year = await books.budgetVsActual({ budgetId: "b1" }).orThrow();
+
+    const period = await books
+      .budgetVsActual({ budgetId: "b1", periodNumber: 1 })
+      .orThrow();
 
     expect(saved.total).toBe(300_000n);
     expect(saved.lines?.[0]).toMatchObject({
@@ -292,11 +309,11 @@ describe("accounting postings", () => {
     });
 
     const report = await books
-      .taxReport(
-        "org-1",
-        Temporal.PlainDate.from("2026-01-01"),
-        Temporal.PlainDate.from("2026-03-31"),
-      )
+      .taxReport({
+        organizationId: "org-1",
+        since: Temporal.PlainDate.from("2026-01-01"),
+        until: Temporal.PlainDate.from("2026-03-31"),
+      })
       .orThrow();
 
     const file = await taxReportFormatOf(format).render(report).orThrow();

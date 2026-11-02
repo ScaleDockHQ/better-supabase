@@ -1,0 +1,47 @@
+---
+title: Recruiting
+description: Hiring, employees and the calendar, with a helper that turns a hired application into an employee.
+---
+
+Covers the path from a candidate to an employee. Interviews run on the calendar.
+
+```bash
+better-supabase add recruiting
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { recruiting: {} } });
+```
+
+`add` lists `recruiting` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/recruiting` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { recruitingBlock } from "better-supabase/blocks/recruiting";
+```
+
+## Parts
+
+Installing `recruiting` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`hiring`](/docs/blocks/hiring)
+- [`employees`](/docs/blocks/employees)
+- [`calendar`](/docs/blocks/calendar)
+
+## Helpers
+
+`hire({ applicationId, overrides })` marks the application hired, then creates the employee from it. `overrides` sets or replaces columns of the employee. Both steps are idempotent for one application, so a retry finishes a hire that stopped in the middle. It returns the application and the employee.
+
+```ts
+const { employee } = await blocks.recruiting
+  .hire({ applicationId, overrides: { jobTitle: "Engineer" } })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove recruiting
+better-supabase remove recruiting --with-parts
+```
+
+The first command replaces `recruiting` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

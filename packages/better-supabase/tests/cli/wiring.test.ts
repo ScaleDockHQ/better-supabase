@@ -260,7 +260,7 @@ describe("wiringFor edge cases", () => {
     expect(steps.join("\n")).toContain("sla check() at `* * * * *`");
     expect(steps.join("\n")).toContain("blockTickHandler");
     expect(steps.join("\n")).toContain(
-      "createActionRegistry`: tasks.from_conversation (tasks)",
+      "the blocks ship these actions: tasks.from_conversation (tasks)",
     );
   });
 });

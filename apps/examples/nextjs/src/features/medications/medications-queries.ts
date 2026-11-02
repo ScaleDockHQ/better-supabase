@@ -81,7 +81,7 @@ async function loadChart(
   }
 
   const chart = await db.medications
-    .chart({ type: "customer", id: customer.id })
+    .chart({ subject: { type: "customer", id: customer.id } })
     .orThrow();
 
   return {

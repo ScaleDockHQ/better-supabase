@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:6010a85adb870dc9e6fffa6a0f25c2120b73664e2f62c6983e31ddefe982de32
+-- @bsb-hash sha256:4f64e3bbe3b2b32ab21ac2c3398ab30e0405b23e8a885d043ebb90129efc5dd9
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -582,6 +582,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.versions', target_type => 'version', event_prefix => 'version', deferred => true);
+end;
+$$;
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";

@@ -11,7 +11,9 @@ export type {
   AuditListOptions,
   AuditLog,
   AuditLogOptions,
+  AuditNamedPage,
   AuditPage,
+  AuditPageEntry,
   AuditRecord,
   AuditReverted,
 } from "./audit-log.ts";

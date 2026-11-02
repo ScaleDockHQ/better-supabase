@@ -31,18 +31,21 @@ export const addDocument = bsb.action(
     const document = { title, text, source: "pasted" };
 
     const created = await (folderId
-      ? base.ingest.text(tenant, {
-          ...document,
-          scope: "subject",
-          subject: { type: "drive_node", id: folderId },
+      ? base.ingest.text({
+          organizationId: tenant,
+          document: {
+            ...document,
+            scope: "subject",
+            subject: { type: "drive_node", id: folderId },
+          },
         })
-      : base.ingest.text(tenant, document));
+      : base.ingest.text({ organizationId: tenant, document }));
 
     if (!created.ok) {
       return created;
     }
 
-    after(() => base.process(created.data.id));
+    after(() => base.process({ documentId: created.data.id }));
     refresh();
 
     return ok(created.data.id);
@@ -86,7 +89,7 @@ export const searchKnowledge = bsb.action(
   },
   ({ query }, { tenant, supabase }) =>
     knowledge(supabase)
-      .search(tenant, query, { k: 5 })
+      .search({ organizationId: tenant, query, k: 5 })
       .map((hits): readonly SearchHit[] =>
         hits.map((hit) => ({
           id: `${hit.documentId}#${String(hit.index)}`,

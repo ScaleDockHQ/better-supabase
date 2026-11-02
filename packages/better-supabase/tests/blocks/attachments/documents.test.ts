@@ -84,9 +84,9 @@ describe("attachment document types", () => {
     });
 
     const upload = await attachments
-      .upload(
-        { type: "customer", id: "c1" },
-        {
+      .upload({
+        subject: { type: "customer", id: "c1" },
+        attachment: {
           name: "invoice.pdf",
           mimeType: "application/pdf",
           size: 0,
@@ -96,7 +96,7 @@ describe("attachment document types", () => {
           sourcePath: "/inv/1.pdf",
           metadata: { amount: { amount: 1250, currency: "EUR" } },
         },
-      )
+      })
       .orThrow();
 
     expect(calls[0]?.[1]).toMatchObject({
@@ -128,11 +128,14 @@ describe("attachment document types", () => {
       tenant: "org-1",
     });
 
-    const result = await attachments.upload(null, {
-      name: "invoice.pdf",
-      mimeType: "application/pdf",
-      size: 0,
-      documentType: "invoice",
+    const result = await attachments.upload({
+      subject: null,
+      attachment: {
+        name: "invoice.pdf",
+        mimeType: "application/pdf",
+        size: 0,
+        documentType: "invoice",
+      },
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(

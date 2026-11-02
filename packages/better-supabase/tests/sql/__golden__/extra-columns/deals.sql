@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ec7359197825b70db28d9b453463acfeca8e407ce1d139ce28842f9bb5861e4c
+-- @bsb-hash sha256:a9e1340b1d9c41a414ffe63cda53a8040a4db364352eb466e6f450ea22f85928
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -980,6 +980,65 @@ end;
 $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
+
+-- A pipeline's board in one call: every stage with its deals ordered by
+-- rank, the count and the total per currency, and the forecast weighted by
+-- the deal's probability (or its stage's). Runs as the caller, so it holds
+-- the deals they can see.
+create or replace function "better_supabase"."deal_board"(pipeline uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return (with cards as (
+    select x."stage_id" as stage_id,
+      x."rank" as rank,
+      x."id" as id,
+      x."outcome" as outcome,
+      x."currency"::text as currency,
+      x."amount" as amount,
+      coalesce(x."probability", st."probability") as prob,
+      jsonb_build_object(
+        'id', x."id", 'identifier', x."identifier", 'name', x."name",
+        'amount', x."amount"::text, 'currency', x."currency"::text,
+        'ownerId', x."owner_user_id", 'closeOn', x."expected_close_on",
+        'probability', coalesce(x."probability", st."probability"),
+        'daysInStage', (extract(epoch from now() - coalesce(x."stage_entered_at", x."created_at")) / 86400)::integer,
+        'rotting', st."rotting_after_days" is not null and now() - coalesce(x."stage_entered_at", x."created_at") > make_interval(days => st."rotting_after_days"),
+        'nextStep', x."next_step",
+        'nextAt', x."next_at",
+        'rank', x."rank"
+      ) as card
+    from "better_supabase"."deals" x
+    left join "better_supabase"."pipeline_stages" st on st."id" = x."stage_id"
+    where x."pipeline_id" = deal_board.pipeline and x."archived_at" is null
+  )
+  select jsonb_build_object(
+    'pipelineId', deal_board.pipeline,
+    'stages', coalesce((select jsonb_agg(jsonb_build_object(
+      'id', st."id", 'key', st."key", 'name', st."name", 'category', st."category",
+      'probability', st."probability",
+      'rottingAfterDays', st."rotting_after_days",
+      'wipLimit', st."wip_limit",
+      'count', (select count(*) from cards c where c.stage_id = st."id"),
+      'totals', coalesce((select jsonb_agg(jsonb_build_object('currency', t.currency, 'amount', t.amount::text, 'weighted', t.weighted::text) order by t.currency)
+        from (select c.currency, sum(c.amount) as amount, round(sum(c.amount * coalesce(c.prob, 0) / 100.0))::bigint as weighted
+          from cards c where c.stage_id = st."id" group by c.currency) t), '[]'::jsonb),
+      'deals', coalesce((select jsonb_agg(c.card order by c.rank, c.id) from cards c where c.stage_id = st."id"), '[]'::jsonb)
+    ) order by st."rank", st."id")
+      from "better_supabase"."pipeline_stages" st
+      where st."pipeline_id" = deal_board.pipeline and st."archived_at" is null), '[]'::jsonb),
+    'weighted', coalesce((select jsonb_agg(jsonb_build_object('currency', t.currency, 'amount', t.amount::text) order by t.currency)
+      from (select c.currency, round(sum(c.amount * coalesce(c.prob, 0) / 100.0))::bigint as amount
+        from cards c where c.outcome = 'open' group by c.currency) t), '[]'::jsonb)
+  ));
+end;
+$$;
+revoke execute on function "better_supabase"."deal_board"(uuid) from public, anon;
+grant execute on function "better_supabase"."deal_board"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

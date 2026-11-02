@@ -85,8 +85,10 @@ export async function getWorkBoard(
   }
 
   const [pipelineList, itemList] = await Promise.all([
-    pipelines.list(tenant, WORK_ITEM_SUBJECT).orThrow(),
-    workItems.list(tenant, options).orThrow(),
+    pipelines
+      .list({ organizationId: tenant, subjectType: WORK_ITEM_SUBJECT })
+      .orThrow(),
+    workItems.list({ organizationId: tenant, ...options }).orThrow(),
   ]);
 
   const pipeline =
@@ -205,8 +207,10 @@ export async function getWorkGrid(
   }
 
   const [pipelineList, items] = await Promise.all([
-    pipelines.list(tenant, WORK_ITEM_SUBJECT).orThrow(),
-    workItems.list(tenant, options).orThrow(),
+    pipelines
+      .list({ organizationId: tenant, subjectType: WORK_ITEM_SUBJECT })
+      .orThrow(),
+    workItems.list({ organizationId: tenant, ...options }).orThrow(),
   ]);
 
   const pipeline =
@@ -236,7 +240,7 @@ export async function getWorkViews(): Promise<
   }
 
   const views = await db.$blocks.savedViews
-    .list(tenant, WORK_ITEM_LIST)
+    .list({ organizationId: tenant, list: WORK_ITEM_LIST })
     .orThrow();
 
   return views.map((view) => {

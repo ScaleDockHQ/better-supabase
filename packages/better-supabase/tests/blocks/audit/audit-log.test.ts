@@ -191,6 +191,23 @@ describe("createAudit", () => {
     expect(counted.total).toBe(3);
   });
 
+  it("page returns the total and each entry's actor name", async () => {
+    const { transport, calls } = fake([
+      [entry("3", { actorLabel: "Ada" }), entry("2")],
+    ]);
+
+    const page = await createAudit({ transport })
+      .page({ organizationId: "org", limit: 2 })
+      .orThrow();
+
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "list_audit_events",
+      "count_audit_events",
+    ]);
+    expect(page.total).toBe(3);
+    expect(page.entries.map((each) => each.actorName)).toEqual(["Ada", null]);
+  });
+
   it("opens page N by offset, with a total, and starts an export there", async () => {
     const { transport, calls } = fake([[entry("3")], [entry("2")], []]);
     const audit = createAudit({ transport });
@@ -385,5 +402,26 @@ describe("createAudit", () => {
         path: "p",
       }),
     ).toMatchObject({ ok: false, error: { hint: "AUDIT_EXPORT_FAILED" } });
+  });
+
+  it("correlated pages oldest first through the cursor until the limit", async () => {
+    const full = Array.from({ length: 200 }, (_, i) =>
+      entry("1", { id: String(i) }),
+    );
+
+    const { transport, calls } = fake([full, [entry("1", { id: "x" })]]);
+
+    const entries = await createAudit({ transport })
+      .correlated({ correlationId: "req-1", limit: 250 })
+      .orThrow();
+
+    expect(entries).toHaveLength(201);
+    expect(calls[0]![1]).toMatchObject({
+      for_correlation_ids: ["req-1"],
+      ascending: true,
+      max_items: 200,
+    });
+    expect(calls[1]![1]).toMatchObject({ max_items: 50 });
+    expect(calls[1]![1]["cursor_id"]).toBe("199");
   });
 });

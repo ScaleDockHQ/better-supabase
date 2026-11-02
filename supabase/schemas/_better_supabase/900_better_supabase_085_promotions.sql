@@ -1,6 +1,6 @@
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:084ea11cf53800c4ed04b1cd9961bce1ec94bc93b684d34539b754c134780eac
+-- @bsb-hash sha256:9010e391748ada367b25e5459911c8c41708995af47dabc60e0de6459528db05
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -944,6 +944,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_re
 create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.promotions', target_type => 'promotion', event_prefix => 'promotion', deferred => true);
+end;
+$$;
 
 -- blocks.promotions.api: entry points for the Data API.
 create schema if not exists "api";

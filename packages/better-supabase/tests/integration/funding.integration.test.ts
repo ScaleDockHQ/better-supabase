@@ -84,22 +84,29 @@ describe.skipIf(!live)("funding", () => {
       await s.as(owner);
 
       const product = await funding
-        .saveProduct(org, {
-          code: "H300",
-          title: "Individual support",
-          unit: "hour",
-          rate: money(6850n, "EUR"),
+        .saveProduct({
+          organizationId: org,
+          input: {
+            code: "H300",
+            title: "Individual support",
+            unit: "hour",
+            rate: money(6850n, "EUR"),
+          },
         })
         .orThrow();
 
       const award = await funding
-        .createAward(org, subject, {
-          funderId,
-          productId: product.id,
-          units: 2,
-          period: "week",
-          startsOn: day("2026-10-05"),
-          reference: "WLZ-1",
+        .createAward({
+          organizationId: org,
+          subject,
+          input: {
+            funderId,
+            productId: product.id,
+            units: 2,
+            period: "week",
+            startsOn: day("2026-10-05"),
+            reference: "WLZ-1",
+          },
         })
         .orThrow();
 
@@ -127,7 +134,7 @@ describe.skipIf(!live)("funding", () => {
         })
         .orThrow();
 
-      const sheet = await time.submit(day("2026-10-05")).orThrow();
+      const sheet = await time.submit({ week: day("2026-10-05") }).orThrow();
 
       await s.as(owner);
       await s.value("better_supabase.decide_approval($1, 'approved')", [
@@ -137,14 +144,22 @@ describe.skipIf(!live)("funding", () => {
       await s.asRole(carer);
       expect(
         await funding
-          .registerFromTime(org, day("2026-10-05"), day("2026-10-11"))
+          .registerFromTime({
+            organizationId: org,
+            since: day("2026-10-05"),
+            until: day("2026-10-11"),
+          })
           .then((result) => (result.ok ? "ok" : result.error.code)),
       ).toBe("42501");
 
       await s.service();
 
       const run = await funding
-        .registerFromTime(org, day("2026-10-05"), day("2026-10-11"))
+        .registerFromTime({
+          organizationId: org,
+          since: day("2026-10-05"),
+          until: day("2026-10-11"),
+        })
         .orThrow();
 
       expect(run.registered).toHaveLength(1);
@@ -158,7 +173,11 @@ describe.skipIf(!live)("funding", () => {
       expect(
         (
           await funding
-            .registerFromTime(org, day("2026-10-05"), day("2026-10-11"))
+            .registerFromTime({
+              organizationId: org,
+              since: day("2026-10-05"),
+              until: day("2026-10-11"),
+            })
             .orThrow()
         ).registered,
       ).toEqual([]);
@@ -166,16 +185,19 @@ describe.skipIf(!live)("funding", () => {
       await s.as(carer);
 
       const visit = await funding
-        .registerDelivery(award.id, {
-          deliveredOn: day("2026-10-08"),
-          units: 1,
-          note: "Evening visit",
+        .registerDelivery({
+          awardId: award.id,
+          input: {
+            deliveredOn: day("2026-10-08"),
+            units: 1,
+            note: "Evening visit",
+          },
         })
         .orThrow();
 
-      expect(await funding.approveDeliveries([visit.id]).then(hint)).toBe(
-        "FUNDING_FORBIDDEN",
-      );
+      expect(
+        await funding.approveDeliveries({ deliveryIds: [visit.id] }).then(hint),
+      ).toBe("FUNDING_FORBIDDEN");
 
       await s.as(owner);
 
@@ -189,16 +211,21 @@ describe.skipIf(!live)("funding", () => {
 
       expect(
         await funding
-          .approveDeliveries([visit.id, run.registered[0]?.id ?? ""])
+          .approveDeliveries({
+            deliveryIds: [visit.id, run.registered[0]?.id ?? ""],
+          })
           .orThrow(),
       ).toBe(2);
 
       const claim = await funding
-        .buildClaim(org, {
-          funderId,
-          periodStart: day("2026-10-01"),
-          periodEnd: day("2026-10-31"),
-          format: "test",
+        .buildClaim({
+          organizationId: org,
+          input: {
+            funderId,
+            periodStart: day("2026-10-01"),
+            periodEnd: day("2026-10-31"),
+            format: "test",
+          },
         })
         .orThrow();
 
@@ -232,12 +259,12 @@ describe.skipIf(!live)("funding", () => {
         },
       });
 
-      expect(await sent.send(claim.id).orThrow()).toMatchObject({
+      expect(await sent.send({ claimId: claim.id }).orThrow()).toMatchObject({
         status: "sent",
         externalRef: "VZ-77",
       });
 
-      const answered = await sent.poll(claim.id).orThrow();
+      const answered = await sent.poll({ claimId: claim.id }).orThrow();
 
       expect(answered).toMatchObject({ status: "rejected" });
       expect(answered?.lines[0]).toMatchObject({
@@ -245,31 +272,44 @@ describe.skipIf(!live)("funding", () => {
         rejectionCode: "8001",
       });
       expect(
-        await funding.deliveries(org, { status: "approved" }).orThrow(),
+        await funding
+          .deliveries({ organizationId: org, filter: { status: "approved" } })
+          .orThrow(),
       ).toHaveLength(2);
-      expect(await funding.invoiceClaim(claim.id).then(hint)).toBe(
+      expect(await funding.invoiceClaim({ claimId: claim.id }).then(hint)).toBe(
         "FUNDING_CLAIM_STATUS_INVALID",
       );
 
       const second = await funding
-        .buildClaim(org, {
-          funderId,
-          periodStart: day("2026-10-01"),
-          periodEnd: day("2026-10-31"),
-          format: "test",
+        .buildClaim({
+          organizationId: org,
+          input: {
+            funderId,
+            periodStart: day("2026-10-01"),
+            periodEnd: day("2026-10-31"),
+            format: "test",
+          },
         })
         .orThrow();
 
-      await funding.markSent(second.id, { externalRef: "VZ-78" }).orThrow();
-      await funding.recordResponse(second.id, { lines: [] }).orThrow();
+      await funding
+        .markSent({ claimId: second.id, sent: { externalRef: "VZ-78" } })
+        .orThrow();
+      await funding
+        .recordResponse({ claimId: second.id, response: { lines: [] } })
+        .orThrow();
 
-      const invoiced = await funding.invoiceClaim(second.id).orThrow();
+      const invoiced = await funding
+        .invoiceClaim({ claimId: second.id })
+        .orThrow();
 
       expect(invoiced.claim.status).toBe("accepted");
       expect(invoiced.invoice).toMatchObject({ currency: "EUR" });
 
       await s.asRole(outsider);
-      expect(await funding.awards(org).orThrow()).toEqual([]);
+      expect(await funding.awards({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
 

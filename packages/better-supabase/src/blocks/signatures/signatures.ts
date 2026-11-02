@@ -4,13 +4,15 @@ import type {
   FieldsOf,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -27,7 +29,8 @@ import {
 
 export interface SignaturesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockOptions {
+>
+  extends BlockOptions, BlockTenantOptions {
   /**
    * A Standard Schema for the request's extra columns
    * (`blocks.signatures.options.extraColumns`), keyed by database name. It
@@ -159,19 +162,23 @@ export interface SignatureRequestListOptions {
 
 export interface Signatures<F extends object = Record<never, never>> {
   request(input: SignatureRequestInput<F>): AsyncResult<SignatureRequest<F>>;
-  sign(
-    requestId: string,
-    input: SignInput,
-  ): AsyncResult<
+  sign(input: {
+    requestId: string;
+    input: SignInput;
+  }): AsyncResult<
     Signature & { readonly requestStatus: SignatureRequestStatus }
   >;
-  decline(requestId: string, reason?: string): AsyncResult<SignatureRequest<F>>;
+  decline(input: {
+    requestId: string;
+    reason?: string | undefined;
+  }): AsyncResult<SignatureRequest<F>>;
   cancel(requestId: string): AsyncResult<SignatureRequest<F>>;
   get(requestId: string): AsyncResult<SignatureRequestDetail<F>>;
   /** Newest first. */
   list(
-    organizationId: string,
-    options?: SignatureRequestListOptions,
+    input: {
+      organizationId?: string | undefined;
+    } & SignatureRequestListOptions,
   ): AsyncResult<readonly SignatureRequest<F>[]>;
 }
 
@@ -290,7 +297,7 @@ export function createSignatures<
             (value) => requestOf(value, "create_signature_request"),
           ).andThen(fields.row),
         ),
-    sign: (requestId, input) =>
+    sign: ({ requestId, input }) =>
       call(
         "sign_signature",
         {
@@ -309,7 +316,7 @@ export function createSignatures<
           ),
         }),
       ),
-    decline: (requestId, reason) =>
+    decline: ({ requestId, reason }) =>
       call(
         "decline_signature_request",
         { request_id: requestId, reason: reason ?? null },
@@ -334,23 +341,28 @@ export function createSignatures<
           ),
         };
       }).andThen(fields.row),
-    list: (organizationId, list = {}) =>
-      call(
-        "list_signature_requests",
-        {
-          tenant: organizationId,
-          subject_type: list.subjectType ?? null,
-          subject_id: list.subjectId ?? null,
-          status: list.status ?? null,
-          mine: list.mine ?? false,
-          page_size: list.pageSize ?? null,
-          before: instantArg(list.before) ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_signature_requests").map((row) =>
-            requestOf(row, "list_signature_requests"),
-          ),
-      ).andThen(fields.rows),
+    list: ({ organizationId, ...list }) =>
+      (organizationId === undefined
+        ? requireTenant(options.tenant)
+        : AsyncResult.ok(organizationId)
+      ).andThen((tenant) =>
+        call(
+          "list_signature_requests",
+          {
+            tenant,
+            subject_type: list.subjectType ?? null,
+            subject_id: list.subjectId ?? null,
+            status: list.status ?? null,
+            mine: list.mine ?? false,
+            page_size: list.pageSize ?? null,
+            before: instantArg(list.before) ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_signature_requests").map((row) =>
+              requestOf(row, "list_signature_requests"),
+            ),
+        ).andThen(fields.rows),
+      ),
   };
 
   return withBlockHooks(client, options.hooks, {

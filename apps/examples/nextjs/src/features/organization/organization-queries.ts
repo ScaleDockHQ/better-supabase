@@ -126,27 +126,24 @@ export async function getMembers(
   return toMembers(rows, supabase);
 }
 
-/** Pending invitations. The function refuses callers without `members.invite`. */
+/**
+ * Pending invitations, from `organizations.overview`. The function refuses
+ * callers without `members.invite`.
+ */
 export async function getInvitations(
   organizationId: string,
 ): Promise<readonly PendingInvitation[]> {
   "use cache: private";
   const { db } = await bsb.cached();
 
-  const rows = await db
-    .$rpc("organization_invitations", { organization: organizationId })
+  const { invitations } = await db.$blocks.organizations
+    .overview(organizationId)
     .orThrow();
 
-  return rows.flatMap((row) =>
-    row.id && row.email
-      ? [
-          {
-            id: row.id,
-            email: row.email,
-            role: roleOrMember(row.role),
-            expiresAt: row.expiresAt ?? "",
-          },
-        ]
-      : [],
-  );
+  return invitations.map((invitation) => ({
+    id: invitation.id,
+    email: invitation.email,
+    role: roleOrMember(invitation.role),
+    expiresAt: invitation.expiresAt?.toString() ?? "",
+  }));
 }

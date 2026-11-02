@@ -77,7 +77,7 @@ async function loadForms(): Promise<readonly FormSummary[] | null> {
     return null;
   }
 
-  const forms = await db.forms.list(tenant).orThrow();
+  const forms = await db.forms.list({ organizationId: tenant }).orThrow();
 
   return forms.map((form) => ({
     id: form.id,
@@ -119,7 +119,7 @@ async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
 
   const [detail, submissions] = await Promise.all([
     forms.get(id),
-    forms.listSubmissions(id, { pageSize: 100 }),
+    forms.listSubmissions({ formId: id, pageSize: 100 }),
   ]);
 
   if (!detail.ok) {

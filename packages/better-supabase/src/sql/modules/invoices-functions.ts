@@ -15,6 +15,7 @@ import {
   lineItemsSql,
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
+import { createdFromLink } from "../links.ts";
 import { int8Text } from "../money-sql.ts";
 import {
   assignNumberSql,
@@ -39,7 +40,6 @@ import { invoiceCollectionsAndOpenItems } from "./invoices-open-items.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
 import { createTerms, discountIssue, lineMatrix } from "./invoices-terms.ts";
 import { sequenceEntry } from "./numbering-entities.ts";
-import { createdFromLink } from "./quotes-functions.ts";
 
 /**
  * Invoice columns a config opts into by naming them in

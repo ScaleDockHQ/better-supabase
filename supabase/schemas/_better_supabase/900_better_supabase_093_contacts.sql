@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@2 managed
--- @bsb-hash sha256:0c18a2b9a1865cb50f9e86a49ed21c563b8b806956fa15d11b89f3d478a6026f
+-- @bsb-hash sha256:fe6a31ac2541997eedcf8cee3e77c5cd41fe50e44468e32085c79b237bed952c
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1761,6 +1761,14 @@ drop trigger if exists "bsb_search_person_index" on "better_supabase"."people";
 create trigger "bsb_search_person_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
+  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
+end;
+$$;
 
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";

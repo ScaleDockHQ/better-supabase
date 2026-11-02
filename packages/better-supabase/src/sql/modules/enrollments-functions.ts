@@ -665,6 +665,12 @@ begin
     ${invalid("a user subject needs a user id")}
   end if;
   v_steps := ${stepIds(`v_program.${p("steps")}`)};
+  ${ctx.hook("before_enrollment_create", [
+    [idType, "enroll.tenant"],
+    ["text", "enroll.program"],
+    ["text", "enroll.subject_type"],
+    ["text", "enroll.subject_id"],
+  ])}
   select * into v_row from ${enrollments} x
   where x.${e("tenant")} = enroll.tenant and x.${e("program")} = enroll.program
     and x.${e("subjectType")} = enroll.subject_type and x.${e("subjectId")} = enroll.subject_id
@@ -679,6 +685,7 @@ begin
   else
     v_id := ${fn("enrollment_ensure")}(enroll.tenant, enroll.program, v_program.${p("version")}, v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;${schedule("v_id")}
+  ${ctx.hook("after_enrollment_create", [["uuid", "v_id"]])}
   return ${fn("enrollment_json")}(v_id);
 end;
 $$;
@@ -819,15 +826,99 @@ begin
   if v_row.${e("status")} = 'completed' then
     ${invalid("a completed enrollment can't be cancelled")}
   end if;
+  ${ctx.hook("before_enrollment_cancel", [["uuid", "cancel_enrollment.enrollment_id"]])}
   if v_row.${e("status")} = 'active' then
     update ${enrollments} x
     set ${e("status")} = 'cancelled', ${e("cancelledAt")} = now(), ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;${emit("enrollment.cancelled", "v_row", "null::text", "null::text")}
   end if;
+  ${ctx.hook("after_enrollment_cancel", [["uuid", "cancel_enrollment.enrollment_id"]])}
   return ${fn("enrollment_json")}(v_row.${e("id")});
 end;
 $$;
 ${userGrant(`${fn("cancel_enrollment")}(uuid)`)}
+
+-- Pauses an active enrollment; one that already is paused is returned as it is.
+-- Programs a module drives and enrollments that ended can't be changed here.
+create or replace function ${fn("pause_enrollment")}(enrollment_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = pause_enrollment.enrollment_id for update;
+  if v_row.${e("id")} is null or not (${allowed(`v_row.${e("tenant")}`, read)} or ${self("v_row")}) then
+    ${enrollmentMissing}
+  end if;
+  if not (${allowed(`v_row.${e("tenant")}`, enroll)} or ${self("v_row")}) then
+    ${forbidden("not allowed to change this enrollment")}
+  end if;
+  if position(':' in v_row.${e("program")}) > 0 then
+    ${invalid("this enrollment belongs to a module and can't be changed here")}
+  end if;
+  if v_row.${e("status")} <> 'active' then
+    ${invalid("only an active enrollment can be paused")}
+  end if;${
+    hasPause
+      ? `
+  if (v_row.${e("pausedAt")} is not null) is distinct from false then
+    return ${fn("enrollment_json")}(v_row.${e("id")});
+  end if;
+  update ${enrollments} x
+  set ${e("pausedAt")} = now(), ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;${emit("enrollment.paused", "v_row", "null::text", "null::text")}`
+      : `
+  ${invalid("this enrollments table has no paused_at column")}`
+  }
+  return ${fn("enrollment_json")}(v_row.${e("id")});
+end;
+$$;
+${userGrant(`${fn("pause_enrollment")}(uuid)`)}
+
+-- Resumes an active enrollment; one that already is running is returned as it is.
+-- Programs a module drives and enrollments that ended can't be changed here.
+create or replace function ${fn("resume_enrollment")}(enrollment_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = resume_enrollment.enrollment_id for update;
+  if v_row.${e("id")} is null or not (${allowed(`v_row.${e("tenant")}`, read)} or ${self("v_row")}) then
+    ${enrollmentMissing}
+  end if;
+  if not (${allowed(`v_row.${e("tenant")}`, enroll)} or ${self("v_row")}) then
+    ${forbidden("not allowed to change this enrollment")}
+  end if;
+  if position(':' in v_row.${e("program")}) > 0 then
+    ${invalid("this enrollment belongs to a module and can't be changed here")}
+  end if;
+  if v_row.${e("status")} <> 'active' then
+    ${invalid("only an active enrollment can be resumed")}
+  end if;${
+    hasPause
+      ? `
+  if (v_row.${e("pausedAt")} is not null) is distinct from true then
+    return ${fn("enrollment_json")}(v_row.${e("id")});
+  end if;
+  update ${enrollments} x
+  set ${e("pausedAt")} = null, ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;${emit("enrollment.resumed", "v_row", "null::text", "null::text")}`
+      : `
+  ${invalid("this enrollments table has no paused_at column")}`
+  }
+  return ${fn("enrollment_json")}(v_row.${e("id")});
+end;
+$$;
+${userGrant(`${fn("resume_enrollment")}(uuid)`)}
 ${scheduleFunctions(ctx)}`;
 }

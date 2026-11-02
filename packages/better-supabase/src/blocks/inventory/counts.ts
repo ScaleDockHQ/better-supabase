@@ -43,16 +43,16 @@ export interface PostedCount {
 
 export interface InventoryCounts {
   /** Snapshots the expected stock of a location into a count document. */
-  openStockCount(
-    organizationId: string,
-    locationId: string,
-    input?: OpenCountInput,
-  ): AsyncResult<OpenedCount>;
+  openStockCount(input: {
+    organizationId: string;
+    locationId: string;
+    input?: OpenCountInput | undefined;
+  }): AsyncResult<OpenedCount>;
   /** Records a counted quantity; it replaces an earlier line for the position. */
-  recordCountLine(
-    countId: string,
-    input: CountLineInput,
-  ): AsyncResult<CountLine>;
+  recordCountLine(input: {
+    countId: string;
+    input: CountLineInput;
+  }): AsyncResult<CountLine>;
   /**
    * Writes one `count` movement per line with a variance, through the stock and
    * ledger path. Posting twice writes nothing the second time.
@@ -64,7 +64,7 @@ export interface InventoryCounts {
 /** The stock count calls of the inventory client. */
 export function inventoryCounts(call: BlockCall): InventoryCounts {
   return {
-    openStockCount: (organizationId, locationId, input = {}) =>
+    openStockCount: ({ organizationId, locationId, input = {} }) =>
       call(
         "open_stock_count",
         {
@@ -78,7 +78,7 @@ export function inventoryCounts(call: BlockCall): InventoryCounts {
           return { id: textOf(row["id"]), lines: Number(row["lines"]) };
         },
       ),
-    recordCountLine: (countId, input) =>
+    recordCountLine: ({ countId, input }) =>
       call(
         "record_count_line",
         {

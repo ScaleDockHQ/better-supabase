@@ -52,7 +52,7 @@ describe.skipIf(!live)("leases", () => {
       await s.as(owner);
 
       const company = await createContacts({ transport })
-        .saveCompany(tenant, { name: "Acme" })
+        .saveCompany({ organizationId: tenant, input: { name: "Acme" } })
         .orThrow();
 
       const unit = await s.value<{ id: string }>(
@@ -94,7 +94,7 @@ describe.skipIf(!live)("leases", () => {
         await leases.postDueRent({ through: day("2026-03-15") }).orThrow(),
       ).toBe(0);
 
-      const charges = await leases.charges(draft.id).orThrow();
+      const charges = await leases.charges({ leaseId: draft.id }).orThrow();
 
       expect(charges.map((charge) => charge.periodStart.toString())).toEqual([
         "2026-03-01",
@@ -103,9 +103,9 @@ describe.skipIf(!live)("leases", () => {
       ]);
 
       const paid = await leases
-        .recordPayment(draft.id, {
-          amount: money(150_000n, "EUR"),
-          reference: "bank-1",
+        .recordPayment({
+          leaseId: draft.id,
+          payment: { amount: money(150_000n, "EUR"), reference: "bank-1" },
         })
         .orThrow();
 
@@ -113,9 +113,9 @@ describe.skipIf(!live)("leases", () => {
       expect(
         (
           await leases
-            .recordPayment(draft.id, {
-              amount: money(150_000n, "EUR"),
-              reference: "bank-1",
+            .recordPayment({
+              leaseId: draft.id,
+              payment: { amount: money(150_000n, "EUR"), reference: "bank-1" },
             })
             .orThrow()
         ).balanceDue,
@@ -129,10 +129,13 @@ describe.skipIf(!live)("leases", () => {
       await s.as(owner);
 
       const ended = await leases
-        .terminate(draft.id, {
-          on: day("2026-04-01"),
-          reason: "Moved out",
-          depositDeduction: money(50_000n, "EUR"),
+        .terminate({
+          leaseId: draft.id,
+          termination: {
+            on: day("2026-04-01"),
+            reason: "Moved out",
+            depositDeduction: money(50_000n, "EUR"),
+          },
         })
         .orThrow();
 

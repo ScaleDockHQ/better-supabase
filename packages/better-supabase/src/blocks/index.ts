@@ -26,6 +26,13 @@ export type { BlockHint, BlockHints } from "./block-hints.ts";
 export { BLOCK_CATEGORIES, defineBlock } from "./define-block.ts";
 
 export {
+  compositeReadSet,
+  defineCompositeReadSet,
+  type CompositeReadEntry,
+  type CompositeReadSet,
+} from "./composite-reads.ts";
+
+export {
   blockOptions,
   NO_OPTIONS,
   option,
@@ -106,7 +113,11 @@ export type {
   BlockOptionSchemas,
   BlockProvides,
   ClientOf,
+  ComposedParts,
+  CompositeOptions,
   ConsumedPorts,
+  PartClients,
+  PartDefaults,
   ProvidedPorts,
   UsingOptions,
 } from "./define-block.ts";
@@ -187,3 +198,7 @@ export type {
   FieldsOf,
   WithExtraFields,
 } from "../core/block-fields.ts";
+
+export { blockRead } from "../core/block-reads.ts";
+
+export type { BlockRead } from "../core/block-reads.ts";

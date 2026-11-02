@@ -105,6 +105,7 @@ describe("leave module", () => {
     const [contract] = customContracts(["leave"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual([
       "request_leave",
+      "leave_working_days",
       "cancel_leave_request",
       "update_leave_request",
       "split_leave_request",

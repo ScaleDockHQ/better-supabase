@@ -91,14 +91,22 @@ describe.skipIf(!live)("service levels and targets", () => {
 
       // Friday 16:00 in Amsterdam plus two working hours is Monday 10:00.
       const due = await sla
-        .dueAt(Temporal.Instant.from("2026-10-16T14:00:00Z"), 120, true)
+        .dueAt({
+          start: Temporal.Instant.from("2026-10-16T14:00:00Z"),
+          minutes: 120,
+          businessHours: true,
+        })
         .orThrow();
 
       expect(due.toString()).toBe("2026-10-19T08:00:00Z");
       expect(
         (
           await sla
-            .dueAt(Temporal.Instant.from("2026-10-16T14:00:00Z"), 120, false)
+            .dueAt({
+              start: Temporal.Instant.from("2026-10-16T14:00:00Z"),
+              minutes: 120,
+              businessHours: false,
+            })
             .orThrow()
         ).toString(),
       ).toBe("2026-10-16T16:00:00Z");
@@ -162,7 +170,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         0,
       );
 
-      clocks = await sla.record(subject, "responded").orThrow();
+      clocks = await sla.record({ subject, event: "responded" }).orThrow();
       expect(
         clocks.find((clock) => clock.metric === "first_response")?.state,
       ).toBe("met");
@@ -245,39 +253,46 @@ describe.skipIf(!live)("service levels and targets", () => {
 
       await s.as(owner);
       await targets
-        .upsert(org, {
-          name: "Rep quota",
-          metric: "deals.won_amount",
-          ownerId: rep.id,
-          currency: "EUR",
-          goal: 1_000_000n,
-          ...quarter,
+        .upsert({
+          organizationId: org,
+          target: {
+            name: "Rep quota",
+            metric: "deals.won_amount",
+            ownerId: rep.id,
+            currency: "EUR",
+            goal: 1_000_000n,
+            ...quarter,
+          },
         })
         .orThrow();
       await targets
-        .upsert(org, {
-          name: "Team wins",
-          metric: "deals.won_count",
-          goal: 4n,
-          ...quarter,
+        .upsert({
+          organizationId: org,
+          target: {
+            name: "Team wins",
+            metric: "deals.won_count",
+            goal: 4n,
+            ...quarter,
+          },
         })
         .orThrow();
       await targets
-        .upsert(org, {
-          name: "NPS responses",
-          metric: "surveys.responses",
-          goal: 50n,
-          actual: 20n,
-          ...quarter,
+        .upsert({
+          organizationId: org,
+          target: {
+            name: "NPS responses",
+            metric: "surveys.responses",
+            goal: 50n,
+            actual: 20n,
+            ...quarter,
+          },
         })
         .orThrow();
       expect(
         hint(
-          await targets.upsert(org, {
-            name: "Bad",
-            metric: "x",
-            goal: 0n,
-            ...quarter,
+          await targets.upsert({
+            organizationId: org,
+            target: { name: "Bad", metric: "x", goal: 0n, ...quarter },
           }),
         ),
       ).toBe("GOAL_INVALID");
@@ -285,23 +300,32 @@ describe.skipIf(!live)("service levels and targets", () => {
       await s.as(rep);
 
       const deal = await deals
-        .create(org, {
-          name: "Win",
-          closeOn: today,
-          amount: money(600_000n, "EUR"),
+        .create({
+          organizationId: org,
+          input: {
+            name: "Win",
+            closeOn: today,
+            amount: money(600_000n, "EUR"),
+          },
         })
         .orThrow();
 
-      await deals.win(deal.id).orThrow();
+      await deals.win({ dealId: deal.id }).orThrow();
       await deals
-        .create(org, {
-          name: "Open",
-          closeOn: today,
-          amount: money(900_000n, "EUR"),
+        .create({
+          organizationId: org,
+          input: {
+            name: "Open",
+            closeOn: today,
+            amount: money(900_000n, "EUR"),
+          },
         })
         .orThrow();
 
-      const progress = await targets.progress(org).orThrow();
+      const progress = await targets
+        .progress({ organizationId: org })
+        .orThrow();
+
       expect(
         progress.map((target) => [
           target.name,
@@ -314,20 +338,22 @@ describe.skipIf(!live)("service levels and targets", () => {
         ["Team wins", 1n, 0.25],
       ]);
       expect(
-        (await targets.progress(org, { ownerId: rep.id }).orThrow()).map(
-          (target) => target.name,
-        ),
+        (
+          await targets
+            .progress({ organizationId: org, ownerId: rep.id })
+            .orThrow()
+        ).map((target) => target.name),
       ).toEqual(["Rep quota"]);
       expect(
-        await targets.progress(org, { on: today.add({ days: 365 }) }).orThrow(),
+        await targets
+          .progress({ organizationId: org, on: today.add({ days: 365 }) })
+          .orThrow(),
       ).toEqual([]);
       expect(
         hint(
-          await targets.upsert(org, {
-            name: "Mine",
-            metric: "x",
-            goal: 1n,
-            ...quarter,
+          await targets.upsert({
+            organizationId: org,
+            target: { name: "Mine", metric: "x", goal: 1n, ...quarter },
           }),
         ),
       ).toBe("GOAL_FORBIDDEN");

@@ -89,23 +89,31 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     });
 
     const { id } = await admin
-      .savePromotion(tenant, {
-        name: "Ten off",
-        discount: { kind: "fixed", amount: money(1000, "EUR") },
-        minSubtotal: money(3000, "EUR"),
-        startsAt: Temporal.Now.instant().subtract({ hours: 1 }),
-        endsAt: Temporal.Now.instant().add({ hours: 24 }),
-        usageLimit: 10,
+      .savePromotion({
+        organizationId: tenant,
+        input: {
+          name: "Ten off",
+          discount: { kind: "fixed", amount: money(1000, "EUR") },
+          minSubtotal: money(3000, "EUR"),
+          startsAt: Temporal.Now.instant().subtract({ hours: 1 }),
+          endsAt: Temporal.Now.instant().add({ hours: 24 }),
+          usageLimit: 10,
+        },
       })
       .orThrow();
 
     const codes = await admin
-      .createCodes(id, { count: 2, prefix: "TEN-", usageLimit: 1 })
+      .createCodes({
+        promotionId: id,
+        input: { count: 2, prefix: "TEN-", usageLimit: 1 },
+      })
       .orThrow();
 
     expect(codes).toHaveLength(2);
     expect(
-      await admin.createCodes(id, { codes: ["welcome10"] }).orThrow(),
+      await admin
+        .createCodes({ promotionId: id, input: { codes: ["welcome10"] } })
+        .orThrow(),
     ).toMatchObject([{ code: "WELCOME10" }]);
 
     const asShopper = transport(() => session.as(shopper));
@@ -113,11 +121,18 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     const shop = createPromotions({ transport: asShopper });
 
     const cart = await orders
-      .createCart(tenant, { currency: "EUR", email: shopper.email })
+      .createCart({
+        organizationId: tenant,
+        input: { currency: "EUR", email: shopper.email },
+      })
       .orThrow();
 
-    await orders.setCartLine(cart.id, tee, 2).orThrow();
-    expect(await shop.applyCode(cart.id, " welcome10 ").orThrow()).toEqual({
+    await orders
+      .setCartLine({ cartId: cart.id, variantId: tee, quantity: 2 })
+      .orThrow();
+    expect(
+      await shop.applyCode({ cartId: cart.id, code: " welcome10 " }).orThrow(),
+    ).toEqual({
       codeId: expect.any(String),
       code: "WELCOME10",
       promotionId: id,
@@ -135,7 +150,9 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
       },
     ]);
 
-    await orders.setCartLine(cart.id, tee, 1).orThrow();
+    await orders
+      .setCartLine({ cartId: cart.id, variantId: tee, quantity: 1 })
+      .orThrow();
     expect((await orders.priceCart(cart.id).orThrow()).problems).toEqual([
       {
         problem: "promotion_unavailable",
@@ -144,10 +161,11 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
         reason: "min_subtotal",
       },
     ]);
-    expect(await shop.removeCode(cart.id, "WELCOME10").orThrow()).toBe(true);
-    expect(await shop.applyCode(cart.id, "NOPE")).toMatchObject({
-      ok: false,
-      error: { hint: "PROMOTIONS_CODE_INVALID" },
-    });
+    expect(
+      await shop.removeCode({ cartId: cart.id, code: "WELCOME10" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await shop.applyCode({ cartId: cart.id, code: "NOPE" }),
+    ).toMatchObject({ ok: false, error: { hint: "PROMOTIONS_CODE_INVALID" } });
   });
 });

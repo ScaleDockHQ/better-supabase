@@ -103,16 +103,18 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
         const deals = createDeals({ transport: sqlTransport(s.sql) });
 
         const deal = await deals
-          .create(
-            org,
-            {
+          .create({
+            organizationId: org,
+            input: {
               name: "Maintenance contract",
               closeOn: Temporal.PlainDate.from("2026-12-31"),
               amount: money(1_250_000n, "EUR"),
               company: { type: "customer", id: customer },
             },
-            [{ type: "customer_contact", id: contact, primary: true }],
-          )
+            contacts: [
+              { type: "customer_contact", id: contact, primary: true },
+            ],
+          })
           .orThrow();
 
         expect(deal).toMatchObject({
@@ -121,16 +123,19 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
           contacts: [{ type: "customer_contact", id: contact, primary: true }],
         });
 
-        const missing = await deals.create(org, {
-          name: "Ghost",
-          closeOn: Temporal.PlainDate.from("2026-12-31"),
-          company: { type: "customer", id: "999999" },
+        const missing = await deals.create({
+          organizationId: org,
+          input: {
+            name: "Ghost",
+            closeOn: Temporal.PlainDate.from("2026-12-31"),
+            company: { type: "customer", id: "999999" },
+          },
         });
 
         expect(missing.ok ? "ok" : missing.error.hint).toBe(
           "DEAL_COMPANY_FORBIDDEN",
         );
-        const won = await deals.win(deal.id).orThrow();
+        const won = await deals.win({ dealId: deal.id }).orThrow();
         expect(won.outcome).toBe("won");
       },
       EXTRA,
@@ -154,7 +159,7 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
         const items = createTasks({ transport: sqlTransport(s.sql) });
 
         const task = await items
-          .create(org, { title: "Replace boiler" })
+          .create({ organizationId: org, input: { title: "Replace boiler" } })
           .orThrow();
 
         expect(task.identifier).toBe("TASK-1");
@@ -162,7 +167,11 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
           "update better_supabase.tasks set customer_id = $1 where id = $2",
           [customer, task.id],
         );
-        const [read] = await items.list(org, { search: "boiler" }).orThrow();
+
+        const [read] = await items
+          .list({ organizationId: org, search: "boiler" })
+          .orThrow();
+
         expect(read?.fields).toEqual({ customer_id: Number(customer) });
         expect(read?.state).toBe("triage");
       },

@@ -29,7 +29,10 @@ describe("flags fields", () => {
     const flags = createFlags({ transport: t, fields: v.partial(Fields) });
 
     const saved = await flags
-      .upsert("beta", { enabled: true, fields: { owner: "ana@acme.test" } })
+      .upsert({
+        key: "beta",
+        input: { enabled: true, fields: { owner: "ana@acme.test" } },
+      })
       .orThrow();
 
     expect(saved?.fields.owner).toBe("ana@acme.test");
@@ -47,10 +50,10 @@ describe("flags fields", () => {
   it("refuses a bad field before the call", async () => {
     const t = fieldsTransport({ save_flag: () => FLAG });
 
-    const saved = await createFlags({ transport: t, fields: Fields }).upsert(
-      "beta",
-      { fields: { owner: "not an email" } },
-    );
+    const saved = await createFlags({ transport: t, fields: Fields }).upsert({
+      key: "beta",
+      input: { fields: { owner: "not an email" } },
+    });
 
     expect(saved.ok ? undefined : saved.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);

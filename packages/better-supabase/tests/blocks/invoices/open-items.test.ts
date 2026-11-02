@@ -61,7 +61,8 @@ describe("invoices open items", () => {
     });
 
     const items = await createInvoices({ transport: t })
-      .openItems("o", {
+      .openItems({
+        organizationId: "o",
         partyId: "c1",
         side: "supplier",
         asOf: Temporal.PlainDate.from("2026-10-05"),
@@ -101,7 +102,7 @@ describe("invoices open items", () => {
     });
 
     const [row] = await createInvoices({ transport: t })
-      .openItemAgeing("o")
+      .openItemAgeing({ organizationId: "o" })
       .orThrow();
 
     expect(row?.days1To30).toEqual(eur(200n));
@@ -132,15 +133,18 @@ describe("invoices open items", () => {
     });
 
     const result = await createInvoices({ transport: t })
-      .allocatePayment("o", {
-        partyId: "c1",
-        amount: eur(9800n),
-        allocations: [
-          { invoiceId: "i1", amount: eur(9800n) },
-          { invoiceId: "i2", amount: eur(0n), takeDiscount: false },
-        ],
-        receivedOn: Temporal.PlainDate.from("2026-10-10"),
-        reference: "bank-1",
+      .allocatePayment({
+        organizationId: "o",
+        payment: {
+          partyId: "c1",
+          amount: eur(9800n),
+          allocations: [
+            { invoiceId: "i1", amount: eur(9800n) },
+            { invoiceId: "i2", amount: eur(0n), takeDiscount: false },
+          ],
+          receivedOn: Temporal.PlainDate.from("2026-10-10"),
+          reference: "bank-1",
+        },
       })
       .orThrow();
 
@@ -184,10 +188,14 @@ describe("invoices open items", () => {
 
     const invoices = createInvoices({ transport: t });
 
-    expect(await invoices.unallocatePayment("o", "bank-1").orThrow()).toBe(2);
+    expect(
+      await invoices
+        .unallocatePayment({ organizationId: "o", reference: "bank-1" })
+        .orThrow(),
+    ).toBe(2);
 
     const [row] = await invoices
-      .allocations("o", { reference: "bank-1" })
+      .allocations({ organizationId: "o", reference: "bank-1" })
       .orThrow();
 
     expect(row?.source).toBe("credit");
@@ -213,14 +221,14 @@ describe("invoices open items", () => {
     const invoices = createInvoices({ transport: t });
 
     const levels = await invoices
-      .setApprovalLevels(
-        "o",
-        [
+      .setApprovalLevels({
+        organizationId: "o",
+        levels: [
           { minAmount: 0n, approverId: "u1" },
           { minAmount: 100_000n, currency: "EUR", approverId: "u2" },
         ],
-        { legalEntityId: "le1" },
-      )
+        legalEntityId: "le1",
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -266,9 +274,9 @@ describe("invoices open items", () => {
     const invoices = createInvoices({ transport: t });
 
     expect(await invoices.approvalLevels("o").orThrow()).toHaveLength(1);
-    await invoices.approvePurchaseInvoice("i1");
+    await invoices.approvePurchaseInvoice({ invoiceId: "i1" });
     expect(t.calls.at(-1)?.[1]).toEqual({ invoice: "i1", comment: null });
-    expect((await invoices.openItems("o")).ok).toBe(false);
+    expect((await invoices.openItems({ organizationId: "o" })).ok).toBe(false);
   });
 
   it("passes every optional argument and tolerates sparse rows", async () => {
@@ -305,20 +313,31 @@ describe("invoices open items", () => {
     const invoices = createInvoices({ transport: t });
     const actor = { id: "u1", name: "Ada" };
 
-    await invoices.allocatePayment("o", {
-      partyId: "c1",
-      amount: eur(0n),
+    await invoices.allocatePayment({
+      organizationId: "o",
+      payment: {
+        partyId: "c1",
+        amount: eur(0n),
+        reference: "r",
+        allocations: [],
+        receivedOn: Temporal.PlainDate.from("2026-10-10"),
+        actor,
+      },
+    });
+    await invoices.unallocatePayment({
+      organizationId: "o",
       reference: "r",
-      allocations: [],
-      receivedOn: Temporal.PlainDate.from("2026-10-10"),
       actor,
     });
-    await invoices.unallocatePayment("o", "r", { actor });
-    await invoices.allocations("o", { reference: "r" });
-    await invoices.setApprovalLevels("o", [], { legalEntityId: "le1" });
+    await invoices.allocations({ organizationId: "o", reference: "r" });
+    await invoices.setApprovalLevels({
+      organizationId: "o",
+      levels: [],
+      legalEntityId: "le1",
+    });
 
     const status = await invoices.approvalStatus("i1").orThrow();
-    const [item] = await invoices.openItems("o").orThrow();
+    const [item] = await invoices.openItems({ organizationId: "o" }).orThrow();
 
     expect(status).toEqual({
       status: "not_required",
@@ -364,8 +383,16 @@ describe("invoices open items", () => {
     });
 
     const invoices = createInvoices({ transport: t });
-    const repair = await invoices.recomputeTotals("o").orThrow();
-    await invoices.recomputeTotals("o", { invoiceIds: ["i1"], dryRun: false });
+
+    const repair = await invoices
+      .recomputeTotals({ organizationId: "o" })
+      .orThrow();
+
+    await invoices.recomputeTotals({
+      organizationId: "o",
+      invoiceIds: ["i1"],
+      dryRun: false,
+    });
 
     expect(repair.dryRun).toBe(true);
     expect(repair.applied).toBe(0);
@@ -398,12 +425,15 @@ describe("allocatePayment answers without a credited total", () => {
     });
 
     const result = await createInvoices({ transport: t })
-      .allocatePayment("o", {
-        partyId: "c1",
-        amount: eur(100n),
-        allocations: [{ invoiceId: "i1", amount: eur(100n) }],
-        receivedOn: Temporal.PlainDate.from("2026-10-10"),
-        reference: "bank-2",
+      .allocatePayment({
+        organizationId: "o",
+        payment: {
+          partyId: "c1",
+          amount: eur(100n),
+          allocations: [{ invoiceId: "i1", amount: eur(100n) }],
+          receivedOn: Temporal.PlainDate.from("2026-10-10"),
+          reference: "bank-2",
+        },
       })
       .orThrow();
 
@@ -460,15 +490,24 @@ describe("optional arguments left out", () => {
 
     const invoices = createInvoices({ transport: t });
 
-    await invoices.allocations("o").orThrow();
-    await invoices.setApprovalLevels("o", []).orThrow();
-    const repair = await invoices.recomputeTotals("o").orThrow();
+    await invoices.allocations({ organizationId: "o" }).orThrow();
     await invoices
-      .allocatePayment("o", {
-        partyId: "c1",
-        amount: eur(0n),
-        allocations: [],
-        reference: "r",
+      .setApprovalLevels({ organizationId: "o", levels: [] })
+      .orThrow();
+
+    const repair = await invoices
+      .recomputeTotals({ organizationId: "o" })
+      .orThrow();
+
+    await invoices
+      .allocatePayment({
+        organizationId: "o",
+        payment: {
+          partyId: "c1",
+          amount: eur(0n),
+          allocations: [],
+          reference: "r",
+        },
       })
       .orThrow();
 

@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -12,11 +13,13 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { sessionsBlock } from "better-supabase/blocks/sessions";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -25,6 +28,7 @@ import { blockConfig } from "./enterprise.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   accessRequests: accessRequestsBlock,
   apiKeys: apiKeysBlock,
@@ -34,11 +38,13 @@ export const blockSet = defineBlocks(blockConfig, {
   dataLifecycle: dataLifecycleBlock,
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
   profiles: profilesBlock,
+  sessions: sessionsBlock,
   settings: settingsBlock,
   sso: ssoBlock,
   teams: teamsBlock,

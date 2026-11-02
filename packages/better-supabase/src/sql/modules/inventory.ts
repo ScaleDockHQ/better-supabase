@@ -46,6 +46,7 @@ import {
   purchaseOrderFunctions,
   transferFunctions,
 } from "./inventory-purchasing.ts";
+import { INVENTORY_READS, inventoryReads } from "./inventory-reads.ts";
 import {
   columns,
   locationFunctions,
@@ -174,6 +175,7 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  reads: INVENTORY_READS,
   entities: {
     inventory_location: {
       table: "locations",
@@ -581,7 +583,7 @@ function build(ctx: BlockSqlContext): string {
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers, purchase requisitions and purchase orders with
 -- receiving into goods receipts.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -592,6 +594,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     ...addressContract(ctx),
+    {
+      name: "inventory_overview",
+      args: ["{id}", "integer", "integer"],
+      returns: "jsonb",
+    },
     {
       name: "save_location",
       args: ["{id}", "uuid", "text", "text", "text", "jsonb"],

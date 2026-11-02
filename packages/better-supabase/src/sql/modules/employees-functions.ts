@@ -1,13 +1,13 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdFromLink } from "../links.ts";
 import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { hasValueEntry } from "../value-maps.ts";
 import { reportsMoveUp, splitName } from "./employees-options.ts";
 import { hiringCandidate } from "./hiring-adoption.ts";
 import { asText } from "./over-app.ts";
-import { createdFromLink } from "./quotes-functions.ts";
 
 export interface EmployeeNames {
   readonly fn: (name: string) => string;

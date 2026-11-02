@@ -29,18 +29,26 @@ describe("state machine block", () => {
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
     expect(
       await machine
-        .pause({ type: "quote", id: "q1" }, { until, reason: "waiting" })
+        .pause({
+          subject: { type: "quote", id: "q1" },
+          until,
+          reason: "waiting",
+        })
         .orThrow(),
     ).toBe(true);
-    expect(await machine.pause({ type: "quote", id: "q2" }).orThrow()).toBe(
-      true,
-    );
+    expect(
+      await machine.pause({ subject: { type: "quote", id: "q2" } }).orThrow(),
+    ).toBe(true);
     expect(await machine.resume({ type: "quote", id: "q1" }).orThrow()).toBe(
       false,
     );
     expect(
       await machine
-        .setFlag({ type: "quote", id: "q1" }, "urgent", true)
+        .setFlag({
+          subject: { type: "quote", id: "q1" },
+          flag: "urgent",
+          enabled: true,
+        })
         .orThrow(),
     ).toBe(true);
     expect(calls).toEqual([
@@ -168,10 +176,13 @@ describe("state machine block", () => {
     const machine = createStateMachine({ transport });
 
     const history = await machine
-      .history(
-        { type: "quote", id: "q1" },
-        { cursor: Temporal.Instant.from("2026-10-03T00:00:00Z"), limit: 10 },
-      )
+      .history({
+        subject: { type: "quote", id: "q1" },
+        page: {
+          cursor: Temporal.Instant.from("2026-10-03T00:00:00Z"),
+          limit: 10,
+        },
+      })
       .orThrow();
 
     expect(history).toHaveLength(1);
@@ -221,14 +232,18 @@ describe("state machine block", () => {
 
     expect(
       await machine
-        .transition({ type: "quote", id: "q1" }, "accepted", {
+        .transition({
+          subject: { type: "quote", id: "q1" },
+          to: "accepted",
           reason: "signed",
           actor,
         })
         .orThrow(),
     ).toBe(true);
     expect(
-      await machine.transition({ type: "quote", id: "q2" }, "sent").orThrow(),
+      await machine
+        .transition({ subject: { type: "quote", id: "q2" }, to: "sent" })
+        .orThrow(),
     ).toBe(true);
     expect(calls.map((call) => call.args)).toEqual([
       {
@@ -248,7 +263,7 @@ describe("state machine block", () => {
     ]);
 
     const [change] = await machine
-      .history({ type: "quote", id: "q1" })
+      .history({ subject: { type: "quote", id: "q1" } })
       .orThrow();
 
     expect(change).toMatchObject({

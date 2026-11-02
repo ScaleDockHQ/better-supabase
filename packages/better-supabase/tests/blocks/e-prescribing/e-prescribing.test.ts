@@ -107,7 +107,7 @@ describe("createEPrescribing", () => {
     });
 
     const created = await client
-      .create("o1", { prescriberName: "Dr. Jansen" })
+      .create({ orderId: "o1", prescriberName: "Dr. Jansen" })
       .orThrow();
 
     const signed = await client.sign("p1").orThrow();
@@ -122,7 +122,7 @@ describe("createEPrescribing", () => {
       .orThrow();
 
     const dispensed = await client
-      .dispense("p1", { at: Temporal.Instant.from(AT) })
+      .dispense({ prescriptionId: "p1", at: Temporal.Instant.from(AT) })
       .orThrow();
 
     expect(created.subject).toEqual({ type: "client", id: "c1" });
@@ -161,7 +161,7 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    const sent = await client.send("p1").orThrow();
+    const sent = await client.send({ prescriptionId: "p1" }).orThrow();
 
     expect(sent.status).toBe("sent");
     expect(seen[0]).toBe("MedicationRequest");
@@ -191,7 +191,9 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    await client.send("p1", { signal: controller.signal }).orThrow();
+    await client
+      .send({ prescriptionId: "p1", signal: controller.signal })
+      .orThrow();
 
     expect(signal).toBe(controller.signal);
     expect(
@@ -214,7 +216,7 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    const result = await client.send("p1");
+    const result = await client.send({ prescriptionId: "p1" });
 
     expect(result.error).toMatchObject({
       hint: "PRESCRIPTION_DELIVERY_FAILED",
@@ -243,7 +245,7 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    const result = await client.send("p1");
+    const result = await client.send({ prescriptionId: "p1" });
 
     expect(result.ok).toBe(false);
     expect(result.error?.hint).not.toBe("PRESCRIPTION_DELIVERY_FAILED");
@@ -257,10 +259,12 @@ describe("createEPrescribing", () => {
           : DRAFT,
     });
 
-    expect((await client.send("p1")).error?.hint).toBe(
+    expect((await client.send({ prescriptionId: "p1" })).error?.hint).toBe(
       "PRESCRIPTION_GATEWAY_MISSING",
     );
-    expect((await client.send("p2")).error?.hint).toBe("PRESCRIPTION_STATUS");
+    expect((await client.send({ prescriptionId: "p2" })).error?.hint).toBe(
+      "PRESCRIPTION_STATUS",
+    );
     expect((await client.medicationRequest("p2")).error?.hint).toBe(
       "PRESCRIPTION_STATUS",
     );
@@ -283,7 +287,7 @@ describe("createEPrescribing", () => {
     );
 
     const cancelled = await client
-      .cancel("p1", { reason: "wrong dose" })
+      .cancel({ prescriptionId: "p1", reason: "wrong dose" })
       .orThrow();
 
     expect(cancelled.status).toBe("cancelled");
@@ -302,7 +306,10 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    const result = await client.cancel("p1", { signal: controller.signal });
+    const result = await client.cancel({
+      prescriptionId: "p1",
+      signal: controller.signal,
+    });
 
     expect(result.error?.hint).toBe("PRESCRIPTION_CANCEL_FAILED");
     expect(transport.calls.some(([fn]) => fn === "cancel_prescription")).toBe(
@@ -325,7 +332,7 @@ describe("createEPrescribing", () => {
       }),
     );
 
-    await client.cancel("p1").orThrow();
+    await client.cancel({ prescriptionId: "p1" }).orThrow();
     expect(called).toBe(false);
   });
 
@@ -340,7 +347,7 @@ describe("createEPrescribing", () => {
   it("needs a tenant to create and list", async () => {
     const client = createEPrescribing({ transport: fieldsTransport({}) });
 
-    expect((await client.create("o1")).ok).toBe(false);
+    expect((await client.create({ orderId: "o1" })).ok).toBe(false);
     expect((await client.list()).ok).toBe(false);
   });
 

@@ -80,10 +80,9 @@ describe.skipIf(!live)("attachments", () => {
 
       await s.asRole(viewer);
 
-      const denied = await attachments.upload(null, {
-        name: "plan.pdf",
-        mimeType: "application/pdf",
-        size: 10,
+      const denied = await attachments.upload({
+        subject: null,
+        attachment: { name: "plan.pdf", mimeType: "application/pdf", size: 10 },
       });
 
       expect(denied.ok).toBe(false);
@@ -91,10 +90,14 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(member);
 
       const upload = await attachments
-        .upload(
-          { type: "project", id: "p-1" },
-          { name: "plan.pdf", mimeType: "application/pdf", size: 10 },
-        )
+        .upload({
+          subject: { type: "project", id: "p-1" },
+          attachment: {
+            name: "plan.pdf",
+            mimeType: "application/pdf",
+            size: 10,
+          },
+        })
         .orThrow();
 
       const { attachment } = upload;
@@ -162,7 +165,7 @@ describe.skipIf(!live)("attachments", () => {
       expect(await visible()).toBe(1);
       await s.asRole(reader);
       expect(await visible()).toBe(0);
-      const notScanned = await attachments.download(attachment.id);
+      const notScanned = await attachments.download({ id: attachment.id });
       expect(notScanned.ok ? undefined : notScanned.error.hint).toBe(
         "ATTACHMENT_NOT_SCANNED",
       );
@@ -192,14 +195,20 @@ describe.skipIf(!live)("attachments", () => {
         }),
       });
 
-      const scanned = await scanner.scan(attachment.id).orThrow();
+      const scanned = await scanner.scan({ id: attachment.id }).orThrow();
       expect(scanned).toMatchObject({ status: "clean", scanDetail: "eicar" });
       expect(scanned.scannedAt).toBeDefined();
-      expect(await scanner.scan(attachment.id).orThrow()).toEqual(scanned);
+      expect(await scanner.scan({ id: attachment.id }).orThrow()).toEqual(
+        scanned,
+      );
 
       await s.asRole(reader);
       expect(await visible()).toBe(1);
-      const download = await attachments.download(attachment.id).orThrow();
+
+      const download = await attachments
+        .download({ id: attachment.id })
+        .orThrow();
+
       expect(download.signedUrl).toContain(attachment.path);
       expect(
         (await attachments.list({ type: "project", id: "p-1" }).orThrow()).map(
@@ -242,11 +251,14 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(member);
 
       const { attachment } = await attachments
-        .upload(null, {
-          name: "a.txt",
-          mimeType: "text/plain",
-          size: 3,
-          metadata: { source: "camera", pages: 2 },
+        .upload({
+          subject: null,
+          attachment: {
+            name: "a.txt",
+            mimeType: "text/plain",
+            size: 3,
+            metadata: { source: "camera", pages: 2 },
+          },
         })
         .orThrow();
 
@@ -260,11 +272,14 @@ describe.skipIf(!live)("attachments", () => {
         size: 3,
         mimeType: "text/plain",
       });
-      expect((await attachments.download(attachment.id)).ok).toBe(true);
+      expect((await attachments.download({ id: attachment.id })).ok).toBe(true);
 
       const second = (
         await attachments
-          .upload(null, { name: "b.txt", mimeType: "text/plain", size: 3 })
+          .upload({
+            subject: null,
+            attachment: { name: "b.txt", mimeType: "text/plain", size: 3 },
+          })
           .orThrow()
       ).attachment;
 
@@ -290,7 +305,7 @@ describe.skipIf(!live)("attachments", () => {
         },
       });
 
-      const failed = await failing.scan(second.id);
+      const failed = await failing.scan({ id: second.id });
       expect(failed.ok ? undefined : failed.error.hint).toBe(
         "ATTACHMENT_SCAN_FAILED",
       );
@@ -331,7 +346,7 @@ describe.skipIf(!live)("attachments", () => {
         },
       ]);
       await s.asRole(member);
-      const blocked = await attachments.download(second.id);
+      const blocked = await attachments.download({ id: second.id });
       expect(blocked.ok ? undefined : blocked.error.hint).toBe(
         "ATTACHMENT_NOT_SCANNED",
       );
@@ -389,10 +404,10 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(member);
 
       const { attachment } = await attachments
-        .upload(
-          { type: "case", id: entry!.id },
-          { name: "case.txt", mimeType: "text/plain", size: 3 },
-        )
+        .upload({
+          subject: { type: "case", id: entry!.id },
+          attachment: { name: "case.txt", mimeType: "text/plain", size: 3 },
+        })
         .orThrow();
 
       await s.rows(
@@ -465,10 +480,10 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(ada);
 
       const { attachment } = await attachments
-        .upload(
-          { type: "note", id: note!.id },
-          { name: "scan.txt", mimeType: "text/plain", size: 3 },
-        )
+        .upload({
+          subject: { type: "note", id: note!.id },
+          attachment: { name: "scan.txt", mimeType: "text/plain", size: 3 },
+        })
         .orThrow();
 
       expect(attachment.organizationId).toBeUndefined();
@@ -493,10 +508,10 @@ describe.skipIf(!live)("attachments", () => {
       ).toBe(0);
       expect(
         (
-          await attachments.upload(
-            { type: "note", id: note!.id },
-            { name: "x.txt", mimeType: "text/plain", size: 1 },
-          )
+          await attachments.upload({
+            subject: { type: "note", id: note!.id },
+            attachment: { name: "x.txt", mimeType: "text/plain", size: 1 },
+          })
         ).ok,
       ).toBe(false);
       await s.service();
@@ -566,10 +581,14 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(member);
 
       const upload = await attachments
-        .upload(
-          { type: "ticket", id: open!.id },
-          { name: "spec.pdf", mimeType: "application/pdf", size: 10 },
-        )
+        .upload({
+          subject: { type: "ticket", id: open!.id },
+          attachment: {
+            name: "spec.pdf",
+            mimeType: "application/pdf",
+            size: 10,
+          },
+        })
         .orThrow();
 
       expect(upload.attachment).toMatchObject({
@@ -583,10 +602,10 @@ describe.skipIf(!live)("attachments", () => {
         mimeType: string;
       }) =>
         (
-          await attachments.upload(
-            { type: input.subjectType, id: input.subjectId },
-            { name: "x", size: 1, mimeType: input.mimeType },
-          )
+          await attachments.upload({
+            subject: { type: input.subjectType, id: input.subjectId },
+            attachment: { name: "x", size: 1, mimeType: input.mimeType },
+          })
         ).ok;
 
       expect(
@@ -662,10 +681,10 @@ describe.skipIf(!live)("attachments", () => {
         },
       });
 
-      expect(await scanner.scan(DRIVE, "a/report.pdf").orThrow()).toMatchObject(
-        { status: "clean", bucket: DRIVE },
-      );
-      await scanner.scan(DRIVE, "a/report.pdf").orThrow();
+      expect(
+        await scanner.scan({ bucket: DRIVE, path: "a/report.pdf" }).orThrow(),
+      ).toMatchObject({ status: "clean", bucket: DRIVE });
+      await scanner.scan({ bucket: DRIVE, path: "a/report.pdf" }).orThrow();
       expect(scanned).toEqual(["a/report.pdf"]);
       await s.asRole(member);
       expect(
@@ -709,12 +728,15 @@ describe.skipIf(!live)("attachments", () => {
 
       const first = (
         await attachments
-          .upload(null, {
-            name: "logo.png",
-            mimeType: "image/png",
-            size: 3,
-            width: 64,
-            height: 32,
+          .upload({
+            subject: null,
+            attachment: {
+              name: "logo.png",
+              mimeType: "image/png",
+              size: 3,
+              width: 64,
+              height: 32,
+            },
           })
           .orThrow()
       ).attachment;
@@ -723,12 +745,15 @@ describe.skipIf(!live)("attachments", () => {
       await attachments.confirm(first.id).orThrow();
 
       const next = await attachments
-        .replace(first.id, {
-          name: "logo-2.png",
-          mimeType: "image/png",
-          size: 3,
-          width: 128,
-          height: 64,
+        .replace({
+          id: first.id,
+          file: {
+            name: "logo-2.png",
+            mimeType: "image/png",
+            size: 3,
+            width: 128,
+            height: 64,
+          },
         })
         .orThrow();
 
@@ -748,7 +773,9 @@ describe.skipIf(!live)("attachments", () => {
         earlier.map((version) => [version.version, version.width]),
       ).toEqual([[1, 64]]);
 
-      const restored = await attachments.restore(first.id, 1).orThrow();
+      const restored = await attachments
+        .restore({ id: first.id, version: 1 })
+        .orThrow();
 
       expect(restored).toMatchObject({
         version: 1,
@@ -762,7 +789,7 @@ describe.skipIf(!live)("attachments", () => {
         ),
       ).toEqual([2]);
 
-      const missing = await attachments.restore(first.id, 9);
+      const missing = await attachments.restore({ id: first.id, version: 9 });
 
       expect(missing.ok ? undefined : missing.error.hint).toBe(
         "ATTACHMENT_VERSION_NOT_FOUND",
@@ -770,10 +797,9 @@ describe.skipIf(!live)("attachments", () => {
 
       await s.asRole(member);
 
-      const refused = await attachments.replace(first.id, {
-        name: "mine.png",
-        mimeType: "image/png",
-        size: 3,
+      const refused = await attachments.replace({
+        id: first.id,
+        file: { name: "mine.png", mimeType: "image/png", size: 3 },
       });
 
       expect(refused.ok ? undefined : refused.error.hint).toBe(

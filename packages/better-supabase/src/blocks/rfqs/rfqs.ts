@@ -7,6 +7,8 @@ import type { BlockOptions } from "../shared.ts";
 import { money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   RFQ_QUOTE_STATUSES,
@@ -205,26 +207,26 @@ export interface RfqComparison {
 
 export interface Rfqs {
   /** Creates a draft request with its lines and numbers it; needs `rfqs.write`. */
-  createRfq(
-    input: RfqInput,
-    lines?: readonly RfqLineInput[],
-  ): AsyncResultType<RfqDetail>;
+  createRfq(input: {
+    input: RfqInput;
+    lines?: readonly RfqLineInput[] | undefined;
+  }): AsyncResultType<RfqDetail>;
   /** Changes a draft. Passing `lines` replaces all of them; needs `rfqs.write`. */
-  updateRfq(
-    rfqId: string,
-    input: Partial<RfqInput>,
-    lines?: readonly RfqLineInput[],
-  ): AsyncResultType<RfqDetail>;
+  updateRfq(input: {
+    rfqId: string;
+    input: Partial<RfqInput>;
+    lines?: readonly RfqLineInput[] | undefined;
+  }): AsyncResultType<RfqDetail>;
   getRfq(rfqId: string): AsyncResultType<RfqDetail>;
   listRfqs(options?: RfqListOptions): AsyncResultType<readonly Rfq[]>;
   /**
    * Asks a supplier to quote. When the contacts block is installed the supplier
    * must be an active supplier there; needs `rfqs.write`.
    */
-  inviteSupplier(
-    rfqId: string,
-    supplier: { readonly type: string; readonly id: string },
-  ): AsyncResultType<RfqSupplier>;
+  inviteSupplier(input: {
+    rfqId: string;
+    supplier: { readonly type: string; readonly id: string };
+  }): AsyncResultType<RfqSupplier>;
   /** Records that a supplier will not quote; needs `rfqs.write`. */
   declineInvitation(invitationId: string): AsyncResultType<RfqSupplier>;
   /** Sends a draft with at least one line and one supplier; needs `rfqs.write`. */
@@ -235,12 +237,12 @@ export interface Rfqs {
    * sent; they count in the request's currency. The request must be open; needs
    * `rfqs.write`.
    */
-  recordQuote(
-    rfqId: string,
-    invitationId: string,
-    lines: readonly RfqQuoteLineInput[],
-    input?: RfqQuoteInput,
-  ): AsyncResultType<RfqQuote>;
+  recordQuote(input: {
+    rfqId: string;
+    invitationId: string;
+    lines: readonly RfqQuoteLineInput[];
+    input?: RfqQuoteInput | undefined;
+  }): AsyncResultType<RfqQuote>;
   /** Withdraws a submitted quote of an open request; needs `rfqs.write`. */
   withdrawQuote(quoteId: string): AsyncResultType<RfqQuote>;
   /** Stops accepting quotes; needs `rfqs.write`. */
@@ -254,12 +256,20 @@ export interface Rfqs {
    * request; every line then needs a `variantId`. Needs `rfqs.manage`.
    */
   award(
-    rfqId: string,
-    quoteId: string,
-    options?: { readonly location?: string },
+    input: { rfqId: string; quoteId: string } & { readonly location?: string },
   ): AsyncResultType<Rfq>;
+  /**
+   * Awards the request to its cheapest quote that prices every line: `compare`
+   * then `award`, with the optional `location` for the purchase order. Without
+   * such a quote it fails with `RFQ_NO_COMPLETE_QUOTE` and changes nothing.
+   * Needs `rfqs.manage`.
+   */
+  awardBest(input: {
+    rfqId: string;
+    location?: string | undefined;
+  }): AsyncResultType<Rfq>;
   /** Cancels a request that is not awarded; needs `rfqs.manage`. */
-  cancelRfq(rfqId: string, reason: string): AsyncResultType<Rfq>;
+  cancelRfq(input: { rfqId: string; reason: string }): AsyncResultType<Rfq>;
 }
 
 /** Options for {@link createRfqs}. */
@@ -481,7 +491,23 @@ export function createRfqs(options: RfqsOptions): Rfqs {
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
   const client: Rfqs = {
-    createRfq: (input, lines = []) =>
+    awardBest: ({ rfqId, location }) =>
+      hooked.compare(rfqId).andThen((comparison) => {
+        const best = comparison.quotes.find((quote) => quote.complete);
+
+        return best
+          ? hooked.award({
+              rfqId,
+              quoteId: best.quoteId,
+              ...(location === undefined ? {} : { location }),
+            })
+          : AsyncResult.err<Rfq>(
+              dbError("not_found", "no quote prices every line", {
+                hint: "RFQ_NO_COMPLETE_QUOTE",
+              }),
+            );
+      }),
+    createRfq: ({ input, lines = [] }) =>
       tenant().andThen((organizationId) =>
         call(
           "create_rfq",
@@ -493,7 +519,7 @@ export function createRfqs(options: RfqsOptions): Rfqs {
           (value) => detailOf(value, "create_rfq"),
         ),
       ),
-    updateRfq: (rfqId, input, lines) =>
+    updateRfq: ({ rfqId, input, lines }) =>
       call(
         "update_rfq",
         {
@@ -517,7 +543,7 @@ export function createRfqs(options: RfqsOptions): Rfqs {
             recordsOf(value, "list_rfqs").map((row) => rfqOf(row, "list_rfqs")),
         ),
       ),
-    inviteSupplier: (rfqId, supplier) =>
+    inviteSupplier: ({ rfqId, supplier }) =>
       call(
         "invite_rfq_supplier",
         {
@@ -533,7 +559,7 @@ export function createRfqs(options: RfqsOptions): Rfqs {
       ),
     openRfq: (rfqId) =>
       call("open_rfq", { rfq_id: rfqId }, (value) => rfqOf(value, "open_rfq")),
-    recordQuote: (rfqId, invitationId, lines, input = {}) =>
+    recordQuote: ({ rfqId, invitationId, lines, input = {} }) =>
       call(
         "record_rfq_quote",
         {
@@ -565,7 +591,7 @@ export function createRfqs(options: RfqsOptions): Rfqs {
       call("compare_rfq", { rfq_id: rfqId }, (value) =>
         comparisonOf(value, "compare_rfq"),
       ),
-    award: (rfqId, quoteId, awardOptions = {}) =>
+    award: ({ rfqId, quoteId, ...awardOptions }) =>
       call(
         "award_rfq",
         {
@@ -577,14 +603,17 @@ export function createRfqs(options: RfqsOptions): Rfqs {
         },
         (value) => rfqOf(value, "award_rfq"),
       ),
-    cancelRfq: (rfqId, reason) =>
+    cancelRfq: ({ rfqId, reason }) =>
       call("cancel_rfq", { rfq_id: rfqId, reason }, (value) =>
         rfqOf(value, "cancel_rfq"),
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Rfqs = withBlockHooks(client, options.hooks, {
     block: "rfqs",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

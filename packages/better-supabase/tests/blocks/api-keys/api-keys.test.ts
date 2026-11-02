@@ -266,12 +266,12 @@ describe("createApiKeys", () => {
     expect(await keys.revoke("k").orThrow()).toBe(true);
 
     const rotated = await keys
-      .rotate("k", { grace: Temporal.Duration.from({ hours: 2 }) })
+      .rotate({ id: "k", grace: Temporal.Duration.from({ hours: 2 }) })
       .orThrow();
 
     expect(rotated.token).toMatch(/^bs_/);
     expect(calls.at(-1)?.[2]).toMatchObject({ key: "k", grace: "PT2H" });
-    await keys.rotate("k");
+    await keys.rotate({ id: "k" });
     expect(calls.at(-1)?.[2]).toMatchObject({ grace: "P1D" });
   });
 

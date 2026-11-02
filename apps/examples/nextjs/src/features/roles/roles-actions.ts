@@ -34,7 +34,11 @@ export const setPermissionOverride = bsb.action(
     requireTenant: true,
   },
   async ({ roleId, permission, granted }, { tenant, db, auth }) => {
-    const role = await db.permissions.setOverride(roleId, permission, granted);
+    const role = await db.permissions.setOverride({
+      role: roleId,
+      permission,
+      granted,
+    });
 
     if (!role.ok) {
       return role;

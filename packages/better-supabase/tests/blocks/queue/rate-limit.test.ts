@@ -10,14 +10,18 @@ describe("createRateLimit", () => {
     ]);
 
     const limit = createRateLimit({ sql: fake.sql });
-    expect(await limit.check("preview", "token-1").orThrow()).toEqual({
-      allowed: false,
-      remaining: 0,
-      retryAfter: 42,
-    });
-    await limit.check("chat", "thread-1", { max: 20, period: 60 }).orThrow();
+    expect(
+      await limit.check({ scope: "preview", key: "token-1" }).orThrow(),
+    ).toEqual({ allowed: false, remaining: 0, retryAfter: 42 });
     await limit
-      .check("chat", "thread-1", { max: 5, period: "1 hour" })
+      .check({ scope: "chat", key: "thread-1", rule: { max: 20, period: 60 } })
+      .orThrow();
+    await limit
+      .check({
+        scope: "chat",
+        key: "thread-1",
+        rule: { max: 5, period: "1 hour" },
+      })
       .orThrow();
     expect(fake.calls.map((call) => call.values)).toEqual([
       ["preview", "token-1", null, null],
@@ -29,12 +33,11 @@ describe("createRateLimit", () => {
   it("refuses a bad limit and reads a missing row as refused", async () => {
     const fake = fakeSql([]);
     const limit = createRateLimit({ sql: fake.sql });
-    expect(await limit.check("x", "k", { max: 0, period: 1 })).toMatchObject({
-      ok: false,
-      error: { kind: "invalid_input" },
-    });
+    expect(
+      await limit.check({ scope: "x", key: "k", rule: { max: 0, period: 1 } }),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
     expect(fake.calls).toEqual([]);
-    expect(await limit.check("x", "k").orThrow()).toEqual({
+    expect(await limit.check({ scope: "x", key: "k" }).orThrow()).toEqual({
       allowed: false,
       remaining: 0,
       retryAfter: 0,
@@ -56,12 +59,12 @@ describe("createRateLimit over a BlockTransport", () => {
       },
     });
 
-    expect(await limit.check("preview", "token-1").orThrow()).toEqual({
-      allowed: false,
-      remaining: 0,
-      retryAfter: 7,
-    });
-    await limit.check("chat", "t", { max: 3, period: 60 }).orThrow();
+    expect(
+      await limit.check({ scope: "preview", key: "token-1" }).orThrow(),
+    ).toEqual({ allowed: false, remaining: 0, retryAfter: 7 });
+    await limit
+      .check({ scope: "chat", key: "t", rule: { max: 3, period: 60 } })
+      .orThrow();
     expect(calls).toEqual([
       [
         "better_supabase",
@@ -92,7 +95,7 @@ describe("createRateLimit over a BlockTransport", () => {
       },
     });
 
-    expect(await failing.check("x", "k")).toMatchObject({
+    expect(await failing.check({ scope: "x", key: "k" })).toMatchObject({
       ok: false,
       error: { hint: "RATE_LIMIT_UNKNOWN" },
     });
@@ -112,7 +115,7 @@ describe("createRateLimit over a BlockTransport", () => {
       schema: "api",
     });
 
-    await limit.check("preview", "token-1").orThrow();
+    await limit.check({ scope: "preview", key: "token-1" }).orThrow();
     await limit.purge().orThrow();
     expect(schemas).toEqual(["api", "api"]);
   });
@@ -320,13 +323,13 @@ describe("createRateLimit decoding", () => {
   });
 
   it("reads a missing single-check row over a transport as refused", async () => {
-    expect(await over(undefined).check("a", "k").orThrow()).toEqual({
-      allowed: false,
-      remaining: 0,
-      retryAfter: 0,
-    });
     expect(
-      await over({ allowed: true, remaining: null }).check("a", "k").orThrow(),
+      await over(undefined).check({ scope: "a", key: "k" }).orThrow(),
+    ).toEqual({ allowed: false, remaining: 0, retryAfter: 0 });
+    expect(
+      await over({ allowed: true, remaining: null })
+        .check({ scope: "a", key: "k" })
+        .orThrow(),
     ).toEqual({ allowed: true, remaining: 0, retryAfter: 0 });
   });
 

@@ -82,19 +82,19 @@ export interface SsoOptions extends BlockTemporalOptions {
 
 export interface Sso {
   /** Claims a domain (needs `sso.manage`); publish its `record`, then verify it. */
-  addDomain(
-    organizationId: string,
-    domain: string,
-  ): AsyncResult<OrganizationDomain>;
+  addDomain(input: {
+    organizationId: string;
+    domain: string;
+  }): AsyncResult<OrganizationDomain>;
   domains(organizationId: string): AsyncResult<readonly OrganizationDomain[]>;
   /** Sets auto-join and SSO enforcement; both need a verified domain. */
-  updateDomain(
-    domainId: string,
+  updateDomain(input: {
+    domainId: string;
     settings: {
       readonly autoJoinRole?: string | null;
       readonly enforceSso?: boolean;
-    },
-  ): AsyncResult<OrganizationDomain>;
+    };
+  }): AsyncResult<OrganizationDomain>;
   removeDomain(domainId: string): AsyncResult<boolean>;
   providers(organizationId: string): AsyncResult<readonly SsoProvider[]>;
   /**
@@ -162,7 +162,7 @@ export function createSso(options: SsoOptions): Sso {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Sso = {
-    addDomain: (organizationId, domain) =>
+    addDomain: ({ organizationId, domain }) =>
       call(
         "add_organization_domain",
         { tenant: organizationId, domain },
@@ -172,7 +172,7 @@ export function createSso(options: SsoOptions): Sso {
       call("list_organization_domains", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_organization_domains").map(domainOf),
       ),
-    updateDomain: (domainId, settings) =>
+    updateDomain: ({ domainId, settings }) =>
       call("organization_domain", { id: domainId }, (value) =>
         isRecord(value) ? domainOf(value) : undefined,
       ).andThen(async (current) =>
@@ -336,31 +336,31 @@ export interface SsoAdmin {
    * Looks up the domain's TXT record and marks it verified when the token is
    * there.
    */
-  verifyDomain(
-    domainId: string,
-    options?: SsoActor & { readonly signal?: AbortSignal },
-  ): AsyncResult<OrganizationDomain>;
+  verifyDomain(input: {
+    domainId: string;
+    options?: (SsoActor & { readonly signal?: AbortSignal }) | undefined;
+  }): AsyncResult<OrganizationDomain>;
   /**
    * Creates a SAML provider in Supabase Auth and records it for the
    * organization.
    */
   addSamlProvider(
-    organizationId: string,
-    input: SamlProviderInput,
-    options?: SsoActor,
+    input: { organizationId: string; input: SamlProviderInput } & SsoActor,
   ): AsyncResult<SsoProvider>;
   updateSamlProvider(
-    providerId: string,
-    input: Partial<SamlProviderInput> & { readonly domains: readonly string[] },
-    options?: SsoActor,
+    input: {
+      providerId: string;
+      input: Partial<SamlProviderInput> & {
+        readonly domains: readonly string[];
+      };
+    } & SsoActor,
   ): AsyncResult<SsoProvider>;
   /**
    * Deletes the provider from Supabase Auth; `undefined` when the organization
    * has no such provider.
    */
   removeSamlProvider(
-    providerId: string,
-    options?: SsoActor,
+    input: { providerId: string } & SsoActor,
   ): AsyncResult<SsoProvider | undefined>;
 }
 
@@ -521,7 +521,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
     `/${encodeURIComponent(providerId)}`;
 
   return {
-    verifyDomain: (domainId, request = {}) =>
+    verifyDomain: ({ domainId, options: request = {} }) =>
       call("organization_domain", { id: domainId }, (value) =>
         isRecord(value) ? domainOf(value) : undefined,
       ).andThen(async (found) => {
@@ -559,7 +559,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           domainOf,
         );
       }),
-    addSamlProvider: (organizationId, input, actor = {}) =>
+    addSamlProvider: ({ organizationId, input, ...actor }) =>
       call(
         "check_sso_provider",
         {
@@ -587,7 +587,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
 
           return recorded;
         }),
-    updateSamlProvider: (providerId, input, actor = {}) =>
+    updateSamlProvider: ({ providerId, input, ...actor }) =>
       providerFor(providerId, actor).andThen(async (found) => {
         if (found === undefined) {
           return missing();
@@ -630,7 +630,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           actor,
         );
       }),
-    removeSamlProvider: (providerId, actor = {}) =>
+    removeSamlProvider: ({ providerId, ...actor }) =>
       providerFor(providerId, actor).andThen(async (found) => {
         if (found === undefined) {
           return ok(undefined);

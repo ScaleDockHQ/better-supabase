@@ -81,7 +81,10 @@ export interface Domains {
    * Adds a hostname (needs `domains.manage`); a custom domain comes back with
    * its `record`.
    */
-  add(organizationId: string, hostname: string): AsyncResult<Hostname>;
+  add(input: {
+    organizationId: string;
+    hostname: string;
+  }): AsyncResult<Hostname>;
   /** The organization's hostnames, primary first (needs `domains.read`). */
   list(organizationId: string): AsyncResult<readonly Hostname[]>;
   /** Makes a verified hostname the primary one. */
@@ -162,7 +165,7 @@ export function createDomains(options: DomainsOptions): Domains {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Domains = {
-    add: (organizationId, hostname) =>
+    add: ({ organizationId, hostname }) =>
       call("add_hostname", { tenant: organizationId, hostname }, hostnameOf),
     list: (organizationId) =>
       call("list_hostnames", { tenant: organizationId }, (value) =>
@@ -201,8 +204,10 @@ export interface DomainsAdmin {
    * omit it for app-owned calls.
    */
   verify(
-    hostnameId: string,
-    options?: { readonly actorId?: string; readonly signal?: AbortSignal },
+    input: { hostnameId: string } & {
+      readonly actorId?: string;
+      readonly signal?: AbortSignal;
+    },
   ): AsyncResult<Hostname>;
 }
 
@@ -213,7 +218,7 @@ export function createDomainsAdmin(options: DomainsAdminOptions): DomainsAdmin {
   const resolver = options.resolver ?? dohResolver();
 
   return {
-    verify: (hostnameId, request = {}) =>
+    verify: ({ hostnameId, ...request }) =>
       call("hostname_by_id", { id: hostnameId }, (value) =>
         isRecord(value) ? hostnameOf(value) : undefined,
       ).andThen(async (found) => {

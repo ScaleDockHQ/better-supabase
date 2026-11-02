@@ -83,8 +83,12 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     await s.as(owner);
 
     const books = createAccounting({ transport: sqlTransport(s.sql) });
-    await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
-    await books.openFiscalYear(tenant, 2026).orThrow();
+    await books
+      .setup({ organizationId: tenant, input: { functionalCurrency: "EUR" } })
+      .orThrow();
+    await books
+      .openFiscalYear({ organizationId: tenant, fiscalYear: 2026 })
+      .orThrow();
   });
 
   afterAll(async () => {
@@ -104,19 +108,19 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     expect(
       hint(
         await banking().saveAccount({
-          name: "Main",
-          iban: "NL92ABNA0417164300",
-          currency: "EUR",
+          input: { name: "Main", iban: "NL92ABNA0417164300", currency: "EUR" },
         }),
       ),
     ).toBe("BANK_ACCOUNT_INVALID");
 
     const account = await banking()
       .saveAccount({
-        name: "Main",
-        iban: "NL91 ABNA 0417 1643 00",
-        currency: "EUR",
-        journalId: journal!.id,
+        input: {
+          name: "Main",
+          iban: "NL91 ABNA 0417 1643 00",
+          currency: "EUR",
+          journalId: journal!.id,
+        },
       })
       .orThrow();
 
@@ -129,11 +133,11 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     const [statement] = parseMt940(MT940);
 
     const first = await banking()
-      .importStatement(accountId, statement!)
+      .importStatement({ accountId, statement: statement! })
       .orThrow();
 
     const again = await banking()
-      .importStatement(accountId, statement!)
+      .importStatement({ accountId, statement: statement! })
       .orThrow();
 
     expect([first.imported, first.skipped]).toEqual([3, 0]);
@@ -149,16 +153,18 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     const invoices = createInvoices({ transport: sqlTransport(s.sql) });
 
     const draft = await invoices
-      .create(tenant, { title: "Consulting" }, [
-        { description: "Consulting", unitAmount: eur(24_200n) },
-      ])
+      .create({
+        organizationId: tenant,
+        input: { title: "Consulting" },
+        lines: [{ description: "Consulting", unitAmount: eur(24_200n) }],
+      })
       .orThrow();
 
-    invoiceId = (await invoices.issue(draft.id).orThrow()).id;
+    invoiceId = (await invoices.issue({ invoiceId: draft.id }).orThrow()).id;
 
-    const payment = (await banking().transactions(accountId).orThrow()).find(
-      (row) => row.amount.amount === 24_200n,
-    );
+    const payment = (
+      await banking().transactions({ accountId }).orThrow()
+    ).find((row) => row.amount.amount === 24_200n);
 
     expect(payment?.counterpartyIban).toBe("NL02RABO0123456789");
 
@@ -168,14 +174,20 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     expect(best!.reasons).toContain("amount");
     expect(
       hint(
-        await banking().match(payment!.id, [
-          { targetType: "invoice", targetId: invoiceId, amount: eur(100n) },
-        ]),
+        await banking().match({
+          transactionId: payment!.id,
+          matches: [
+            { targetType: "invoice", targetId: invoiceId, amount: eur(100n) },
+          ],
+        }),
       ),
     ).toBe("BANK_TRANSACTION_MATCH_INVALID");
 
     const matched = await banking()
-      .match(payment!.id, [{ targetType: "invoice", targetId: invoiceId }])
+      .match({
+        transactionId: payment!.id,
+        matches: [{ targetType: "invoice", targetId: invoiceId }],
+      })
       .orThrow();
 
     expect(matched.status).toBe("matched");
@@ -189,9 +201,10 @@ describe.skipIf(!live)("banking module in Postgres", () => {
     expect(invoice?.status).toBe("paid");
     expect(
       hint(
-        await banking().match(payment!.id, [
-          { targetType: "invoice", targetId: invoiceId },
-        ]),
+        await banking().match({
+          transactionId: payment!.id,
+          matches: [{ targetType: "invoice", targetId: invoiceId }],
+        }),
       ),
     ).toBe("BANK_TRANSACTION_STATUS_INVALID");
     expect((await events("bank_transaction.matched")).at(-1)).toMatchObject({
@@ -205,47 +218,51 @@ describe.skipIf(!live)("banking module in Postgres", () => {
 
     const books = createAccounting({ transport: sqlTransport(s.sql) });
 
-    const expense = (await books.accounts(tenant).orThrow()).find(
-      (row) => row.code === "6000",
-    );
+    const expense = (
+      await books.accounts({ organizationId: tenant }).orThrow()
+    ).find((row) => row.code === "6000");
 
     await banking()
       .saveRule({
-        name: "Energy",
-        conditions: {
-          id: "root",
-          type: "group",
-          combinator: "and",
-          rules: [
-            {
-              id: "name",
-              type: "rule",
-              path: ["counterpartyName"],
-              operator: "is",
-              value: "Energy Co",
-            },
-          ],
+        input: {
+          name: "Energy",
+          conditions: {
+            id: "root",
+            type: "group",
+            combinator: "and",
+            rules: [
+              {
+                id: "name",
+                type: "rule",
+                path: ["counterpartyName"],
+                operator: "is",
+                value: "Energy Co",
+              },
+            ],
+          },
+          accountId: expense!.id,
+          priority: 10,
         },
-        accountId: expense!.id,
-        priority: 10,
       })
       .orThrow();
     await banking()
       .saveRule({
-        name: "Refunds",
-        conditions: {
-          id: "root",
-          type: "group",
-          combinator: "and",
-          rules: [
-            {
-              id: "name",
-              type: "rule",
-              path: ["counterpartyName"],
-              operator: "contains",
-              value: "Muster",
-            },
-          ],
+        input: {
+          name: "Refunds",
+          conditions: {
+            id: "root",
+            type: "group",
+            combinator: "and",
+            rules: [
+              {
+                id: "name",
+                type: "rule",
+                path: ["counterpartyName"],
+                operator: "contains",
+                value: "Muster",
+              },
+            ],
+          },
         },
       })
       .orThrow();
@@ -255,7 +272,7 @@ describe.skipIf(!live)("banking module in Postgres", () => {
       ignored: 1,
     });
 
-    const status = await banking().reconciliation(accountId).orThrow();
+    const status = await banking().reconciliation({ accountId }).orThrow();
 
     expect(status.unmatchedCount).toBe(0);
     expect(status.statementBalance).toEqual(eur(118_345n));
@@ -264,13 +281,17 @@ describe.skipIf(!live)("banking module in Postgres", () => {
   it("lets members reconcile but not manage accounts or rules", async () => {
     await s.as(member);
     expect(
-      hint(await banking().saveAccount({ name: "Petty", currency: "EUR" })),
+      hint(
+        await banking().saveAccount({
+          input: { name: "Petty", currency: "EUR" },
+        }),
+      ),
     ).toBe("BANKING_FORBIDDEN");
-    expect(hint(await banking().saveRule({ name: "Mine" }))).toBe(
+    expect(hint(await banking().saveRule({ input: { name: "Mine" } }))).toBe(
       "BANKING_FORBIDDEN",
     );
 
-    const energy = (await banking().transactions(accountId).orThrow()).find(
+    const energy = (await banking().transactions({ accountId }).orThrow()).find(
       (row) => row.counterpartyName === "Energy Co",
     );
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:48123c5e351ba1157d94e616d063797240987ddff20d7479200eeb54007be170
+-- @bsb-hash sha256:42d95e67c2d92f8ca4703e29e4338e63fd6fe250cde188097f568b1f2095621f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,6 +526,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using name, workflow, tenant;
+    end if;
+  end;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
   on conflict on constraint workflow_schedules_tenant_name_key do update set
@@ -536,6 +544,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -771,6 +787,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "better_supabase"."workflow_admission_active"(key) > 0
@@ -786,6 +810,14 @@ begin
   insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
@@ -971,7 +1003,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:22555220faff1b085b7b65f49561f564b7c0600536c4dfc7d901888133377a56
+-- @bsb-hash sha256:d1d55221b02153b89df26b61ebb57ad404aad61c95e6c9ed9e98dd2388fa1906
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1510,6 +1542,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using name, workflow, tenant;
+    end if;
+  end;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
   on conflict on constraint workflow_schedules_tenant_name_key do update set
@@ -1520,6 +1560,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -1755,6 +1803,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "better_supabase"."workflow_admission_active"(key) > 0
@@ -1770,6 +1826,14 @@ begin
   insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
@@ -1955,7 +2019,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:647bd9d32bf5534c4ba66149d213f09a2d63ce6af35a171ab3091b4fec086730
+-- @bsb-hash sha256:8ebd4484bd77f07f9a7646921096aec42ab7bbb43d2b3d8e0671a04d1eb8aaa7
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2485,6 +2549,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using name, workflow, tenant;
+    end if;
+  end;
   insert into "app_private"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
   on conflict on constraint workflow_schedules_tenant_name_key do update set
@@ -2495,6 +2567,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -2730,6 +2810,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "app_private"."workflow_admission_active"(key) > 0
@@ -2745,6 +2833,14 @@ begin
   insert into "app_private"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
@@ -2930,7 +3026,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:0719174969ab7efa846b31dbd1fcfdbf40fed3f96be6578ccb0ed17d939d49c3
+-- @bsb-hash sha256:be2a989f21568e791a7b246cfc5bf2e051f1c8acb891d48566d6eca0816c698f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3455,6 +3551,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using name, workflow, tenant;
+    end if;
+  end;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
   on conflict on constraint workflow_schedules_tenant_name_key do update set
@@ -3465,6 +3569,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -3700,6 +3812,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "better_supabase"."workflow_admission_active"(key) > 0
@@ -3715,6 +3835,14 @@ begin
   insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
@@ -4079,7 +4207,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:905ae3a4d58949935b366fac8505e2968d0e26857a63ea6cca6a7faeaa525867
+-- @bsb-hash sha256:d01c1147a5ebd10ea52a924f50984439e8179467e0cc1d3a8c863c6fedcbb1a9
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4589,6 +4717,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_workflow_schedule.tenant is not null and coalesce(better_supabase.can('tenant', create_workflow_schedule.tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using create_workflow_schedule.name, create_workflow_schedule.workflow, create_workflow_schedule.tenant;
+    end if;
+  end;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (create_workflow_schedule.tenant, create_workflow_schedule.name, create_workflow_schedule.workflow, coalesce(create_workflow_schedule.payload -> 'input', '[]'::jsonb), create_workflow_schedule.cron, coalesce(create_workflow_schedule.timezone, 'UTC'), create_workflow_schedule.next_run, (select auth.uid()))
   on conflict ("tenant_id", "name") do update set
@@ -4599,6 +4735,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -4834,6 +4978,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "better_supabase"."workflow_admission_active"(key) > 0
@@ -4849,6 +5001,14 @@ begin
   insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
@@ -5034,7 +5194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:37ac9b3d832d73ed4c3b71cf41187261543f40bc63f7d2a7858b7362312eab1b
+-- @bsb-hash sha256:97f7d6c49d621bb1856834c8d0c30227797ae3c731c845909a17b97f2d1c0984
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5559,6 +5719,14 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_schedule_create"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using name, workflow, tenant;
+    end if;
+  end;
   insert into "better_supabase"."workflow_schedules" as x ("org_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
   values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
   on conflict on constraint workflow_schedules_tenant_name_key do update set
@@ -5569,6 +5737,14 @@ begin
     "next_run_at" = excluded."next_run_at",
     "locked_until" = null
   returning * into v_row;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."org_id",
@@ -5804,6 +5980,14 @@ as $$
 declare
   v_id uuid;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_workflow_start_request"(text, text, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
+        using request_workflow_start.key, request_workflow_start.workflow, request_workflow_start.tenant;
+    end if;
+  end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     "better_supabase"."workflow_admission_active"(key) > 0
@@ -5819,6 +6003,14 @@ begin
   insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "org_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_workflow_start_request"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;

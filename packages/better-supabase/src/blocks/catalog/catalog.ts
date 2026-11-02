@@ -39,6 +39,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { catalogDiscounts } from "./discounts.ts";
+import { catalogHelpers } from "./helpers.ts";
 import { catalogRankKey } from "./rank.ts";
 import { catalogSupply } from "./supply.ts";
 
@@ -356,188 +357,211 @@ export interface ProductMedia {
 export interface Catalog<F extends object = Record<never, never>>
   extends CatalogSupply, CatalogDiscounts {
   /** Keys besides the input's own are the product's extra columns. */
-  createProduct(
-    organizationId: string,
-    input: ProductInput & Partial<F>,
-  ): AsyncResult<SavedProduct & F>;
-  updateProduct(
-    organizationId: string,
-    productId: string,
-    input: ProductPatch & Partial<F>,
-  ): AsyncResult<SavedProduct & F>;
+  createProduct(input: {
+    organizationId: string;
+    input: ProductInput & Partial<F>;
+  }): AsyncResult<SavedProduct & F>;
+  /**
+   * A product with one variant and a base price: `createProduct`,
+   * `createVariant`, `setPrice` and, with `publish`, `setProductStatus` to
+   * `active`. Each step runs on its own, so a failure leaves the earlier ones
+   * (a draft product) in place.
+   */
+  createSimpleProduct(input: {
+    organizationId: string;
+    title: string;
+    price: Money;
+    sku?: string | undefined;
+    slug?: string | undefined;
+    description?: string | undefined;
+    publish?: boolean | undefined;
+  }): AsyncResult<{
+    readonly product: SavedProduct;
+    readonly variant: SavedVariant;
+    readonly price: SavedPrice;
+  }>;
+  updateProduct(input: {
+    organizationId: string;
+    productId: string;
+    input: ProductPatch & Partial<F>;
+  }): AsyncResult<SavedProduct & F>;
   /** Moves a product between `draft`, `active` and `archived`. */
-  setProductStatus(
-    productId: string,
-    status: ProductStatus | (string & {}),
-  ): AsyncResult<StatusChange>;
+  setProductStatus(input: {
+    productId: string;
+    status: ProductStatus | (string & {});
+  }): AsyncResult<StatusChange>;
   deleteProduct(productId: string): AsyncResult<boolean>;
-  saveOption(productId: string, input: OptionInput): AsyncResult<SavedOption>;
+  saveOption(input: {
+    productId: string;
+    input: OptionInput;
+  }): AsyncResult<SavedOption>;
   deleteOption(optionId: string): AsyncResult<boolean>;
   /** Puts the product's options in this order; it names each one once. */
-  reorderOptions(
-    productId: string,
-    optionIds: readonly string[],
-  ): AsyncResult<boolean>;
-  setOptions(
-    productId: string,
-    options: readonly OptionMatrixInput[],
-    settings?: OptionMatrixOptions,
-  ): AsyncResult<OptionMatrix>;
-  createVariant(
-    productId: string,
-    input: VariantInput,
-  ): AsyncResult<SavedVariant>;
-  updateVariant(
-    productId: string,
-    variantId: string,
-    input: VariantInput,
-  ): AsyncResult<SavedVariant>;
+  reorderOptions(input: {
+    productId: string;
+    optionIds: readonly string[];
+  }): AsyncResult<boolean>;
+  setOptions(input: {
+    productId: string;
+    options: readonly OptionMatrixInput[];
+    settings?: OptionMatrixOptions | undefined;
+  }): AsyncResult<OptionMatrix>;
+  createVariant(input: {
+    productId: string;
+    input: VariantInput;
+  }): AsyncResult<SavedVariant>;
+  updateVariant(input: {
+    productId: string;
+    variantId: string;
+    input: VariantInput;
+  }): AsyncResult<SavedVariant>;
   /**
    * Moves a variant between the variants with rank keys `previous` and `next`,
    * or to a whole-number position with integer ranks.
    */
-  reorderVariant(variantId: string, rank: CatalogRank): AsyncResult<string>;
-  setVariantStatus(
-    variantId: string,
-    status: "active" | "archived" | (string & {}),
-  ): AsyncResult<{ readonly status: string; readonly from: string }>;
+  reorderVariant(input: {
+    variantId: string;
+    rank: CatalogRank;
+  }): AsyncResult<string>;
+  setVariantStatus(input: {
+    variantId: string;
+    status: "active" | "archived" | (string & {});
+  }): AsyncResult<{ readonly status: string; readonly from: string }>;
   deleteVariant(variantId: string): AsyncResult<boolean>;
-  savePriceList(
-    organizationId: string,
-    input: PriceListInput,
-  ): AsyncResult<{ readonly id: string }>;
+  savePriceList(input: {
+    organizationId: string;
+    input: PriceListInput;
+  }): AsyncResult<{ readonly id: string }>;
   deletePriceList(priceListId: string): AsyncResult<boolean>;
   /**
    * Sets a variant's price in the amount's currency. Emits
    * `catalog.price_changed`.
    */
-  setPrice(variantId: string, input: PriceInput): AsyncResult<SavedPrice>;
+  setPrice(input: {
+    variantId: string;
+    input: PriceInput;
+  }): AsyncResult<SavedPrice>;
   deletePrice(priceId: string): AsyncResult<boolean>;
   /** The price list's price when it has one, otherwise the base price. */
   variantPrice(
-    variantId: string,
-    currency: string,
-    options?: VariantPriceOptions,
+    input: { variantId: string; currency: string } & VariantPriceOptions,
   ): AsyncResult<Price | null>;
-  saveCategory(
-    organizationId: string,
-    input: CategoryInput,
-  ): AsyncResult<SavedCategory>;
+  saveCategory(input: {
+    organizationId: string;
+    input: CategoryInput;
+  }): AsyncResult<SavedCategory>;
   /**
    * Moves a category under `parentId` (null for the top level) between two
    * siblings.
    */
-  moveCategory(
-    categoryId: string,
-    parentId: string | null,
-    rank: CatalogRank,
-  ): AsyncResult<string>;
+  moveCategory(input: {
+    categoryId: string;
+    parentId: string | null;
+    rank: CatalogRank;
+  }): AsyncResult<string>;
   deleteCategory(categoryId: string): AsyncResult<boolean>;
-  setProductCategories(
-    productId: string,
-    categoryIds: readonly string[],
-  ): AsyncResult<boolean>;
-  saveCollection(
-    organizationId: string,
-    input: CollectionInput,
-  ): AsyncResult<SavedCollection>;
+  setProductCategories(input: {
+    productId: string;
+    categoryIds: readonly string[];
+  }): AsyncResult<boolean>;
+  saveCollection(input: {
+    organizationId: string;
+    input: CollectionInput;
+  }): AsyncResult<SavedCollection>;
   deleteCollection(collectionId: string): AsyncResult<boolean>;
   /**
    * Adds a product to a manual collection, last or between two neighbors.
    * Resolves to its rank key.
    */
-  addToCollection(
-    collectionId: string,
-    productId: string,
-    rank?: CatalogRank,
-  ): AsyncResult<string>;
-  removeFromCollection(
-    collectionId: string,
-    productId: string,
-  ): AsyncResult<boolean>;
+  addToCollection(input: {
+    collectionId: string;
+    productId: string;
+    rank?: CatalogRank | undefined;
+  }): AsyncResult<string>;
+  removeFromCollection(input: {
+    collectionId: string;
+    productId: string;
+  }): AsyncResult<boolean>;
   /**
    * With `options.storefront: "public"`, anyone can read a published
    * storefront's active products.
    */
-  publishStorefront(
-    organizationId: string,
-    published: boolean,
-  ): AsyncResult<boolean>;
+  publishStorefront(input: {
+    organizationId: string;
+    published: boolean;
+  }): AsyncResult<boolean>;
   /** Creates a sales channel, or updates the one `input.id` names. */
-  saveChannel(
-    organizationId: string,
-    input: ChannelInput,
-  ): AsyncResult<SavedChannel>;
+  saveChannel(input: {
+    organizationId: string;
+    input: ChannelInput;
+  }): AsyncResult<SavedChannel>;
   /** Deletes a channel and its listings. */
   deleteChannel(channelId: string): AsyncResult<boolean>;
   /** Lists products on a channel. Resolves to how many were new there. */
-  listOnChannel(
-    channelId: string,
-    productIds: readonly string[],
-  ): AsyncResult<number>;
+  listOnChannel(input: {
+    channelId: string;
+    productIds: readonly string[];
+  }): AsyncResult<number>;
   /** Takes products off a channel. Resolves to how many were listed. */
-  unlistFromChannel(
-    channelId: string,
-    productIds: readonly string[],
-  ): AsyncResult<number>;
+  unlistFromChannel(input: {
+    channelId: string;
+    productIds: readonly string[];
+  }): AsyncResult<number>;
   /** The products listed on a channel by slug, 100 a page (500 at most). */
   channelProducts(
-    channelId: string,
-    options?: ChannelProductsOptions,
+    input: { channelId: string } & ChannelProductsOptions,
   ): AsyncResult<readonly ChannelProduct[]>;
   /**
    * The variant's price in the channel's currency and price list; null when the
    * channel has no currency or the variant no price.
    */
   channelPrice(
-    channelId: string,
-    variantId: string,
-    options?: { readonly at?: Temporal.Instant },
+    input: { channelId: string; variantId: string } & {
+      readonly at?: Temporal.Instant;
+    },
   ): AsyncResult<Price | null>;
   /**
    * Sets a product's text in a locale other than the default. An empty
    * translation removes it. Resolves to whether one is stored.
    */
-  setProductTranslation(
-    productId: string,
-    locale: string,
-    translation: ProductTranslation,
-  ): AsyncResult<boolean>;
+  setProductTranslation(input: {
+    productId: string;
+    locale: string;
+    translation: ProductTranslation;
+  }): AsyncResult<boolean>;
   /** Sets a variant's title in a locale; null removes the translation. */
-  setVariantTranslation(
-    variantId: string,
-    locale: string,
-    title: string | null,
-  ): AsyncResult<boolean>;
+  setVariantTranslation(input: {
+    variantId: string;
+    locale: string;
+    title: string | null;
+  }): AsyncResult<boolean>;
   /** A product's text and its variants' titles in a locale, with fallback. */
   productText(
-    productId: string,
-    options?: LocaleOptions,
+    input: { productId: string } & LocaleOptions,
   ): AsyncResult<LocalizedProduct | null>;
   /**
    * Adds an attachment of the product or one of its variants to the product's
    * media, last. Needs the attachments block.
    */
-  addProductMedia(
-    productId: string,
-    attachmentId: string,
-    input?: ProductMediaInput,
-  ): AsyncResult<SavedProductMedia>;
+  addProductMedia(input: {
+    productId: string;
+    attachmentId: string;
+    input?: ProductMediaInput | undefined;
+  }): AsyncResult<SavedProductMedia>;
   /** Replaces a media item's variant and alt text. */
-  updateProductMedia(
-    mediaId: string,
-    input: ProductMediaInput,
-  ): AsyncResult<boolean>;
+  updateProductMedia(input: {
+    mediaId: string;
+    input: ProductMediaInput;
+  }): AsyncResult<boolean>;
   /** Puts the product's media in this order; it lists every item once. */
-  reorderProductMedia(
-    productId: string,
-    mediaIds: readonly string[],
-  ): AsyncResult<boolean>;
+  reorderProductMedia(input: {
+    productId: string;
+    mediaIds: readonly string[];
+  }): AsyncResult<boolean>;
   /** Removes a media item; the attachment stays. */
   removeProductMedia(mediaId: string): AsyncResult<boolean>;
   productMedia(
-    productId: string,
-    options?: LocaleOptions,
+    input: { productId: string } & LocaleOptions,
   ): AsyncResult<readonly ProductMedia[]>;
 }
 
@@ -785,13 +809,14 @@ export function createCatalog<
   };
 
   const catalog: Catalog<F> = {
+    ...catalogHelpers(() => hooked),
     ...catalogSupply(call),
     ...catalogDiscounts(call),
-    createProduct: (organizationId, input) =>
+    createProduct: ({ organizationId, input }) =>
       saveProduct(organizationId, null, input),
-    updateProduct: (organizationId, productId, input) =>
+    updateProduct: ({ organizationId, productId, input }) =>
       saveProduct(organizationId, productId, input),
-    setProductStatus: (productId, status) =>
+    setProductStatus: ({ productId, status }) =>
       call("set_product_status", { product: productId, status }, (value) => {
         const row = recordOf(value, "set_product_status");
 
@@ -800,7 +825,7 @@ export function createCatalog<
           from: enumOrThrow(row["from"], PRODUCT_STATUSES, "status"),
         };
       }),
-    setVariantStatus: (variantId, status) =>
+    setVariantStatus: ({ variantId, status }) =>
       call("set_variant_status", { variant: variantId, status }, (value) => {
         const row = recordOf(value, "set_variant_status");
 
@@ -808,7 +833,7 @@ export function createCatalog<
       }),
     deleteProduct: (productId) =>
       call("delete_product", { product: productId }, (value) => value === true),
-    saveOption: (productId, input) =>
+    saveOption: ({ productId, input }) =>
       call(
         "save_product_option",
         {
@@ -837,13 +862,13 @@ export function createCatalog<
         { option: optionId },
         (value) => value === true,
       ),
-    reorderOptions: (productId, optionIds) =>
+    reorderOptions: ({ productId, optionIds }) =>
       call(
         "reorder_product_options",
         { product: productId, options: optionIds },
         (value) => value === true,
       ),
-    setOptions: (productId, options, settings) =>
+    setOptions: ({ productId, options, settings }) =>
       call(
         "set_product_options",
         {
@@ -858,11 +883,11 @@ export function createCatalog<
         },
         matrixOf,
       ),
-    createVariant: (productId, input) =>
+    createVariant: ({ productId, input }) =>
       call("save_variant", variantArgs(productId, null, input), variantOf),
-    updateVariant: (productId, variantId, input) =>
+    updateVariant: ({ productId, variantId, input }) =>
       call("save_variant", variantArgs(productId, variantId, input), variantOf),
-    reorderVariant: (variantId, rank) => {
+    reorderVariant: ({ variantId, rank }) => {
       const key = rankOf(rank);
 
       if (!key.ok) {
@@ -877,7 +902,7 @@ export function createCatalog<
     },
     deleteVariant: (variantId) =>
       call("delete_variant", { variant: variantId }, (value) => value === true),
-    savePriceList: (organizationId, input) =>
+    savePriceList: ({ organizationId, input }) =>
       call(
         "save_price_list",
         {
@@ -894,7 +919,7 @@ export function createCatalog<
         { price_list: priceListId },
         (value) => value === true,
       ),
-    setPrice: (variantId, input) => {
+    setPrice: ({ variantId, input }) => {
       const { currency } = input.amount;
 
       if (
@@ -939,7 +964,7 @@ export function createCatalog<
     },
     deletePrice: (priceId) =>
       call("delete_price", { price: priceId }, (value) => value === true),
-    variantPrice: (variantId, currency, priceOptions = {}) =>
+    variantPrice: ({ variantId, currency, ...priceOptions }) =>
       call(
         "variant_price",
         {
@@ -950,7 +975,7 @@ export function createCatalog<
         },
         priceOf,
       ),
-    saveCategory: (organizationId, input) =>
+    saveCategory: ({ organizationId, input }) =>
       call(
         "save_category",
         {
@@ -973,7 +998,7 @@ export function createCatalog<
           };
         },
       ),
-    moveCategory: (categoryId, parentId, rank) => {
+    moveCategory: ({ categoryId, parentId, rank }) => {
       const key = rankOf(rank);
 
       if (!key.ok) {
@@ -992,13 +1017,13 @@ export function createCatalog<
         { category: categoryId },
         (value) => value === true,
       ),
-    setProductCategories: (productId, categoryIds) =>
+    setProductCategories: ({ productId, categoryIds }) =>
       call(
         "set_product_categories",
         { product: productId, categories: categoryIds },
         (value) => value === true,
       ),
-    saveCollection: (organizationId, input) =>
+    saveCollection: ({ organizationId, input }) =>
       call(
         "save_collection",
         {
@@ -1025,7 +1050,7 @@ export function createCatalog<
         { collection: collectionId },
         (value) => value === true,
       ),
-    addToCollection: (collectionId, productId, rank) => {
+    addToCollection: ({ collectionId, productId, rank }) => {
       const add = (rank: string | null): AsyncResult<string> =>
         call(
           "add_to_collection",
@@ -1041,19 +1066,19 @@ export function createCatalog<
 
       return key.ok ? add(key.data) : AsyncResult.err(key.error);
     },
-    removeFromCollection: (collectionId, productId) =>
+    removeFromCollection: ({ collectionId, productId }) =>
       call(
         "remove_from_collection",
         { collection: collectionId, product: productId },
         (value) => value === true,
       ),
-    publishStorefront: (organizationId, published) =>
+    publishStorefront: ({ organizationId, published }) =>
       call(
         "publish_storefront",
         { tenant: organizationId, published },
         (value) => value === true,
       ),
-    saveChannel: (organizationId, input) =>
+    saveChannel: ({ organizationId, input }) =>
       call(
         "save_catalog_channel",
         {
@@ -1081,19 +1106,19 @@ export function createCatalog<
         { channel: channelId },
         (value) => value === true,
       ),
-    listOnChannel: (channelId, productIds) =>
+    listOnChannel: ({ channelId, productIds }) =>
       call(
         "set_channel_listing",
         { channel: channelId, products: productIds, listed: true },
         countOf,
       ),
-    unlistFromChannel: (channelId, productIds) =>
+    unlistFromChannel: ({ channelId, productIds }) =>
       call(
         "set_channel_listing",
         { channel: channelId, products: productIds, listed: false },
         countOf,
       ),
-    channelProducts: (channelId, listOptions = {}) => {
+    channelProducts: ({ channelId, ...listOptions }) => {
       const { limit, cursor } = pageOf(listOptions);
 
       return call(
@@ -1107,7 +1132,7 @@ export function createCatalog<
         (value) => recordsOf(value, "channel_products").map(channelProductOf),
       );
     },
-    channelPrice: (channelId, variantId, priceOptions = {}) =>
+    channelPrice: ({ channelId, variantId, ...priceOptions }) =>
       call(
         "channel_price",
         {
@@ -1117,7 +1142,7 @@ export function createCatalog<
         },
         priceOf,
       ),
-    setProductTranslation: (productId, locale, translation) =>
+    setProductTranslation: ({ productId, locale, translation }) =>
       call(
         "set_product_translation",
         {
@@ -1128,19 +1153,19 @@ export function createCatalog<
         },
         (value) => value === true,
       ),
-    setVariantTranslation: (variantId, locale, title) =>
+    setVariantTranslation: ({ variantId, locale, title }) =>
       call(
         "set_variant_translation",
         { variant: variantId, locale, title },
         (value) => value === true,
       ),
-    productText: (productId, textOptions = {}) =>
+    productText: ({ productId, ...textOptions }) =>
       call(
         "product_text",
         { product: productId, locale: textOptions.locale ?? null },
         localizedOf,
       ),
-    addProductMedia: (productId, attachmentId, input = {}) =>
+    addProductMedia: ({ productId, attachmentId, input = {} }) =>
       call(
         "add_product_media",
         {
@@ -1155,7 +1180,7 @@ export function createCatalog<
           return { id: textOf(row["id"]), position: Number(row["position"]) };
         },
       ),
-    updateProductMedia: (mediaId, input) =>
+    updateProductMedia: ({ mediaId, input }) =>
       call(
         "update_product_media",
         {
@@ -1165,7 +1190,7 @@ export function createCatalog<
         },
         (value) => value === true,
       ),
-    reorderProductMedia: (productId, mediaIds) =>
+    reorderProductMedia: ({ productId, mediaIds }) =>
       call(
         "reorder_product_media",
         { product: productId, media: mediaIds },
@@ -1177,7 +1202,7 @@ export function createCatalog<
         { media: mediaId },
         (value) => value === true,
       ),
-    productMedia: (productId, mediaOptions = {}) =>
+    productMedia: ({ productId, ...mediaOptions }) =>
       call(
         "product_media",
         { product: productId, locale: mediaOptions.locale ?? null },
@@ -1185,8 +1210,11 @@ export function createCatalog<
       ),
   };
 
-  return withBlockHooks(catalog, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Catalog<F> = withBlockHooks(catalog, options.hooks, {
     block: "catalog",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

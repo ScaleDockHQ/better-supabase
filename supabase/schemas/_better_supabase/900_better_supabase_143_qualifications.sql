@@ -1,6 +1,6 @@
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:e96b47f38fc8ef7cb60b2ff974b46a42a7c8407416b9fe03d5463e51a45d888b
+-- @bsb-hash sha256:8c2c93c7646594404b256fae262e358da10b2bf7105a38876f577263b4eb8d1d
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -985,6 +985,15 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualificatio
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.qualifications', target_type => 'qualification', event_prefix => 'qualification', deferred => true);
+  perform better_supabase.audit('better_supabase.qualification_types', target_type => 'qualification_type', event_prefix => 'qualification_type', deferred => true);
+  perform better_supabase.audit('better_supabase.qualification_requirements', target_type => 'qualification_requirement', event_prefix => 'qualification_requirement', deferred => true);
+end;
+$$;
 
 -- blocks.qualifications.api: entry points for the Data API.
 create schema if not exists "api";

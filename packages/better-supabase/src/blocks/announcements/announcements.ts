@@ -112,10 +112,10 @@ export interface Announcements<F extends object = Record<never, never>> {
   publish(
     input: AnnouncementInput & Partial<F>,
   ): AsyncResult<ManagedAnnouncement & F>;
-  update(
-    announcementId: string,
-    input: Partial<AnnouncementInput> & Partial<F>,
-  ): AsyncResult<ManagedAnnouncement & F>;
+  update(input: {
+    announcementId: string;
+    input: Partial<AnnouncementInput> & Partial<F>;
+  }): AsyncResult<ManagedAnnouncement & F>;
   remove(announcementId: string): AsyncResult<boolean>;
 }
 
@@ -314,7 +314,7 @@ export function createAnnouncements<
         ),
       ).andThen((rows) => allWithFields(fields, rows)),
     publish: (input) => save(null, input),
-    update: (announcementId, input) => save(announcementId, input),
+    update: ({ announcementId, input }) => save(announcementId, input),
     remove: (announcementId) =>
       call(
         "delete_announcement",

@@ -1384,7 +1384,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:e607533afde5cfb38403101c69097194e672961e56cb98d744e9b2df095db742
+-- @bsb-hash sha256:e8368a03e78990d6591bc38fd12be91893fdb21d90556228c177922e20825faf
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3043,6 +3043,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_f
 create policy bsb_tenant_scope_delete on "better_supabase"."inspection_findings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.inspections', target_type => 'inspection', event_prefix => 'inspection', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_programs', target_type => 'inspection_program', event_prefix => 'inspection_program', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_findings', target_type => 'inspection_finding', event_prefix => 'inspection_finding', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_members', target_type => 'inspection_member', event_prefix => 'inspection_member', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

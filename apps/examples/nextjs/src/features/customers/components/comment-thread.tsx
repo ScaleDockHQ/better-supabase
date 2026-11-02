@@ -48,7 +48,7 @@ export function CommentThread({
 
     setPending(true);
 
-    if ((await add(text)).ok) {
+    if ((await add({ body: text })).ok) {
       setBody("");
     }
 

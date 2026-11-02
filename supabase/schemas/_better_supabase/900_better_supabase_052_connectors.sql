@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:25274329093d9c05d61e2523818f319bbcc1bd0e6f6ab29bf578ab81ea07d471
+-- @bsb-hash sha256:34866a77cacd859369f46440168c22c4a3b031f5eaace01c3293eae1d00e6ed6
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -637,6 +637,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_gr
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.connector_servers', target_type => 'connector_server', event_prefix => 'connector_server', deferred => true);
+end;
+$$;
 
 -- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";

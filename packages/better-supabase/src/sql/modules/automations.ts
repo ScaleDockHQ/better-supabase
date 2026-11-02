@@ -35,7 +35,12 @@ const NAMES: BlockSqlNames = {
   },
   events: AUTOMATION_EVENTS,
   options: ["maxConditions", "maxDepth", "maxActions", "enable", "disable"],
-  hooks: [],
+  hooks: [
+    "before_automation_save",
+    "after_automation_save",
+    "before_automation_remove",
+    "after_automation_remove",
+  ],
   tables: {
     rules: {
       name: "automations",
@@ -613,6 +618,10 @@ begin
       ${fail("AUTOMATION_ACTIONS_INVALID", "Every action needs a kind such as approvals.request and an optional config object", "22023")}
     end if;
   end loop;
+  ${ctx.hook("before_automation_save", [
+    [id, "save_rule.tenant"],
+    ["jsonb", "save_rule.rule"],
+  ])}
   if v_old.${r("id")} is null then
     insert into ${t} (${[...ruleInsert.map(([column]) => r(column)), r("rank")].join(", ")})
     values (${values(ruleInsert)},
@@ -651,6 +660,7 @@ begin
   elsif not v_row.${r("enabled")} and coalesce(v_old.${r("enabled")}, false) then
     ${ruleEvent("automation.disabled", "v_row")}
   end if;
+  ${ctx.hook("after_automation_save", [["uuid", `v_row.${r("id")}`]])}
   return ${ruleJson("v_row")};
 end;
 $$;
@@ -810,8 +820,10 @@ ${
   end if;
 `
     : ""
-}  delete from ${t} x where x.${r("id")} = v_row.${r("id")};
+}  ${ctx.hook("before_automation_remove", [["uuid", "remove_rule.id"]])}
+  delete from ${t} x where x.${r("id")} = v_row.${r("id")};
   ${ruleEvent("automation.deleted", "v_row")}
+  ${ctx.hook("after_automation_remove", [["uuid", `v_row.${r("id")}`]])}
   return true;
 end;
 $$;

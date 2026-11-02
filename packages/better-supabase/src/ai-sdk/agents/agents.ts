@@ -479,13 +479,15 @@ export function moderationMiddleware(
     }
 
     const recorded = await options.chats.moderation.record({
-      organizationId: options.organizationId,
-      stage,
-      action: verdict.action,
-      category: verdict.category,
-      ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
-      ...(options.userId === undefined ? {} : { userId: options.userId }),
-      ...(verdict.score === undefined ? {} : { score: verdict.score }),
+      event: {
+        organizationId: options.organizationId,
+        stage,
+        action: verdict.action,
+        category: verdict.category,
+        ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
+        ...(options.userId === undefined ? {} : { userId: options.userId }),
+        ...(verdict.score === undefined ? {} : { score: verdict.score }),
+      },
     });
 
     if (!recorded.ok) {

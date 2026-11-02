@@ -89,7 +89,11 @@ describe("templates client", () => {
   it("maps templates and flags a fork that is behind its source", async () => {
     const fake = transport({ templates_list: () => [TEMPLATE] });
     const templates = createTemplates({ transport: fake });
-    const [row] = await templates.list("o", { type: "project" }).orThrow();
+
+    const [row] = await templates
+      .list({ organizationId: "o", filter: { type: "project" } })
+      .orThrow();
+
     expect(row).toMatchObject({
       organizationId: "o",
       scope: "tenant",
@@ -127,11 +131,15 @@ describe("templates client", () => {
     expect(bad.ok ? undefined : bad.error.kind).toBe("validation");
     expect(fake.calls).toHaveLength(0);
 
-    const badBody = await templates.versions.upsert("t1", { tasks: "no" });
+    const badBody = await templates.versions.upsert({
+      template: "t1",
+      body: { tasks: "no" },
+    });
+
     expect(badBody.ok ? undefined : badBody.error.kind).toBe("validation");
 
     const draft = await templates.versions
-      .upsert("t1", { tasks: ["A"] })
+      .upsert({ template: "t1", body: { tasks: ["A"] } })
       .orThrow();
 
     expect(draft.publishedAt).toBeUndefined();
@@ -165,7 +173,10 @@ describe("templates client", () => {
       },
     });
 
-    const result = await templates.apply("t1", { into: "o" }).orThrow();
+    const result = await templates
+      .apply({ template: "t1", options: { into: "o" } })
+      .orThrow();
+
     expect(applied.at(-1)).toEqual({ color: "blue", tasks: ["Kickoff"] });
     expect(result.subject).toEqual({ type: "project", id: "p1" });
     expect(result.application.subject).toEqual({ type: "project", id: "p1" });
@@ -200,8 +211,9 @@ describe("templates client", () => {
       }),
     });
 
-    const none = await createTemplates({ transport: target }).apply("t1", {
-      into: "o",
+    const none = await createTemplates({ transport: target }).apply({
+      template: "t1",
+      options: { into: "o" },
     });
 
     expect(none.ok ? undefined : none.error.kind).toBe("invalid_request");
@@ -209,7 +221,7 @@ describe("templates client", () => {
     const noBuilder = await createTemplates({
       transport: target,
       types: { project },
-    }).apply("t1", { into: "o" });
+    }).apply({ template: "t1", options: { into: "o" } });
 
     expect(noBuilder.ok ? undefined : noBuilder.error.message).toMatch(
       /workflows/,
@@ -236,7 +248,11 @@ describe("templates client", () => {
       },
     });
 
-    const result = await templates.apply("t1", { into: "o" });
+    const result = await templates.apply({
+      template: "t1",
+      options: { into: "o" },
+    });
+
     expect(result.ok).toBe(false);
     expect(fake.calls.map(([fn]) => fn)).toEqual(["template_apply_target"]);
   });
@@ -250,7 +266,7 @@ describe("templates client", () => {
     });
 
     const templates = createTemplates({ transport: fake, types: { project } });
-    const [row] = await templates.list("o").orThrow();
+    const [row] = await templates.list({ organizationId: "o" }).orThrow();
     expect(row).toMatchObject({ scope: "brand", brand: "acme" });
 
     await templates
@@ -333,8 +349,11 @@ describe("templates client", () => {
     const templates = createTemplates({ transport: fake });
 
     expect(await templates.remove("t1").orThrow()).toBe(true);
-    expect(await templates.setDefault("t1").orThrow()).toBe(true);
-    expect((await templates.fork("s1", "o").orThrow()).id).toBe("t2");
+    expect(await templates.setDefault({ id: "t1" }).orThrow()).toBe(true);
+    expect(
+      (await templates.fork({ source: "s1", organizationId: "o" }).orThrow())
+        .id,
+    ).toBe("t2");
     expect((await templates.versions.publish("t1").orThrow()).version).toBe(1);
     expect(await templates.versions.list("t1").orThrow()).toHaveLength(1);
     expect(
@@ -346,12 +365,19 @@ describe("templates client", () => {
       inputs: { notify: true },
       enabled: true,
     });
-    expect(await templates.workflows.detach("t1", "d1").orThrow()).toBe(true);
+    expect(
+      await templates.workflows
+        .detach({ template: "t1", definition: "d1" })
+        .orThrow(),
+    ).toBe(true);
     const [workflow] = await templates.workflows.list("t1").orThrow();
     expect(workflow?.enabled).toBe(false);
 
     const [application] = await templates.applications
-      .list("o", { template: "t1", subject: { type: "project", id: "p1" } })
+      .list({
+        organizationId: "o",
+        filter: { template: "t1", subject: { type: "project", id: "p1" } },
+      })
       .orThrow();
 
     expect(application).toMatchObject({

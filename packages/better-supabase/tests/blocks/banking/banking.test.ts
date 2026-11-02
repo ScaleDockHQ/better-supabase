@@ -136,7 +136,9 @@ describe("createBanking", () => {
     });
 
     const saved = await banking
-      .saveAccount({ name: "Operating", fields: { ledger_code: "1100" } })
+      .saveAccount({
+        input: { name: "Operating", fields: { ledger_code: "1100" } },
+      })
       .orThrow();
 
     expect(saved.fields.ledger_code).toBe("1100");
@@ -144,7 +146,8 @@ describe("createBanking", () => {
       input: { fields: { ledger_code: "1100" } },
     });
     expect(
-      (await banking.saveAccount({ fields: { ledger_code: "1" } })).ok,
+      (await banking.saveAccount({ input: { fields: { ledger_code: "1" } } }))
+        .ok,
     ).toBe(false);
     expect(t.calls).toHaveLength(1);
     expect((await banking.accounts()).ok).toBe(false);
@@ -162,9 +165,11 @@ describe("createBanking", () => {
 
     const saved = await banking
       .saveAccount({
-        name: "Operating",
-        iban: "NL91 ABNA 0417 1643 00",
-        currency: "EUR",
+        input: {
+          name: "Operating",
+          iban: "NL91 ABNA 0417 1643 00",
+          currency: "EUR",
+        },
       })
       .orThrow();
 
@@ -211,21 +216,24 @@ describe("createBanking", () => {
     const banking = createBanking({ transport: t, tenant: "org-1" });
 
     const result = await banking
-      .importStatement("a1", {
-        reference: "STMT-1",
-        fromOn: temporal().PlainDate.from("2026-10-01"),
-        untilOn: "2026-10-01",
-        openingBalance: money(100_000n, "EUR"),
-        closingBalance: money(124_200n, "EUR"),
-        format: "camt053",
-        transactions: [
-          {
-            externalId: "BANK-0001",
-            bookedOn: "2026-10-01",
-            amount: money(24_200n, "EUR"),
-            structuredReference: "RF73INV20260042",
-          },
-        ],
+      .importStatement({
+        accountId: "a1",
+        statement: {
+          reference: "STMT-1",
+          fromOn: temporal().PlainDate.from("2026-10-01"),
+          untilOn: "2026-10-01",
+          openingBalance: money(100_000n, "EUR"),
+          closingBalance: money(124_200n, "EUR"),
+          format: "camt053",
+          transactions: [
+            {
+              externalId: "BANK-0001",
+              bookedOn: "2026-10-01",
+              amount: money(24_200n, "EUR"),
+              structuredReference: "RF73INV20260042",
+            },
+          ],
+        },
       })
       .orThrow();
 
@@ -294,7 +302,8 @@ describe("createBanking", () => {
     const banking = createBanking({ transport: t, tenant: "org-1" });
 
     const [listed] = await banking
-      .transactions("a1", {
+      .transactions({
+        accountId: "a1",
         status: "unmatched",
         since: "2026-10-01",
         limit: 50,
@@ -325,19 +334,24 @@ describe("createBanking", () => {
     });
 
     const matched = await banking
-      .match("t1", [
-        {
-          targetType: "invoice",
-          targetId: "i1",
-          amount: money(24_200n, "EUR"),
-        },
-        { targetType: "accounting_entry", targetId: "e1" },
-      ])
+      .match({
+        transactionId: "t1",
+        matches: [
+          {
+            targetType: "invoice",
+            targetId: "i1",
+            amount: money(24_200n, "EUR"),
+          },
+          { targetType: "accounting_entry", targetId: "e1" },
+        ],
+      })
       .orThrow();
 
     expect(matched.status).toBe("matched");
     expect((await banking.unmatch("t1").orThrow()).status).toBe("unmatched");
-    expect((await banking.ignore("t1").orThrow()).status).toBe("ignored");
+    expect(
+      (await banking.ignore({ transactionId: "t1" }).orThrow()).status,
+    ).toBe("ignored");
 
     expect(t.calls).toContainEqual([
       "list_bank_transactions",
@@ -374,9 +388,11 @@ describe("createBanking", () => {
 
     const rule = await banking
       .saveRule({
-        name: "Bank fees",
-        conditions: RULE.conditions,
-        accountId: "acc-fees",
+        input: {
+          name: "Bank fees",
+          conditions: RULE.conditions,
+          accountId: "acc-fees",
+        },
       })
       .orThrow();
 
@@ -423,7 +439,9 @@ describe("createBanking", () => {
 
     const banking = createBanking({ transport: t, tenant: "org-1" });
 
-    const status = await banking.reconciliation("a1", "2026-10-31").orThrow();
+    const status = await banking
+      .reconciliation({ accountId: "a1", asOf: "2026-10-31" })
+      .orThrow();
 
     expect(status).toMatchObject({
       reconciled: true,
@@ -468,7 +486,11 @@ describe("createBanking", () => {
     };
 
     const result = await banking
-      .syncFeed("a1", feed, { accountRef: "acc-9", since: "2026-10-01" })
+      .syncFeed({
+        accountId: "a1",
+        feed,
+        sync: { accountRef: "acc-9", since: "2026-10-01" },
+      })
       .orThrow();
 
     expect(result.statement.format).toBe("feed");
@@ -547,7 +569,9 @@ describe("payment batches", () => {
     expect(batch.total).toEqual(money(9800n, "EUR"));
     expect(batch.items[0]?.discount).toEqual(money(200n, "EUR"));
 
-    const xml = await banking.exportSepaCreditTransfer("b1").orThrow();
+    const xml = await banking
+      .exportSepaCreditTransfer({ batchId: "b1" })
+      .orThrow();
 
     expect(xml).toContain("<MsgId>BATCH-1</MsgId>");
     expect(xml).toContain('<InstdAmt Ccy="EUR">98.00</InstdAmt>');
@@ -632,7 +656,8 @@ describe("payment batches", () => {
     expect(batch.items[0]?.creditorBic).toBe("COBADEFFXXX");
 
     const xml = await banking
-      .exportSepaCreditTransfer("b1", {
+      .exportSepaCreditTransfer({
+        batchId: "b1",
         debtorName: "Acme",
         initiatingPartyName: "Acme Treasury",
       })
@@ -653,7 +678,7 @@ describe("payment batches", () => {
     const result = await createBanking({
       transport: t,
       tenant: "org-1",
-    }).exportSepaCreditTransfer("b1");
+    }).exportSepaCreditTransfer({ batchId: "b1" });
 
     expect(result.ok).toBe(false);
   });
@@ -667,7 +692,7 @@ describe("payment batches", () => {
     const result = await createBanking({
       transport: t,
       tenant: "org-1",
-    }).exportSepaCreditTransfer("b1");
+    }).exportSepaCreditTransfer({ batchId: "b1" });
 
     expect(result.ok).toBe(false);
   });

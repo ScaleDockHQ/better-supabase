@@ -682,14 +682,20 @@ describe.skipIf(!live)("ai-chat module", () => {
       caller = owner;
       await s.as(owner);
 
-      const chat = await ai.chats.create(tenant, { title: "Plans" }).orThrow();
+      const chat = await ai.chats
+        .create({ organizationId: tenant, input: { title: "Plans" } })
+        .orThrow();
+
       expect(chat).toMatchObject({ title: "Plans", visibility: "private" });
 
       const appended = await ai.messages
-        .appendUser(chat.id, {
-          id: "u1",
-          role: "user",
-          parts: [{ type: "text", text: "Hi" }],
+        .appendUser({
+          chatId: chat.id,
+          message: {
+            id: "u1",
+            role: "user",
+            parts: [{ type: "text", text: "Hi" }],
+          },
         })
         .orThrow();
 
@@ -700,33 +706,40 @@ describe.skipIf(!live)("ai-chat module", () => {
       });
 
       const claim = await ai.runs
-        .claim(chat.id, "stream-1", { model: "openai/gpt-5" })
+        .claim({ chatId: chat.id, streamId: "stream-1", model: "openai/gpt-5" })
         .orThrow();
 
       expect(claim.claimed).toBe(true);
       await ai.messages
-        .saveAssistant(
-          chat.id,
-          {
+        .saveAssistant({
+          chatId: chat.id,
+          message: {
             id: "a1",
             role: "assistant",
             parts: [{ type: "text", text: "Hello" }],
           },
-          {
+          options: {
             parentId: "u1",
             format: "ai-sdk-ui",
             native: { id: "a1", parts: [] },
             runId: claim.runId,
           },
-        )
+        })
         .orThrow();
       expect(
         await ai.runs
-          .release(chat.id, "stream-1", { usage: { totalTokens: 3 } })
+          .release({
+            chatId: chat.id,
+            streamId: "stream-1",
+            usage: { totalTokens: 3 },
+          })
           .orThrow(),
       ).toBe(true);
 
-      const path = await ai.messages.path(chat.id, { native: true }).orThrow();
+      const path = await ai.messages
+        .path({ chatId: chat.id, native: true })
+        .orThrow();
+
       expect(path.map((message) => message.id)).toEqual(["u1", "a1"]);
       expect(path[1]).toMatchObject({
         format: "ai-sdk-ui",
@@ -734,44 +747,67 @@ describe.skipIf(!live)("ai-chat module", () => {
       });
 
       const approval = await ai.approvals
-        .request(chat.id, {
-          approvalId: "ap-1",
-          tool: "search",
-          toolCallId: "t1",
-          input: { q: "x" },
+        .request({
+          chatId: chat.id,
+          request: {
+            approvalId: "ap-1",
+            tool: "search",
+            toolCallId: "t1",
+            input: { q: "x" },
+          },
         })
         .orThrow();
 
       expect(approval.decision).toBe("pending");
       expect(
-        (await ai.approvals.decide("ap-1", false, "no").orThrow()).decision,
+        (
+          await ai.approvals
+            .decide({ approvalId: "ap-1", approved: false, reason: "no" })
+            .orThrow()
+        ).decision,
       ).toBe("denied");
-      expect(await ai.approvals.list(chat.id, ["ap-1"]).orThrow()).toHaveLength(
-        1,
-      );
       expect(
-        await ai.approvals.setPolicy(tenant, "search", "deny").orThrow(),
+        await ai.approvals
+          .list({ chatId: chat.id, approvalIds: ["ap-1"] })
+          .orThrow(),
+      ).toHaveLength(1);
+      expect(
+        await ai.approvals
+          .setPolicy({ organizationId: tenant, tool: "search", policy: "deny" })
+          .orThrow(),
       ).toBe("deny");
       expect(await ai.approvals.policies(tenant).orThrow()).toEqual({
         search: "deny",
       });
 
       const input = await ai.inputs
-        .open(chat.id, { question: "Which?" })
+        .open({ chatId: chat.id, request: { question: "Which?" } })
         .orThrow();
 
       expect(
-        (await ai.inputs.answer(input.id, "this one").orThrow()).answer,
+        (
+          await ai.inputs
+            .answer({ inputId: input.id, answer: "this one" })
+            .orThrow()
+        ).answer,
       ).toBe("this one");
 
-      expect((await ai.feedback.rate(chat.id, "a1", 1).orThrow()).rating).toBe(
-        1,
-      );
-      expect((await ai.feedback.rate(chat.id, "a1", 0).orThrow()).rating).toBe(
-        0,
-      );
+      expect(
+        (
+          await ai.feedback
+            .rate({ chatId: chat.id, messageId: "a1", rating: 1 })
+            .orThrow()
+        ).rating,
+      ).toBe(1);
+      expect(
+        (
+          await ai.feedback
+            .rate({ chatId: chat.id, messageId: "a1", rating: 0 })
+            .orThrow()
+        ).rating,
+      ).toBe(0);
 
-      const link = await ai.shares.create(chat.id).orThrow();
+      const link = await ai.shares.create({ chatId: chat.id }).orThrow();
       expect((await ai.shares.get(link.token).orThrow()).messages).toHaveLength(
         2,
       );
@@ -779,7 +815,12 @@ describe.skipIf(!live)("ai-chat module", () => {
 
       expect(
         await ai.models
-          .upsert([{ id: "openai/gpt-5" }, { id: "x/hidden", enabled: false }])
+          .upsert({
+            models: [
+              { id: "openai/gpt-5" },
+              { id: "x/hidden", enabled: false },
+            ],
+          })
           .orThrow(),
       ).toBe(2);
       expect(
@@ -788,17 +829,21 @@ describe.skipIf(!live)("ai-chat module", () => {
 
       const event = await ai.moderation
         .record({
-          organizationId: tenant,
-          chatId: chat.id,
-          stage: "output",
-          action: "flag",
-          category: "pii",
-          score: 0.5,
+          event: {
+            organizationId: tenant,
+            chatId: chat.id,
+            stage: "output",
+            action: "flag",
+            category: "pii",
+            score: 0.5,
+          },
         })
         .orThrow();
 
       expect(event.score).toBe(0.5);
-      expect(await ai.moderation.list(tenant).orThrow()).toHaveLength(1);
+      expect(
+        await ai.moderation.list({ organizationId: tenant }).orThrow(),
+      ).toHaveLength(1);
 
       const page = await ai.chats.list({ organizationId: tenant }).orThrow();
       expect(page.items.map((item) => item.id)).toEqual([chat.id]);

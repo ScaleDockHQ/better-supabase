@@ -133,7 +133,7 @@ describe.skipIf(!live)("state machine", () => {
           quote,
         ]),
       ).toBe("STATE_SUBJECT_NOT_FOUND");
-      expect(await errorOf(machine.pause(subject, { reason: "look" }))).toBe(
+      expect(await errorOf(machine.pause({ subject, reason: "look" }))).toBe(
         "STATE_SUBJECT_NOT_FOUND",
       );
       expect((await machine.state(subject).orThrow()).status).toBe("draft");
@@ -141,7 +141,7 @@ describe.skipIf(!live)("state machine", () => {
       await s.asRole(member);
       expect(
         await machine
-          .transition(subject, "sent", { reason: "ready" })
+          .transition({ subject, to: "sent", reason: "ready" })
           .orThrow(),
       ).toBe(true);
       const sent = await machine.state(subject).orThrow();
@@ -155,7 +155,7 @@ describe.skipIf(!live)("state machine", () => {
       });
 
       expect(
-        await machine.pause(subject, { reason: "client away" }).orThrow(),
+        await machine.pause({ subject, reason: "client away" }).orThrow(),
       ).toBe(true);
       expect((await machine.state(subject).orThrow()).pauseReason).toBe(
         "client away",
@@ -163,20 +163,24 @@ describe.skipIf(!live)("state machine", () => {
       expect(await machine.resume(subject).orThrow()).toBe(true);
       expect(await machine.resume(subject).orThrow()).toBe(false);
 
-      expect(await machine.setFlag(subject, "urgent", true).orThrow()).toBe(
-        true,
-      );
-      expect(await machine.setFlag(subject, "urgent", true).orThrow()).toBe(
-        false,
-      );
-      expect(await errorOf(machine.setFlag(subject, "vip", true))).toBe(
-        "STATE_FLAG_UNKNOWN",
-      );
+      expect(
+        await machine
+          .setFlag({ subject, flag: "urgent", enabled: true })
+          .orThrow(),
+      ).toBe(true);
+      expect(
+        await machine
+          .setFlag({ subject, flag: "urgent", enabled: true })
+          .orThrow(),
+      ).toBe(false);
+      expect(
+        await errorOf(machine.setFlag({ subject, flag: "vip", enabled: true })),
+      ).toBe("STATE_FLAG_UNKNOWN");
       expect((await machine.state(subject).orThrow()).flags).toEqual([
         "urgent",
       ]);
 
-      const history = await machine.history(subject).orThrow();
+      const history = await machine.history({ subject }).orThrow();
       expect(history.map((change) => [change.from, change.to])).toEqual([
         ["draft", "sent"],
       ]);
@@ -186,7 +190,7 @@ describe.skipIf(!live)("state machine", () => {
       expect(stages[0]?.clearedAt).toBeDefined();
 
       await s.asRole(viewer);
-      expect(await machine.history(subject).orThrow()).toHaveLength(1);
+      expect(await machine.history({ subject }).orThrow()).toHaveLength(1);
       expect(
         await s.value<number>(
           "(select count(*)::int from better_supabase.subject_lifecycles)",
@@ -229,11 +233,11 @@ describe.skipIf(!live)("state machine", () => {
       });
 
       const request = await approvals
-        .request(subject, { action: "accept" })
+        .request({ subject, input: { action: "accept" } })
         .orThrow();
 
       await s.asRole(owner);
-      await approvals.approve(request.id).orThrow();
+      await approvals.approve({ id: request.id }).orThrow();
       await s.service();
       expect(
         await s.value<string>(

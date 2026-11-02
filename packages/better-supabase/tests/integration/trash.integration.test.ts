@@ -97,7 +97,15 @@ describe.skipIf(!live)("trash", () => {
         );
 
       await s.as(member);
-      const batch = await trash.trash(tenant, "project", project).orThrow();
+
+      const batch = await trash
+        .trash({
+          organizationId: tenant,
+          subjectType: "project",
+          subjectId: project,
+        })
+        .orThrow();
+
       expect(batch.count).toBe(3);
       await s.service();
       expect(await liveTasks()).toBe(1);
@@ -108,7 +116,7 @@ describe.skipIf(!live)("trash", () => {
       ).toBe(true);
 
       await s.as(member);
-      const listed = await trash.list(tenant).orThrow();
+      const listed = await trash.list({ organizationId: tenant }).orThrow();
       expect(listed).toHaveLength(1);
       expect(listed[0]).toMatchObject({
         id: batch.id,
@@ -119,12 +127,20 @@ describe.skipIf(!live)("trash", () => {
       expect(listed[0]!.purgeAfter).toBeDefined();
       expect(
         await trash
-          .trash(tenant, "project", project)
+          .trash({
+            organizationId: tenant,
+            subjectType: "project",
+            subjectId: project,
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("TRASH_NOT_FOUND");
       expect(
         await trash
-          .trash(tenant, "label", project)
+          .trash({
+            organizationId: tenant,
+            subjectType: "label",
+            subjectId: project,
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("TRASH_FORBIDDEN");
 
@@ -147,17 +163,31 @@ describe.skipIf(!live)("trash", () => {
       });
       await s.service();
       expect(await liveTasks()).toBe(3);
-      expect(await trash.list(tenant).orThrow()).toEqual([]);
+      expect(await trash.list({ organizationId: tenant }).orThrow()).toEqual(
+        [],
+      );
 
       await s.as(stranger);
       expect(
         await trash
-          .trash(tenant, "project", other)
+          .trash({
+            organizationId: tenant,
+            subjectType: "project",
+            subjectId: other,
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("TRASH_FORBIDDEN");
 
       await s.as(member);
-      const gone = await trash.trash(tenant, "project", other).orThrow();
+
+      const gone = await trash
+        .trash({
+          organizationId: tenant,
+          subjectType: "project",
+          subjectId: other,
+        })
+        .orThrow();
+
       expect(
         await trash.purge(gone.id).then((r) => !r.ok && r.error.hint),
       ).toBe("TRASH_FORBIDDEN");
@@ -172,7 +202,15 @@ describe.skipIf(!live)("trash", () => {
       ).toBe(0);
 
       await s.as(member);
-      const expiring = await trash.trash(tenant, "project", project).orThrow();
+
+      const expiring = await trash
+        .trash({
+          organizationId: tenant,
+          subjectType: "project",
+          subjectId: project,
+        })
+        .orThrow();
+
       await s.service();
       await s.client.query(
         "update better_supabase.trash_items set purge_after = now() - interval '1 day' where batch_id = $1",

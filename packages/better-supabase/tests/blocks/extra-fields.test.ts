@@ -91,8 +91,9 @@ describe("block fields", () => {
       points: 3,
     });
 
-    const refused = await tags.update("t1", {
-      fields: { priority: "urgent" as "low" },
+    const refused = await tags.update({
+      id: "t1",
+      patch: { fields: { priority: "urgent" as "low" } },
     });
 
     expect(refused).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -105,7 +106,7 @@ describe("block fields", () => {
     });
 
     const team = await createTeams({ transport: fake.transport })
-      .update("t1", "Ops")
+      .update({ id: "t1", name: "Ops" })
       .orThrow();
 
     expect(team).toEqual({
@@ -155,7 +156,7 @@ describe("block fields", () => {
       error: { kind: "validation" },
     });
     const trash = createTrash({ transport: fake.transport, fields: Fields });
-    const [item] = await trash.list("o").orThrow();
+    const [item] = await trash.list({ organizationId: "o" }).orThrow();
     expect(item?.fields).toEqual({ priority: "low", points: 2 });
   });
 
@@ -208,14 +209,20 @@ describe("block fields", () => {
       fields: { priority: "high", points: 1 },
     });
     await createGoals({ transport: fake.transport })
-      .upsert("o", { name: "Q4", fields: { budget: 3 } })
+      .upsert({
+        organizationId: "o",
+        target: { name: "Q4", fields: { budget: 3 } },
+      })
       .orThrow();
     expect(fake.calls[1]?.args["attrs"]).toMatchObject({
       fields: { budget: 3 },
     });
 
     const item = await createTasks({ transport: fake.transport })
-      .create("o", { title: "A", fields: { priority_label: "x" } })
+      .create({
+        organizationId: "o",
+        input: { title: "A", fields: { priority_label: "x" } },
+      })
       .orThrow();
 
     expect(item.fields).toEqual({ priority_label: "x" });
@@ -234,10 +241,12 @@ describe("block fields", () => {
     });
 
     expect(
-      await items.update([
-        { workItemId: "w1", field: "title", value: "B" },
-        { workItemId: "w1", field: "size", value: "xl" },
-      ]),
+      await items.update({
+        changes: [
+          { workItemId: "w1", field: "title", value: "B" },
+          { workItemId: "w1", field: "size", value: "xl" },
+        ],
+      }),
     ).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(fake.calls).toHaveLength(0);
   });
@@ -304,7 +313,10 @@ describe("block fields", () => {
       fields: Fields,
       tenant: "o",
     })
-      .create({ type: "deal", id: "d1" }, { fields: value })
+      .create({
+        subject: { type: "deal", id: "d1" },
+        options: { fields: value },
+      })
       .orThrow();
 
     expect(link.fields).toEqual(value);
@@ -316,16 +328,21 @@ describe("block fields", () => {
     });
 
     await time.start({ fields: value }).orThrow();
-    await time.update("e1", { note: "n", fields: value }).orThrow();
+    await time
+      .update({ entryId: "e1", patch: { note: "n", fields: value } })
+      .orThrow();
     await createVersions({
       transport: fake.transport,
       fields: Fields,
       tenant: "o",
     })
-      .snapshot({ type: "deal", id: "d1" }, { fields: value })
+      .snapshot({
+        subject: { type: "deal", id: "d1" },
+        input: { fields: value },
+      })
       .orThrow();
     await createWaitlist({ transport: fake.transport, fields: Fields })
-      .join("a@b.c", { fields: value })
+      .join({ email: "a@b.c", fields: value })
       .orThrow();
 
     const request = await createSignatures({
@@ -429,8 +446,10 @@ describe("block fields", () => {
     });
     const seen: unknown[] = [];
     expect(
-      await inbox.process((message) => {
-        seen.push(message.fields);
+      await inbox.process({
+        handler: (message) => {
+          seen.push(message.fields);
+        },
       }),
     ).toEqual({ succeeded: 1, failed: 0 });
     expect(seen).toEqual([{ priority: "high", points: 4 }]);
@@ -470,7 +489,7 @@ describe("block hooks", () => {
       createUsage({
         transport: fake.transport,
         hooks: { record: { before: () => refusal } },
-      }).record("o", "api"),
+      }).record({ organizationId: "o", meter: "api" }),
       createWaitlist({
         transport: fake.transport,
         hooks: { reject: { before: () => refusal } },

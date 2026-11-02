@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:d53ebbccef18c3aae8808c8c07046e2b9a4bfe8a7d28346e0557aed843d99d47
+-- @bsb-hash sha256:c0b236401f1478768cc821dae02ea64f014c9253c8cd4e2d138a5666fc4468dd
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1703,6 +1703,16 @@ drop trigger if exists "bsb_search_inspection_index" on "better_supabase"."inspe
 create trigger "bsb_search_inspection_index"
   after insert or delete or update of "id", "tenant_id", "title", "number", "scope", "summary" on "better_supabase"."inspections"
   for each row execute function "better_supabase"."search_index_row"('inspection', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.inspections', target_type => 'inspection', event_prefix => 'inspection', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_programs', target_type => 'inspection_program', event_prefix => 'inspection_program', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_findings', target_type => 'inspection_finding', event_prefix => 'inspection_finding', deferred => true);
+  perform better_supabase.audit('better_supabase.inspection_members', target_type => 'inspection_member', event_prefix => 'inspection_member', deferred => true);
+end;
+$$;
 
 -- blocks.inspections.api: entry points for the Data API.
 create schema if not exists "api";

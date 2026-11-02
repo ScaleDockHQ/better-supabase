@@ -55,11 +55,14 @@ export async function notifyActor(
   }
 
   await serviceNotifications()
-    .send("workflow.message", {
-      tenant: context.tenant,
-      recipients: [context.actor.id],
-      includeActor: true,
-      data: { title },
+    .send({
+      type: "workflow.message",
+      input: {
+        tenant: context.tenant,
+        recipients: [context.actor.id],
+        includeActor: true,
+        data: { title },
+      },
     })
     .orThrow();
 }

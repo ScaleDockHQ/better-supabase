@@ -44,7 +44,10 @@ export const createServicePrincipal = bsb.action(
       return err(dbError("unauthorized", "Sign in to add a service principal"));
     }
 
-    const created = await serviceClient().create(tenant, name, role, {
+    const created = await serviceClient().create({
+      organizationId: tenant,
+      name,
+      role,
       default: isDefault,
       createdBy: auth.user.id,
     });
@@ -73,7 +76,8 @@ export const disableServicePrincipal = bsb.action(
       );
     }
 
-    const disabled = await serviceClient().disable(id, {
+    const disabled = await serviceClient().disable({
+      id,
       createdBy: auth.user.id,
     });
 

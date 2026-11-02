@@ -51,38 +51,39 @@ export interface ResolvedDiscount {
 }
 
 export interface CatalogDiscounts {
-  saveDiscountGroup(
-    organizationId: string,
-    input: DiscountGroupInput,
-  ): AsyncResult<{ readonly id: string }>;
+  saveDiscountGroup(input: {
+    organizationId: string;
+    input: DiscountGroupInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** Refused with `CATALOG_DISCOUNT_GROUP_IN_USE` while a rule uses it. */
   deleteDiscountGroup(groupId: string): AsyncResult<boolean>;
   /** Puts a customer in a customer group; null removes it from its group. */
-  setPartyDiscountGroup(
-    organizationId: string,
-    partyId: string,
-    groupId: string | null,
-  ): AsyncResult<boolean>;
+  setPartyDiscountGroup(input: {
+    organizationId: string;
+    partyId: string;
+    groupId: string | null;
+  }): AsyncResult<boolean>;
   /** Puts a variant in a product group; null removes it from its group. */
-  setVariantDiscountGroup(
-    variantId: string,
-    groupId: string | null,
-  ): AsyncResult<boolean>;
-  saveDiscountRule(
-    organizationId: string,
-    input: DiscountRuleInput,
-  ): AsyncResult<{ readonly id: string }>;
+  setVariantDiscountGroup(input: {
+    variantId: string;
+    groupId: string | null;
+  }): AsyncResult<boolean>;
+  saveDiscountRule(input: {
+    organizationId: string;
+    input: DiscountRuleInput;
+  }): AsyncResult<{ readonly id: string }>;
   deleteDiscountRule(ruleId: string): AsyncResult<boolean>;
   /**
    * The rule that prices a customer's quantity of a variant: the most specific
    * one wins, then the highest quantity break, then the latest start date.
    */
   resolveLineDiscount(
-    organizationId: string,
-    partyId: string | null,
-    variantId: string,
-    quantity: number | string,
-    options?: ResolveDiscountOptions,
+    input: {
+      organizationId: string;
+      partyId: string | null;
+      variantId: string;
+      quantity: number | string;
+    } & ResolveDiscountOptions,
   ): AsyncResult<ResolvedDiscount>;
 }
 
@@ -93,7 +94,7 @@ const idOf = (value: unknown, fn: string): { readonly id: string } => ({
 /** The discount group, rule and matrix calls of the catalog. */
 export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
   return {
-    saveDiscountGroup: (organizationId, input) =>
+    saveDiscountGroup: ({ organizationId, input }) =>
       call(
         "save_discount_group",
         {
@@ -107,19 +108,19 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
       ),
     deleteDiscountGroup: (groupId) =>
       call("delete_discount_group", { group: groupId }, (v) => v === true),
-    setPartyDiscountGroup: (organizationId, partyId, groupId) =>
+    setPartyDiscountGroup: ({ organizationId, partyId, groupId }) =>
       call(
         "set_party_discount_group",
         { tenant: organizationId, party: partyId, group: groupId },
         (v) => v === true,
       ),
-    setVariantDiscountGroup: (variantId, groupId) =>
+    setVariantDiscountGroup: ({ variantId, groupId }) =>
       call(
         "set_variant_discount_group",
         { variant: variantId, group: groupId },
         (v) => v === true,
       ),
-    saveDiscountRule: (organizationId, input) =>
+    saveDiscountRule: ({ organizationId, input }) =>
       call(
         "save_discount_rule",
         {
@@ -146,13 +147,13 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
       ),
     deleteDiscountRule: (ruleId) =>
       call("delete_discount_rule", { rule: ruleId }, (v) => v === true),
-    resolveLineDiscount: (
+    resolveLineDiscount: ({
       organizationId,
       partyId,
       variantId,
       quantity,
-      options = {},
-    ) =>
+      ...options
+    }) =>
       call(
         "resolve_line_discount",
         {

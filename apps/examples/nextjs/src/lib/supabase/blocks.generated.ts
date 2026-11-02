@@ -2,6 +2,7 @@
 
 import {
   type AppTableEventData,
+  blockRead,
   defineEvents,
   event,
   type EventRenamesOf,
@@ -87,6 +88,7 @@ import type { AppraisalsEvents } from "better-supabase/blocks/appraisals";
 import type { WarehouseEvents } from "better-supabase/blocks/warehouse";
 import type { RfqsEvents } from "better-supabase/blocks/rfqs";
 import type { TillsEvents } from "better-supabase/blocks/tills";
+import type { PeriodsEvents } from "better-supabase/blocks/periods";
 import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
 import type { EPrescribingEvents } from "better-supabase/blocks/e-prescribing";
 import type { ManufacturingEvents } from "better-supabase/blocks/manufacturing";
@@ -149,6 +151,23 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { TasksEvents } from "better-supabase/blocks/tasks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
+import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
+import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
+import { governanceBlock as governanceBlockInstance } from "better-supabase/blocks/governance";
+import { commerceBlock as commerceBlockInstance } from "better-supabase/blocks/commerce";
+import { procurementBlock as procurementBlockInstance } from "better-supabase/blocks/procurement";
+import { financeBlock as financeBlockInstance } from "better-supabase/blocks/finance";
+import { supportBlock as supportBlockInstance } from "better-supabase/blocks/support";
+import { projectsBlock as projectsBlockInstance } from "better-supabase/blocks/projects";
+import { serviceBlock as serviceBlockInstance } from "better-supabase/blocks/service";
+import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
+import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
+import { learningBlock as learningBlockInstance } from "better-supabase/blocks/learning";
+import { eventsBlock as eventsBlockInstance } from "better-supabase/blocks/events";
+import { cmsBlock as cmsBlockInstance } from "better-supabase/blocks/cms";
+import { careBlock as careBlockInstance } from "better-supabase/blocks/care";
+import { filespaceBlock as filespaceBlockInstance } from "better-supabase/blocks/filespace";
+import { crmBlock as crmBlockInstance } from "better-supabase/blocks/crm";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock as accessRequestsBlockInstance } from "better-supabase/blocks/access-requests";
 import { accountingBlock as accountingBlockInstance } from "better-supabase/blocks/accounting";
@@ -208,6 +227,7 @@ import { appraisalsBlock as appraisalsBlockInstance } from "better-supabase/bloc
 import { warehouseBlock as warehouseBlockInstance } from "better-supabase/blocks/warehouse";
 import { rfqsBlock as rfqsBlockInstance } from "better-supabase/blocks/rfqs";
 import { tillsBlock as tillsBlockInstance } from "better-supabase/blocks/tills";
+import { periodsBlock as periodsBlockInstance } from "better-supabase/blocks/periods";
 import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock as ePrescribingBlockInstance } from "better-supabase/blocks/e-prescribing";
 import { manufacturingBlock as manufacturingBlockInstance } from "better-supabase/blocks/manufacturing";
@@ -267,6 +287,7 @@ import { automationsBlock as automationsBlockInstance } from "better-supabase/bl
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-supabase/blocks/service-accounts";
+import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
 import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
@@ -294,6 +315,74 @@ import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
+  sales: {
+    schema: "better_supabase",
+    options: {},
+  },
+  collaboration: {
+    schema: "better_supabase",
+    options: {},
+  },
+  governance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  commerce: {
+    schema: "better_supabase",
+    options: {},
+  },
+  procurement: {
+    schema: "better_supabase",
+    options: {},
+  },
+  finance: {
+    schema: "better_supabase",
+    options: {},
+  },
+  support: {
+    schema: "better_supabase",
+    options: {},
+  },
+  projects: {
+    schema: "better_supabase",
+    options: {},
+  },
+  service: {
+    schema: "better_supabase",
+    options: {},
+  },
+  recruiting: {
+    schema: "better_supabase",
+    options: {},
+  },
+  scheduling: {
+    schema: "better_supabase",
+    options: {},
+  },
+  learning: {
+    schema: "better_supabase",
+    options: {},
+  },
+  events: {
+    schema: "better_supabase",
+    options: {},
+  },
+  cms: {
+    schema: "better_supabase",
+    options: {},
+  },
+  care: {
+    schema: "better_supabase",
+    options: {},
+  },
+  filespace: {
+    schema: "better_supabase",
+    options: {},
+  },
+  crm: {
+    schema: "better_supabase",
+    options: {},
+  },
   permissions: {
     schema: "better_supabase",
     api: "api",
@@ -604,6 +693,11 @@ export const blockConfig = {
     options: {},
   },
   tills: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  periods: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -1209,6 +1303,23 @@ export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenam
  * @public
  */
 export const blocks = {
+  sales: salesBlockInstance,
+  collaboration: collaborationBlockInstance,
+  governance: governanceBlockInstance,
+  commerce: commerceBlockInstance,
+  procurement: procurementBlockInstance,
+  finance: financeBlockInstance,
+  support: supportBlockInstance,
+  projects: projectsBlockInstance,
+  service: serviceBlockInstance,
+  recruiting: recruitingBlockInstance,
+  scheduling: schedulingBlockInstance,
+  learning: learningBlockInstance,
+  events: eventsBlockInstance,
+  cms: cmsBlockInstance,
+  care: careBlockInstance,
+  filespace: filespaceBlockInstance,
+  crm: crmBlockInstance,
   permissions: permissionsBlockInstance,
   "access-requests": accessRequestsBlockInstance,
   accounting: accountingBlockInstance,
@@ -1268,6 +1379,7 @@ export const blocks = {
   warehouse: warehouseBlockInstance,
   rfqs: rfqsBlockInstance,
   tills: tillsBlockInstance,
+  periods: periodsBlockInstance,
   "clinical-decision-support": clinicalDecisionSupportBlockInstance,
   "e-prescribing": ePrescribingBlockInstance,
   manufacturing: manufacturingBlockInstance,
@@ -1327,6 +1439,7 @@ export const blocks = {
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   "service-accounts": serviceAccountsBlockInstance,
+  sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
   "signing-keys": signingKeysBlockInstance,
@@ -1984,6 +2097,11 @@ export const permissions = {
     read: "payroll_export.read",
     export: "payroll_export.export",
   },
+  periods: {
+    read: "periods.read",
+    write: "periods.write",
+    manage: "periods.manage",
+  },
   permissions: {
     listRoles: "members.read",
     setOverride: "roles.manage",
@@ -2240,10 +2358,10 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.emergency" | "access_requests.manage" | "access_requests.read" | "access_requests.review" | "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "agents.moderate" | "agents.publish" | "agents.read" | "agents.write" | "ai_chat.create" | "ai_chat.manage" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "ai_files.manage" | "ai_files.upload" | "ai_keys.manage" | "ai_keys.use" | "ai_schedules.manage" | "ai_schedules.write" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "care_plans.evaluate" | "care_plans.manage" | "care_plans.publish" | "care_plans.read" | "care_plans.write" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "clinical_decision_support.manage" | "clinical_decision_support.read" | "clinical_decision_support.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "connectors.manage" | "connectors.read" | "connectors.use" | "consents.manage" | "consents.read" | "consents.record" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "content.publish" | "content.read" | "content.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "customers.read" | "customers.write" | "dam.read" | "dam.write" | "data_lifecycle.export" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "document_templates.manage" | "document_templates.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "e_prescribing.manage" | "e_prescribing.read" | "e_prescribing.sign" | "e_prescribing.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "field_history.read" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "funding.approve" | "funding.claim" | "funding.manage" | "funding.read" | "funding.register" | "funding.write" | "goals.manage" | "goals.read" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "lims.manage" | "lims.read" | "lims.write" | "mail_sync.connect" | "mail_sync.manage" | "mail_sync.read" | "mail_sync.send" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "manufacturing.manage" | "manufacturing.produce" | "manufacturing.read" | "manufacturing.write" | "medications.administer" | "medications.manage" | "medications.prescribe" | "medications.read" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "memory.manage" | "memory.read" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "observations.manage" | "observations.read" | "observations.record" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "passes.check_in" | "passes.manage" | "passes.read" | "payroll_export.export" | "payroll_export.read" | "pipelines.manage" | "pipelines.read" | "platform.invite" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rfqs.manage" | "rfqs.read" | "rfqs.write" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "roles.manage" | "saved_views.read" | "saved_views.share" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.read" | "segments.write" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_accounts.manage" | "service_accounts.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shifts.manage" | "shifts.read" | "shifts.request" | "shifts.write" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "tills.manage" | "tills.read" | "tills.write" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "timeline.read" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "waitlist.invite" | "waitlist.manage" | "warehouse.manage" | "warehouse.pick" | "warehouse.read" | "webhooks.manage" | "webhooks.read" | "workflow_editor.manage" | "workflow_editor.publish" | "workflow_editor.read" | "workflow_editor.run" | "workflow_editor.write" | "workflows.manage" | "workflows.read" | "workflows.run";
+export type PermissionKey = "access_requests.create" | "access_requests.emergency" | "access_requests.manage" | "access_requests.read" | "access_requests.review" | "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "agents.moderate" | "agents.publish" | "agents.read" | "agents.write" | "ai_chat.create" | "ai_chat.manage" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "ai_files.manage" | "ai_files.upload" | "ai_keys.manage" | "ai_keys.use" | "ai_schedules.manage" | "ai_schedules.write" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "care_plans.evaluate" | "care_plans.manage" | "care_plans.publish" | "care_plans.read" | "care_plans.write" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "clinical_decision_support.manage" | "clinical_decision_support.read" | "clinical_decision_support.write" | "compliance.collect" | "compliance.manage" | "compliance.read" | "connectors.manage" | "connectors.read" | "connectors.use" | "consents.manage" | "consents.read" | "consents.record" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "content.publish" | "content.read" | "content.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "customers.read" | "customers.write" | "dam.read" | "dam.write" | "data_lifecycle.export" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "document_templates.manage" | "document_templates.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "e_prescribing.manage" | "e_prescribing.read" | "e_prescribing.sign" | "e_prescribing.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "field_history.read" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "funding.approve" | "funding.claim" | "funding.manage" | "funding.read" | "funding.register" | "funding.write" | "goals.manage" | "goals.read" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "lims.manage" | "lims.read" | "lims.write" | "mail_sync.connect" | "mail_sync.manage" | "mail_sync.read" | "mail_sync.send" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "manufacturing.manage" | "manufacturing.produce" | "manufacturing.read" | "manufacturing.write" | "medications.administer" | "medications.manage" | "medications.prescribe" | "medications.read" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "memory.manage" | "memory.read" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "observations.manage" | "observations.read" | "observations.record" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "passes.check_in" | "passes.manage" | "passes.read" | "payroll_export.export" | "payroll_export.read" | "periods.manage" | "periods.read" | "periods.write" | "pipelines.manage" | "pipelines.read" | "platform.invite" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rfqs.manage" | "rfqs.read" | "rfqs.write" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "roles.manage" | "saved_views.read" | "saved_views.share" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.read" | "segments.write" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_accounts.manage" | "service_accounts.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shifts.manage" | "shifts.read" | "shifts.request" | "shifts.write" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "tills.manage" | "tills.read" | "tills.write" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "timeline.read" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "waitlist.invite" | "waitlist.manage" | "warehouse.manage" | "warehouse.pick" | "warehouse.read" | "webhooks.manage" | "webhooks.read" | "workflow_editor.manage" | "workflow_editor.publish" | "workflow_editor.read" | "workflow_editor.run" | "workflow_editor.write" | "workflows.manage" | "workflows.read" | "workflows.run";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -2754,6 +2872,10 @@ export const blockEvents: Events<BlockEvents> = {
     "pass.revoked",
     "payroll_run.created",
     "payroll_run.exported",
+    "period.closed",
+    "period.created",
+    "period.locked",
+    "period.reopened",
     "person.archived",
     "person.created",
     "person.enriched",
@@ -2893,6 +3015,7 @@ export const blockEvents: Events<BlockEvents> = {
     "signing_key.retired",
     "sla.breached",
     "sla.completed",
+    "sla.escalated",
     "sla.warned",
     "sso_domain.created",
     "sso_domain.deleted",
@@ -3491,6 +3614,10 @@ export const blockEventSchemas = {
   "pass.revoked": true,
   "payroll_run.created": true,
   "payroll_run.exported": true,
+  "period.closed": true,
+  "period.created": true,
+  "period.locked": true,
+  "period.reopened": true,
   "person.archived": true,
   "person.created": true,
   "person.enriched": true,
@@ -3630,6 +3757,7 @@ export const blockEventSchemas = {
   "signing_key.retired": true,
   "sla.breached": true,
   "sla.completed": true,
+  "sla.escalated": true,
   "sla.warned": true,
   "sso_domain.created": true,
   "sso_domain.deleted": true,
@@ -3755,4 +3883,203 @@ export const topics = {
 export const paths = {
   customerLogos: (v: { readonly organizationId: string; readonly customerId: string; readonly version: string }) => `${String(v.organizationId)}/${String(v.customerId)}/logo/${String(v.version)}.webp`,
   avatars: (v: { readonly userId: string; readonly version: string; readonly ext: string }) => `${String(v.userId)}/avatar-${String(v.version)}.${String(v.ext)}`,
+} as const;
+
+/** The arguments of `reads.deals.board`. @public */
+export type DealsBoardArgs = { readonly pipelineId: string };
+
+/** What `reads.deals.board` returns. @public */
+export type DealsBoardResult = {
+  readonly pipelineId: string;
+  readonly stages: readonly {
+    readonly id: string;
+    readonly key: string;
+    readonly name: string;
+    readonly category: string;
+    readonly probability: number | null;
+    readonly rottingAfterDays: number | null;
+    readonly wipLimit: number | null;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly amount: string;
+      readonly weighted: string;
+    }[];
+    readonly deals: readonly {
+      readonly id: string;
+      readonly identifier: string;
+      readonly name: string;
+      readonly amount: string;
+      readonly currency: string;
+      readonly ownerId: string | null;
+      readonly closeOn: string;
+      readonly probability: number | null;
+      readonly daysInStage: number;
+      readonly rotting: boolean;
+      readonly nextStep: string | null;
+      readonly nextAt: string | null;
+      readonly rank: string;
+    }[];
+  }[];
+  readonly weighted: readonly {
+    readonly currency: string;
+    readonly amount: string;
+  }[];
+};
+
+/** The arguments of `reads.banking.reconciliationBoard`. @public */
+export type BankingReconciliationBoardArgs = { readonly accountId: string; readonly limit?: number };
+
+/** What `reads.banking.reconciliationBoard` returns. @public */
+export type BankingReconciliationBoardResult = {
+  readonly status: {
+    readonly accountId: string;
+    readonly asOf: string;
+    readonly currency: string;
+    readonly statementId: string | null;
+    readonly statementBalance: string | null;
+    readonly transactionTotal: string;
+    readonly unmatchedCount: number;
+    readonly unmatchedTotal: string;
+    readonly ledgerBalance: string | null;
+    readonly difference: string | null;
+    readonly reconciled: boolean;
+  };
+  readonly lines: readonly {
+    readonly id: string;
+    readonly bookedOn: string;
+    readonly amount: string;
+    readonly currency: string;
+    readonly counterpartyName: string | null;
+    readonly counterpartyIban: string | null;
+    readonly remittance: string | null;
+    readonly status: string;
+  }[];
+  readonly suggestions: readonly {
+    readonly transactionId: string;
+    readonly targetType: string;
+    readonly targetId: string;
+    readonly label: string;
+    readonly balance: string;
+    readonly currency: string;
+    readonly score: number;
+    readonly reasons: readonly string[];
+  }[];
+};
+
+/** The arguments of `reads.inventory.overview`. @public */
+export type InventoryOverviewArgs = { readonly organizationId: string; readonly limit?: number; readonly expiryDays?: number };
+
+/** What `reads.inventory.overview` returns. @public */
+export type InventoryOverviewResult = {
+  readonly levelCount: number;
+  readonly lowStockCount: number;
+  readonly lowStock: readonly {
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly onHand: string;
+    readonly available: string;
+    readonly reorderPoint: string;
+  }[];
+  readonly expiring: readonly {
+    readonly lotId: string;
+    readonly code: string;
+    readonly variantId: string;
+    readonly locationId: string;
+    readonly expiresOn: string;
+    readonly onHand: string;
+  }[];
+};
+
+/** The arguments of `reads.orders.board`. @public */
+export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
+
+/** What `reads.orders.board` returns. @public */
+export type OrdersBoardResult = {
+  readonly columns: readonly {
+    readonly status: string;
+    readonly count: number;
+    readonly totals: readonly {
+      readonly currency: string;
+      readonly total: string;
+      readonly paid: string;
+    }[];
+    readonly orders: readonly {
+      readonly id: string;
+      readonly number: string;
+      readonly customerId: string | null;
+      readonly currency: string;
+      readonly total: string;
+      readonly paidTotal: string;
+      readonly placedAt: string;
+    }[];
+  }[];
+};
+
+/** The arguments of `reads.organizations.overview`. @public */
+export type OrganizationsOverviewArgs = { readonly organizationId: string };
+
+/** What `reads.organizations.overview` returns. @public */
+export type OrganizationsOverviewResult = {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string | null;
+  readonly role: string;
+  readonly seats: number | null;
+  readonly members: readonly {
+    readonly userId: string;
+    readonly role: string;
+    readonly roles: readonly string[];
+    readonly disabledAt: string | null;
+  }[];
+  readonly invitations: readonly {
+    readonly id: string;
+    readonly email: string;
+    readonly role: string;
+    readonly expiresAt: string | null;
+  }[];
+};
+
+/** The arguments of `reads.sessions.overview`. @public */
+export type SessionsOverviewArgs = {  };
+
+/** What `reads.sessions.overview` returns. @public */
+export type SessionsOverviewResult = {
+  readonly count: number;
+  readonly currentId: string | null;
+  readonly sessions: readonly {
+    readonly id: string;
+    readonly createdAt: string | null;
+    readonly lastActiveAt: string | null;
+    readonly userAgent: string | null;
+    readonly ip: string | null;
+    readonly aal: string | null;
+    readonly current: boolean;
+  }[];
+};
+
+/**
+ * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
+ * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
+ * @public
+ */
+export const reads = {
+  deals: {
+    board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "api"),
+  },
+  banking: {
+    reconciliationBoard: blockRead<BankingReconciliationBoardArgs, BankingReconciliationBoardResult>("bank_reconciliation_board", { accountId: "account_id", limit: "line_limit" }, ["accounts", "transactions", "matches"], "api"),
+  },
+  inventory: {
+    overview: blockRead<InventoryOverviewArgs, InventoryOverviewResult>("inventory_overview", { organizationId: "tenant", limit: "row_limit", expiryDays: "expiry_days" }, ["levels", "lots", "buckets"], "api"),
+  },
+  orders: {
+    board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "api"),
+  },
+  organizations: {
+    overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
+  },
+  sessions: {
+    overview: blockRead<SessionsOverviewArgs, SessionsOverviewResult>("sessions_overview", {  }, [], "api"),
+  },
 } as const;

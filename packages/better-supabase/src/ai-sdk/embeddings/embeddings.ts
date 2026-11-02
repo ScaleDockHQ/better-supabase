@@ -154,7 +154,9 @@ export function searchTool(
       additionalProperties: false,
     }),
     execute: async ({ query }, { abortSignal }): Promise<SearchToolResult> => {
-      const found = await knowledge.search(organizationId, query, {
+      const found = await knowledge.search({
+        organizationId,
+        query,
         ...search,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });

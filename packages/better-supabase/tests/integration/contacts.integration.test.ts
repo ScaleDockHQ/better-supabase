@@ -42,11 +42,14 @@ describe.skipIf(!live)("parties", () => {
       await s.as(rep);
 
       const acme = await parties
-        .saveCompany(org, {
-          name: "Acme",
-          domain: "Acme.com ",
-          ownerId: rep.id,
-          fields: { segment: "smb" },
+        .saveCompany({
+          organizationId: org,
+          input: {
+            name: "Acme",
+            domain: "Acme.com ",
+            ownerId: rep.id,
+            fields: { segment: "smb" },
+          },
         })
         .orThrow();
 
@@ -58,27 +61,49 @@ describe.skipIf(!live)("parties", () => {
       expect(acme.fields).toEqual({ segment: "smb" });
       expect(
         await parties
-          .saveCompany(org, { name: "Acme again", domain: "acme.com" })
+          .saveCompany({
+            organizationId: org,
+            input: { name: "Acme again", domain: "acme.com" },
+          })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("PARTY_DOMAIN_TAKEN");
       expect(
         await parties
-          .saveCompany(org, { name: "Bad", lifecycle: "vip" })
+          .saveCompany({
+            organizationId: org,
+            input: { name: "Bad", lifecycle: "vip" },
+          })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("PARTY_LIFECYCLE_INVALID");
 
       const ada = await parties
-        .savePerson(org, { name: "Ada", email: "ADA@acme.com", title: "CTO" })
+        .savePerson({
+          organizationId: org,
+          input: { name: "Ada", email: "ADA@acme.com", title: "CTO" },
+        })
         .orThrow();
 
       const bob = await parties
-        .savePerson(org, { name: "Bob", email: "bob@acme.com" })
+        .savePerson({
+          organizationId: org,
+          input: { name: "Bob", email: "bob@acme.com" },
+        })
         .orThrow();
 
       await parties
-        .linkPerson(acme.id, ada.id, { role: "Champion", primary: true })
+        .linkPerson({
+          companyId: acme.id,
+          personId: ada.id,
+          link: { role: "Champion", primary: true },
+        })
         .orThrow();
-      await parties.linkPerson(acme.id, bob.id, { primary: true }).orThrow();
+      await parties
+        .linkPerson({
+          companyId: acme.id,
+          personId: bob.id,
+          link: { primary: true },
+        })
+        .orThrow();
       const people = await parties.peopleOf(acme.id).orThrow();
       expect(people.map((person) => [person.name, person.primary])).toEqual([
         ["Bob", true],
@@ -86,19 +111,23 @@ describe.skipIf(!live)("parties", () => {
       ]);
 
       const updated = await parties
-        .saveCompany(org, { id: acme.id, lifecycle: "customer", website: null })
+        .saveCompany({
+          organizationId: org,
+          input: { id: acme.id, lifecycle: "customer", website: null },
+        })
         .orThrow();
 
       expect(updated).toMatchObject({ name: "Acme", lifecycle: "customer" });
 
       const page = await parties
-        .listPeople(org, { search: "acme", limit: 1 })
+        .listPeople({ organizationId: org, search: "acme", limit: 1 })
         .orThrow();
 
       expect(page.items.map((person) => person.name)).toEqual(["Ada"]);
 
       const next = await parties
-        .listPeople(org, {
+        .listPeople({
+          organizationId: org,
           search: "acme",
           limit: 1,
           ...(page.next ? { cursor: page.next } : {}),
@@ -109,11 +138,15 @@ describe.skipIf(!live)("parties", () => {
 
       expect(
         await parties
-          .mergePeople(ada.id, bob.id)
+          .mergePeople({ keep: ada.id, drop: bob.id })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("PARTY_FORBIDDEN");
       await s.as(owner);
-      const kept = await parties.mergePeople(ada.id, bob.id).orThrow();
+
+      const kept = await parties
+        .mergePeople({ keep: ada.id, drop: bob.id })
+        .orThrow();
+
       expect(kept.email).toBe("ada@acme.com");
       expect(
         (await parties.peopleOf(acme.id).orThrow()).map(
@@ -143,7 +176,7 @@ describe.skipIf(!live)("parties", () => {
       await s.as(stranger);
       expect(
         await parties
-          .saveCompany(org, { name: "Intruder" })
+          .saveCompany({ organizationId: org, input: { name: "Intruder" } })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("PARTY_FORBIDDEN");
     } finally {
@@ -175,24 +208,33 @@ describe.skipIf(!live)("parties merge", () => {
 
       await s.as(owner);
 
-      const keep = await parties.saveCompany(org, { name: "Acme" }).orThrow();
+      const keep = await parties
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
 
       const drop = await parties
-        .saveCompany(org, { name: "Acme Inc" })
+        .saveCompany({ organizationId: org, input: { name: "Acme Inc" } })
         .orThrow();
 
       await comments
-        .create({ type: "company", id: drop.id }, { body: "Called them" })
+        .create({
+          subject: { type: "company", id: drop.id },
+          comment: { body: "Called them" },
+        })
         .orThrow();
-      await parties.mergeCompanies(keep.id, drop.id).orThrow();
+      await parties.mergeCompanies({ keep: keep.id, drop: drop.id }).orThrow();
 
       expect(
-        (await comments.list({ type: "company", id: keep.id }).orThrow()).map(
-          (row) => row.body,
-        ),
+        (
+          await comments
+            .list({ subject: { type: "company", id: keep.id } })
+            .orThrow()
+        ).map((row) => row.body),
       ).toEqual(["Called them"]);
       expect(
-        await comments.list({ type: "company", id: drop.id }).orThrow(),
+        await comments
+          .list({ subject: { type: "company", id: drop.id } })
+          .orThrow(),
       ).toEqual([]);
     } finally {
       await s.close();
@@ -219,16 +261,20 @@ describe.skipIf(!live)("parties and the inbox", () => {
       await s.as(owner);
 
       const ada = await parties
-        .savePerson(org, { name: "Ada", email: "ada@acme.com" })
+        .savePerson({
+          organizationId: org,
+          input: { name: "Ada", email: "ada@acme.com" },
+        })
         .orThrow();
 
-      const bo = await parties.savePerson(org, { name: "Bo" }).orThrow();
+      const bo = await parties
+        .savePerson({ organizationId: org, input: { name: "Bo" } })
+        .orThrow();
 
       const added = await parties
-        .addIdentity(ada.id, {
-          channel: "whatsapp",
-          address: " +3161 ",
-          verified: true,
+        .addIdentity({
+          personId: ada.id,
+          identity: { channel: "whatsapp", address: " +3161 ", verified: true },
         })
         .orThrow();
 
@@ -239,12 +285,20 @@ describe.skipIf(!live)("parties and the inbox", () => {
       });
       expect(added.verifiedAt).toBeDefined();
       expect(
-        (await parties.findByIdentity(org, "whatsapp", "+3161").orThrow())?.id,
+        (
+          await parties
+            .findByIdentity({
+              organizationId: org,
+              channel: "whatsapp",
+              address: "+3161",
+            })
+            .orThrow()
+        )?.id,
       ).toBe(ada.id);
 
-      const taken = await parties.addIdentity(bo.id, {
-        channel: "whatsapp",
-        address: "+3161",
+      const taken = await parties.addIdentity({
+        personId: bo.id,
+        identity: { channel: "whatsapp", address: "+3161" },
       });
 
       expect(taken.ok ? "ok" : taken.error.hint).toBe("PARTY_IDENTITY_TAKEN");
@@ -253,7 +307,13 @@ describe.skipIf(!live)("parties and the inbox", () => {
       expect(await parties.removeIdentity(added.id).orThrow()).toBe(true);
       expect(await parties.removeIdentity(added.id).orThrow()).toBe(false);
       expect(
-        await parties.findByIdentity(org, "whatsapp", "+3161").orThrow(),
+        await parties
+          .findByIdentity({
+            organizationId: org,
+            channel: "whatsapp",
+            address: "+3161",
+          })
+          .orThrow(),
       ).toBeUndefined();
     } finally {
       await s.close();

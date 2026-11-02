@@ -804,9 +804,9 @@ describe("createNotifications suppressions", () => {
         .suppress({ address: "U1@acme.test", reason: "bounce" })
         .orThrow(),
     ).toBe(true);
-    expect(await notifications.unsuppress("u1@acme.test").orThrow()).toBe(
-      false,
-    );
+    expect(
+      await notifications.unsuppress({ address: "u1@acme.test" }).orThrow(),
+    ).toBe(false);
 
     const [only, ...rest] = await notifications
       .suppressions({ limit: 10 })
@@ -877,10 +877,13 @@ describe("contact recipients", () => {
       email: { transport: mail, from: "hi@acme.test" },
     });
 
-    const result = await notifications.send("task.assigned", {
-      data: { title: "Ship it" },
-      summary: "Your quote is ready",
-      recipients: ["u1", { email: "Cara@Client.test", name: 'Cara "C" Lee' }],
+    const result = await notifications.send({
+      type: "task.assigned",
+      input: {
+        data: { title: "Ship it" },
+        summary: "Your quote is ready",
+        recipients: ["u1", { email: "Cara@Client.test", name: 'Cara "C" Lee' }],
+      },
     });
 
     expect(calls[0]?.args["notification"]).toMatchObject({
@@ -925,10 +928,13 @@ describe("contact recipients", () => {
       email: { transport: mail, from: "hi@acme.test" },
     });
 
-    const result = await notifications.send("task.assigned", {
-      data: { title: "Ship it" },
-      key: "quote-7",
-      recipients: [{ email: "cara@client.test" }],
+    const result = await notifications.send({
+      type: "task.assigned",
+      input: {
+        data: { title: "Ship it" },
+        key: "quote-7",
+        recipients: [{ email: "cara@client.test" }],
+      },
     });
 
     expect(result.data).toMatchObject({
@@ -950,9 +956,9 @@ describe("contact recipients", () => {
       email: { transport: mail, from: "hi@acme.test" },
     });
 
-    const result = await notifications.send("task.assigned", {
-      data: { title: "Ship it" },
-      recipients: ["u1"],
+    const result = await notifications.send({
+      type: "task.assigned",
+      input: { data: { title: "Ship it" }, recipients: ["u1"] },
     });
 
     expect(result).toMatchObject({ ok: true, data: null });
@@ -963,9 +969,12 @@ describe("contact recipients", () => {
     const { transport, calls } = fakeTransport();
     const notifications = createNotifications({ transport, types });
 
-    const result = await notifications.send("task.assigned", {
-      data: { title: "Ship it" },
-      recipients: ["u1", { email: "not an address" }],
+    const result = await notifications.send({
+      type: "task.assigned",
+      input: {
+        data: { title: "Ship it" },
+        recipients: ["u1", { email: "not an address" }],
+      },
     });
 
     expect(result.error).toMatchObject({
@@ -997,9 +1006,12 @@ describe("contact recipients", () => {
       email: { transport: mail, from: "hi@acme.test" },
     });
 
-    const result = await notifications.send("task.assigned", {
-      data: { title: "Ship it" },
-      recipients: [{ email: "cara@client.test" }],
+    const result = await notifications.send({
+      type: "task.assigned",
+      input: {
+        data: { title: "Ship it" },
+        recipients: [{ email: "cara@client.test" }],
+      },
     });
 
     expect(result.data?.contacts).toEqual([

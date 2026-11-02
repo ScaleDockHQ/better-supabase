@@ -46,7 +46,12 @@ function fakeAccounting(failOn?: string) {
     saved,
     roles,
     accounting: {
-      saveAccount(_org: string, input: { code: string; parentId?: string }) {
+      saveAccount({
+        input,
+      }: {
+        organizationId: string;
+        input: { code: string; parentId?: string };
+      }) {
         if (input.code === failOn) {
           return Promise.resolve(
             err({ kind: "unknown", message: "boom", status: 500 }),
@@ -57,7 +62,15 @@ function fakeAccounting(failOn?: string) {
 
         return Promise.resolve(ok({ id: `id-${input.code}`, ...input }));
       },
-      setAccountRole(_org: string, role: string, accountId: string) {
+      setAccountRole({
+        organizationId: _org,
+        role,
+        accountId,
+      }: {
+        organizationId: string;
+        role: string;
+        accountId: string;
+      }) {
         if (failOn === "role") {
           return Promise.resolve(
             err({ kind: "unknown", message: "boom", status: 500 }),

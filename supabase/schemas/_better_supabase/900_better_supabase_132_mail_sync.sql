@@ -1,6 +1,6 @@
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:8ac40e6055059753de9bc4a6d02c62a7ec144eb7fb47c5259d60a830cc7cce19
+-- @bsb-hash sha256:6e39707405ef958043d43a1d59100fdbb3a32a75d54ca9f62503d1af4318506d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1178,6 +1178,15 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_thread_
 create policy bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.mail_threads', target_type => 'mail_thread', event_prefix => 'mail_thread', deferred => true);
+  perform better_supabase.audit('better_supabase.mail_accounts', target_type => 'mail_account', event_prefix => 'mail_account', deferred => true);
+  perform better_supabase.audit('better_supabase.mail_messages', target_type => 'mail_message', event_prefix => 'mail_message', deferred => true);
+end;
+$$;
 
 -- blocks.mail-sync.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3a1a4c85fdc9ec0536044838aca0b541b2fd20d824d5cd15b1663f3d64fea2cd
+-- @bsb-hash sha256:d80c94e0eb546cb712804756a5aeba4ee2266eb88d0e9f634351e67ee9ea4f31
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -733,6 +733,14 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_pass_credits"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_pass_credits"(uuid) to authenticated, service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.passes', target_type => 'pass', event_prefix => 'pass', deferred => true);
+  perform better_supabase.audit('better_supabase.pass_check_ins', target_type => 'pass_check_in', event_prefix => 'pass_check_in', deferred => true);
+end;
+$$;
 
 -- blocks.passes.api: entry points for the Data API.
 create schema if not exists "api";

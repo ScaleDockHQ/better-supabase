@@ -13,6 +13,7 @@ export {
   type CaseListOptions,
   type CaseMove,
   type CasePage,
+  type CaseTryClose,
   type Cases,
   type CasesOptions,
   type CaseStat,

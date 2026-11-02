@@ -1,4 +1,4 @@
-import type { Action } from "../../core/automation.ts";
+import type { Action, ActionFactory } from "../../core/automation.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   ConversionClients,
@@ -7,15 +7,18 @@ import type {
 import type { Employee, EmployeeInput } from "./employees.ts";
 
 import { ok } from "../../core/result.ts";
-import { defineConversionAction } from "../automations/conversion.ts";
+import {
+  defineConversionAction,
+  narrowClients,
+} from "../automations/conversion.ts";
 
 /** `blocks.employees` and `blocks.relations` for one organization. */
 export interface EmployeeFromApplicationClients extends ConversionClients {
   readonly employees: {
-    fromApplication(
-      applicationId: string,
-      overrides?: Partial<EmployeeInput>,
-    ): PromiseLike<Result<Employee>>;
+    fromApplication(input: {
+      applicationId: string;
+      overrides?: Partial<EmployeeInput> | undefined;
+    }): PromiseLike<Result<Employee>>;
   };
 }
 
@@ -51,13 +54,27 @@ export function employeeFromApplicationAction(
     clients: options.clients,
     map: (_, context) => options.map?.(context) ?? {},
     create: async (overrides, { clients, source }) => {
-      const created = await clients.employees.fromApplication(
-        source.id,
+      const created = await clients.employees.fromApplication({
+        applicationId: source.id,
         overrides,
-      );
+      });
 
       return created.ok ? ok({ id: created.data.id }) : created;
     },
     linksItself: true,
   });
 }
+
+/** The `employees.from_application` factory for the action registry. */
+export const employeeFromApplicationFactory: ActionFactory = ({ clients }) =>
+  employeeFromApplicationAction({
+    clients: narrowClients<EmployeeFromApplicationClients>(
+      "employees.from_application",
+      [
+        "relations.link",
+        "relations.convertedInto",
+        "employees.fromApplication",
+      ],
+      clients,
+    ),
+  });

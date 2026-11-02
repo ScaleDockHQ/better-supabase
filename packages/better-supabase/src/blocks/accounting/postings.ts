@@ -176,31 +176,31 @@ export interface AccountingPostings {
    * call returns the same entry. With `autoPost` off the entry stays a draft.
    * Undefined when the block has nothing to book. Needs `accounting.post`.
    */
-  postSource(
-    sourceType: string,
-    sourceId: string,
-  ): AsyncResult<AccountingEntry | undefined>;
+  postSource(input: {
+    sourceType: string;
+    sourceId: string;
+  }): AsyncResult<AccountingEntry | undefined>;
   /** Posted tax per tax code and report box between two dates. */
-  taxReport(
-    organizationId: string,
-    since: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-  ): AsyncResult<TaxReport>;
+  taxReport(input: {
+    organizationId: string;
+    since: Temporal.PlainDate;
+    until: Temporal.PlainDate;
+  }): AsyncResult<TaxReport>;
   /** Adds or updates a budget. Needs `accounting.write`. */
-  saveBudget(
-    organizationId: string,
-    input: AccountingBudgetInput,
-  ): AsyncResult<AccountingBudget>;
+  saveBudget(input: {
+    organizationId: string;
+    input: AccountingBudgetInput;
+  }): AsyncResult<AccountingBudget>;
   budget(budgetId: string): AsyncResult<AccountingBudget | undefined>;
-  budgets(
-    organizationId: string,
-    fiscalYear?: number,
-  ): AsyncResult<readonly AccountingBudget[]>;
+  budgets(input: {
+    organizationId: string;
+    fiscalYear?: number | undefined;
+  }): AsyncResult<readonly AccountingBudget[]>;
   /** Planned against posted amounts per account and dimensions. */
-  budgetVsActual(
-    budgetId: string,
-    periodNumber?: number,
-  ): AsyncResult<BudgetVsActual>;
+  budgetVsActual(input: {
+    budgetId: string;
+    periodNumber?: number | undefined;
+  }): AsyncResult<BudgetVsActual>;
 }
 
 const amount = (row: Readonly<Record<string, unknown>>, key: string): bigint =>
@@ -309,13 +309,13 @@ const lineArg = (
  */
 export function accountingPostings(call: BlockCall): AccountingPostings {
   return {
-    postSource: (sourceType, sourceId) =>
+    postSource: ({ sourceType, sourceId }) =>
       call(
         "post_accounting_source",
         { source_type: sourceType, source_id: sourceId },
         maybe("post_accounting_source", entryOf),
       ),
-    taxReport: (organizationId, since, until) =>
+    taxReport: ({ organizationId, since, until }) =>
       call(
         "accounting_tax_report",
         {
@@ -325,7 +325,7 @@ export function accountingPostings(call: BlockCall): AccountingPostings {
         },
         (value) => taxReportOf(value, "accounting_tax_report"),
       ),
-    saveBudget: (organizationId, input) =>
+    saveBudget: ({ organizationId, input }) =>
       call(
         "save_accounting_budget",
         {
@@ -344,13 +344,13 @@ export function accountingPostings(call: BlockCall): AccountingPostings {
         { budget_id: budgetId },
         maybe("get_accounting_budget", budgetOf),
       ),
-    budgets: (organizationId, fiscalYear) =>
+    budgets: ({ organizationId, fiscalYear }) =>
       call(
         "list_accounting_budgets",
         { tenant: organizationId, fiscal_year: fiscalYear ?? null },
         many("list_accounting_budgets", budgetOf),
       ),
-    budgetVsActual: (budgetId, periodNumber) =>
+    budgetVsActual: ({ budgetId, periodNumber }) =>
       call(
         "accounting_budget_vs_actual",
         { budget_id: budgetId, period_number: periodNumber ?? null },

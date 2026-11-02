@@ -97,11 +97,13 @@ describe("invoices block", () => {
 
     const invoices = createInvoices({ transport: t });
     await invoices
-      .issue("i1", undefined, { dueOn: Temporal.PlainDate.from("2026-12-31") })
+      .issue({ invoiceId: "i1", dueOn: Temporal.PlainDate.from("2026-12-31") })
       .orThrow();
-    await invoices.writeOff("i1", "bankrupt").orThrow();
-    await invoices.reversePayment("p1", "bounced").orThrow();
-    await invoices.removeCharge("c1").orThrow();
+    await invoices.writeOff({ invoiceId: "i1", reason: "bankrupt" }).orThrow();
+    await invoices
+      .reversePayment({ paymentId: "p1", reason: "bounced" })
+      .orThrow();
+    await invoices.removeCharge({ chargeId: "c1" }).orThrow();
     expect(t.calls.map((call) => call.slice(0, 2))).toEqual([
       [
         "issue_invoice",
@@ -122,7 +124,10 @@ describe("invoices block", () => {
     const invoices = createInvoices({ transport: t });
 
     const updated = await invoices
-      .update("i1", { title: "New", note: null, fields: { intro: "Hello" } })
+      .update({
+        invoiceId: "i1",
+        patch: { title: "New", note: null, fields: { intro: "Hello" } },
+      })
       .orThrow();
 
     expect(updated.fields).toMatchObject({ intro: "Hello" });
@@ -140,7 +145,10 @@ describe("invoices block", () => {
     const t = transport({ issue_invoice: () => ROW });
 
     const invoice = await createInvoices({ transport: t })
-      .issue("i1", Temporal.PlainDate.from("2026-10-15"))
+      .issue({
+        invoiceId: "i1",
+        issuedOn: Temporal.PlainDate.from("2026-10-15"),
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({ invoice: "i1", issued_on: "2026-10-15" });
@@ -210,7 +218,7 @@ describe("invoices block", () => {
     const t = transport({ create_invoice: () => draft });
 
     const invoice = await createInvoices({ transport: t })
-      .create("o", { title: "October" })
+      .create({ organizationId: "o", input: { title: "October" } })
       .orThrow();
 
     expect(invoice.number).toBeUndefined();
@@ -255,11 +263,14 @@ describe("invoices block", () => {
 
     const invoices = createInvoices({ transport: t });
     await invoices
-      .recordPayment("i1", {
-        amount: eur(-50n),
-        paidAt: Temporal.Instant.from("2026-10-16T09:00:00Z"),
-        reference: "r",
-        note: "Refund at the desk",
+      .recordPayment({
+        invoiceId: "i1",
+        payment: {
+          amount: eur(-50n),
+          paidAt: Temporal.Instant.from("2026-10-16T09:00:00Z"),
+          reference: "r",
+          note: "Refund at the desk",
+        },
       })
       .orThrow();
     expect(t.calls[0]?.[1]).toEqual({
@@ -272,21 +283,26 @@ describe("invoices block", () => {
       note: "Refund at the desk",
     });
     expect(
-      (await invoices.credit("i1", { note: "Goodwill" }).orThrow()).originalId,
+      (await invoices.credit({ invoiceId: "i1", note: "Goodwill" }).orThrow())
+        .originalId,
     ).toBe("i0");
-    expect((await invoices.void("i1").orThrow()).status).toBe("void");
-    expect((await invoices.writeOff("i1").orThrow()).status).toBe(
-      "uncollectible",
+    expect((await invoices.void({ invoiceId: "i1" }).orThrow()).status).toBe(
+      "void",
     );
-    expect(await invoices.aging("o", "EUR").orThrow()).toMatchObject({
+    expect(
+      (await invoices.writeOff({ invoiceId: "i1" }).orThrow()).status,
+    ).toBe("uncollectible");
+    expect(
+      await invoices.aging({ organizationId: "o", currency: "EUR" }).orThrow(),
+    ).toMatchObject({
       over90: eur(5n),
       outstanding: eur(15n),
       overdueCount: 4,
     });
-    await invoices.fromQuote("q1", { depositBps: 2000 }).orThrow();
-    expect((await invoices.setLines("i1", []).orThrow()).total).toEqual(
-      eur(1n),
-    );
+    await invoices.fromQuote({ quoteId: "q1", depositBps: 2000 }).orThrow();
+    expect(
+      (await invoices.setLines({ invoiceId: "i1", lines: [] }).orThrow()).total,
+    ).toEqual(eur(1n));
     expect(t.calls[1]?.[1]).toEqual({
       invoice: "i1",
       lines: null,
@@ -337,7 +353,7 @@ describe("invoices block, defaults", () => {
     });
 
     const invoices = createInvoices({ transport: t });
-    const invoice = await invoices.issue("i1").orThrow();
+    const invoice = await invoices.issue({ invoiceId: "i1" }).orThrow();
     expect(invoice).toMatchObject({
       status: "paid",
       contact: { type: "person", id: "p1" },
@@ -346,15 +362,25 @@ describe("invoices block, defaults", () => {
     expect(invoice.depositBps).toBeUndefined();
     expect(invoice.paidAt).toBeDefined();
     await invoices
-      .credit("i1", { lines: [{ description: "x", unitAmount: eur(5n) }] })
+      .credit({
+        invoiceId: "i1",
+        lines: [{ description: "x", unitAmount: eur(5n) }],
+      })
       .orThrow();
     await invoices
-      .recordPayment("i1", { amount: eur(1n), method: "card" })
+      .recordPayment({
+        invoiceId: "i1",
+        payment: { amount: eur(1n), method: "card" },
+      })
       .orThrow();
     expect(
       (
         await invoices
-          .aging("o", "EUR", Temporal.PlainDate.from("2026-12-01"))
+          .aging({
+            organizationId: "o",
+            currency: "EUR",
+            asOf: Temporal.PlainDate.from("2026-12-01"),
+          })
           .orThrow()
       ).overdueCount,
     ).toBe(0);
@@ -386,20 +412,26 @@ describe("invoices block, currencies", () => {
     const usd = money(1n, "USD");
 
     const results = [
-      await invoices.create("o", { title: "x", currency: "EUR" }, [
-        { description: "x", unitAmount: usd },
-      ]),
-      await invoices.setLines("i1", [
-        { description: "a", unitAmount: eur(1n) },
-        { description: "b", unitAmount: usd },
-      ]),
-      await invoices.credit("i1", {
+      await invoices.create({
+        organizationId: "o",
+        input: { title: "x", currency: "EUR" },
+        lines: [{ description: "x", unitAmount: usd }],
+      }),
+      await invoices.setLines({
+        invoiceId: "i1",
         lines: [
           { description: "a", unitAmount: eur(1n) },
           { description: "b", unitAmount: usd },
         ],
       }),
-      await invoices.aging("o", "XXQ"),
+      await invoices.credit({
+        invoiceId: "i1",
+        lines: [
+          { description: "a", unitAmount: eur(1n) },
+          { description: "b", unitAmount: usd },
+        ],
+      }),
+      await invoices.aging({ organizationId: "o", currency: "XXQ" }),
     ];
 
     expect(
@@ -417,9 +449,11 @@ describe("invoices block, currencies", () => {
     const t = transport({ create_invoice: () => ROW });
 
     await createInvoices({ transport: t })
-      .create("o", { title: "x" }, [
-        { description: "x", unitAmount: money(5n, "USD") },
-      ])
+      .create({
+        organizationId: "o",
+        input: { title: "x" },
+        lines: [{ description: "x", unitAmount: money(5n, "USD") }],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({
@@ -447,10 +481,13 @@ describe("invoices block, currencies", () => {
     });
 
     const invoice = await createInvoices({ transport: t })
-      .charge("i1", {
-        amount: eur(4000n),
-        description: "Collection costs",
-        fields: { kind: "collection" },
+      .charge({
+        invoiceId: "i1",
+        charge: {
+          amount: eur(4000n),
+          description: "Collection costs",
+          fields: { kind: "collection" },
+        },
       })
       .orThrow();
 
@@ -491,10 +528,9 @@ describe("invoice call arguments", () => {
     const invoices = createInvoices({ transport: t });
 
     await invoices
-      .create("o", {
-        title: "x",
-        paymentTermsId: "t1",
-        discountAmount: eur(50n),
+      .create({
+        organizationId: "o",
+        input: { title: "x", paymentTermsId: "t1", discountAmount: eur(50n) },
       })
       .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({
@@ -502,7 +538,9 @@ describe("invoice call arguments", () => {
     });
 
     await invoices
-      .issue("i1", Temporal.PlainDate.from("2026-10-15"), {
+      .issue({
+        invoiceId: "i1",
+        issuedOn: Temporal.PlainDate.from("2026-10-15"),
         dueOn: Temporal.PlainDate.from("2026-11-30"),
         actor: ACTOR,
       })
@@ -513,22 +551,30 @@ describe("invoice call arguments", () => {
     });
 
     await invoices
-      .recordPayment("i1", { amount: eur(10n), actor: ACTOR, reason: "late" })
+      .recordPayment({
+        invoiceId: "i1",
+        payment: { amount: eur(10n), actor: ACTOR, reason: "late" },
+      })
       .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ actor: ACTOR, reason: "late" });
 
     await invoices
-      .charge("i1", { amount: eur(5n), description: "Fee", actor: ACTOR })
+      .charge({
+        invoiceId: "i1",
+        charge: { amount: eur(5n), description: "Fee", actor: ACTOR },
+      })
       .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({
       description: "Fee",
       actor: ACTOR,
     });
 
-    await invoices.reversePayment("p1", "oops", { actor: ACTOR }).orThrow();
+    await invoices
+      .reversePayment({ paymentId: "p1", reason: "oops", actor: ACTOR })
+      .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ reason: "oops", actor: ACTOR });
 
-    await invoices.removeCharge("c1", { actor: ACTOR }).orThrow();
+    await invoices.removeCharge({ chargeId: "c1", actor: ACTOR }).orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ actor: ACTOR });
   });
 
@@ -545,16 +591,18 @@ describe("invoice call arguments", () => {
 
     const invoices = createInvoices({ transport: t });
 
-    const charged = await invoices.charge("i1", { amount: eur(5n) }).orThrow();
+    const charged = await invoices
+      .charge({ invoiceId: "i1", charge: { amount: eur(5n) } })
+      .orThrow();
 
     expect(charged.depositAmount).toEqual(eur(300n));
     expect(charged.discountAmount).toEqual(eur(50n));
     expect(t.calls.at(-1)?.[1]).toMatchObject({ description: null });
 
-    await invoices.reversePayment("p1").orThrow();
+    await invoices.reversePayment({ paymentId: "p1" }).orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ reason: null });
 
-    await invoices.fromQuote("q1").orThrow();
+    await invoices.fromQuote({ quoteId: "q1" }).orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ deposit_bps: null });
   });
 });

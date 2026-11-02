@@ -869,6 +869,29 @@ describe("createNext", () => {
     ]);
   });
 
+  it("drops the cache tags of the tables a block action invalidates", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const invoices = {
+      create: () => AsyncResult.from(() => Promise.resolve(ok("made"))),
+    };
+
+    const create = bsb.blockAction(() => invoices, "create", {
+      input: v.object({}),
+      args: () => [],
+      invalidates: ["invoices"],
+    });
+
+    mocks.updateTag.mockReset();
+    expect(await create({})).toMatchObject({ ok: true });
+    expect(mocks.updateTag.mock.calls.map(([tag]) => tag)).toEqual([
+      "bsb:invoices",
+      "bsb:invoices@*",
+    ]);
+  });
+
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = bsb.action(
       {

@@ -186,14 +186,14 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       claims = { role: "service_role" };
 
       const post = (token: string, body: string, headers = {}) =>
-        hooks.receive(
-          new Request(`https://api.test/hooks/${token}`, {
+        hooks.receive({
+          request: new Request(`https://api.test/hooks/${token}`, {
             method: "POST",
             headers: { "content-type": "application/json", ...headers },
             body,
           }),
           token,
-        );
+        });
 
       const first = await post(plain.token, '{"type":"lead.created"}', {
         "x-request-id": "r1",
@@ -257,19 +257,24 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       });
 
       const seen: [string | null, string | undefined][] = [];
-      await inbox.process((message) => {
-        seen.push([message.tenant, message.headers[INCOMING_ENDPOINT_HEADER]]);
+      await inbox.process({
+        handler: (message) => {
+          seen.push([
+            message.tenant,
+            message.headers[INCOMING_ENDPOINT_HEADER],
+          ]);
+        },
       });
       expect(seen).toHaveLength(4);
       expect(seen.every(([tenant]) => tenant === organization)).toBe(true);
 
       claims = { sub: owner, role: "authenticated" };
-      const rotated = await hooks.rotate(plain.id).orThrow();
+      const rotated = await hooks.rotate({ id: plain.id }).orThrow();
       expect(rotated.secret).toBeNull();
       const before = await vaultCount();
 
       const resigned = await hooks
-        .rotate(signed.id, { rotateSecret: true })
+        .rotate({ id: signed.id, rotateSecret: true })
         .orThrow();
 
       expect(resigned.secret).toMatch(/^whsec_/);
@@ -279,7 +284,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         vaulted: resigned.secret,
       });
       expect(await vaultCount()).toBe(before);
-      expect(await hooks.setEnabled(signed.id, false).orThrow()).toBe(true);
+      expect(
+        await hooks.setEnabled({ id: signed.id, enabled: false }).orThrow(),
+      ).toBe(true);
       claims = { role: "service_role" };
       expect((await post(plain.token, "{}")).status).toBe(404);
       expect((await post(signed.token, body, headers)).status).toBe(404);
@@ -334,9 +341,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const count = await vaultCount();
       expect(
         await hooks
-          .update(created.id, {
-            name: "Signup form",
-            metadata: { workflow: "w2" },
+          .update({
+            id: created.id,
+            input: { name: "Signup form", metadata: { workflow: "w2" } },
           })
           .orThrow(),
       ).toEqual({
@@ -351,7 +358,10 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(await vaulted(created.id)).toBe(created.secret);
 
       const hmac = await hooks
-        .update(created.id, { verify: "hmac-sha256", signatureHeader: "x-hub" })
+        .update({
+          id: created.id,
+          input: { verify: "hmac-sha256", signatureHeader: "x-hub" },
+        })
         .orThrow();
 
       expect(hmac).toMatchObject({
@@ -363,7 +373,10 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(await vaulted(created.id)).toBe(hmac.secret);
       expect(await vaultCount()).toBe(count);
 
-      const none = await hooks.update(created.id, { verify: "none" }).orThrow();
+      const none = await hooks
+        .update({ id: created.id, input: { verify: "none" } })
+        .orThrow();
+
       expect(none).toMatchObject({
         verify: "none",
         secret: null,
@@ -372,7 +385,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(await vaulted(created.id)).toBeNull();
       expect(await vaultCount()).toBe(count - 1);
 
-      expect(await hooks.update(created.id, { name: " " })).toMatchObject({
+      expect(
+        await hooks.update({ id: created.id, input: { name: " " } }),
+      ).toMatchObject({
         ok: false,
         error: { hint: "WEBHOOK_IN_NAME_REQUIRED" },
       });
@@ -390,16 +405,17 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       ).toBe("WEBHOOK_IN_VERIFY_UNKNOWN");
 
       await s.as(member);
-      expect(await hooks.update(created.id, { name: "Mine" })).toMatchObject({
-        ok: false,
-        error: { hint: "WEBHOOK_IN_NOT_FOUND" },
-      });
+      expect(
+        await hooks.update({ id: created.id, input: { name: "Mine" } }),
+      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_NOT_FOUND" } });
       expect(
         await hooks.create({ tenant: organization, name: "x" }),
       ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_FORBIDDEN" } });
 
       await s.as(admin);
-      expect(await hooks.setEnabled(created.id, false).orThrow()).toBe(true);
+      expect(
+        await hooks.setEnabled({ id: created.id, enabled: false }).orThrow(),
+      ).toBe(true);
       expect(await hooks.remove(created.id).orThrow()).toBe(false);
       await s.as(owner);
       expect(await hooks.remove(created.id).orThrow()).toBe(true);
@@ -444,7 +460,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const count = await vaultCount();
 
       const rotated = await hooks
-        .rotateSecret(created.id, { grace: "1 hour" })
+        .rotateSecret({ id: created.id, options: { grace: "1 hour" } })
         .orThrow();
 
       expect(rotated.secret).toMatch(/^whsec_/);
@@ -456,14 +472,14 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
       const post = async (secret: string, id: string) =>
         (
-          await hooks.receive(
-            new Request(`https://api.test/hooks/${created.token}`, {
+          await hooks.receive({
+            request: new Request(`https://api.test/hooks/${created.token}`, {
               method: "POST",
               headers: await signWebhook(secret, { id, body }),
               body,
             }),
-            created.token,
-          )
+            token: created.token,
+          })
         ).status;
 
       await s.service();
@@ -478,7 +494,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(await post(rotated.secret, "a4")).toBe(202);
 
       await s.as(owner);
-      const again = await hooks.rotateSecret(created.id).orThrow();
+      const again = await hooks.rotateSecret({ id: created.id }).orThrow();
       expect(again.previousSecretExpiresAt).toBeNull();
       expect(await vaultCount()).toBe(count);
       await s.service();
@@ -486,17 +502,19 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect(await post(again.secret, "a6")).toBe(202);
 
       await s.as(owner);
-      expect(await hooks.rotateSecret(plain.id)).toMatchObject({
+      expect(await hooks.rotateSecret({ id: plain.id })).toMatchObject({
         ok: false,
         error: { hint: "WEBHOOK_IN_NO_SECRET" },
       });
       await s.as(member);
-      expect(await hooks.rotateSecret(created.id)).toMatchObject({
+      expect(await hooks.rotateSecret({ id: created.id })).toMatchObject({
         ok: false,
         error: { hint: "WEBHOOK_IN_NOT_FOUND" },
       });
       await s.as(owner);
-      await hooks.rotateSecret(created.id, { grace: "1 day" }).orThrow();
+      await hooks
+        .rotateSecret({ id: created.id, options: { grace: "1 day" } })
+        .orThrow();
       expect(await vaultCount()).toBe(count + 1);
       expect(await hooks.remove(created.id).orThrow()).toBe(true);
       expect(await vaultCount()).toBe(count - 1);
@@ -541,19 +559,21 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         .orThrow();
 
       expect(
-        await hooks.update(plain.id, { verify: "shared-secret" }).orThrow(),
+        await hooks
+          .update({ id: plain.id, input: { verify: "shared-secret" } })
+          .orThrow(),
       ).toMatchObject({ signatureHeader: "x-webhook-secret" });
 
       const post = async (headers: Record<string, string>) =>
         (
-          await hooks.receive(
-            new Request(`https://api.test/hooks/${created.token}`, {
+          await hooks.receive({
+            request: new Request(`https://api.test/hooks/${created.token}`, {
               method: "POST",
               headers,
               body: "{}",
             }),
-            created.token,
-          )
+            token: created.token,
+          })
         ).status;
 
       await s.service();
@@ -570,7 +590,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       await s.as(owner);
 
       const rotated = await hooks
-        .rotateSecret(created.id, { grace: "1 hour" })
+        .rotateSecret({ id: created.id, options: { grace: "1 hour" } })
         .orThrow();
 
       await s.service();
@@ -634,11 +654,14 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         ok: false,
         error: { hint: "WEBHOOK_IN_SUBJECT_INVALID" },
       });
-      const listed = await hooks.list(organization).orThrow();
+      const listed = await hooks.list({ tenant: organization }).orThrow();
       expect(listed.map((hook) => hook.subject?.id)).toEqual([open!.id]);
       expect(
         await hooks
-          .list(organization, { type: "flow", id: open!.id })
+          .list({
+            tenant: organization,
+            subject: { type: "flow", id: open!.id },
+          })
           .orThrow(),
       ).toHaveLength(1);
 
@@ -828,8 +851,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         id: string,
         body = '{"type":"lead.created"}',
       ) =>
-        target.receive(
-          new Request(`https://api.test/hooks/${endpoint.token}`, {
+        target.receive({
+          request: new Request(`https://api.test/hooks/${endpoint.token}`, {
             method: "POST",
             headers: {
               "content-type": "application/json",
@@ -837,8 +860,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             },
             body,
           }),
-          endpoint.token,
-        );
+          token: endpoint.token,
+        });
 
       expect((await post(hooks, "m1")).status).toBe(202);
       expect((await post(hooks, "m1")).status).toBe(200);
@@ -850,8 +873,10 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       });
 
       const seen: unknown[] = [];
-      await inbox.process((message) => {
-        seen.push([message.tenant, message.type, message.headers]);
+      await inbox.process({
+        handler: (message) => {
+          seen.push([message.tenant, message.type, message.headers]);
+        },
       });
       expect(seen).toEqual([[organization, "lead.created", {}]]);
 
@@ -885,8 +910,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       expect((await post(queued, "m2")).status).toBe(200);
       const drained: unknown[] = [];
       expect(
-        await jobs.drain(queue, (payload, job) => {
-          drained.push([payload, job.context.tenant]);
+        await jobs.drain({
+          queue,
+          handler: (payload, job) => {
+            drained.push([payload, job.context.tenant]);
+          },
         }),
       ).toEqual({ succeeded: 1, failed: 0 });
       expect(drained).toEqual([[{ route: "leads" }, organization]]);

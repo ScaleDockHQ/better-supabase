@@ -119,14 +119,15 @@ export async function loadBookingSetup(): Promise<BookingSetup | null> {
 
   const [slots, links] = await Promise.all([
     bookings
-      .availableSlots(
-        page.serviceId,
-        { from: at(monday), until: at(monday.add({ days: 7 })) },
-        { tz: page.tz, resourceId: page.resourceId },
-      )
+      .availableSlots({
+        serviceId: page.serviceId,
+        range: { from: at(monday), until: at(monday.add({ days: 7 })) },
+        tz: page.tz,
+        resourceId: page.resourceId,
+      })
       .orThrow(),
     shareLinks
-      .list({ type: BOOKING_SERVICE_SUBJECT, id: page.serviceId })
+      .list({ subject: { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId } })
       .orThrow(),
   ]);
 
@@ -222,11 +223,11 @@ export async function loadPublicBooking(
   const at = (date: Temporal.PlainDate) => date.toZonedDateTime(tz).toInstant();
 
   const slots = await bookings.public
-    .slots(
+    .slots({
       token,
-      { from: at(start), until: at(start.add({ days: 7 })) },
-      { tz },
-    )
+      range: { from: at(start), until: at(start.add({ days: 7 })) },
+      tz,
+    })
     .orThrow();
 
   const days = new Map<string, PublicSlot[]>();

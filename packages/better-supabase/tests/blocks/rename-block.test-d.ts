@@ -81,16 +81,16 @@ describe("RenamedClient", () => {
   it("renames methods, arguments and results", () => {
     expectTypeOf<Renamed>().toHaveProperty("saveInitiative");
     expectTypeOf<Renamed>().not.toHaveProperty("saveProject");
-    expectTypeOf<Parameters<Renamed["list"]>[1]>().toExtend<
-      { readonly initiativeId?: string } | undefined
-    >();
+    expectTypeOf<Parameters<Renamed["list"]>[0]>().toExtend<{
+      readonly initiativeId?: string;
+    }>();
     expectTypeOf<ReturnType<Renamed["list"]>>().toExtend<
       AsyncResult<readonly { readonly initiativeId?: string }[]>
     >();
   });
 
   it("renames the column a change names", () => {
-    type Change = Parameters<Renamed["update"]>[0][number];
+    type Change = Parameters<Renamed["update"]>[0]["changes"][number];
 
     expectTypeOf<"initiativeId">().toExtend<Change["field"]>();
     expectTypeOf<Change>().toHaveProperty("taskId");

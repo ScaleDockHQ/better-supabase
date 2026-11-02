@@ -465,6 +465,16 @@ const posted = await db.inventory.postStockCount(count.id).orThrow();
 
 The `stock_count` import target creates an open count from `{ locationId or location (a code), note, lines: [{ variantId, binId, lotId or lot, serial, counted, expected }] }`, so a count sheet can be loaded repeatedly by its external key. An imported count stays open until `postStockCount`, and a posted one refuses a second import.
 
+## Stock overview
+
+`overview({ organizationId, limit?, expiryDays? })` reads the stock page in one call from the SQL function `inventory_overview`: `levelCount`, the levels at or below their reorder point (`lowStockCount` counts all of them, `lowStock` lists the emptiest `limit`, default 20), and the lots with stock that expire within `expiryDays` (default 30), soonest first. Quantities are text, in each variant's unit. The function runs as the caller, so row security decides which levels are counted, and it reads lots through `expiring_lots`, which checks the `inventory.read` permission.
+
+```ts
+const stock = await db.$blocks.inventory
+  .overview({ organizationId, limit: 10, expiryDays: 14 })
+  .orThrow();
+```
+
 ## Events
 
 | Event                                                                          | When                                             |

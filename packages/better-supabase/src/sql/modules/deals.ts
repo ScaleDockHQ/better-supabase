@@ -15,7 +15,9 @@ import {
   lineTableSpec,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { searchColumnSql } from "../search-column.ts";
 import {
   addExtraColumns,
   fail,
@@ -25,6 +27,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { DEAL_COLUMNS, dealFunctions } from "./deals-functions.ts";
+import { DEAL_READS } from "./deals-reads.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const DEAL = [
@@ -48,6 +51,10 @@ const EVENTS: BlockSqlEvents<DealsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [
+    link("contact", "reference", "deal", "contacts", "person"),
+    link("company", "reference", "deal", "contacts", "company"),
+  ],
   entities: {
     deal: {
       table: "deals",
@@ -63,6 +70,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
+  reads: DEAL_READS,
   hooks: [
     "before_deal_create",
     "after_deal_create",
@@ -79,6 +87,7 @@ const NAMES: BlockSqlNames = {
     "extraColumns",
     "lineExtraColumns",
     "lineRates",
+    "searchColumn",
   ],
   tables: {
     deals: {
@@ -265,7 +274,7 @@ create table if not exists ${t("deals")} (
 create index if not exists ${ctx.naming.rename("deals_pipeline_stage_idx")} on ${t("deals")} (${d("pipeline")}, ${d("stage")}, ${d("rank")});
 create index if not exists ${ctx.naming.rename("deals_tenant_close_idx")} on ${t("deals")} (${d("tenant")}, ${d("closeOn")}) where ${d("outcome")} = 'open';
 create index if not exists ${ctx.naming.rename("deals_owner_idx")} on ${t("deals")} (${d("owner")});
-create index if not exists ${ctx.naming.rename("deals_company_idx")} on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}
+create index if not exists ${ctx.naming.rename("deals_company_idx")} on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}${searchColumnSql(ctx, "deals", ["name", "identifier", "note"])}
 ${lockTable(t("deals"), { read: true })}
 
 create table if not exists ${t("contacts")} (
@@ -488,6 +497,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "deal_health", args: ["uuid"], returns: "jsonb" },
+    { name: "deal_board", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

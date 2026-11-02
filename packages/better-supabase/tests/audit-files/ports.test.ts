@@ -186,7 +186,7 @@ const recording = () => {
   const calls: { entity: string; items: readonly AuditImportItem[] }[] = [];
 
   const port: AuditImportPort = {
-    upsertBatch: (_run, entity, items) => {
+    upsertBatch: ({ runId: _run, entity, items }) => {
       calls.push({ entity, items });
 
       return ok({

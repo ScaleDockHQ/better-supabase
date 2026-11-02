@@ -96,21 +96,19 @@ export interface SubjectMembers {
    * that role with the new dates. Needs `subjects.manage` in the record's
    * organization, or `manage` on the record.
    */
-  add(
-    subject: RecordRef,
-    member: SubjectMemberInput,
-  ): AsyncResult<SubjectMember>;
+  add(input: {
+    subject: RecordRef;
+    member: SubjectMemberInput;
+  }): AsyncResult<SubjectMember>;
   /** Ends a membership: it counts through `endsOn`, then access stops. */
   end(
-    memberId: string,
-    options?: EndSubjectMemberOptions,
+    input: { memberId: string } & EndSubjectMemberOptions,
   ): AsyncResult<SubjectMember>;
   /** The record's team, current and past, for a caller who can read it. */
   list(subject: RecordRef): AsyncResult<readonly SubjectMember[]>;
   /** The records whose team the caller is on today, a page at a time. */
   mine(
-    tenant: string,
-    options?: MySubjectsOptions,
+    input: { tenant: string } & MySubjectsOptions,
   ): AsyncResult<MySubjectsPage>;
 }
 
@@ -204,7 +202,7 @@ const memberList = (value: unknown): SubjectMember[] =>
 /** `members` of the subjects client, over `call`. */
 export function subjectMembers(call: BlockCall): SubjectMembers {
   return {
-    add: (subject, member) =>
+    add: ({ subject, member }) =>
       call(
         "add_subject_member",
         {
@@ -218,7 +216,7 @@ export function subjectMembers(call: BlockCall): SubjectMembers {
         },
         memberOf,
       ),
-    end: (memberId, options = {}) =>
+    end: ({ memberId, ...options }) =>
       call(
         "end_subject_member",
         {
@@ -235,7 +233,7 @@ export function subjectMembers(call: BlockCall): SubjectMembers {
         { subject_type: subject.type, subject_id: subject.id },
         memberList,
       ),
-    mine: (tenant, options = {}) =>
+    mine: ({ tenant, ...options }) =>
       call(
         "my_subjects",
         {

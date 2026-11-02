@@ -46,13 +46,18 @@ describe("inventory counts calls", () => {
   it("opens a count with and without options", async () => {
     expect(
       await inventory
-        .openStockCount("org", "loc", { note: "year end", variantIds: ["v1"] })
+        .openStockCount({
+          organizationId: "org",
+          locationId: "loc",
+          input: { note: "year end", variantIds: ["v1"] },
+        })
         .orThrow(),
     ).toEqual({ id: "c1", lines: 4 });
-    expect(await inventory.openStockCount("org", "loc").orThrow()).toEqual({
-      id: "c1",
-      lines: 4,
-    });
+    expect(
+      await inventory
+        .openStockCount({ organizationId: "org", locationId: "loc" })
+        .orThrow(),
+    ).toEqual({ id: "c1", lines: 4 });
     expect(record[0]?.args).toEqual({
       tenant: "org",
       location: "loc",
@@ -63,7 +68,10 @@ describe("inventory counts calls", () => {
   it("records a line, defaulting the variance, and reads a repeat post", async () => {
     expect(
       await inventory
-        .recordCountLine("c1", { variantId: "v1", counted: 3, binId: "b1" })
+        .recordCountLine({
+          countId: "c1",
+          input: { variantId: "v1", counted: 3, binId: "b1" },
+        })
         .orThrow(),
     ).toEqual({ id: "l1", expected: "5", counted: "3", variance: "0" });
     expect(await inventory.postStockCount("c1").orThrow()).toEqual({

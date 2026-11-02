@@ -84,6 +84,13 @@ export {
   type RpcClient,
 } from "../../core/block-transport.ts";
 
+export type {
+  InventoryExpiringLot,
+  InventoryLowStock,
+  InventoryOverview,
+  InventoryReads,
+} from "./reads.ts";
+
 export { inventoryBlock } from "./manifest.ts";
 
 export { inventoryEvents } from "./events.ts";

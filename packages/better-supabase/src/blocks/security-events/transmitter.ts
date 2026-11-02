@@ -148,26 +148,32 @@ export interface SsfTransmitter {
   createStream(input: CreateSsfStreamInput): AsyncResult<SsfStream>;
   stream(id: string): AsyncResult<SsfStream | null>;
   streams(receiver: string): AsyncResult<readonly SsfStream[]>;
-  updateStream(
-    id: string,
-    input: UpdateSsfStreamInput,
-  ): AsyncResult<SsfStream | null>;
+  updateStream(input: {
+    id: string;
+    input: UpdateSsfStreamInput;
+  }): AsyncResult<SsfStream | null>;
   deleteStream(id: string): AsyncResult<boolean>;
   /**
    * Sets the status. Pausing or disabling sends `stream-updated` first;
    * enabling sends it after the held SETs.
    */
-  setStatus(
-    id: string,
-    status: SsfStreamStatus,
-    reason?: string,
-  ): AsyncResult<SsfStreamStatus>;
+  setStatus(input: {
+    id: string;
+    status: SsfStreamStatus;
+    reason?: string | undefined;
+  }): AsyncResult<SsfStreamStatus>;
   /** Sends a verification event (SSF §8.1.4). */
-  verify(id: string, state?: string): AsyncResult<string>;
+  verify(input: {
+    id: string;
+    state?: string | undefined;
+  }): AsyncResult<string>;
   /** Mints the event once per stream that delivers it and queues it. */
   emit(input: EmitSecurityEventInput): AsyncResult<EmitResult>;
   /** RFC 8936: acknowledges and returns SETs of a poll stream. */
-  poll(id: string, request: SsfPollRequest): AsyncResult<SsfPollResponse>;
+  poll(input: {
+    id: string;
+    request: SsfPollRequest;
+  }): AsyncResult<SsfPollResponse>;
   /** Deletes replay entries and unpolled SETs past the retention. */
   purge(olderThan?: Temporal.Duration): AsyncResult<number>;
   /**
@@ -389,7 +395,7 @@ export function createSsfTransmitter(
       );
     });
 
-  const setStatus: SsfTransmitter["setStatus"] = (id, status, reason) =>
+  const setStatus: SsfTransmitter["setStatus"] = ({ id, status, reason }) =>
     stream(id).andThen(async (found): Promise<Result<SsfStreamStatus>> => {
       if (found === null) {
         return err(
@@ -433,7 +439,7 @@ export function createSsfTransmitter(
       return ok(previous.data);
     });
 
-  const verify: SsfTransmitter["verify"] = (id, state) =>
+  const verify: SsfTransmitter["verify"] = ({ id, state }) =>
     stream(id).andThen((found) =>
       found === null
         ? AsyncResult.err<string>(
@@ -484,7 +490,7 @@ export function createSsfTransmitter(
       return ok({ streams: targets.length, ...counts });
     });
 
-  const poll: SsfTransmitter["poll"] = (id, request) =>
+  const poll: SsfTransmitter["poll"] = ({ id, request }) =>
     call(
       "poll_ssf_events",
       {
@@ -526,7 +532,7 @@ export function createSsfTransmitter(
       call("ssf_streams", { receiver }, (value) =>
         recordsOf(value, "ssf_streams").map(streamOf),
       ),
-    updateStream: (id, input) =>
+    updateStream: ({ id, input }) =>
       call(
         "update_ssf_stream",
         {
@@ -814,20 +820,23 @@ function routes(
         const endpoint = delivery?.["endpoint_url"];
         const description = body["description"];
 
-        const updated = await transmitter.updateStream(found.id, {
-          ...(typeof description === "string"
-            ? { description }
-            : replace
-              ? { description: null }
+        const updated = await transmitter.updateStream({
+          id: found.id,
+          input: {
+            ...(typeof description === "string"
+              ? { description }
+              : replace
+                ? { description: null }
+                : {}),
+            ...(requested === undefined
+              ? replace
+                ? { eventsRequested: [] }
+                : {}
+              : { eventsRequested: requested }),
+            ...(found.method === "push" && typeof endpoint === "string"
+              ? { endpointUrl: endpoint }
               : {}),
-          ...(requested === undefined
-            ? replace
-              ? { eventsRequested: [] }
-              : {}
-            : { eventsRequested: requested }),
-          ...(found.method === "push" && typeof endpoint === "string"
-            ? { endpointUrl: endpoint }
-            : {}),
+          },
         });
 
         if (!updated.ok) {
@@ -908,7 +917,11 @@ function routes(
     const reason =
       typeof body?.["reason"] === "string" ? body["reason"] : undefined;
 
-    const changed = await transmitter.setStatus(found.id, next, reason);
+    const changed = await transmitter.setStatus({
+      id: found.id,
+      status: next,
+      reason,
+    });
 
     if (!changed.ok) {
       return failure(changed.error);
@@ -959,10 +972,10 @@ function routes(
 
     const state = body?.["state"];
 
-    const sent = await transmitter.verify(
-      found.id,
-      typeof state === "string" ? state : undefined,
-    );
+    const sent = await transmitter.verify({
+      id: found.id,
+      state: typeof state === "string" ? state : undefined,
+    });
 
     return sent.ok ? new Response(null, { status: 204 }) : failure(sent.error);
   };
@@ -990,16 +1003,19 @@ function routes(
     const max = body["maxEvents"];
     const errs = isRecord(body["setErrs"]) ? body["setErrs"] : {};
 
-    const polled = await transmitter.poll(found.id, {
-      ...(typeof max === "number" ? { maxEvents: max } : {}),
-      ack: strings(body["ack"]) ?? [],
-      setErrs: Object.fromEntries(
-        Object.entries(errs).flatMap(([jti, value]) =>
-          isRecord(value) && typeof value["err"] === "string"
-            ? [[jti, { err: value["err"] }]]
-            : [],
+    const polled = await transmitter.poll({
+      id: found.id,
+      request: {
+        ...(typeof max === "number" ? { maxEvents: max } : {}),
+        ack: strings(body["ack"]) ?? [],
+        setErrs: Object.fromEntries(
+          Object.entries(errs).flatMap(([jti, value]) =>
+            isRecord(value) && typeof value["err"] === "string"
+              ? [[jti, { err: value["err"] }]]
+              : [],
+          ),
         ),
-      ),
+      },
     });
 
     return polled.ok ? json(polled.data) : failure(polled.error);

@@ -67,11 +67,14 @@ describe("createAssignment", () => {
     const assignment = createAssignment({ transport });
 
     const queue = await assignment
-      .saveQueue("org", {
-        name: "Benelux",
-        subjectType: "company",
-        strategy: "weighted",
-        conditions: territory,
+      .saveQueue({
+        organizationId: "org",
+        queue: {
+          name: "Benelux",
+          subjectType: "company",
+          strategy: "weighted",
+          conditions: territory,
+        },
       })
       .orThrow();
 
@@ -99,7 +102,7 @@ describe("createAssignment", () => {
     ]);
 
     const cleared = await assignment
-      .setMembers("q1", [{ userId: "u1", weight: 3 }])
+      .setMembers({ queueId: "q1", members: [{ userId: "u1", weight: 3 }] })
       .orThrow();
 
     expect(cleared.conditions).toBeUndefined();
@@ -112,7 +115,9 @@ describe("createAssignment", () => {
 
     expect(await assignment.removeQueue("q1").orThrow()).toBe(true);
 
-    const [listed] = await assignment.queues("org").orThrow();
+    const [listed] = await assignment
+      .queues({ organizationId: "org" })
+      .orThrow();
 
     expect(listed?.strategy).toBe("round_robin");
     expect(call).toHaveBeenLastCalledWith(
@@ -120,7 +125,9 @@ describe("createAssignment", () => {
       "list_assignment_queues",
       { tenant: "org", subject_type: null },
     );
-    await assignment.queues("org", { subjectType: "company" }).orThrow();
+    await assignment
+      .queues({ organizationId: "org", subjectType: "company" })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
       "list_assignment_queues",
@@ -129,10 +136,15 @@ describe("createAssignment", () => {
 
     expect(
       await assignment
-        .assign("org", { type: "company", id: "c1", fields: { country: "NL" } })
+        .assign({
+          organizationId: "org",
+          subject: { type: "company", id: "c1", fields: { country: "NL" } },
+        })
         .orThrow(),
     ).toEqual({ queueId: "q1", userId: "u1", strategy: "weighted" });
-    await assignment.assign("org", { type: "company", id: "c2" }).orThrow();
+    await assignment
+      .assign({ organizationId: "org", subject: { type: "company", id: "c2" } })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith("better_supabase", "assign_subject", {
       tenant: "org",
       subject_type: "company",
@@ -141,7 +153,12 @@ describe("createAssignment", () => {
     });
 
     expect(
-      await assignment.history("org", { type: "company", id: "c1" }).orThrow(),
+      await assignment
+        .history({
+          organizationId: "org",
+          subject: { type: "company", id: "c1" },
+        })
+        .orThrow(),
     ).toEqual([
       { queueId: "q1", userId: "u1", assignedAt: Temporal.Instant.from(AT) },
       {
@@ -161,7 +178,11 @@ describe("createAssignment", () => {
       },
     );
     await assignment
-      .history("org", { type: "company", id: "c1" }, { limit: 5 })
+      .history({
+        organizationId: "org",
+        subject: { type: "company", id: "c1" },
+        limit: 5,
+      })
       .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -180,7 +201,10 @@ describe("createAssignment", () => {
 
     expect(
       await createAssignment({ transport, schema: "api" })
-        .assign("org", { type: "company", id: "c1" })
+        .assign({
+          organizationId: "org",
+          subject: { type: "company", id: "c1" },
+        })
         .orThrow(),
     ).toBeUndefined();
 
@@ -188,7 +212,10 @@ describe("createAssignment", () => {
 
     expect(
       await createAssignment({ transport: empty })
-        .assign("org", { type: "company", id: "c1" })
+        .assign({
+          organizationId: "org",
+          subject: { type: "company", id: "c1" },
+        })
         .orThrow(),
     ).toBeUndefined();
   });
@@ -205,10 +232,10 @@ describe("createAssignment", () => {
       error: vi.fn(),
     };
 
-    const result = await createAssignment({ transport, logger }).saveQueue(
-      "org",
-      { name: "x" },
-    );
+    const result = await createAssignment({ transport, logger }).saveQueue({
+      organizationId: "org",
+      queue: { name: "x" },
+    });
 
     expect(result.ok).toBe(false);
   });

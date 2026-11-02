@@ -63,9 +63,9 @@ describe.skipIf(!live)("security-events module", () => {
 
       expect(await emit()).toMatchObject({ streams: 1, dispatched: 1 });
 
-      await tx.setStatus(stream.id, "paused").orThrow();
+      await tx.setStatus({ id: stream.id, status: "paused" }).orThrow();
       expect(await emit()).toMatchObject({ held: 1 });
-      await tx.setStatus(stream.id, "enabled").orThrow();
+      await tx.setStatus({ id: stream.id, status: "enabled" }).orThrow();
 
       const deliveries = await s.client.query<{
         type: string;
@@ -138,7 +138,10 @@ describe.skipIf(!live)("security-events module", () => {
           .orThrow();
       }
 
-      const first = await tx.poll(stream.id, { maxEvents: 1 }).orThrow();
+      const first = await tx
+        .poll({ id: stream.id, request: { maxEvents: 1 } })
+        .orThrow();
+
       expect(Object.keys(first.sets)).toHaveLength(1);
       expect(first.moreAvailable).toBe(true);
       const [jti, token] = Object.entries(first.sets)[0]!;
@@ -160,14 +163,17 @@ describe.skipIf(!live)("security-events module", () => {
       });
 
       const rest = await tx
-        .poll(stream.id, { maxEvents: 10, ack: [jti] })
+        .poll({ id: stream.id, request: { maxEvents: 10, ack: [jti] } })
         .orThrow();
 
       expect(Object.keys(rest.sets)).toHaveLength(1);
       expect(rest.moreAvailable).toBe(false);
       expect(
         await tx
-          .poll(stream.id, { maxEvents: 0, ack: Object.keys(rest.sets) })
+          .poll({
+            id: stream.id,
+            request: { maxEvents: 0, ack: Object.keys(rest.sets) },
+          })
           .orThrow(),
       ).toEqual({ sets: {}, moreAvailable: false });
       expect(

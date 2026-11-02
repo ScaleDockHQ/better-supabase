@@ -54,6 +54,9 @@ import {
   resolveBlocks,
   SQL_MODULES,
 } from "./registry.ts";
+import { rowAuditData } from "./row-audit.ts";
+import { rowRealtimeData } from "./row-realtime.ts";
+import { renderSeedDefaults, seedFunctionName } from "./seeds.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { tableBase } from "./table-renames.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
@@ -101,11 +104,31 @@ function moduleSql(
   return withSubjectMergeFunction(
     withColumnTypeFunction(
       applyActorWriteGuards(
-        applyTenantScope(module.build(ctx, layout), ctx),
+        applyTenantScope(
+          `${module.build(ctx, layout)}${seedDefaultsSql(module, ctx)}`,
+          ctx,
+        ),
         layout,
       ),
     ),
   );
+}
+
+/** The module's declared tenant defaults as `seed_<module>_defaults`, if any. */
+export function seedDefaultsSql(
+  module: BlockSql,
+  ctx: BlockSqlContext,
+): string {
+  const tables = module.seeds?.defaults?.(ctx);
+
+  return tables === undefined || tables.length === 0
+    ? ""
+    : renderSeedDefaults(
+        module.name,
+        ctx.fn(seedFunctionName(module.name)),
+        ctx.idType,
+        tables,
+      );
 }
 
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */
@@ -363,7 +386,19 @@ function moduleFiles(
       ? ownerSearchTriggers(moduleContext("search", layout, installed), ctx)
       : "";
 
-  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}`;
+  // The row audit registration belongs in the schema file, so a schema diff
+  // keeps the triggers instead of dropping them; a module installed before
+  // `audit` has no `audit()` to call yet and registers from its data file.
+  const auditAt = installed.indexOf("audit");
+
+  const rowAuditBeforeSchema =
+    auditAt === -1 || installed.indexOf(module.name) < auditAt;
+
+  const rowAuditSchema = rowAuditBeforeSchema
+    ? ""
+    : rowAuditData(ctx, layout, installed, true);
+
+  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}${rowAuditSchema === "" ? "" : `\n${rowAuditSchema}\n`}`;
   const wrappers = renameIdentifiers(deprecationWrappers(module, ctx), renames);
   const body = scoped(moduleSql(module, ctx, layout).trim());
   module.contract?.(ctx);
@@ -409,6 +444,8 @@ function moduleFiles(
       .map((trigger) => trigger.statement)
       .join("\n"),
     scoped(module.data?.(ctx, layout).trim() ?? ""),
+    rowAuditBeforeSchema ? rowAuditData(ctx, layout, installed) : "",
+    rowRealtimeData(ctx, installed),
     moduleRow(module, ctx.mode, ctx.instance),
   ]
     .filter((part) => part !== "")

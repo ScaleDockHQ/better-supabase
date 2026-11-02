@@ -234,25 +234,25 @@ export interface ContractPatch {
 }
 
 export interface Employees<F extends object = Record<never, never>> {
-  create(
-    organizationId: string,
-    input: EmployeeInput<F>,
-  ): AsyncResult<Employee<F>>;
+  create(input: {
+    organizationId: string;
+    input: EmployeeInput<F>;
+  }): AsyncResult<Employee<F>>;
   /**
    * Applies each change on its own; one that fails doesn't stop the others.
    * With `atomic`, the first failure returns its error and no change stays.
    */
   update(
-    changes: readonly EmployeeChange[],
-    options?: { readonly atomic?: boolean },
+    input: { changes: readonly EmployeeChange[] } & {
+      readonly atomic?: boolean;
+    },
   ): AsyncResult<EmployeeChangeResult>;
   /**
    * Sets the end date (today by default) and moves the reports to the
    * employee's manager, unless `options.offboarding.reports` is `"keep"`.
    */
   offboard(
-    employeeId: string,
-    options?: {
+    input: { employeeId: string } & {
       readonly endDate?: Temporal.PlainDate;
       readonly reason?: string;
     },
@@ -264,29 +264,28 @@ export interface Employees<F extends object = Record<never, never>> {
    */
   delete(employeeId: string): AsyncResult<Employee<F>>;
   /** The chart under `rootId`, or under everyone without a manager. */
-  orgChart(
-    organizationId: string,
-    rootId?: string,
-  ): AsyncResult<readonly OrgChartEntry<F>[]>;
+  orgChart(input: {
+    organizationId: string;
+    rootId?: string | undefined;
+  }): AsyncResult<readonly OrgChartEntry<F>[]>;
   /** Direct reports, or everyone under the manager with `indirect`. */
   reportsOf(
-    managerId: string,
-    options?: { readonly indirect?: boolean },
+    input: { managerId: string } & { readonly indirect?: boolean },
   ): AsyncResult<readonly OrgChartEntry<F>[]>;
   /**
    * The employee for a hired application (the hiring module), in preboarding,
    * made once. `overrides` replaces what the candidate and the job give.
    */
-  fromApplication(
-    applicationId: string,
-    overrides?: Partial<EmployeeInput<F>>,
-  ): AsyncResult<Employee<F>>;
+  fromApplication(input: {
+    applicationId: string;
+    overrides?: Partial<EmployeeInput<F>> | undefined;
+  }): AsyncResult<Employee<F>>;
   /** Needs employees.view_sensitive, or being the employee. */
   privateDetails(employeeId: string): AsyncResult<PrivateDetails | undefined>;
-  savePrivateDetails(
-    employeeId: string,
-    input: PrivateDetailsInput,
-  ): AsyncResult<PrivateDetails>;
+  savePrivateDetails(input: {
+    employeeId: string;
+    input: PrivateDetailsInput;
+  }): AsyncResult<PrivateDetails>;
   /** The newest first. */
   contracts(employeeId: string): AsyncResult<readonly Contract[]>;
   /**
@@ -294,11 +293,14 @@ export interface Employees<F extends object = Record<never, never>> {
    * `options.contractOverlap` set to `"allow"` the latest one keeps its end,
    * and with `"deny"` an overlap fails with `EMPLOYEE_CONTRACT_OVERLAP`.
    */
-  addContract(employeeId: string, input: ContractInput): AsyncResult<Contract>;
-  updateContract(
-    contractId: string,
-    patch: ContractPatch,
-  ): AsyncResult<Contract>;
+  addContract(input: {
+    employeeId: string;
+    input: ContractInput;
+  }): AsyncResult<Contract>;
+  updateContract(input: {
+    contractId: string;
+    patch: ContractPatch;
+  }): AsyncResult<Contract>;
   deleteContract(contractId: string): AsyncResult<Contract>;
 }
 
@@ -533,7 +535,7 @@ export function createEmployees<
     });
 
   const client: Employees<F> = {
-    create: (organizationId, input) =>
+    create: ({ organizationId, input }) =>
       attrsOf(input)
         .andThen((attrs) =>
           call(
@@ -543,7 +545,7 @@ export function createEmployees<
           ),
         )
         .andThen(parsed),
-    update: (changes, update = {}) =>
+    update: ({ changes, ...update }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (BUILT_IN.has(change.field)) {
@@ -592,7 +594,7 @@ export function createEmployees<
           },
         ),
       ),
-    offboard: (employeeId, offboard = {}) =>
+    offboard: ({ employeeId, ...offboard }) =>
       call(
         "offboard_employee",
         {
@@ -606,14 +608,14 @@ export function createEmployees<
       call("delete_employee", { employee: employeeId }, employeeOf).andThen(
         parsed,
       ),
-    orgChart: (organizationId, rootId) =>
+    orgChart: ({ organizationId, rootId }) =>
       chart("org_chart", { tenant: organizationId, root: rootId ?? null }),
-    reportsOf: (managerId, reports = {}) =>
+    reportsOf: ({ managerId, ...reports }) =>
       chart("reports_of", {
         manager: managerId,
         indirect: reports.indirect ?? false,
       }),
-    fromApplication: (applicationId, overrides = {}) =>
+    fromApplication: ({ applicationId, overrides = {} }) =>
       attrsOf(overrides)
         .andThen((attrs) =>
           call(
@@ -627,7 +629,7 @@ export function createEmployees<
       call("employee_private_details", { employee: employeeId }, (value) =>
         value === null || value === undefined ? undefined : privateOf(value),
       ),
-    savePrivateDetails: (employeeId, input) =>
+    savePrivateDetails: ({ employeeId, input }) =>
       call(
         "save_employee_private_details",
         {
@@ -649,13 +651,13 @@ export function createEmployees<
       call("employee_contracts", { employee: employeeId }, (value) =>
         recordsOf(value, "employee_contracts").map(contractOf),
       ),
-    addContract: (employeeId, input) =>
+    addContract: ({ employeeId, input }) =>
       call(
         "add_employee_contract",
         { employee: employeeId, attrs: contractArgs(input) },
         contractOf,
       ),
-    updateContract: (contractId, patch) =>
+    updateContract: ({ contractId, patch }) =>
       call(
         "update_employee_contract",
         { contract: contractId, attrs: contractPatchArgs(patch) },

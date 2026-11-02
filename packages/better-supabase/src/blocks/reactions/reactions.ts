@@ -7,7 +7,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions, BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { bySubjectType } from "../../core/block-subjects.ts";
+import { bySubjectType, subjectKey } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
@@ -43,6 +43,16 @@ export interface ReactionCount {
   readonly reacted: boolean;
   /** The first ten actors (user ids, or names the service passed), oldest first. */
   readonly actors: readonly string[];
+}
+
+/** The actors behind one emoji, from `who`. */
+export interface ReactionActors {
+  readonly count: number;
+  readonly actors: readonly string[];
+  /** Reactions beyond the listed actors. */
+  readonly hidden: number;
+  /** Whether the signed-in user reacted with it. */
+  readonly reacted: boolean;
 }
 
 /** A subject's votes. */
@@ -91,9 +101,7 @@ export interface ReactOptions {
 export interface Reactions {
   /** Adds or removes the caller's reaction; returns the subject's reactions. */
   react(
-    subject: RecordRef,
-    emoji: string,
-    options?: ReactOptions,
+    input: { subject: RecordRef; emoji: string } & ReactOptions,
   ): AsyncResult<readonly ReactionCount[]>;
   /**
    * The reactions of `subjects` (up to 200 of each type), keyed by
@@ -104,13 +112,21 @@ export interface Reactions {
     subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, readonly ReactionCount[]>>>;
   /**
+   * Who reacted to `subject`, by emoji (only `emoji` when given), for a "who
+   * reacted" popover. The database returns the first ten actors of each emoji,
+   * so `hidden` counts the ones beyond them. It is `summary` for one subject
+   * and shares its read rules.
+   */
+  who(input: {
+    subject: RecordRef;
+    emoji?: string | undefined;
+  }): AsyncResult<Readonly<Record<string, ReactionActors>>>;
+  /**
    * Sets the caller's vote on `subject` and returns its tally. Votes use the
    * `create` permission and the subject's read rules, like `react`.
    */
   vote(
-    subject: RecordRef,
-    value: VoteValue,
-    options?: VoteOptions,
+    input: { subject: RecordRef; value: VoteValue } & VoteOptions,
   ): AsyncResult<VoteTally>;
   /**
    * The vote tallies of `subjects` (up to 200 of each type), keyed by
@@ -125,6 +141,14 @@ export interface Reactions {
   saveCustomEmoji(input: CustomEmojiInput): AsyncResult<CustomEmoji>;
   /** Deletes a custom emoji and the reactions that used it. */
   deleteCustomEmoji(id: string): AsyncResult<boolean>;
+  /**
+   * Adds the caller's reaction, or removes it when they already reacted with
+   * that emoji, and returns the counts.
+   */
+  toggle(input: {
+    subject: RecordRef;
+    emoji: string;
+  }): AsyncResult<readonly ReactionCount[]>;
 }
 
 /** The topic the module broadcasts an organization's reaction changes to. */
@@ -185,7 +209,7 @@ export function createReactions(options: ReactionsOptions): Reactions {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Reactions = {
-    react: (subject, emoji, react = {}) =>
+    react: ({ subject, emoji, ...react }) =>
       tenant().andThen((organizationId) =>
         call(
           "react",
@@ -219,7 +243,25 @@ export function createReactions(options: ReactionsOptions): Reactions {
           ),
         ),
       ),
-    vote: (subject, value, vote = {}) =>
+    who: ({ subject, emoji }) =>
+      hooked
+        .summary([subject])
+        .map((summary) =>
+          Object.fromEntries(
+            (summary[subjectKey(subject)] ?? [])
+              .filter((entry) => emoji === undefined || entry.emoji === emoji)
+              .map((entry) => [
+                entry.emoji,
+                {
+                  count: entry.count,
+                  actors: entry.actors,
+                  hidden: Math.max(0, entry.count - entry.actors.length),
+                  reacted: entry.reacted,
+                },
+              ]),
+          ),
+        ),
+    vote: ({ subject, value, ...vote }) =>
       tenant().andThen((organizationId) =>
         call(
           "vote",
@@ -275,10 +317,22 @@ export function createReactions(options: ReactionsOptions): Reactions {
       ),
     deleteCustomEmoji: (id) =>
       call("delete_custom_emoji", { emoji_id: id }, (value) => value === true),
+    toggle: ({ subject, emoji }) =>
+      hooked.summary([subject]).andThen((summary) => {
+        const reacted =
+          summary[subjectKey(subject)]?.some(
+            (c) => c.emoji === emoji && c.reacted,
+          ) ?? false;
+
+        return hooked.react({ subject, emoji, present: !reacted });
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Reactions = withBlockHooks(client, options.hooks, {
     block: "reactions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

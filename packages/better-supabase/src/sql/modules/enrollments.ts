@@ -58,6 +58,12 @@ const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  hooks: [
+    "before_enrollment_create",
+    "after_enrollment_create",
+    "before_enrollment_cancel",
+    "after_enrollment_cancel",
+  ],
   entities: {
     enrollment_program: {
       table: "programs",
@@ -312,6 +318,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "reset_enrollment_step", args: ["uuid", "text"], returns: "jsonb" },
     { name: "cancel_enrollment", args: ["uuid"], returns: "jsonb" },
+    { name: "pause_enrollment", args: ["uuid"], returns: "jsonb" },
+    { name: "resume_enrollment", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

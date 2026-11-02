@@ -31,7 +31,7 @@ const failed = (message: string) =>
 const options = { toolCallId: "c1", messages: [], context: {} };
 
 function fakeMemory(over: Partial<Record<string, unknown>> = {}) {
-  const run = vi.fn((_org: string, command: MemoryCommand) =>
+  const run = vi.fn(({ command }: { command: MemoryCommand }) =>
     command.command === "delete" ? failed("no such file") : okResult("done"),
   );
 
@@ -40,10 +40,11 @@ function fakeMemory(over: Partial<Record<string, unknown>> = {}) {
   );
 
   const saveExtracted = vi.fn(
-    (
-      _org: string,
-      facts: readonly string[],
-    ): ReturnType<Memory["saveExtracted"]> =>
+    ({
+      facts,
+    }: {
+      facts: readonly string[];
+    }): ReturnType<Memory["saveExtracted"]> =>
       okResult(
         facts.map((fact) => ({ content: fact }) as unknown as MemoryRecord),
       ),
@@ -73,11 +74,11 @@ describe("memoryTool", () => {
         options,
       ),
     ).toBe("done");
-    expect(run).toHaveBeenCalledWith(
-      "org",
-      { command: "view", path: "/memories" },
+    expect(run).toHaveBeenCalledWith({
+      organizationId: "org",
+      command: { command: "view", path: "/memories" },
       ns,
-    );
+    });
     expect(
       await memoryCommands.execute?.(
         { command: "delete", path: "/memories/x" },
@@ -126,7 +127,9 @@ describe("recallTool", () => {
         { ...options, abortSignal: signal },
       ),
     ).toEqual({ memories: [{ id: "m1", content: "Likes tea" }] });
-    expect(search).toHaveBeenCalledWith("org", "drinks", undefined, {
+    expect(search).toHaveBeenCalledWith({
+      organizationId: "org",
+      query: "drinks",
       k: 2,
       signal,
     });
@@ -134,7 +137,11 @@ describe("recallTool", () => {
       { query: "q" },
       options,
     );
-    expect(search).toHaveBeenLastCalledWith("org", "q", undefined, { k: 5 });
+    expect(search).toHaveBeenLastCalledWith({
+      organizationId: "org",
+      query: "q",
+      k: 5,
+    });
 
     const { memory: failing } = fakeMemory({
       archival: { search: () => failed("denied") },
@@ -218,12 +225,12 @@ describe("extractMemories", () => {
     );
 
     expect(saved).toBe(2);
-    expect(saveExtracted).toHaveBeenCalledWith(
-      "org",
-      ["Likes tea", "Works at Acme"],
-      { ownerId: "u1", scope: "agent", agentId: "a1" },
-      { sourceMessageId: "m9" },
-    );
+    expect(saveExtracted).toHaveBeenCalledWith({
+      organizationId: "org",
+      facts: ["Likes tea", "Works at Acme"],
+      ns: { ownerId: "u1", scope: "agent", agentId: "a1" },
+      sourceMessageId: "m9",
+    });
   });
 
   it("throws when saving fails", async () => {

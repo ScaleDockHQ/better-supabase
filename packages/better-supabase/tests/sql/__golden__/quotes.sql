@@ -1670,7 +1670,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:297902127f15808d71bf77e204b92e4ccdbafe2b7f9f060cf0ef338f7e1d258f
+-- @bsb-hash sha256:e79211066edadae4b1594544ba5b6af4c1921ac53a3e2955da391742fd298f0a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3416,6 +3416,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_tax_li
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.quotes', target_type => 'quote', event_prefix => 'quote', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

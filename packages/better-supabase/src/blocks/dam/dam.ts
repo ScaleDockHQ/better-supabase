@@ -132,11 +132,11 @@ export interface Dam {
    * Records a rendition of a file, replacing the one of that kind; needs
    * `dam.write`.
    */
-  recordRendition(
-    nodeId: string,
-    kind: DamRenditionKind,
-    input?: DamRenditionInput,
-  ): AsyncResultType<DamRendition>;
+  recordRendition(input: {
+    nodeId: string;
+    kind: DamRenditionKind;
+    input?: DamRenditionInput | undefined;
+  }): AsyncResultType<DamRendition>;
   listRenditions(nodeId: string): AsyncResultType<readonly DamRendition[]>;
   /**
    * Renders the configured kinds through their drive preview renderers, stores
@@ -159,8 +159,7 @@ export interface Dam {
    * channel. A file without any right is not allowed.
    */
   checkUsage(
-    nodeId: string,
-    options?: {
+    input: { nodeId: string } & {
       readonly on?: Temporal.PlainDate;
       readonly territory?: string;
       readonly channel?: string;
@@ -318,7 +317,7 @@ export function createDam(options: DamOptions): Dam {
     );
 
   const client: Dam = {
-    recordRendition: (nodeId, kind, input = {}) =>
+    recordRendition: ({ nodeId, kind, input = {} }) =>
       tenant().andThen((organizationId) =>
         record(organizationId, nodeId, kind, input),
       ),
@@ -453,7 +452,7 @@ export function createDam(options: DamOptions): Dam {
             ),
         ),
       ),
-    checkUsage: (nodeId, check = {}) =>
+    checkUsage: ({ nodeId, ...check }) =>
       tenant().andThen((organizationId) =>
         call(
           "check_usage",

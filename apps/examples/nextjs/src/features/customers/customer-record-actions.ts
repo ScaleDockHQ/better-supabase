@@ -70,7 +70,10 @@ export const createShareLink = bsb.action(
 
     const created = await db
       .$with({ tenant: organizationId })
-      .shareLinks.create({ type: SUBJECT, id: customerId }, options);
+      .shareLinks.create({
+        subject: { type: SUBJECT, id: customerId },
+        options,
+      });
 
     if (!created.ok) {
       return created;
@@ -112,14 +115,14 @@ export const startAttachmentUpload = bsb.action(
     { customerId, name, mimeType, size },
     { tenant: organizationId, supabase },
   ) => {
-    const upload = await customerAttachments(supabase, organizationId).upload(
-      { type: SUBJECT, id: customerId },
-      {
+    const upload = await customerAttachments(supabase, organizationId).upload({
+      subject: { type: SUBJECT, id: customerId },
+      attachment: {
         name,
         mimeType: mimeType === "" ? "application/octet-stream" : mimeType,
         size,
       },
-    );
+    });
 
     if (!upload.ok) {
       return upload;
@@ -156,7 +159,7 @@ export const downloadAttachment = bsb.action(
   },
   async ({ id }, { supabase }) =>
     customerAttachments(supabase)
-      .download(id, { as: "download" })
+      .download({ id, options: { as: "download" } })
       .map((download) => ({ signedUrl: download.signedUrl })),
 );
 
@@ -194,7 +197,9 @@ export const restoreCustomerVersion = bsb.action(
     }
 
     // Unchanged details return the latest version instead of a new one.
-    const kept = await versions.snapshot({ type: SUBJECT, id: customerId });
+    const kept = await versions.snapshot({
+      subject: { type: SUBJECT, id: customerId },
+    });
 
     if (!kept.ok) {
       return kept;
@@ -223,7 +228,7 @@ export const compareCustomerVersions = bsb.action(
     { fromId, toId },
     { db },
   ): Promise<Result<readonly JsonPatchOperation[]>> =>
-    db.versions.diff(fromId, toId),
+    db.versions.diff({ fromId, toId }),
 );
 
 // #endregion versions
@@ -251,7 +256,7 @@ export const startCustomerSla = bsb.action(
   async ({ customerId }, { tenant: organizationId, db, auth }) => {
     const { sla } = db.$with({ tenant: organizationId });
     const subject = { type: SUBJECT, id: customerId };
-    const started = await sla.start(subject);
+    const started = await sla.start({ subject });
 
     if (!started.ok || started.data.length > 0) {
       await refreshCaller(auth);
@@ -274,7 +279,7 @@ export const startCustomerSla = bsb.action(
       return policy;
     }
 
-    const restarted = await sla.start(subject);
+    const restarted = await sla.start({ subject });
 
     await refreshCaller(auth);
 

@@ -10,6 +10,8 @@ import type {
   ResolvedExtensions,
 } from "./types/config.ts";
 import type {
+  ResolvedSeedConfig,
+  SeedConfig,
   SqlBlockDefaults,
   SqlConfig,
   VectorSearchConfig,
@@ -405,6 +407,7 @@ export function resolveConfig(
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
       output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,
       perTenant: config.seed?.perTenant ?? CONFIG_DEFAULTS.seed.perTenant,
+      ...resolveSeedModes(config.seed),
     },
     openapi: {
       entry: legacyOpenApi?.entry ?? CONFIG_DEFAULTS.openapi.entry,
@@ -463,5 +466,28 @@ export function resolveConfig(
     integrations: config.integrations ?? [],
     skills: config.skills ?? {},
     keys: config.keys ?? {},
+  };
+}
+
+function resolveSeedModes(
+  seed: SeedConfig | undefined,
+): Pick<ResolvedSeedConfig, "defaults" | "sample"> {
+  const raw = seed?.defaults;
+  const defaults = typeof raw === "object" ? raw : {};
+  const locale = defaults.locale ?? CONFIG_DEFAULTS.seed.defaults.locale;
+
+  return {
+    defaults: {
+      enabled: raw !== false,
+      onCreate: defaults.onCreate ?? CONFIG_DEFAULTS.seed.defaults.onCreate,
+      locale,
+      variants: defaults.variants ?? {},
+    },
+    sample: {
+      size: seed?.sample?.size ?? CONFIG_DEFAULTS.seed.sample.size,
+      seed: seed?.sample?.seed ?? CONFIG_DEFAULTS.seed.sample.seed,
+      locale: seed?.sample?.locale ?? locale,
+      output: seed?.sample?.output ?? CONFIG_DEFAULTS.seed.sample.output,
+    },
   };
 }

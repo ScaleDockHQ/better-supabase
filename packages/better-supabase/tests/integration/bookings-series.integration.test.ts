@@ -77,17 +77,25 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
 
     studio = (
       await bookings
-        .saveResource(org, {
-          name: "Studio",
-          tz: "Europe/Amsterdam",
-          calendarId: calendar.id,
+        .saveResource({
+          organizationId: org,
+          input: {
+            name: "Studio",
+            tz: "Europe/Amsterdam",
+            calendarId: calendar.id,
+          },
         })
         .orThrow()
     ).id;
-    await bookings.setAvailability(studio, allWeek).orThrow();
+    await bookings
+      .setAvailability({ resourceId: studio, hours: allWeek })
+      .orThrow();
     yoga = (
       await bookings
-        .saveService(org, { name: "Yoga", duration: "PT1H" })
+        .saveService({
+          organizationId: org,
+          input: { name: "Yoga", duration: "PT1H" },
+        })
         .orThrow()
     ).id;
   });
@@ -101,9 +109,11 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     await session.as(member);
 
     const booked = await bookings
-      .bookSeries(yoga, studio, at("2030-03-18T08:00:00Z"), {
-        freq: "weekly",
-        count: 5,
+      .bookSeries({
+        serviceId: yoga,
+        resourceId: studio,
+        startsAt: at("2030-03-18T08:00:00Z"),
+        rule: { freq: "weekly", count: 5 },
       })
       .orThrow();
 
@@ -140,24 +150,24 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
   it("fails a series on a taken occurrence, or skips it", async () => {
     await session.as(owner);
 
-    const taken = await bookings.bookSeries(
-      yoga,
-      studio,
-      at("2030-03-18T08:00:00Z"),
-      { freq: "daily", count: 3 },
-    );
+    const taken = await bookings.bookSeries({
+      serviceId: yoga,
+      resourceId: studio,
+      startsAt: at("2030-03-18T08:00:00Z"),
+      rule: { freq: "daily", count: 3 },
+    });
 
     expect(hint(taken)).toBe("BOOKING_SERIES_CONFLICT");
 
     const skipped = await bookings
-      .bookSeries(
-        yoga,
-        studio,
-        at("2030-03-18T08:00:00Z"),
-        { freq: "weekly", weekdays: [1, 2], count: 4 },
-        { name: "Front desk" },
-        { skipConflicts: true },
-      )
+      .bookSeries({
+        serviceId: yoga,
+        resourceId: studio,
+        startsAt: at("2030-03-18T08:00:00Z"),
+        rule: { freq: "weekly", weekdays: [1, 2], count: 4 },
+        customer: { name: "Front desk" },
+        skipConflicts: true,
+      })
       .orThrow();
 
     expect(starts(skipped.bookings)).toEqual([
@@ -169,12 +179,12 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
       "2030-03-25T08:00:00Z",
     ]);
 
-    const invalid = await bookings.bookSeries(
-      yoga,
-      studio,
-      at("2030-05-01T08:00:00Z"),
-      { freq: "weekly" },
-    );
+    const invalid = await bookings.bookSeries({
+      serviceId: yoga,
+      resourceId: studio,
+      startsAt: at("2030-05-01T08:00:00Z"),
+      rule: { freq: "weekly" },
+    });
 
     expect(hint(invalid)).toBe("BOOKING_RULE_INVALID");
   });
@@ -184,9 +194,12 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
 
     const series = (
       await bookings
-        .list(org, {
-          from: at("2030-03-01T00:00:00Z"),
-          until: at("2030-05-01T00:00:00Z"),
+        .list({
+          organizationId: org,
+          range: {
+            from: at("2030-03-01T00:00:00Z"),
+            until: at("2030-05-01T00:00:00Z"),
+          },
         })
         .orThrow()
     ).filter((booking) => booking.customerUserId === member.id);
@@ -196,7 +209,10 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     await session.as(member);
 
     const one = await bookings
-      .reschedule(second!.id, at("2030-03-25T10:00:00Z"))
+      .reschedule({
+        bookingId: second!.id,
+        startsAt: at("2030-03-25T10:00:00Z"),
+      })
       .orThrow();
 
     expect(
@@ -213,7 +229,11 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     ]);
 
     const following = await bookings
-      .reschedule(third!.id, at("2030-04-01T08:00:00Z"), { scope: "following" })
+      .reschedule({
+        bookingId: third!.id,
+        startsAt: at("2030-04-01T08:00:00Z"),
+        scope: "following",
+      })
       .orThrow();
 
     expect(starts(following)).toEqual([
@@ -222,26 +242,26 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
       "2030-04-15T08:00:00Z",
     ]);
 
-    const clash = await bookings.reschedule(
-      first!.id,
-      at("2030-03-19T08:00:00Z"),
-    );
+    const clash = await bookings.reschedule({
+      bookingId: first!.id,
+      startsAt: at("2030-03-19T08:00:00Z"),
+    });
 
     expect(hint(clash)).toBe("BOOKING_SLOT_UNAVAILABLE");
 
     await session.as(outsider);
 
-    const stranger = await bookings.reschedule(
-      first!.id,
-      at("2030-03-18T10:00:00Z"),
-    );
+    const stranger = await bookings.reschedule({
+      bookingId: first!.id,
+      startsAt: at("2030-03-18T10:00:00Z"),
+    });
 
     expect(hint(stranger)).toBe("BOOKING_NOT_FOUND");
 
     await session.as(member);
     expect(
       await bookings
-        .cancelSeries(following[1]!.id, { reason: "moving" })
+        .cancelSeries({ bookingId: following[1]!.id, reason: "moving" })
         .orThrow(),
     ).toBe(2);
     const read = await bookings.series(first!.seriesId!).orThrow();
@@ -255,7 +275,9 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
       "cancelled",
     ]);
     expect(
-      await bookings.cancelSeries(first!.id, { scope: "one" }).orThrow(),
+      await bookings
+        .cancelSeries({ bookingId: first!.id, scope: "one" })
+        .orThrow(),
     ).toBe(1);
   });
 
@@ -274,10 +296,9 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     await session.as(member);
 
     const book = (startsAt: string) =>
-      passes.bookWithCredit(pack.id, {
-        serviceId: yoga,
-        resourceId: studio,
-        startsAt: at(startsAt),
+      passes.bookWithCredit({
+        passId: pack.id,
+        input: { serviceId: yoga, resourceId: studio, startsAt: at(startsAt) },
       });
 
     const first = await book("2030-06-03T08:00:00Z").orThrow();
@@ -293,8 +314,13 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
       "PASS_CREDITS_USED_UP",
     );
 
-    await bookings.reschedule(second.id, at("2030-06-04T10:00:00Z")).orThrow();
-    await bookings.cancel(first.id).orThrow();
+    await bookings
+      .reschedule({
+        bookingId: second.id,
+        startsAt: at("2030-06-04T10:00:00Z"),
+      })
+      .orThrow();
+    await bookings.cancel({ bookingId: first.id }).orThrow();
     expect(
       (await passes.credits(pack.id).orThrow()).map((entry) => [
         entry.reason,
@@ -316,7 +342,7 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
       [second.id],
     );
     await session.as(member);
-    await bookings.cancel(second.id).orThrow();
+    await bookings.cancel({ bookingId: second.id }).orThrow();
 
     await session.asRole(member);
     expect(await passes.credits(pack.id).orThrow()).toHaveLength(3);
@@ -329,16 +355,25 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     await session.as(owner);
 
     const visit = await bookings
-      .hold(yoga, studio, at("2030-06-08T08:00:00Z"), {}, { confirm: true })
+      .hold({
+        serviceId: yoga,
+        resourceId: studio,
+        startsAt: at("2030-06-08T08:00:00Z"),
+        customer: {},
+        confirm: true,
+      })
       .orThrow();
 
     const ticket = await passes.issue({ bookingId: visit.id }).orThrow();
     expect(
       hint(
-        await passes.bookWithCredit(ticket.id, {
-          serviceId: yoga,
-          resourceId: studio,
-          startsAt: at("2030-06-07T08:00:00Z"),
+        await passes.bookWithCredit({
+          passId: ticket.id,
+          input: {
+            serviceId: yoga,
+            resourceId: studio,
+            startsAt: at("2030-06-07T08:00:00Z"),
+          },
         }),
       ),
     ).toBe("PASS_NOT_CREDITS");

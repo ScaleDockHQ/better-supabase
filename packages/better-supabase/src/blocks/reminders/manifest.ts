@@ -23,7 +23,7 @@ export const remindersBlock: BlockOf<
         "Enqueues a reminders.deliver job for each reminder due in the next day.",
     },
   ],
-  sql: ["reminders"],
+  sql: ["reminders", "recurrence"],
   options: { reminders: remindersSqlOptions },
   events: remindersEvents,
   consumes: { notifier: "optional" },

@@ -1,0 +1,53 @@
+---
+title: Collaboration
+description: Comments, tags, attachments, the activity feed and reactions on any record, with a helper that posts a comment and tags the record.
+---
+
+Puts the blocks that attach to any record in one block. The `projects` preset does not list it yet, because it has no reactions.
+
+```bash
+better-supabase add collaboration
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { collaboration: {} } });
+```
+
+`add` lists `collaboration` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/collaboration` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { collaborationBlock } from "better-supabase/blocks/collaboration";
+```
+
+## Parts
+
+Installing `collaboration` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`comments`](/docs/blocks/comments)
+- [`tags`](/docs/blocks/tags)
+- [`attachments`](/docs/blocks/attachments)
+- [`timeline`](/docs/blocks/timeline)
+- [`reactions`](/docs/blocks/reactions)
+
+## Helpers
+
+`discuss({ subject, comment, tagIds })` posts the comment on the record, then attaches each tag to the record. It stops at the first failed attach and returns that error. The comment stays posted, so retry the tags with `tags.attach`, not `discuss`. It returns the comment and the number of tags attached.
+
+```ts
+const { comment } = await blocks.collaboration
+  .discuss({
+    subject: { type: "deal", id: dealId },
+    comment: { body: "Legal reviewed the terms." },
+    tagIds: [reviewedTagId],
+  })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove collaboration
+better-supabase remove collaboration --with-parts
+```
+
+The first command replaces `collaboration` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

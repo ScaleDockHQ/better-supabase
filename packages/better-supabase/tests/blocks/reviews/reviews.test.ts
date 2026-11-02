@@ -65,7 +65,12 @@ describe("reviews client", () => {
     const reviews = createReviews({ transport: fake });
 
     const review = await reviews
-      .submit("o", "product", "p1", { rating: 4, body: "Does the job" })
+      .submit({
+        organizationId: "o",
+        subjectType: "product",
+        subjectId: "p1",
+        input: { rating: 4, body: "Does the job" },
+      })
       .orThrow();
 
     expect(review).toMatchObject({
@@ -79,7 +84,11 @@ describe("reviews client", () => {
     expect(review.publishedAt).toBeUndefined();
     expect(review.reply).toBeUndefined();
     expect(review.createdAt.toString()).toBe(AT);
-    expect(await reviews.mine("o", "product", "p1").orThrow()).toBeUndefined();
+    expect(
+      await reviews
+        .mine({ organizationId: "o", subjectType: "product", subjectId: "p1" })
+        .orThrow(),
+    ).toBeUndefined();
     expect(fake.calls).toEqual([
       [
         "submit_review",
@@ -102,7 +111,10 @@ describe("reviews client", () => {
     const reviews = createReviews({ transport: fake });
 
     const [first] = await reviews
-      .list("o", "product", "p1", {
+      .list({
+        organizationId: "o",
+        subjectType: "product",
+        subjectId: "p1",
         pageSize: 10,
         before: Temporal.Instant.from(AT),
         verified: true,
@@ -136,7 +148,13 @@ describe("reviews client", () => {
     const reviews = createReviews({ transport: fake });
 
     expect(
-      await reviews.summary("o", "product", ["p1", "p2"]).orThrow(),
+      await reviews
+        .summary({
+          organizationId: "o",
+          subjectType: "product",
+          subjectIds: ["p1", "p2"],
+        })
+        .orThrow(),
     ).toEqual({ p1: { count: 3, average: 4.33, histogram: { 4: 2, 5: 1 } } });
   });
 
@@ -155,13 +173,18 @@ describe("reviews client", () => {
 
     const reviews = createReviews({ transport: fake });
 
-    expect(await reviews.queue("o").orThrow()).toHaveLength(1);
-    await reviews.queue("o", { status: null, subjectId: "p1" }).orThrow();
+    expect(await reviews.queue({ organizationId: "o" }).orThrow()).toHaveLength(
+      1,
+    );
+    await reviews
+      .queue({ organizationId: "o", status: null, subjectId: "p1" })
+      .orThrow();
     expect((await reviews.publish("r1").orThrow()).status).toBe("published");
     expect(
-      (await reviews.reject("r1", "Off topic").orThrow()).rejectionReason,
+      (await reviews.reject({ reviewId: "r1", reason: "Off topic" }).orThrow())
+        .rejectionReason,
     ).toBe("Off topic");
-    await reviews.reply("r1", null).orThrow();
+    await reviews.reply({ reviewId: "r1", reply: null }).orThrow();
     expect(await reviews.remove("r1").orThrow()).toBe(false);
     expect(fake.calls).toEqual([
       [

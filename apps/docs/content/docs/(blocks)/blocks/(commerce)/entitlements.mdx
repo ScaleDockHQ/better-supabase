@@ -343,6 +343,15 @@ if (!(await entitlements.has(organizationId, "exports").orThrow()))
 const seats = await entitlements.value(organizationId, "seats").orThrow();
 ```
 
+`require` replaces the check and the early return. It succeeds when the tenant has the feature and otherwise fails with a `forbidden` error whose `permission` is `entitlement:<key>`. `all` answers several keys in one result:
+
+```ts
+await entitlements.require({ organizationId, key: "exports" }).orThrow();
+const gates = await entitlements
+  .all({ organizationId, keys: ["exports", "sso"] })
+  .orThrow(); // { exports: true, sso: false }
+```
+
 ## With an authorization provider
 
 With an [authorization provider](/docs/extending/authorization-providers) in
@@ -436,3 +445,13 @@ export const GET = async () => {
 for the session again. The token itself only changes on refresh, which the
 proxy does when it expires. Send the event to its own endpoint: the Stripe
 Sync Engine keeps its webhook for syncing the tables.
+
+## Seats left
+
+`seatsLeft({ organizationId, used, key })` returns the plan's numeric `key` entitlement (default `seats`) minus `used`, never below 0. It returns `undefined` when the plan sets no number, which means no limit. Pass the member count as `used`.
+
+```ts
+const left = await entitlements
+  .seatsLeft({ organizationId, used: members.length })
+  .orThrow();
+```

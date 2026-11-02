@@ -137,11 +137,11 @@ export function powersyncMembershipsTransport(
  * transport.
  */
 export interface MembershipWrites {
-  updateMemberRole(
-    organizationId: string,
-    userId: string,
-    role: string,
-  ): PromiseLike<Result<unknown>>;
+  updateMemberRole(input: {
+    organizationId: string;
+    userId: string;
+    role: string;
+  }): PromiseLike<Result<unknown>>;
   leave(organizationId: string): PromiseLike<Result<unknown>>;
 }
 
@@ -200,7 +200,7 @@ export function membershipsRoute(
         const role = entry.opData?.["role"];
 
         return typeof role === "string"
-          ? organizations.updateMemberRole(organizationId, userId, role)
+          ? organizations.updateMemberRole({ organizationId, userId, role })
           : ok(null);
       }
 

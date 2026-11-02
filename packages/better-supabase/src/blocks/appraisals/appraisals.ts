@@ -199,43 +199,43 @@ export interface Appraisals {
    * Opens a cycle and creates the appraisals and review slots for the people
    * you assign. Call it again to add people to an open cycle.
    */
-  openCycle(
-    cycleId: string,
-    assignments: readonly AppraisalAssignment[],
-  ): AsyncResult<AppraisalCycle>;
+  openCycle(input: {
+    cycleId: string;
+    assignments: readonly AppraisalAssignment[];
+  }): AsyncResult<AppraisalCycle>;
   /** Closes a cycle once every appraisal in it is signed off. */
   closeCycle(cycleId: string): AsyncResult<AppraisalCycle>;
   listCycles(): AsyncResult<readonly AppraisalCycle[]>;
   /** Submits a review the caller was assigned; needs `appraisals.review`. */
-  submitReview(
-    reviewId: string,
-    input: AppraisalReviewInput,
-  ): AsyncResult<Appraisal>;
+  submitReview(input: {
+    reviewId: string;
+    input: AppraisalReviewInput;
+  }): AsyncResult<Appraisal>;
   /** Moves the rating of a reviewed appraisal and keeps the reason. */
-  calibrate(
-    appraisalId: string,
-    rating: number,
-    reason: string,
-  ): AsyncResult<Appraisal>;
+  calibrate(input: {
+    appraisalId: string;
+    rating: number;
+    reason: string;
+  }): AsyncResult<Appraisal>;
   /** Replaces the rubric of a draft cycle. */
-  setCompetencies(
-    cycleId: string,
-    competencies: readonly AppraisalCompetencyDefinition[],
-  ): AsyncResult<AppraisalCycle>;
+  setCompetencies(input: {
+    cycleId: string;
+    competencies: readonly AppraisalCompetencyDefinition[];
+  }): AsyncResult<AppraisalCycle>;
   /**
    * Moves competency ratings of a reviewed appraisal; the calibrated rating
    * becomes the weighted rating of the result.
    */
-  calibrateCompetencies(
-    appraisalId: string,
-    competencies: Readonly<Record<string, number>>,
-    reason: string,
-  ): AsyncResult<Appraisal>;
+  calibrateCompetencies(input: {
+    appraisalId: string;
+    competencies: Readonly<Record<string, number>>;
+    reason: string;
+  }): AsyncResult<Appraisal>;
   /** Replaces the goals the appraisal looks back on. */
-  setGoals(
-    appraisalId: string,
-    goalIds: readonly string[],
-  ): AsyncResult<Appraisal>;
+  setGoals(input: {
+    appraisalId: string;
+    goalIds: readonly string[];
+  }): AsyncResult<Appraisal>;
   /**
    * Signs an appraisal off. With the approvals block it files the sign-off and
    * the appraisal waits as `awaiting_signoff` until it is approved.
@@ -429,7 +429,7 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
           cycle("create_appraisal_cycle"),
         ),
       ),
-    openCycle: (cycleId, assignments) =>
+    openCycle: ({ cycleId, assignments }) =>
       call(
         "open_appraisal_cycle",
         {
@@ -452,7 +452,7 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
           ),
         ),
       ),
-    submitReview: (reviewId, input) =>
+    submitReview: ({ reviewId, input }) =>
       call(
         "submit_appraisal_review",
         {
@@ -466,13 +466,13 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
         },
         appraisal("submit_appraisal_review"),
       ),
-    calibrate: (appraisalId, rating, reason) =>
+    calibrate: ({ appraisalId, rating, reason }) =>
       call(
         "calibrate_appraisal",
         { appraisal_id: appraisalId, rating, reason },
         appraisal("calibrate_appraisal"),
       ),
-    setCompetencies: (cycleId, competencies) =>
+    setCompetencies: ({ cycleId, competencies }) =>
       call(
         "set_appraisal_competencies",
         {
@@ -481,13 +481,13 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
         },
         cycle("set_appraisal_competencies"),
       ),
-    calibrateCompetencies: (appraisalId, competencies, reason) =>
+    calibrateCompetencies: ({ appraisalId, competencies, reason }) =>
       call(
         "calibrate_appraisal_competencies",
         { appraisal_id: appraisalId, competencies, reason },
         appraisal("calibrate_appraisal_competencies"),
       ),
-    setGoals: (appraisalId, goalIds) =>
+    setGoals: ({ appraisalId, goalIds }) =>
       call(
         "set_appraisal_goals",
         { appraisal_id: appraisalId, goal_ids: [...goalIds] },

@@ -82,12 +82,16 @@ describe.skipIf(!live)("guests", () => {
         status: "active",
         userId: client.id,
       });
-      expect(await guests.can(doc).orThrow()).toBe(false);
+      expect(await guests.can({ subject: doc }).orThrow()).toBe(false);
 
       await s.asRole(owner);
 
       const grant = await guests
-        .grant(invite.id, doc, { actions: ["comment"] })
+        .grant({
+          guestId: invite.id,
+          subject: doc,
+          input: { actions: ["comment"] },
+        })
         .orThrow();
 
       expect(grant.actions).toEqual(["read", "comment"]);
@@ -96,15 +100,26 @@ describe.skipIf(!live)("guests", () => {
       ).toEqual([client.email]);
 
       await s.asRole(client);
-      expect(await guests.can(doc, "comment").orThrow()).toBe(true);
-      expect(await guests.can(doc, "upload").orThrow()).toBe(false);
-      await comments.create(doc, { body: "Looks good to me" }).orThrow();
       expect(
-        (await comments.list(doc).orThrow()).map((row) => row.body),
+        await guests.can({ subject: doc, action: "comment" }).orThrow(),
+      ).toBe(true);
+      expect(
+        await guests.can({ subject: doc, action: "upload" }).orThrow(),
+      ).toBe(false);
+      await comments
+        .create({ subject: doc, comment: { body: "Looks good to me" } })
+        .orThrow();
+      expect(
+        (await comments.list({ subject: doc }).orThrow()).map(
+          (row) => row.body,
+        ),
       ).toEqual(["Looks good to me"]);
       expect(
         await comments
-          .create({ type: "doc", id: other!.id }, { body: "Not mine" })
+          .create({
+            subject: { type: "doc", id: other!.id },
+            comment: { body: "Not mine" },
+          })
           .then((r) => r.ok),
       ).toBe(false);
 
@@ -118,7 +133,7 @@ describe.skipIf(!live)("guests", () => {
       await s.asRole(owner);
       await guests.revoke(invite.id).orThrow();
       await s.asRole(client);
-      expect(await guests.can(doc).orThrow()).toBe(false);
+      expect(await guests.can({ subject: doc }).orThrow()).toBe(false);
       expect(await guests.mine().orThrow()).toEqual([]);
 
       await s.service();

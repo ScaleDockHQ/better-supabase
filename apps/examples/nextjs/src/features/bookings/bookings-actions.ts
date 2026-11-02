@@ -57,35 +57,42 @@ export const setUpBookingPage = bsb.action(
     const { bookings, calendar } = db;
     const kind = `person:${userId}`;
     const name = session.user.email ?? "Booking page";
-    const resource = await bookings.saveResource(tenant, { name, kind, tz });
+
+    const resource = await bookings.saveResource({
+      organizationId: tenant,
+      input: { name, kind, tz },
+    });
 
     if (!resource.ok) {
       return resource;
     }
 
-    const service = await bookings.saveService(tenant, {
-      name: "Meeting",
-      duration: "PT30M",
-      resourceKinds: [kind],
+    const service = await bookings.saveService({
+      organizationId: tenant,
+      input: { name: "Meeting", duration: "PT30M", resourceKinds: [kind] },
     });
 
     if (!service.ok) {
       return service;
     }
 
-    const hours = await bookings.setAvailability(
-      resource.data.id,
-      DEFAULT_HOURS,
-    );
+    const hours = await bookings.setAvailability({
+      resourceId: resource.data.id,
+      hours: DEFAULT_HOURS,
+    });
 
     if (!hours.ok) {
       return hours;
     }
 
-    const index = await calendar.createCalendar(tenant, "Booking page", {
-      tz,
-      ownerType: BOOKING_PAGE_OWNER,
-      ownerId: `${userId}/${resource.data.id}/${service.data.id}`,
+    const index = await calendar.createCalendar({
+      organizationId: tenant,
+      name: "Booking page",
+      options: {
+        tz,
+        ownerType: BOOKING_PAGE_OWNER,
+        ownerId: `${userId}/${resource.data.id}/${service.data.id}`,
+      },
     });
 
     if (!index.ok) {
@@ -129,7 +136,10 @@ export const saveWeeklyHours = bsb.action(
       return notSetUp();
     }
 
-    const saved = await db.bookings.setAvailability(page.resourceId, hours);
+    const saved = await db.bookings.setAvailability({
+      resourceId: page.resourceId,
+      hours,
+    });
 
     if (!saved.ok) {
       return saved;
@@ -159,10 +169,10 @@ export const createBookingLink = bsb.action(
       return notSetUp();
     }
 
-    const created = await db.shareLinks.create(
-      { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId },
-      { role: "view" },
-    );
+    const created = await db.shareLinks.create({
+      subject: { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId },
+      options: { role: "view" },
+    });
 
     if (!created.ok) {
       return created;
@@ -199,21 +209,21 @@ export const bookSlot = bsb.action(
       customer.notes = notes;
     }
 
-    const held = await booking.hold(
+    const held = await booking.hold({
       token,
       resourceId,
-      Temporal.Instant.from(startsAt),
+      startsAt: Temporal.Instant.from(startsAt),
       customer,
-    );
+    });
 
     if (!held.ok) {
       return held;
     }
 
-    const confirmed = await booking.confirm(
-      held.data.id,
-      held.data.accessToken,
-    );
+    const confirmed = await booking.confirm({
+      bookingId: held.data.id,
+      accessToken: held.data.accessToken,
+    });
 
     if (!confirmed.ok) {
       return confirmed;

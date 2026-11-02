@@ -85,10 +85,10 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         .orThrow();
 
       const draft = await builder.versions
-        .upsert(definition.id, CRM_GRAPH)
+        .upsert({ definition: definition.id, graph: CRM_GRAPH })
         .orThrow();
 
-      const refused = await builder.versions.publish(draft.id);
+      const refused = await builder.versions.publish({ version: draft.id });
       expect(!refused.ok && refused.error.hint).toBe(
         "WORKFLOW_PUBLISHER_FORBIDDEN",
       );
@@ -103,8 +103,12 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         permissions: [],
       });
 
-      await builder.versions.upsert(definition.id, EMAIL_GRAPH).orThrow();
-      expect(await builder.versions.publish(draft.id).orThrow()).toMatchObject({
+      await builder.versions
+        .upsert({ definition: definition.id, graph: EMAIL_GRAPH })
+        .orThrow();
+      expect(
+        await builder.versions.publish({ version: draft.id }).orThrow(),
+      ).toMatchObject({
         status: "published",
         publishedBy: admin.id,
         owner: "user",
@@ -131,10 +135,13 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         .orThrow();
 
       const draft = await asPublisher.versions
-        .upsert(definition.id, CRM_GRAPH)
+        .upsert({ definition: definition.id, graph: CRM_GRAPH })
         .orThrow();
 
-      const version = await asPublisher.versions.publish(draft.id).orThrow();
+      const version = await asPublisher.versions
+        .publish({ version: draft.id })
+        .orThrow();
+
       expect(version).toMatchObject({
         publishedBy: publisher.id,
         owner: "user",
@@ -166,14 +173,19 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
       const writes: string[] = [];
 
       const step = async () => {
-        const claims = await service.versions.runAs(version.id).orThrow();
+        const claims = await service.versions
+          .runAs({ version: version.id })
+          .orThrow();
+
         writes.push(String(claims["sub"]));
         await service.nodeRuns
           .record({ run: "wrun_x", node: "lookup", status: "completed" })
           .orThrow();
       };
 
-      expect(await service.versions.runAs(version.id).orThrow()).toEqual({
+      expect(
+        await service.versions.runAs({ version: version.id }).orThrow(),
+      ).toEqual({
         sub: publisher.id,
         role: "authenticated",
         permissions: ["crm.read"],
@@ -186,7 +198,7 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         "update better_supabase.memberships set role = 'member' where organization_id = $1 and user_id = $2",
         [tenant, publisher.id],
       );
-      const demoted = await service.versions.runAs(version.id);
+      const demoted = await service.versions.runAs({ version: version.id });
       expect(!demoted.ok && demoted.error.hint).toBe(
         "WORKFLOW_PUBLISHER_REVOKED",
       );
@@ -228,16 +240,18 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         .orThrow();
 
       const draft = await plain.versions
-        .upsert(definition.id, CRM_GRAPH)
+        .upsert({ definition: definition.id, graph: CRM_GRAPH })
         .orThrow();
 
-      expect(await plain.versions.publish(draft.id).orThrow()).toMatchObject({
+      expect(
+        await plain.versions.publish({ version: draft.id }).orThrow(),
+      ).toMatchObject({
         publishedBy: undefined,
         owner: "organization",
         permissions: ["crm.read"],
       });
 
-      const missing = await plain.versions.runAs(draft.id);
+      const missing = await plain.versions.runAs({ version: draft.id });
       expect(!missing.ok && missing.error.hint).toBe(
         "WORKFLOW_PUBLISHER_REVOKED",
       );
@@ -248,20 +262,20 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         authorization: { automation: { runAs: () => principal } },
       });
 
-      const refused = await service.versions.runAs(draft.id);
+      const refused = await service.versions.runAs({ version: draft.id });
       expect(!refused.ok && refused.error.message).toContain(
         "no service principal",
       );
       principal = { sub: "svc_nightly", role: "authenticated" };
-      expect(await service.versions.runAs(draft.id).orThrow()).toEqual(
-        principal,
-      );
+      expect(
+        await service.versions.runAs({ version: draft.id }).orThrow(),
+      ).toEqual(principal);
 
       const next = await plain.versions
-        .upsert(definition.id, EMAIL_GRAPH)
+        .upsert({ definition: definition.id, graph: EMAIL_GRAPH })
         .orThrow();
 
-      const unpublished = await service.versions.runAs(next.id);
+      const unpublished = await service.versions.runAs({ version: next.id });
       expect(!unpublished.ok && unpublished.error.hint).toBe(
         "WORKFLOW_NOT_PUBLISHED",
       );
@@ -269,7 +283,7 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         "update better_supabase.workflow_versions set owner_kind = null where id = $1",
         [draft.id],
       );
-      const legacy = await service.versions.runAs(draft.id);
+      const legacy = await service.versions.runAs({ version: draft.id });
       expect(!legacy.ok && legacy.error.message).toContain("publish it again");
     } finally {
       await s.close();

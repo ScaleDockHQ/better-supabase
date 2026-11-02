@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
@@ -34,6 +35,7 @@ import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
@@ -46,6 +48,7 @@ import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -57,6 +60,7 @@ import { blockConfig } from "./qms.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
@@ -88,6 +92,7 @@ export const blockSet = defineBlocks(blockConfig, {
   forms: formsBlock,
   signatures: signaturesBlock,
   inventory: inventoryBlock,
+  queue: queueBlock,
   messaging: messagingBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
@@ -100,6 +105,7 @@ export const blockSet = defineBlocks(blockConfig, {
   profiles: profilesBlock,
   reactions: reactionsBlock,
   relations: relationsBlock,
+  reminders: remindersBlock,
   settings: settingsBlock,
   stateMachine: stateMachineBlock,
   subjects: subjectsBlock,

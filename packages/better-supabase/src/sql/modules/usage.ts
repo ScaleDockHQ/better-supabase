@@ -21,6 +21,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./permissions-model.ts";
+import { usageBillingContract, usageBillingSql } from "./usage-billing.ts";
 import { usageHistorySql } from "./usage-history.ts";
 import {
   usageKindsContract,
@@ -93,6 +94,30 @@ const NAMES: BlockSqlNames = {
         firstSeen: "first_seen",
       },
       optional: ["firstSeen"],
+    },
+    prices: {
+      name: "usage_meter_prices",
+      app: { writes: false },
+      columns: {
+        meter: "meter",
+        currency: "currency",
+        unitAmount: "unit_amount",
+        included: "included",
+        label: "label",
+      },
+      optional: ["label"],
+    },
+    billed: {
+      name: "usage_billed_periods",
+      app: { writes: false },
+      lifecycle: { tenant: "tenant" },
+      columns: {
+        tenant: "organization_id",
+        periodStart: "period_start",
+        periodEnd: "period_end",
+        invoice: "invoice_id",
+        billedAt: "billed_at",
+      },
     },
     quotas: {
       name: "usage_quotas",
@@ -894,7 +919,7 @@ grant execute on function ${fn("record_usage")}(${id}, text, numeric, text, text
 grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) to service_role;
 grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;
-${usageKindsSql(ctx)}`;
+${usageKindsSql(ctx)}${usageBillingSql(ctx)}`;
 }
 
 function data(ctx: BlockSqlContext): string {
@@ -904,6 +929,7 @@ function data(ctx: BlockSqlContext): string {
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     ...usageKindsContract(ctx),
+    ...usageBillingContract(ctx),
     { name: "usage_status", args: ["{id}", "text"], returns: "jsonb" },
     { name: "usage_overview", args: ["{id}"], returns: "jsonb" },
     { name: "usage_meters", args: [], returns: "jsonb" },
@@ -959,11 +985,11 @@ export const USAGE: BlockSqlDefinition = {
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
   requires: ["memberships", "permissions"],
-  integrates: ["entitlements", "data-lifecycle"],
+  integrates: ["entitlements", "data-lifecycle", "invoices"],
   providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -999,6 +1025,12 @@ export const USAGE: BlockSqlDefinition = {
       from: 5,
       description:
         "options.partitioned partitions a new usage_history table by month on recorded_at, and purge_usage_history drops whole months past retention. It applies to new tables only.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "With options.history and the invoices block, usage_meter_prices and usage_billed_periods hold the meter prices and the billed periods, and bill_usage_period rates a period's history into a draft invoice.",
       sql: () => "",
     },
   ],

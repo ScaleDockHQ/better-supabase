@@ -566,7 +566,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:f8edef2e30607ddc18aad6174919578757b8ab17cf19073e4a2343ba76f9a331
+-- @bsb-hash sha256:60cf35fef49273aa58242067ec570e2cf9132a7a069c4e33986e7a2ae9f24065
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1207,6 +1207,13 @@ as $$
 $$;
 revoke execute on function "better_supabase"."review_summary"(uuid, text, text[]) from public;
 grant execute on function "better_supabase"."review_summary"(uuid, text, text[]) to anon, authenticated, service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.reviews', target_type => 'review', event_prefix => 'review', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -659,7 +659,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:0a27a0568ae821ec9afb026e2fc86d65b592e625da79b8e13bcb990d7cd8ea95
+-- @bsb-hash sha256:6fbe37c7b330d864d5c482b761283bd8f939cd12fc88d3c764f897761f1bd510
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1316,6 +1316,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.score_models', target_type => 'score_model', event_prefix => 'score_model', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

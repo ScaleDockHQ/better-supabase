@@ -74,8 +74,9 @@ export const commentsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
   load: (client: Comments, subject, options?: ListCommentsOptions) =>
-    client.list(subject, options),
+    client.list({ subject, ...options }),
   count: (client: Comments, subjects) => client.counts(subjects),
+  copy: (client: Comments, from, to) => client.copy({ from, to }),
   timeline: (comments) =>
     comments.flatMap((comment) =>
       comment.sentAt === undefined
@@ -104,7 +105,7 @@ export const commentsBinding: RecordBinding<
     add: {
       input: commentInputSchema,
       run: (client: Comments, subject, input: NewComment) =>
-        client.create(subject, input),
+        client.create({ subject, comment: input }),
     },
     remove: {
       input: recordRowInput,

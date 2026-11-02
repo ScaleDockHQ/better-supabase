@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   AlarmClockIcon,
+  EraserIcon,
   BanknoteIcon,
   FactoryIcon,
   ActivityIcon,
@@ -115,6 +116,7 @@ import {
   ReceiptTextIcon,
   WalletIcon,
   Repeat1Icon,
+  RepeatIcon,
   RocketIcon,
   RouteIcon,
   SatelliteDishIcon,
@@ -147,6 +149,7 @@ import {
   PercentIcon,
   TicketIcon,
   TimerIcon,
+  TimerResetIcon,
   TreePalmIcon,
   Trash2Icon,
   TrendingUpIcon,
@@ -312,6 +315,9 @@ export const BLOCK_ICONS = {
   "ai-guardrails": ShieldIcon,
   // Automation
   queue: ListTodoIcon,
+  periods: TimerResetIcon,
+  recurrence: RepeatIcon,
+  housekeeping: EraserIcon,
   outbox: SendIcon,
   streams: WavesIcon,
   workflows: WorkflowIcon,

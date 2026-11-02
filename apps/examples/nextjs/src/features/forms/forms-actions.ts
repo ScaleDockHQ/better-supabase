@@ -75,15 +75,18 @@ export const publishForm = bsb.action(
     permission: "forms.manage",
   },
   async ({ formId, fields }, { db, auth }) => {
-    const version = await db.forms.publish(formId, {
-      steps: [
-        {
-          key: "main",
-          fields: fields.map(({ options, ...field }) =>
-            options === undefined ? field : { ...field, options },
-          ),
-        },
-      ],
+    const version = await db.forms.publish({
+      formId,
+      definition: {
+        steps: [
+          {
+            key: "main",
+            fields: fields.map(({ options, ...field }) =>
+              options === undefined ? field : { ...field, options },
+            ),
+          },
+        ],
+      },
     });
 
     if (!version.ok) {
@@ -111,7 +114,7 @@ export const submitForm = bsb.action(
     permission: "forms.submit",
   },
   async ({ formId, answers }, { db, auth }) => {
-    const submission = await db.forms.submit(formId, answers);
+    const submission = await db.forms.submit({ formId, answers });
 
     if (!submission.ok) {
       return submission;

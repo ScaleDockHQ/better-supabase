@@ -3,6 +3,7 @@ import type {
   BlockSqlContractFunction,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -695,12 +696,23 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("purge_chat_state"),
+      function: own.fn("purge_chat_state"),
+      every: "15 minutes",
+    },
+  ],
+};
+
 export const CHAT_SDK_STATE: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "chat-sdk-state",
   title: "Chat SDK state",
   description:
     "The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.",
-  requires: [],
+  requires: ["housekeeping"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

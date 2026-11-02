@@ -78,7 +78,9 @@ export async function loadStatusPage(
   "use cache: private";
   const { db } = await bsb.cached();
 
-  const page = await db.incidents.publicStatusPage(slug, UPTIME_DAYS).orThrow();
+  const page = await db.incidents
+    .publicStatusPage({ slug, days: UPTIME_DAYS })
+    .orThrow();
 
   if (!page) {
     return null;

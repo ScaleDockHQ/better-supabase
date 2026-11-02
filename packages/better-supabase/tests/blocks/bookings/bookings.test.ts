@@ -85,28 +85,33 @@ describe("bookings client", () => {
 
     expect(
       await bookings
-        .saveResource("o1", {
-          name: "Ann",
-          tz: "Europe/Amsterdam",
-          calendarId: null,
+        .saveResource({
+          organizationId: "o1",
+          input: { name: "Ann", tz: "Europe/Amsterdam", calendarId: null },
         })
         .orThrow(),
     ).toEqual({ id: "r1" });
     await bookings
-      .saveService("o1", {
-        name: "Cut",
-        duration: Temporal.Duration.from({ minutes: 30 }),
-        bufferAfter: "PT15M",
-        resourceKinds: ["staff"],
-        step: null,
+      .saveService({
+        organizationId: "o1",
+        input: {
+          name: "Cut",
+          duration: Temporal.Duration.from({ minutes: 30 }),
+          bufferAfter: "PT15M",
+          resourceKinds: ["staff"],
+          step: null,
+        },
       })
       .orThrow();
     expect(
       await bookings
-        .setAvailability("r1", [
-          { weekday: 1, start: "09:00", end: "12:00" },
-          { weekday: 2, start: "09:00", end: "12:00" },
-        ])
+        .setAvailability({
+          resourceId: "r1",
+          hours: [
+            { weekday: 1, start: "09:00", end: "12:00" },
+            { weekday: 2, start: "09:00", end: "12:00" },
+          ],
+        })
         .orThrow(),
     ).toBe(2);
     expect(calls[0]?.args).toEqual({
@@ -135,9 +140,12 @@ describe("bookings client", () => {
     });
 
     await bookings
-      .addException("r1", {
-        startsAt: at("2030-03-04T08:00:00Z"),
-        endsAt: at("2030-03-04T10:00:00Z"),
+      .addException({
+        resourceId: "r1",
+        exception: {
+          startsAt: at("2030-03-04T08:00:00Z"),
+          endsAt: at("2030-03-04T10:00:00Z"),
+        },
       })
       .orThrow();
     expect(await bookings.deleteException("e1").orThrow()).toBe(true);
@@ -154,7 +162,7 @@ describe("bookings client", () => {
     const { calls, bookings } = recorder({ available_slots: [SLOT] });
 
     const [slot] = await bookings
-      .availableSlots("s1", range, { tz: "Europe/Amsterdam" })
+      .availableSlots({ serviceId: "s1", range, tz: "Europe/Amsterdam" })
       .orThrow();
 
     expect(slot?.startsAt.toString()).toBe("2030-03-04T08:00:00Z");
@@ -178,7 +186,12 @@ describe("bookings client", () => {
     });
 
     const held = await bookings
-      .hold("s1", "r1", at("2030-03-04T08:00:00Z"), { name: "Bo" })
+      .hold({
+        serviceId: "s1",
+        resourceId: "r1",
+        startsAt: at("2030-03-04T08:00:00Z"),
+        customer: { name: "Bo" },
+      })
       .orThrow();
 
     expect(held.accessToken).toHaveLength(48);
@@ -193,10 +206,13 @@ describe("bookings client", () => {
       confirm: false,
     });
     expect((await bookings.confirm("b1").orThrow()).status).toBe("confirmed");
-    expect((await bookings.cancel("b1", "ill").orThrow()).cancelReason).toBe(
-      "ill",
-    );
-    expect(await bookings.list("o1", range).orThrow()).toHaveLength(1);
+    expect(
+      (await bookings.cancel({ bookingId: "b1", reason: "ill" }).orThrow())
+        .cancelReason,
+    ).toBe("ill");
+    expect(
+      await bookings.list({ organizationId: "o1", range }).orThrow(),
+    ).toHaveLength(1);
     expect(calls.at(-1)?.args["resource"]).toBeNull();
   });
 
@@ -209,9 +225,13 @@ describe("bookings client", () => {
       available_slots: [open],
     });
 
-    expect((await bookings.cancel("b1").orThrow()).seat).toBe(1);
+    expect((await bookings.cancel({ bookingId: "b1" }).orThrow()).seat).toBe(1);
     expect(calls[0]?.args).toEqual({ booking: "b1", reason: null });
-    const [slot] = await bookings.availableSlots("s1", range).orThrow();
+
+    const [slot] = await bookings
+      .availableSlots({ serviceId: "s1", range })
+      .orThrow();
+
     expect(slot?.seats).toBe(0);
   });
 
@@ -260,15 +280,21 @@ describe("bookings client", () => {
 
     const service = await bookings.public.service("tok").orThrow();
     expect(service.resources[0]?.name).toBe("Ann");
-    await bookings.public.slots("tok", range).orThrow();
+    await bookings.public.slots({ token: "tok", range }).orThrow();
     await bookings.public
-      .hold("tok", "r1", at("2030-03-04T08:00:00Z"), {
-        name: "Guest",
-        email: "g@example.test",
+      .hold({
+        token: "tok",
+        resourceId: "r1",
+        startsAt: at("2030-03-04T08:00:00Z"),
+        customer: { name: "Guest", email: "g@example.test" },
       })
       .orThrow();
-    await bookings.public.confirm("b1", "a".repeat(48)).orThrow();
-    await bookings.public.cancel("b1", "a".repeat(48)).orThrow();
+    await bookings.public
+      .confirm({ bookingId: "b1", accessToken: "a".repeat(48) })
+      .orThrow();
+    await bookings.public
+      .cancel({ bookingId: "b1", accessToken: "a".repeat(48) })
+      .orThrow();
     expect(calls.map((call) => call.fn)).toEqual([
       "public_booking_service",
       "public_available_slots",
@@ -288,7 +314,12 @@ describe("bookings client", () => {
       }),
     });
 
-    const result = await bookings.hold("s1", "r1", at("2030-03-04T08:00:00Z"));
+    const result = await bookings.hold({
+      serviceId: "s1",
+      resourceId: "r1",
+      startsAt: at("2030-03-04T08:00:00Z"),
+    });
+
     expect(result.ok ? undefined : result.error.kind).toBe("exclusion");
   });
 });
@@ -303,7 +334,7 @@ describe("booking adapters", () => {
       ],
     });
 
-    const rows = await bookings.list("o1", range).orThrow();
+    const rows = await bookings.list({ organizationId: "o1", range }).orThrow();
 
     const events = toEventCalendarBookings(rows, {
       colorOf: (booking) =>
@@ -339,7 +370,7 @@ describe("booking adapters", () => {
     });
 
     const days = slotsByDay(
-      await bookings.availableSlots("s1", range).orThrow(),
+      await bookings.availableSlots({ serviceId: "s1", range }).orThrow(),
     );
 
     expect([...days.keys()]).toEqual(["2030-03-04", "2030-03-05"]);

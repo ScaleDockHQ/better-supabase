@@ -51,7 +51,7 @@ import type {
 } from "../server/server-types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
-import type { RecordServer } from "./record.ts";
+import type { RecordAt, RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
 
 export interface NextOptions extends ServerOptions {
@@ -86,6 +86,13 @@ export interface NextOptions extends ServerOptions {
    * ```
    */
   readonly rootParams?: NextRootParams;
+  /**
+   * In development, warns when one render waits on more sequential database
+   * round trips than this, and names the fix: load the page's data in one read
+   * set. Defaults to 4; `false` turns the warning off. It needs the proxy,
+   * which forwards the request id the totals are kept under.
+   */
+  readonly devRoundTripBudget?: number | false;
 }
 
 export interface NextDebugOptions {
@@ -458,8 +465,13 @@ export interface BetterNext<
   >(
     client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
     method: K & BlockMethodName<Cl>,
-    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
-      BlockActionArgs<
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> & {
+      /**
+       * Tables a successful call changes: drops the cache entries `bsb.tags`
+       * tagged with them, such as `reads.deals.board.tables`.
+       */
+      readonly invalidates?: readonly string[];
+    } & BlockActionArgs<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
@@ -488,6 +500,22 @@ export interface BetterNext<
   >(
     type: RecordType<T, RB> & { readonly bindings: readonly N[] },
   ): RecordServer<T, RB, N>;
+  /**
+   * One record's server verbs: `can`, `copyTo`, `trash` and `restore`. It is
+   * named `recordAt` because `bsb.record` is the whole record type (ADR 0196).
+   *
+   * ```ts
+   * const copied = await bsb.recordAt(customerRecord, id).copyTo(newId);
+   * ```
+   */
+  recordAt<
+    T extends string,
+    RB extends RecordTypeBlocks,
+    N extends BindingName<RB>,
+  >(
+    type: RecordType<T, RB> & { readonly bindings: readonly N[] },
+    id: string,
+  ): RecordAt<N>;
   /**
    * For Server Components: the caller's context, or the Next.js interrupt for a
    * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls

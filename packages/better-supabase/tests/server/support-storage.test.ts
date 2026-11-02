@@ -1676,7 +1676,7 @@ describe("clients over supportStorage", () => {
       storage,
     });
 
-    expect(await attachments.download("a1").orThrow()).toMatchObject({
+    expect(await attachments.download({ id: "a1" }).orThrow()).toMatchObject({
       signedUrl: "https://storage.test/sign/org-1/attachments/a1",
     });
     const read = await attachments.read("a1").orThrow();
@@ -1715,11 +1715,11 @@ describe("clients over supportStorage", () => {
       tenant: "org-1",
     });
 
-    const put = await attachments.put(
-      null,
-      { name: "note.txt", mimeType: "text/plain", size: 2 },
-      new Blob(["hi"]),
-    );
+    const put = await attachments.put({
+      subject: null,
+      attachment: { name: "note.txt", mimeType: "text/plain", size: 2 },
+      file: new Blob(["hi"]),
+    });
 
     expect(put.error).toBeNull();
     expect(called).toEqual(["create_attachment", "confirm_attachment"]);

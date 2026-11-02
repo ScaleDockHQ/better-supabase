@@ -3,6 +3,8 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
+import { financeBlock } from "better-supabase/blocks/finance";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { accountingBlock } from "better-supabase/blocks/accounting";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -36,6 +38,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
+import { relationsBlock } from "better-supabase/blocks/relations";
 import { automationsBlock } from "better-supabase/blocks/automations";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { settingsBlock } from "better-supabase/blocks/settings";
@@ -47,6 +50,8 @@ import { blockConfig } from "./erp.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
+  finance: financeBlock,
   permissions: permissionsBlock,
   accounting: accountingBlock,
   apiKeys: apiKeysBlock,
@@ -80,6 +85,7 @@ export const blockSet = defineBlocks(blockConfig, {
   contacts: contactsBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
+  relations: relationsBlock,
   automations: automationsBlock,
   savedViews: savedViewsBlock,
   settings: settingsBlock,

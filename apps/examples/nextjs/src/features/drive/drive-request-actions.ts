@@ -34,8 +34,12 @@ export const sendToFileRequest = bsb.action(
     });
 
     const sent = await (password
-      ? drive.uploadToRequest(token, file, { name: file.name, password })
-      : drive.uploadToRequest(token, file, { name: file.name }));
+      ? drive.uploadToRequest({
+          token,
+          file,
+          options: { name: file.name, password },
+        })
+      : drive.uploadToRequest({ token, file, options: { name: file.name } }));
 
     if (!sent.ok) {
       return sent;

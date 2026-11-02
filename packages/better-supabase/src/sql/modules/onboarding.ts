@@ -124,7 +124,13 @@ function checklistSteps(ctx: BlockSqlContext): readonly StepOption[] {
         checklist,
         step,
         scope,
-        events: eventsOf(item["events"], `${path}.steps[${n}].events`),
+        events: [
+          ...eventsOf(item["events"], `${path}.steps[${n}].events`),
+          ...eventsOf(
+            item["completeOn"] === undefined ? undefined : [item["completeOn"]],
+            `${path}.steps[${n}].completeOn`,
+          ),
+        ],
       });
     }
   }

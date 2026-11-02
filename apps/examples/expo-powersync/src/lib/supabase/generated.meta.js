@@ -42,6 +42,8 @@ export default {
     "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable"},
     "organization_invitations": {"name":"organization_invitations","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable"},
     "organization_members": {"name":"organization_members","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable"},
+    "rs_finance_overview": {"name":"rs_finance_overview","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
+    "rs_pipeline_overview": {"name":"rs_pipeline_overview","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "rs_workspace_summary": {"name":"rs_workspace_summary","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable"},
     "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"},

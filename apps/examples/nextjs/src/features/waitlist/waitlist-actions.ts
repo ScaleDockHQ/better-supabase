@@ -17,7 +17,8 @@ export const joinWaitlist = bsb.action(
     allow: ["none", "user"],
   },
   async ({ email }, { db }) => {
-    const joined = await db.waitlist.join(email.toLowerCase(), {
+    const joined = await db.waitlist.join({
+      email: email.toLowerCase(),
       referrer: "waitlist-page",
     });
 

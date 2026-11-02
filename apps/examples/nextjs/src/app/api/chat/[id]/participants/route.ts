@@ -26,7 +26,9 @@ export const POST = bsb.route<{ id: string }, true>(
     const body = v.safeParse(addBody, await request.json().catch(() => null));
 
     return body.success
-      ? aiChat(supabase).participants.add(params.id, body.output.userId, {
+      ? aiChat(supabase).participants.add({
+          chatId: params.id,
+          userId: body.output.userId,
           role: body.output.role ?? "viewer",
         })
       : err(invalid(body.issues));
@@ -46,7 +48,10 @@ export const DELETE = bsb.route<{ id: string }, true>(
     );
 
     return body.success
-      ? aiChat(supabase).participants.remove(params.id, body.output.userId)
+      ? aiChat(supabase).participants.remove({
+          chatId: params.id,
+          userId: body.output.userId,
+        })
       : err(invalid(body.issues));
   },
   { requireTenant: true },

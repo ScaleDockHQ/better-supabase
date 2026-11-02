@@ -13,9 +13,9 @@ export async function GET(request: Request): Promise<Response> {
     return new Response(null, { status: 401 });
   }
 
-  const result = await stripeInbox.process((message) =>
-    billing.handleStripeEvent(message.payload).orThrow(),
-  );
+  const result = await stripeInbox.process({
+    handler: (message) => billing.handleStripeEvent(message.payload).orThrow(),
+  });
 
   return Response.json(result);
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:34cd03ec4bcf38128b2f8de2ccfe282a7501eb0a51d79affaab9c1c58389b600
+-- @bsb-hash sha256:d413602404bbca2aa0c2b36e9daced7396d6fd49c6ef86d599a5f999d81e5b9a
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -509,6 +509,13 @@ drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels
 create trigger "bsb_search_channel_index"
   after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
   for each row execute function "better_supabase"."search_index_row"('channel', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.channels', target_type => 'channel', event_prefix => 'channel', deferred => true);
+end;
+$$;
 
 -- blocks.channels.api: entry points for the Data API.
 create schema if not exists "api";

@@ -95,7 +95,8 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
     await s.as(owner);
 
     return books()
-      .trialBalance(organization, {
+      .trialBalance({
+        organizationId: organization,
         since: day("2026-01-01"),
         until: day("2026-12-31"),
       })
@@ -110,7 +111,9 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
   ): Promise<T> => {
     await s.as(owner);
 
-    const { id } = await imports().runs.start(organization, name).orThrow();
+    const { id } = await imports()
+      .runs.start({ organizationId: organization, source: name })
+      .orThrow();
 
     await s.service();
     await imports().markRunning(id).orThrow();
@@ -132,15 +135,25 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
 
     const ledger = books();
 
-    await ledger.setup(source, { functionalCurrency: "EUR" }).orThrow();
-    await ledger.openFiscalYear(source, 2026).orThrow();
     await ledger
-      .saveOpeningBalances(source, 2026, [
-        { accountCode: "1000", amount: 7000n },
-        { accountCode: "3000", amount: -7000n },
-      ])
+      .setup({ organizationId: source, input: { functionalCurrency: "EUR" } })
       .orThrow();
-    await ledger.postOpeningBalances(source, 2026).orThrow();
+    await ledger
+      .openFiscalYear({ organizationId: source, fiscalYear: 2026 })
+      .orThrow();
+    await ledger
+      .saveOpeningBalances({
+        organizationId: source,
+        fiscalYear: 2026,
+        balances: [
+          { accountCode: "1000", amount: 7000n },
+          { accountCode: "3000", amount: -7000n },
+        ],
+      })
+      .orThrow();
+    await ledger
+      .postOpeningBalances({ organizationId: source, fiscalYear: 2026 })
+      .orThrow();
 
     const journals = await ledger.journals(source).orThrow();
     const sales = journals.find((item) => item.code === "SAL")!;
@@ -205,8 +218,12 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
       const target = await s.organization(owner);
 
       await s.as(owner);
-      await books().setup(target, { functionalCurrency: "EUR" }).orThrow();
-      await books().openFiscalYear(target, 2026).orThrow();
+      await books()
+        .setup({ organizationId: target, input: { functionalCurrency: "EUR" } })
+        .orThrow();
+      await books()
+        .openFiscalYear({ organizationId: target, fiscalYear: 2026 })
+        .orThrow();
 
       await s.service();
 
@@ -218,7 +235,9 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
           imports: imports(),
         });
 
-        await imports().upsertBatch(run, "open_item", OPEN_ITEMS).orThrow();
+        await imports()
+          .upsertBatch({ runId: run, entity: "open_item", items: OPEN_ITEMS })
+          .orThrow();
 
         return result;
       });
@@ -253,7 +272,7 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
         });
 
         const again = await imports()
-          .upsertBatch(run, "open_item", OPEN_ITEMS)
+          .upsertBatch({ runId: run, entity: "open_item", items: OPEN_ITEMS })
           .orThrow();
 
         return { result, again };

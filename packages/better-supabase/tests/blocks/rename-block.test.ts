@@ -80,14 +80,21 @@ describe("renameBlock", () => {
     const { calls, transport } = sql();
     const tasks = renameBlock(tasksBlock, NAMES).create?.({ transport });
 
-    const listed = await tasks?.list("o", { initiativeId: "p1" }).orThrow();
+    const listed = await tasks
+      ?.list({ organizationId: "o", initiativeId: "p1" })
+      .orThrow();
 
     const saved = await tasks
-      ?.saveInitiative("o", { key: "PAY", name: "Payments" })
+      ?.saveInitiative({
+        organizationId: "o",
+        initiative: { key: "PAY", name: "Payments" },
+      })
       .orThrow();
 
     const changed = await tasks
-      ?.update([{ taskId: "w1", field: "initiativeId", value: "p2" }])
+      ?.update({
+        changes: [{ taskId: "w1", field: "initiativeId", value: "p2" }],
+      })
       .orThrow();
 
     expect({
@@ -149,14 +156,17 @@ describe("renameBlock", () => {
       transport,
       hooks: {
         saveInitiative: {
-          before: ([, initiative], info) => {
+          before: ([{ initiative }], info) => {
             seen.push(`${info.method}:${initiative.name}`);
           },
         },
       },
     });
 
-    await tasks?.saveInitiative("o", { key: "PAY", name: "Payments" });
+    await tasks?.saveInitiative({
+      organizationId: "o",
+      initiative: { key: "PAY", name: "Payments" },
+    });
 
     expect(seen).toEqual(["saveInitiative:Payments"]);
   });

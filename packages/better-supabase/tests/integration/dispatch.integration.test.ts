@@ -62,26 +62,35 @@ describe.skipIf(!live)("dispatch", () => {
       });
       expect(
         await dispatch
-          .schedule(backlog.id, {
-            technicianId: tech.id,
-            startsAt: at("2030-01-07T09:30:00Z"),
+          .schedule({
+            id: backlog.id,
+            slot: {
+              technicianId: tech.id,
+              startsAt: at("2030-01-07T09:30:00Z"),
+            },
           })
           .then(hint),
       ).toBe("DISPATCH_SLOT_TAKEN");
       expect(
         await dispatch
-          .schedule(backlog.id, {
-            technicianId: outsider.id,
-            startsAt: at("2030-01-07T11:00:00Z"),
+          .schedule({
+            id: backlog.id,
+            slot: {
+              technicianId: outsider.id,
+              startsAt: at("2030-01-07T11:00:00Z"),
+            },
           })
           .then(hint),
       ).toBe("DISPATCH_TECHNICIAN_INVALID");
 
       await dispatch
-        .schedule(backlog.id, {
-          technicianId: tech.id,
-          startsAt: at("2030-01-07T11:00:00Z"),
-          endsAt: at("2030-01-07T13:00:00Z"),
+        .schedule({
+          id: backlog.id,
+          slot: {
+            technicianId: tech.id,
+            startsAt: at("2030-01-07T11:00:00Z"),
+            endsAt: at("2030-01-07T13:00:00Z"),
+          },
         })
         .orThrow();
 
@@ -99,14 +108,18 @@ describe.skipIf(!live)("dispatch", () => {
       ]);
 
       const route = await dispatch
-        .planRoute(tech.id, DAY, [backlog.id, first.id])
+        .planRoute({
+          technicianId: tech.id,
+          day: DAY,
+          workOrderIds: [backlog.id, first.id],
+        })
         .orThrow();
 
       expect(route.workOrderIds).toEqual([backlog.id, first.id]);
 
       await s.as(tech);
 
-      const day = await dispatch.technicianDay(DAY).orThrow();
+      const day = await dispatch.technicianDay({ day: DAY }).orThrow();
 
       expect(day.routeId).toBe(route.id);
       expect(day.stops.map((stop) => stop.workOrder.id)).toEqual([
@@ -114,21 +127,24 @@ describe.skipIf(!live)("dispatch", () => {
         first.id,
       ]);
 
-      await dispatch.setStatus(first.id, "en_route").orThrow();
-      expect(await dispatch.setStatus(first.id, "done").then(hint)).toBe(
-        "DISPATCH_TRANSITION_INVALID",
-      );
-      await dispatch.setStatus(first.id, "on_site").orThrow();
+      await dispatch.setStatus({ id: first.id, status: "en_route" }).orThrow();
+      expect(
+        await dispatch.setStatus({ id: first.id, status: "done" }).then(hint),
+      ).toBe("DISPATCH_TRANSITION_INVALID");
+      await dispatch.setStatus({ id: first.id, status: "on_site" }).orThrow();
 
       const done = await dispatch
-        .setStatus(first.id, "done", "Valve replaced")
+        .setStatus({ id: first.id, status: "done", note: "Valve replaced" })
         .orThrow();
 
       expect(done.completionNote).toBe("Valve replaced");
       expect(done.completedAt).toBeInstanceOf(Temporal.Instant);
 
       const part = await dispatch
-        .recordPart(first.id, { name: "Valve", quantity: "1.5", unit: "pc" })
+        .recordPart({
+          workOrderId: first.id,
+          input: { name: "Valve", quantity: "1.5", unit: "pc" },
+        })
         .orThrow();
 
       expect(part.quantity).toBe("1.500");
@@ -137,9 +153,11 @@ describe.skipIf(!live)("dispatch", () => {
       expect(await dispatch.create({ title: "Mine" }).then(hint)).toBe(
         "DISPATCH_FORBIDDEN",
       );
-      expect(await dispatch.setStatus(backlog.id, "cancelled").then(hint)).toBe(
-        "DISPATCH_FORBIDDEN",
-      );
+      expect(
+        await dispatch
+          .setStatus({ id: backlog.id, status: "cancelled" })
+          .then(hint),
+      ).toBe("DISPATCH_FORBIDDEN");
 
       await s.as(outsider);
 
@@ -194,14 +212,24 @@ describe.skipIf(!live)("dispatch", () => {
         })
         .orThrow();
 
-      await dispatch.planRoute(tech.id, DAY, [order.id]).orThrow();
+      await dispatch
+        .planRoute({
+          technicianId: tech.id,
+          day: DAY,
+          workOrderIds: [order.id],
+        })
+        .orThrow();
 
       const back = await dispatch.unschedule(order.id).orThrow();
 
       expect(back.status).toBe("unscheduled");
       expect(back).not.toHaveProperty("technicianId");
       expect(
-        (await dispatch.technicianDay(DAY, tech.id).orThrow()).stops,
+        (
+          await dispatch
+            .technicianDay({ day: DAY, technicianId: tech.id })
+            .orThrow()
+        ).stops,
       ).toEqual([]);
       expect(
         await dispatch.list({ status: "unscheduled" }).orThrow(),

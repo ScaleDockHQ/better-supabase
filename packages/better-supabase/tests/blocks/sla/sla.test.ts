@@ -71,6 +71,7 @@ describe("sla block", () => {
       resolutionMinutes: 240,
       warnAtPercent: 50,
       businessHours: true,
+      escalations: [],
       fields: {},
     });
     expect(t.calls[0]?.[1]).toEqual({
@@ -83,6 +84,36 @@ describe("sla block", () => {
         firstResponseMinutes: 30,
       },
     });
+  });
+
+  it("saves and reads an escalation ladder", async () => {
+    const ladder = [
+      { at: 50, action: "notify" },
+      { at: 100, action: "reassign", target: "u2" },
+      { at: 150, action: "page" },
+    ] as const;
+
+    const t = transport({
+      save_sla_policy: () => ({
+        id: "p1",
+        subject_type: "ticket",
+        name: "Urgent",
+        warn_at_percent: 80,
+        business_hours: false,
+        escalations: ladder,
+      }),
+    });
+
+    const policy = await createSla({ transport: t, tenant: "o" })
+      .savePolicy({
+        subjectType: "ticket",
+        name: "Urgent",
+        escalations: ladder,
+      })
+      .orThrow();
+
+    expect(policy.escalations).toEqual(ladder);
+    expect(t.calls[0]?.[1]).toMatchObject({ attrs: { escalations: ladder } });
   });
 
   it("starts, records, reads, checks and computes due times", async () => {
@@ -103,19 +134,25 @@ describe("sla block", () => {
 
     const sla = createSla({ transport: t });
     const ticket = { type: "ticket", id: "t1" };
-    expect((await sla.start(ticket, "urgent").orThrow())[0]).toMatchObject({
-      subject: ticket,
-      state: "paused",
-      secondsLeft: 3600,
-    });
-    const met = await sla.record(ticket, "resolved").orThrow();
+    expect(
+      (await sla.start({ subject: ticket, priority: "urgent" }).orThrow())[0],
+    ).toMatchObject({ subject: ticket, state: "paused", secondsLeft: 3600 });
+
+    const met = await sla
+      .record({ subject: ticket, event: "resolved" })
+      .orThrow();
+
     expect(met[0]?.metAt).toBeDefined();
     expect(met[0]?.secondsLeft).toBeUndefined();
     await sla.clocks(ticket).orThrow();
     expect(await sla.check().orThrow()).toBe(2);
 
     const due = await sla
-      .dueAt(Temporal.Instant.from("2026-10-16T14:00:00Z"), 120, true)
+      .dueAt({
+        start: Temporal.Instant.from("2026-10-16T14:00:00Z"),
+        minutes: 120,
+        businessHours: true,
+      })
       .orThrow();
 
     expect(due.toString()).toBe("2026-10-19T08:00:00Z");
@@ -126,7 +163,7 @@ describe("sla block", () => {
       {},
       { start: "2026-10-16T14:00:00Z", minutes: 120, business: true },
     ]);
-    await sla.start(ticket).orThrow();
+    await sla.start({ subject: ticket }).orThrow();
     expect(t.calls[5]?.[1]).toMatchObject({ priority: null });
   });
 

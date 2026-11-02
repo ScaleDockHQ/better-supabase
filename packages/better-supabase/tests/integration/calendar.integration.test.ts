@@ -53,15 +53,30 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("creates a calendar for a manager and refuses a member", async () => {
     await session.as(member);
-    const refused = await calendar.createCalendar(org, "Nope");
+
+    const refused = await calendar.createCalendar({
+      organizationId: org,
+      name: "Nope",
+    });
+
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "CALENDAR_FORBIDDEN",
     );
     await session.as(owner);
-    const bad = await calendar.createCalendar(org, "Bad", { tz: "Mars/Base" });
+
+    const bad = await calendar.createCalendar({
+      organizationId: org,
+      name: "Bad",
+      options: { tz: "Mars/Base" },
+    });
+
     expect(bad.ok ? undefined : bad.error.hint).toBe("CALENDAR_TZ_INVALID");
     ({ id: calendarId } = await calendar
-      .createCalendar(org, "Team", { tz: "Europe/Amsterdam" })
+      .createCalendar({
+        organizationId: org,
+        name: "Team",
+        options: { tz: "Europe/Amsterdam" },
+      })
       .orThrow());
     expect(await calendar.listCalendars(org).orThrow()).toEqual([
       { id: calendarId, name: "Team", tz: "Europe/Amsterdam" },
@@ -72,18 +87,25 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     await session.as(member);
 
     const saved = await calendar
-      .upsert(calendarId, {
-        title: "Stand-up",
-        startsAt: at("2026-03-23T08:00:00Z"),
-        endsAt: at("2026-03-23T08:15:00Z"),
-        tz: "Europe/Amsterdam",
-        rrule: "FREQ=WEEKLY;BYDAY=MO;COUNT=6",
+      .upsert({
+        calendarId,
+        input: {
+          title: "Stand-up",
+          startsAt: at("2026-03-23T08:00:00Z"),
+          endsAt: at("2026-03-23T08:15:00Z"),
+          tz: "Europe/Amsterdam",
+          rrule: "FREQ=WEEKLY;BYDAY=MO;COUNT=6",
+        },
       })
       .orThrow();
 
     seriesId = saved.id;
     expect(saved).toMatchObject({ uid: saved.id, created: true });
-    const found = await calendar.occurrences([calendarId], range).orThrow();
+
+    const found = await calendar
+      .occurrences({ calendarIds: [calendarId], range })
+      .orThrow();
+
     expect(found.map((item) => item.start.toString())).toEqual([
       "2026-03-23T08:00:00Z",
       "2026-03-30T07:00:00Z",
@@ -97,10 +119,13 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
   it("refuses a viewer and an invalid event", async () => {
     await session.as(viewer);
 
-    const refused = await calendar.upsert(calendarId, {
-      title: "x",
-      startsAt: at("2026-03-01T08:00:00Z"),
-      endsAt: at("2026-03-01T09:00:00Z"),
+    const refused = await calendar.upsert({
+      calendarId,
+      input: {
+        title: "x",
+        startsAt: at("2026-03-01T08:00:00Z"),
+        endsAt: at("2026-03-01T09:00:00Z"),
+      },
     });
 
     expect(refused.ok ? undefined : refused.error.hint).toBe(
@@ -108,17 +133,20 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     );
     await session.as(member);
 
-    const backwards = await calendar.upsert(calendarId, {
-      title: "x",
-      startsAt: at("2026-03-01T09:00:00Z"),
-      endsAt: at("2026-03-01T08:00:00Z"),
+    const backwards = await calendar.upsert({
+      calendarId,
+      input: {
+        title: "x",
+        startsAt: at("2026-03-01T09:00:00Z"),
+        endsAt: at("2026-03-01T08:00:00Z"),
+      },
     });
 
     expect(backwards.ok).toBe(false);
 
-    const status = await calendar.upsert(calendarId, {
-      id: seriesId,
-      status: "done" as "confirmed",
+    const status = await calendar.upsert({
+      calendarId,
+      input: { id: seriesId, status: "done" as "confirmed" },
     });
 
     expect(status.ok ? undefined : status.error.hint).toBe(
@@ -128,19 +156,27 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("overrides, cancels and splits occurrences", async () => {
     await session.as(member);
-    let found = await calendar.occurrences([calendarId], range).orThrow();
+
+    let found = await calendar
+      .occurrences({ calendarIds: [calendarId], range })
+      .orThrow();
 
     const override = await calendar
-      .editOccurrence(found[1]!, {
-        title: "Stand-up (late)",
-        startsAt: at("2026-03-30T09:00:00Z"),
-        endsAt: at("2026-03-30T09:15:00Z"),
+      .editOccurrence({
+        occurrence: found[1]!,
+        changes: {
+          title: "Stand-up (late)",
+          startsAt: at("2026-03-30T09:00:00Z"),
+          endsAt: at("2026-03-30T09:15:00Z"),
+        },
       })
       .orThrow();
 
     expect(override.uid).toBe(seriesId);
     expect(await calendar.cancelOccurrence(found[2]!).orThrow()).toBe(true);
-    found = await calendar.occurrences([calendarId], range).orThrow();
+    found = await calendar
+      .occurrences({ calendarIds: [calendarId], range })
+      .orThrow();
     expect(
       found.map((item) => [item.event.title, item.start.toString()]),
     ).toEqual([
@@ -152,10 +188,12 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     ]);
 
     const split = await calendar
-      .editFollowing(found[3]!, { title: "Planning" })
+      .editFollowing({ occurrence: found[3]!, changes: { title: "Planning" } })
       .orThrow();
 
-    found = await calendar.occurrences([calendarId], range).orThrow();
+    found = await calendar
+      .occurrences({ calendarIds: [calendarId], range })
+      .orThrow();
     expect(
       found.map((item) => [item.event.title, item.start.toString()]),
     ).toEqual([
@@ -195,7 +233,9 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     await session.asRole(outsider);
 
     try {
-      expect(await calendar.events([calendarId], range).orThrow()).toEqual([]);
+      expect(
+        await calendar.events({ calendarIds: [calendarId], range }).orThrow(),
+      ).toEqual([]);
     } finally {
       await session.as(owner);
     }
@@ -203,7 +243,9 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     await session.asRole(viewer);
 
     try {
-      expect(await calendar.events([calendarId], range).orThrow()).toEqual([]);
+      expect(
+        await calendar.events({ calendarIds: [calendarId], range }).orThrow(),
+      ).toEqual([]);
     } finally {
       await session.as(owner);
     }
@@ -212,7 +254,8 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
     try {
       expect(
-        (await calendar.events([calendarId], range).orThrow()).length,
+        (await calendar.events({ calendarIds: [calendarId], range }).orThrow())
+          .length,
       ).toBeGreaterThan(0);
     } finally {
       await session.as(owner);
@@ -222,17 +265,33 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
   it("invites attendees and records their answer", async () => {
     await session.as(member);
     await calendar
-      .setAttendee(seriesId, { email: viewer.email, role: "optional" })
+      .setAttendee({
+        eventId: seriesId,
+        attendee: { email: viewer.email, role: "optional" },
+      })
       .orThrow();
     await session.as(viewer);
-    expect(await calendar.respond(seriesId, "accepted").orThrow()).toBe(true);
+    expect(
+      await calendar
+        .respond({ eventId: seriesId, response: "accepted" })
+        .orThrow(),
+    ).toBe(true);
     await session.as(outsider);
-    const stranger = await calendar.respond(seriesId, "accepted");
+
+    const stranger = await calendar.respond({
+      eventId: seriesId,
+      response: "accepted",
+    });
+
     expect(stranger.ok ? undefined : stranger.error.hint).toBe(
       "CALENDAR_ATTENDEE_NOT_FOUND",
     );
     await session.as(member);
-    const [event] = await calendar.events([calendarId], range).orThrow();
+
+    const [event] = await calendar
+      .events({ calendarIds: [calendarId], range })
+      .orThrow();
+
     expect(event?.attendees).toEqual([
       {
         email: viewer.email,
@@ -270,25 +329,26 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       "END:VCALENDAR",
     ].join("\r\n");
 
-    expect(await calendar.importIcs(calendarId, ics).orThrow()).toEqual({
-      created: 2,
-      updated: 0,
-      skipped: 1,
-    });
+    expect(
+      await calendar.importIcs({ calendarId, text: ics }).orThrow(),
+    ).toEqual({ created: 2, updated: 0, skipped: 1 });
     expect(
       await calendar
-        .importIcs(
+        .importIcs({
           calendarId,
-          ics.replace("SUMMARY:Review\r\n", "SUMMARY:Code review\r\n"),
-        )
+          text: ics.replace("SUMMARY:Review\r\n", "SUMMARY:Code review\r\n"),
+        })
         .orThrow(),
     ).toEqual({ created: 0, updated: 2, skipped: 1 });
 
     const reviews = (
       await calendar
-        .occurrences([calendarId], {
-          from: at("2026-04-01T00:00:00Z"),
-          until: at("2026-04-04T00:00:00Z"),
+        .occurrences({
+          calendarIds: [calendarId],
+          range: {
+            from: at("2026-04-01T00:00:00Z"),
+            until: at("2026-04-04T00:00:00Z"),
+          },
         })
         .orThrow()
     ).filter((item) => item.event.uid === "review@example.test");

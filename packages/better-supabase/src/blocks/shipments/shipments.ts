@@ -198,30 +198,44 @@ export interface Shipments<
   list(options?: ShipmentListOptions): AsyncResult<readonly Shipment<F>[]>;
   /** Every configured carrier's quotes, by currency and then cheapest first. */
   rates(
-    id: string,
-    options?: { readonly currency?: string },
+    input: { id: string } & { readonly currency?: string },
   ): AsyncResult<readonly ShipmentRate[]>;
+  /**
+   * Quotes every carrier (`rates`) and buys the label of the cheapest one
+   * (`buyLabel`). With `currency` only quotes in it count; with `maxDays` only
+   * those estimated to arrive within that many days (a quote without an
+   * estimate is skipped). Without a quote it fails with `SHIPMENT_NO_RATE` and
+   * buys nothing. The shipment id keeps a retry from buying twice.
+   */
+  shipCheapest(input: {
+    id: string;
+    currency?: string | undefined;
+    maxDays?: number | undefined;
+  }): AsyncResult<Shipment<F>>;
   /**
    * Buys the label from the carrier and stores it on the draft shipment. The
    * shipment id is the idempotency key, so a retry doesn't buy twice.
    */
-  buyLabel(id: string, choice: ShipmentLabelChoice): AsyncResult<Shipment<F>>;
+  buyLabel(input: {
+    id: string;
+    choice: ShipmentLabelChoice;
+  }): AsyncResult<Shipment<F>>;
   /** Pulls the carrier's tracking events and records the new ones. */
   refresh(id: string): AsyncResult<TrackingRecorded<F>>;
   /** Records tracking events by hand, such as a courier without an API. */
-  recordTracking(
-    id: string,
-    events: readonly CarrierTrackingEvent[],
-  ): AsyncResult<TrackingRecorded<F>>;
+  recordTracking(input: {
+    id: string;
+    events: readonly CarrierTrackingEvent[];
+  }): AsyncResult<TrackingRecorded<F>>;
   /**
    * Verifies a carrier's tracking webhook and records its events on the
    * shipments with those tracking numbers. Runs on `options.service`, since a
    * webhook has no user; a redelivery records nothing twice.
    */
-  ingest(
-    carrier: string,
-    request: WebhookInput,
-  ): AsyncResult<readonly TrackingIngested[]>;
+  ingest(input: {
+    carrier: string;
+    request: WebhookInput;
+  }): AsyncResult<readonly TrackingIngested[]>;
   /**
    * Cancels a shipment that hasn't shipped, voiding its label with the carrier
    * first.
@@ -233,18 +247,18 @@ export interface Shipments<
    * Replaces the stock a draft shipment carries. The stock leaves inventory
    * when the shipment gets its label and comes back when it is cancelled.
    */
-  setLines(
-    id: string,
-    lines: readonly ShipmentLineInput[],
-  ): AsyncResult<Shipment<F>>;
+  setLines(input: {
+    id: string;
+    lines: readonly ShipmentLineInput[];
+  }): AsyncResult<Shipment<F>>;
   /**
    * Receives stock sent back on a shipment that left, with a disposition per
    * line. A variant comes back at most as often as it went out.
    */
-  receiveReturn(
-    id: string,
-    lines: readonly ShipmentReturnInput[],
-  ): AsyncResult<Shipment<F>>;
+  receiveReturn(input: {
+    id: string;
+    lines: readonly ShipmentReturnInput[];
+  }): AsyncResult<Shipment<F>>;
 }
 
 type Defined<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
@@ -469,6 +483,40 @@ export function createShipments<
     );
 
   const client: Shipments<F> = {
+    shipCheapest: ({ id, currency, maxDays }) =>
+      hooked
+        .rates({ id, ...(currency === undefined ? {} : { currency }) })
+        .andThen((rates) => {
+          const cheapest = rates
+            .filter(
+              (rate) =>
+                (currency === undefined || rate.amount.currency === currency) &&
+                (maxDays === undefined ||
+                  (rate.estimatedDays !== undefined &&
+                    rate.estimatedDays <= maxDays)),
+            )
+            .reduce<ShipmentRate | undefined>(
+              (best, rate) =>
+                best === undefined || rate.amount.amount < best.amount.amount
+                  ? rate
+                  : best,
+              undefined,
+            );
+
+          return cheapest
+            ? hooked.buyLabel({
+                id,
+                choice: {
+                  carrier: cheapest.carrier,
+                  service: cheapest.service,
+                },
+              })
+            : AsyncResult.err<Shipment<F>>(
+                dbError("not_found", "no carrier quoted a matching rate", {
+                  hint: "SHIPMENT_NO_RATE",
+                }),
+              );
+        }),
     ...shipmentsIntrastat(call, tenant),
     create: (input) =>
       tenant().andThen((organizationId) =>
@@ -519,7 +567,7 @@ export function createShipments<
             ),
         ).andThen(fields.rows),
       ),
-    rates: (id, quote = {}) =>
+    rates: ({ id, ...quote }) =>
       find(id).andThen((shipment) =>
         AsyncResult.from(async () => {
           const found: ShipmentRate[] = [];
@@ -550,7 +598,7 @@ export function createShipments<
           );
         }),
       ),
-    buyLabel: (id, choice) =>
+    buyLabel: ({ id, choice }) =>
       carrierNamed(choice.carrier).andThen((carrier) =>
         find(id).andThen((shipment) => {
           if (shipment.status !== "draft") {
@@ -629,8 +677,8 @@ export function createShipments<
             .andThen((events) => record(id, events, "carrier")),
         );
       }),
-    recordTracking: (id, events) => record(id, events, "manual"),
-    ingest: (name, request) =>
+    recordTracking: ({ id, events }) => record(id, events, "manual"),
+    ingest: ({ carrier: name, request }) =>
       carrierNamed(name).andThen((carrier) => {
         if (!carrier.parseWebhook) {
           return AsyncResult.err(
@@ -727,13 +775,13 @@ export function createShipments<
       call("list_tracking_events", { shipment_id: id }, (value) =>
         recordsOf(value, "list_tracking_events").map(trackingEventOf),
       ),
-    setLines: (id, lines) =>
+    setLines: ({ id, lines }) =>
       call(
         "set_shipment_lines",
         { shipment_id: id, lines: linesArg(lines) },
         one("set_shipment_lines"),
       ).andThen(fields.row),
-    receiveReturn: (id, lines) =>
+    receiveReturn: ({ id, lines }) =>
       call(
         "receive_shipment_return",
         { shipment_id: id, lines: returnsArg(lines) },
@@ -741,8 +789,11 @@ export function createShipments<
       ).andThen(fields.row),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Shipments<F> = withBlockHooks(client, options.hooks, {
     block: "shipments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

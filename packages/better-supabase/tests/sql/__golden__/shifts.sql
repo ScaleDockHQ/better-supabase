@@ -1353,7 +1353,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:2f0ad0bb0c6ec95a0abc0b2e575f3ff5f93bd62b13b7698693fbc4ff8c738036
+-- @bsb-hash sha256:c4dbe57f0b68ceaba053ec07cc79cdb4d73b0687b4c3d5f221f64787402938eb
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3032,6 +3032,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_availa
 create policy bsb_tenant_scope_delete on "better_supabase"."shift_availability" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.shifts', target_type => 'shift', event_prefix => 'shift', deferred => true);
+  perform better_supabase.audit('better_supabase.shift_templates', target_type => 'shift_template', event_prefix => 'shift_template', deferred => true);
+  perform better_supabase.audit('better_supabase.shift_assignments', target_type => 'shift_assignment', event_prefix => 'shift_assignment', deferred => true);
+  perform better_supabase.audit('better_supabase.shift_swaps', target_type => 'shift_swap', event_prefix => 'shift_swap', deferred => true);
+  perform better_supabase.audit('better_supabase.shift_availability', target_type => 'shift_availability', event_prefix => 'shift_availability', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

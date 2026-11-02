@@ -307,3 +307,13 @@ import { createShifts } from "better-supabase/blocks/shifts";
 const shifts = createShifts({ transport });
 const roster = await shifts.roster(organizationId, from, until).orThrow();
 ```
+
+## Roll out, fill and approve swaps
+
+`rollout` generates the shifts of a template and, with `publish: true`, publishes the same range. `fill({ shiftId, userIds })` assigns the users in order and stops at the first one the checks refuse. `approveSwap({ swapId })` is `decideSwap` with `approve: true`.
+
+```ts
+const { shifts, published } = await db.shifts
+  .rollout({ organizationId, templateId, from, until, publish: true })
+  .orThrow();
+```

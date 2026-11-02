@@ -171,81 +171,84 @@ export type MemoryHooks = BlockHooks<Memory> & {
 
 export interface Memory {
   readonly core: {
-    view(
-      organizationId: string | null,
-      path?: string,
-      ns?: MemoryNamespace,
-    ): AsyncResult<MemoryView | undefined>;
+    view(input: {
+      organizationId: string | null;
+      path?: string | undefined;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<MemoryView | undefined>;
     /** Creates or overwrites a file; `expectedVersion` 0 means it must be new. */
     write(
-      organizationId: string | null,
-      path: string,
-      content: string,
-      ns?: MemoryNamespace,
-      options?: { readonly expectedVersion?: number },
+      input: {
+        organizationId: string | null;
+        path: string;
+        content: string;
+        ns?: MemoryNamespace | undefined;
+      } & { readonly expectedVersion?: number },
     ): AsyncResult<MemoryRecord>;
-    strReplace(
-      organizationId: string | null,
-      path: string,
-      oldText: string,
-      newText: string,
-      ns?: MemoryNamespace,
-    ): AsyncResult<MemoryRecord>;
-    insert(
-      organizationId: string | null,
-      path: string,
-      line: number,
-      text: string,
-      ns?: MemoryNamespace,
-    ): AsyncResult<MemoryRecord>;
+    strReplace(input: {
+      organizationId: string | null;
+      path: string;
+      oldText: string;
+      newText: string;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<MemoryRecord>;
+    insert(input: {
+      organizationId: string | null;
+      path: string;
+      line: number;
+      text: string;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<MemoryRecord>;
     /** Deletes a file or a directory. Returns how many files. */
-    remove(
-      organizationId: string | null,
-      path: string,
-      ns?: MemoryNamespace,
-    ): AsyncResult<number>;
-    rename(
-      organizationId: string | null,
-      oldPath: string,
-      newPath: string,
-      ns?: MemoryNamespace,
-    ): AsyncResult<number>;
-    list(
-      organizationId: string | null,
-      ns?: MemoryNamespace,
-    ): AsyncResult<readonly MemoryRecord[]>;
+    remove(input: {
+      organizationId: string | null;
+      path: string;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<number>;
+    rename(input: {
+      organizationId: string | null;
+      oldPath: string;
+      newPath: string;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<number>;
+    list(input: {
+      organizationId: string | null;
+      ns?: MemoryNamespace | undefined;
+    }): AsyncResult<readonly MemoryRecord[]>;
   };
   /** Runs a memory tool command and returns the text for the model. */
-  run(
-    organizationId: string | null,
-    command: MemoryCommand,
-    ns?: MemoryNamespace,
-  ): AsyncResult<string>;
+  run(input: {
+    organizationId: string | null;
+    command: MemoryCommand;
+    ns?: MemoryNamespace | undefined;
+  }): AsyncResult<string>;
   readonly archival: {
     upsert(
-      organizationId: string | null,
-      content: string,
-      ns?: MemoryNamespace,
-      options?: MemorySaveOptions,
+      input: {
+        organizationId: string | null;
+        content: string;
+        ns?: MemoryNamespace | undefined;
+      } & MemorySaveOptions,
     ): AsyncResult<MemoryRecord>;
     search(
-      organizationId: string | null,
-      query: string,
-      ns?: MemoryNamespace,
-      options?: { readonly k?: number; readonly signal?: AbortSignal },
+      input: {
+        organizationId: string | null;
+        query: string;
+        ns?: MemoryNamespace | undefined;
+      } & { readonly k?: number; readonly signal?: AbortSignal },
     ): AsyncResult<readonly MemoryHit[]>;
     list(
-      organizationId: string | null,
-      ns?: MemoryNamespace,
-      options?: { readonly limit?: number },
+      input: {
+        organizationId: string | null;
+        ns?: MemoryNamespace | undefined;
+      } & { readonly limit?: number },
     ): AsyncResult<readonly MemoryRecord[]>;
     /**
      * Deletes a memory, or marks it replaced by `supersededBy`. A deleted
      * memory stays restorable until `purge` removes it.
      */
     forget(
-      memoryId: string,
-      options?: { readonly supersededBy?: string },
+      input: { memoryId: string } & { readonly supersededBy?: string },
     ): AsyncResult<boolean>;
     /** Restores a deleted memory. False when there is none to restore. */
     restore(memoryId: string): AsyncResult<boolean>;
@@ -271,9 +274,7 @@ export interface Memory {
     }): AsyncResult<boolean>;
     /** The caller's earlier messages closest to `query`. */
     search(
-      organizationId: string,
-      query: string,
-      options?: {
+      input: { organizationId: string; query: string } & {
         readonly k?: number;
         readonly excludeChat?: string;
         /** The service role only: whose messages. */
@@ -286,16 +287,17 @@ export interface Memory {
    * Core memory as delimited text for a system prompt, cut at `maxRender`
    * characters. Empty when there is none.
    */
-  render(
-    organizationId: string | null,
-    ns?: MemoryNamespace,
-  ): AsyncResult<string>;
+  render(input: {
+    organizationId: string | null;
+    ns?: MemoryNamespace | undefined;
+  }): AsyncResult<string>;
   /** Saves facts that aren't already remembered. Returns the new ones. */
   saveExtracted(
-    organizationId: string | null,
-    facts: readonly string[],
-    ns?: MemoryNamespace,
-    options?: MemorySaveOptions,
+    input: {
+      organizationId: string | null;
+      facts: readonly string[];
+      ns?: MemoryNamespace | undefined;
+    } & MemorySaveOptions,
   ): AsyncResult<readonly MemoryRecord[]>;
   /**
    * Embeds memories edited since their last embedding (service role). Returns
@@ -311,21 +313,21 @@ export interface Memory {
    * `MEMORY_DOCUMENT_CONFLICT`.
    */
   readonly documents: {
-    read(
-      scopeKey: string,
-      path: string,
-    ): AsyncResult<MemoryDocument | undefined>;
+    read(input: {
+      scopeKey: string;
+      path: string;
+    }): AsyncResult<MemoryDocument | undefined>;
     /** `expectedVersion: null` means the document must not exist yet. */
-    write(
-      scopeKey: string,
-      path: string,
-      content: string,
+    write(input: {
+      scopeKey: string;
+      path: string;
+      content: string;
       options: {
         readonly expectedVersion: string | null;
         /** Seconds until the document expires. */
         readonly expiresIn?: number;
-      },
-    ): AsyncResult<MemoryDocument>;
+      };
+    }): AsyncResult<MemoryDocument>;
     /** Deletes expired documents, at most `batch`. Returns how many. */
     purge(batch?: number): AsyncResult<number>;
   };

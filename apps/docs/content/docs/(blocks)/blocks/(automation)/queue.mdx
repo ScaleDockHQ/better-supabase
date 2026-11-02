@@ -1000,7 +1000,7 @@ await inbox.process(async (message) => {
   const owner = await ownerOfCustomer(message.payload.customer);
   const db = bsb.actingAs(owner.userId, { tenant_id: owner.organizationId });
   await db.invoices
-    .update(message.payload.invoice, { status: "paid" })
+    .update({ invoiceId: message.payload.invoice, patch: { status: "paid" } })
     .orThrow();
 });
 ```

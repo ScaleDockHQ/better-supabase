@@ -5,7 +5,7 @@
 -- change accounts, and the Globex owner (…a3) sees none of it. Run with
 -- `supabase test db`.
 begin;
-select plan(29);
+select plan(30);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -108,6 +108,17 @@ select is(
    from (select better_supabase.suggest_bank_matches((select id from ids where name = 'tx_t1')) s) x),
   '[true, true]'::jsonb,
   'the open invoice of the same amount is the first suggestion'
+);
+select is(
+  (select jsonb_build_array(
+      jsonb_array_length(b -> 'lines') > 0,
+      b #>> '{status,accountId}' = (select id from ids where name = 'account')::text,
+      exists (select 1 from jsonb_array_elements(b -> 'suggestions') s
+        where s ->> 'transactionId' = (select id from ids where name = 'tx_t1')::text
+          and s ->> 'targetId' = (select id from ids where name = 'invoice')::text))
+   from (select better_supabase.bank_reconciliation_board((select id from ids where name = 'account')) b) x),
+  '[true, true, true]'::jsonb,
+  'the reconciliation board holds the status, the lines and the invoice suggestion in one call'
 );
 select throws_ok(
   format($$select better_supabase.match_bank_transaction(%L, jsonb_build_array(jsonb_build_object('targetType', 'invoice', 'targetId', %L, 'amount', '100')))$$,

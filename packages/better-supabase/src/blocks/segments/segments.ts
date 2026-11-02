@@ -81,12 +81,14 @@ export interface SegmentRefreshReport {
 
 export interface Segments {
   /** Creates or changes a segment. Changing its conditions marks it due. */
-  upsert(organizationId: string, segment: SegmentInput): AsyncResult<Segment>;
+  upsert(input: {
+    organizationId: string;
+    segment: SegmentInput;
+  }): AsyncResult<Segment>;
   /** Deletes a segment and its members. False when there was none. */
   remove(segmentId: string): AsyncResult<boolean>;
   list(
-    organizationId: string,
-    options?: { readonly subjectType?: string },
+    input: { organizationId: string } & { readonly subjectType?: string },
   ): AsyncResult<Segment[]>;
   get(segmentId: string): AsyncResult<Segment | undefined>;
   /**
@@ -94,8 +96,10 @@ export interface Segments {
    * `enteredAt`.
    */
   members(
-    segmentId: string,
-    options?: { readonly after?: Temporal.Instant; readonly limit?: number },
+    input: { segmentId: string } & {
+      readonly after?: Temporal.Instant;
+      readonly limit?: number;
+    },
   ): AsyncResult<SegmentMember[]>;
   /** The segments a record is in. */
   of(subject: {
@@ -148,11 +152,11 @@ export function createSegments(options: SegmentsOptions): Segments {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Segments = {
-    upsert: (organizationId, segment) =>
+    upsert: ({ organizationId, segment }) =>
       call("save_segment", { tenant: organizationId, segment }, segmentOf),
     remove: (segmentId) =>
       call("remove_segment", { segment: segmentId }, (value) => value === true),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "segments_list",
         { tenant: organizationId, subject_type: list.subjectType ?? null },
@@ -162,7 +166,7 @@ export function createSegments(options: SegmentsOptions): Segments {
       call("segment_get", { segment: segmentId }, (value) =>
         value === null || value === undefined ? undefined : segmentOf(value),
       ),
-    members: (segmentId, page = {}) =>
+    members: ({ segmentId, ...page }) =>
       call(
         "list_segment_members",
         {

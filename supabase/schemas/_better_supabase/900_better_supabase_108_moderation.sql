@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:2da6a968d6a638a50f9133d1c8d369ac29c3ae01251a0e8510188364b313a36d
+-- @bsb-hash sha256:eb51df2e7902b4e8653c5be6fb134f22cfa737b26d58f5afbf95dd6f954d57e6
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -247,8 +247,8 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
@@ -1440,6 +1440,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_a
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.moderation_items', target_type => 'moderation_item', event_prefix => 'moderation_item', deferred => true);
+end;
+$$;
 
 -- blocks.moderation.api: entry points for the Data API.
 create schema if not exists "api";

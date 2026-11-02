@@ -172,16 +172,16 @@ export interface AiChat<F extends object = Record<never, never>> {
      * Keys besides the input's own are the chat's extra columns. `null` makes a
      * chat outside a tenant, with `options.tenant: false`.
      */
-    create(
-      organizationId: string | null,
-      input?: AiChatInput & Partial<F>,
-    ): AsyncResult<AiChatRecord & F>;
+    create(input: {
+      organizationId: string | null;
+      input?: (AiChatInput & Partial<F>) | undefined;
+    }): AsyncResult<AiChatRecord & F>;
     get(chatId: string): AsyncResult<AiChatRecord & F>;
     list(query?: AiChatQuery): AsyncResult<AiChatPage<F>>;
-    update(
-      chatId: string,
-      patch: AiChatPatch & Partial<F>,
-    ): AsyncResult<AiChatRecord & F>;
+    update(input: {
+      chatId: string;
+      patch: AiChatPatch & Partial<F>;
+    }): AsyncResult<AiChatRecord & F>;
     remove(chatId: string): AsyncResult<boolean>;
     /** Deletes expired temporary chats (service role); returns how many. */
     purge(batch?: number): AsyncResult<number>;
@@ -191,16 +191,16 @@ export interface AiChat<F extends object = Record<never, never>> {
      * `null` makes a project outside a tenant. Keys of `fields` are the project
      * table's extra columns.
      */
-    create(
-      organizationId: string | null,
-      input: AiProjectInput & { readonly name: string },
-      fields?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<AiProject>;
-    update(
-      projectId: string,
-      input: AiProjectInput,
-      fields?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<AiProject>;
+    create(input: {
+      organizationId: string | null;
+      input: AiProjectInput & { readonly name: string };
+      fields?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<AiProject>;
+    update(input: {
+      projectId: string;
+      input: AiProjectInput;
+      fields?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<AiProject>;
     list(organizationId: string | null): AsyncResult<readonly AiProject[]>;
     remove(projectId: string): AsyncResult<boolean>;
   };
@@ -208,15 +208,13 @@ export interface AiChat<F extends object = Record<never, never>> {
   readonly participants: {
     /** Adds someone, or changes their role (the owner, or the service role). */
     add(
-      chatId: string,
-      userId: string,
-      options?: {
+      input: { chatId: string; userId: string } & {
         readonly role?: AiChatParticipantRole;
         readonly fields?: Readonly<Record<string, unknown>>;
       },
     ): AsyncResult<AiChatParticipant>;
     /** The owner removes anyone; a participant removes themselves. */
-    remove(chatId: string, userId: string): AsyncResult<boolean>;
+    remove(input: { chatId: string; userId: string }): AsyncResult<boolean>;
     list(chatId: string): AsyncResult<readonly AiChatParticipant[]>;
   };
   readonly messages: {
@@ -227,30 +225,33 @@ export interface AiChat<F extends object = Record<never, never>> {
      * deletes the ones after it.
      */
     appendUser(
-      chatId: string,
-      message: AiMessage,
-      options?: AiUserMessageOptions,
+      input: { chatId: string; message: AiMessage } & AiUserMessageOptions,
     ): AsyncResult<AiAppendResult>;
     /** Stores an answer (service role); a retry with the same id updates it. */
-    saveAssistant(
-      chatId: string,
-      message: AiMessage,
-      options: AiAssistantMessageOptions,
-    ): AsyncResult<AiSaveResult>;
+    saveAssistant(input: {
+      chatId: string;
+      message: AiMessage;
+      options: AiAssistantMessageOptions;
+    }): AsyncResult<AiSaveResult>;
     /** The messages from the root to `leafId`, default the chat's leaf. */
     path(
-      chatId: string,
-      options?: { readonly leafId?: string; readonly native?: boolean },
+      input: { chatId: string } & {
+        readonly leafId?: string;
+        readonly native?: boolean;
+      },
     ): AsyncResult<readonly AiStoredMessage[]>;
-    siblings(
-      chatId: string,
-      messageId: string,
-    ): AsyncResult<readonly AiMessageSibling[]>;
+    siblings(input: {
+      chatId: string;
+      messageId: string;
+    }): AsyncResult<readonly AiMessageSibling[]>;
     /**
      * Shows the branch through `messageId`; returns the new leaf. A linear list
      * has no branches and answers `AI_CHAT_LINEAR`.
      */
-    switchBranch(chatId: string, messageId: string): AsyncResult<string>;
+    switchBranch(input: {
+      chatId: string;
+      messageId: string;
+    }): AsyncResult<string>;
   };
   /**
    * The sandboxes chats and harness sessions started, with one idle-stop claim
@@ -261,9 +262,7 @@ export interface AiChat<F extends object = Record<never, never>> {
   readonly runs: AiRuns & {
     /** Claims the chat's answer for one stream (service role). */
     claim(
-      chatId: string,
-      streamId: string,
-      options?: {
+      input: { chatId: string; streamId: string } & {
         readonly model?: string;
         readonly messageId?: string;
         readonly engine?: string;
@@ -272,9 +271,7 @@ export interface AiChat<F extends object = Record<never, never>> {
       },
     ): AsyncResult<AiStreamClaim>;
     release(
-      chatId: string,
-      streamId: string,
-      options?: AiRunRelease,
+      input: { chatId: string; streamId: string } & AiRunRelease,
     ): AsyncResult<boolean>;
     /** Asks the running answer to stop; `undefined` when none runs. */
     stop(
@@ -283,53 +280,59 @@ export interface AiChat<F extends object = Record<never, never>> {
       { readonly streamId: string; readonly runId: string } | undefined
     >;
     /** Writes the gateway's cost for a generation, once it is known. */
-    setCost(
-      generationId: string,
-      costMicroUsd: number,
-      usage?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<boolean>;
+    setCost(input: {
+      generationId: string;
+      costMicroUsd: number;
+      usage?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<boolean>;
   };
   readonly approvals: {
-    request(
-      chatId: string,
-      request: AiToolApprovalRequest,
-    ): AsyncResult<AiToolApproval>;
-    decide(
-      approvalId: string,
-      approved: boolean,
-      reason?: string,
-    ): AsyncResult<AiToolApproval>;
-    list(
-      chatId: string,
-      approvalIds?: readonly string[],
-    ): AsyncResult<readonly AiToolApproval[]>;
+    request(input: {
+      chatId: string;
+      request: AiToolApprovalRequest;
+    }): AsyncResult<AiToolApproval>;
+    decide(input: {
+      approvalId: string;
+      approved: boolean;
+      reason?: string | undefined;
+    }): AsyncResult<AiToolApproval>;
+    list(input: {
+      chatId: string;
+      approvalIds?: readonly string[] | undefined;
+    }): AsyncResult<readonly AiToolApproval[]>;
     /** Sets a tool's policy for a tenant (`ai_chat.manage`); `null` removes it. */
-    setPolicy(
-      organizationId: string,
-      tool: string,
-      policy: AiToolPolicy | null,
-    ): AsyncResult<AiToolPolicy | undefined>;
+    setPolicy(input: {
+      organizationId: string;
+      tool: string;
+      policy: AiToolPolicy | null;
+    }): AsyncResult<AiToolPolicy | undefined>;
     policies(
       organizationId: string,
     ): AsyncResult<Readonly<Record<string, AiToolPolicy>>>;
   };
   readonly inputs: {
-    open(
-      chatId: string,
-      request: AiPendingInputRequest,
-    ): AsyncResult<AiPendingInput>;
-    answer(inputId: string, answer: unknown): AsyncResult<AiPendingInput>;
+    open(input: {
+      chatId: string;
+      request: AiPendingInputRequest;
+    }): AsyncResult<AiPendingInput>;
+    answer(input: {
+      inputId: string;
+      answer: unknown;
+    }): AsyncResult<AiPendingInput>;
   };
   readonly feedback: {
     rate(
-      chatId: string,
-      messageId: string,
-      rating: -1 | 0 | 1,
-      options?: { readonly reason?: string; readonly comment?: string },
+      input: { chatId: string; messageId: string; rating: -1 | 0 | 1 } & {
+        readonly reason?: string;
+        readonly comment?: string;
+      },
     ): AsyncResult<AiFeedback>;
   };
   readonly shares: {
-    create(chatId: string, leafId?: string): AsyncResult<AiShareLink>;
+    create(input: {
+      chatId: string;
+      leafId?: string | undefined;
+    }): AsyncResult<AiShareLink>;
     revoke(shareId: string): AsyncResult<boolean>;
     list(chatId: string): AsyncResult<readonly AiChatShare[]>;
     /** Reads a shared chat by its token; anyone with the token may. */
@@ -340,20 +343,19 @@ export interface AiChat<F extends object = Record<never, never>> {
     allowed(organizationId?: string | null): AsyncResult<readonly AiModel[]>;
     /** Upserts the catalog (service role); `prune` deletes the rest. */
     upsert(
-      models: readonly AiModelInput[],
-      options?: { readonly prune?: boolean },
+      input: { models: readonly AiModelInput[] } & { readonly prune?: boolean },
     ): AsyncResult<number>;
   };
   readonly moderation: {
     /** Keys of `fields` are the moderation table's extra columns. */
-    record(
-      event: AiModerationInput,
-      fields?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<AiModerationEvent>;
-    list(
-      organizationId: string,
-      size?: number,
-    ): AsyncResult<readonly AiModerationEvent[]>;
+    record(input: {
+      event: AiModerationInput;
+      fields?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<AiModerationEvent>;
+    list(input: {
+      organizationId: string;
+      size?: number | undefined;
+    }): AsyncResult<readonly AiModerationEvent[]>;
   };
 }
 
@@ -420,7 +422,7 @@ export function createAiChat<
 
   const client: AiChat<F> = {
     chats: {
-      create: (organizationId, input = {}) =>
+      create: ({ organizationId, input = {} }) =>
         checked(input).andThen((extra) =>
           (input.ownerId === undefined ? call : service)(
             "create_ai_chat",
@@ -460,7 +462,7 @@ export function createAiChat<
 
           return parsed.ok ? ok({ items: parsed.data, next }) : parsed;
         }),
-      update: (chatId, patch) =>
+      update: ({ chatId, patch }) =>
         checked(patch).andThen((extra) =>
           call(
             "update_ai_chat",
@@ -472,7 +474,7 @@ export function createAiChat<
       purge: (batch) => service("purge_ai_chats", { batch }, count),
     },
     projects: {
-      create: (organizationId, input, extra = {}) =>
+      create: ({ organizationId, input, fields: extra = {} }) =>
         call(
           "save_ai_project",
           {
@@ -482,7 +484,7 @@ export function createAiChat<
           },
           projectOf,
         ),
-      update: (projectId, input, extra = {}) =>
+      update: ({ projectId, input, fields: extra = {} }) =>
         call(
           "save_ai_project",
           {
@@ -500,7 +502,7 @@ export function createAiChat<
         call("delete_ai_project", { id: projectId }, isTrue),
     },
     participants: {
-      add: (chatId, userId, addOptions = {}) =>
+      add: ({ chatId, userId, ...addOptions }) =>
         call(
           "add_ai_chat_participant",
           {
@@ -511,7 +513,7 @@ export function createAiChat<
           },
           participantOf,
         ),
-      remove: (chatId, userId) =>
+      remove: ({ chatId, userId }) =>
         call(
           "remove_ai_chat_participant",
           { chat: chatId, participant: userId },
@@ -523,7 +525,7 @@ export function createAiChat<
         ),
     },
     messages: {
-      appendUser: (chatId, message, appendOptions = {}) =>
+      appendUser: ({ chatId, message, ...appendOptions }) =>
         call(
           "append_ai_user_message",
           {
@@ -538,7 +540,7 @@ export function createAiChat<
           },
           savedOf,
         ),
-      saveAssistant: (chatId, message, saveOptions) =>
+      saveAssistant: ({ chatId, message, options: saveOptions }) =>
         service(
           "save_ai_assistant_message",
           {
@@ -560,7 +562,7 @@ export function createAiChat<
           },
           savedOf,
         ),
-      path: (chatId, pathOptions = {}) =>
+      path: ({ chatId, ...pathOptions }) =>
         call(
           "ai_message_path",
           {
@@ -578,7 +580,7 @@ export function createAiChat<
                 : stored;
             }),
         ),
-      siblings: (chatId, messageId) =>
+      siblings: ({ chatId, messageId }) =>
         call(
           "ai_message_siblings",
           { chat: chatId, message_id: messageId },
@@ -589,7 +591,7 @@ export function createAiChat<
               createdAt: instantOf(row["created_at"]),
             })),
         ),
-      switchBranch: (chatId, messageId) =>
+      switchBranch: ({ chatId, messageId }) =>
         call(
           "switch_ai_branch",
           { chat: chatId, message_id: messageId },
@@ -599,7 +601,7 @@ export function createAiChat<
     sandboxes: aiSandboxes(call, service),
     runs: {
       ...aiRunLookups(options),
-      claim: (chatId, streamId, claimOptions = {}) =>
+      claim: ({ chatId, streamId, ...claimOptions }) =>
         service(
           "claim_ai_chat_stream",
           {
@@ -620,7 +622,7 @@ export function createAiChat<
             };
           },
         ),
-      release: (chatId, streamId, release = {}) =>
+      release: ({ chatId, streamId, ...release }) =>
         service(
           "release_ai_chat_stream",
           {
@@ -642,7 +644,7 @@ export function createAiChat<
 
           return streamId && runId ? { streamId, runId } : undefined;
         }),
-      setCost: (generationId, costMicroUsd, usage) =>
+      setCost: ({ generationId, costMicroUsd, usage }) =>
         service(
           "set_ai_run_cost",
           { generation_id: generationId, cost_micro_usd: costMicroUsd, usage },
@@ -650,7 +652,7 @@ export function createAiChat<
         ),
     },
     approvals: {
-      request: (chatId, request) =>
+      request: ({ chatId, request }) =>
         service(
           "record_ai_tool_approval",
           {
@@ -667,19 +669,19 @@ export function createAiChat<
           },
           approvalOf,
         ),
-      decide: (approvalId, approved, reason) =>
+      decide: ({ approvalId, approved, reason }) =>
         call(
           "decide_ai_tool_approval",
           { approval_id: approvalId, approved, reason },
           approvalOf,
         ),
-      list: (chatId, approvalIds) =>
+      list: ({ chatId, approvalIds }) =>
         call(
           "get_ai_tool_approvals",
           { chat: chatId, ids: approvalIds },
           (value) => recordsOf(value, "get_ai_tool_approvals").map(approvalOf),
         ),
-      setPolicy: (organizationId, tool, policy) =>
+      setPolicy: ({ organizationId, tool, policy }) =>
         call(
           "set_ai_tool_policy",
           { tenant: organizationId, tool, policy },
@@ -701,7 +703,7 @@ export function createAiChat<
         }),
     },
     inputs: {
-      open: (chatId, request) =>
+      open: ({ chatId, request }) =>
         service(
           "open_ai_pending_input",
           {
@@ -715,7 +717,7 @@ export function createAiChat<
           },
           inputOf,
         ),
-      answer: (inputId, answer) =>
+      answer: ({ inputId, answer }) =>
         call(
           "answer_ai_pending_input",
           { id: inputId, answer: { value: answer } },
@@ -723,7 +725,7 @@ export function createAiChat<
         ),
     },
     feedback: {
-      rate: (chatId, messageId, rating, rateOptions = {}) =>
+      rate: ({ chatId, messageId, rating, ...rateOptions }) =>
         call(
           "rate_ai_message",
           {
@@ -746,7 +748,7 @@ export function createAiChat<
         ),
     },
     shares: {
-      create: (chatId, leafId) =>
+      create: ({ chatId, leafId }) =>
         call("share_ai_chat", { chat: chatId, leaf: leafId }, (value) => {
           const row = recordOf(value, "share_ai_chat");
 
@@ -770,7 +772,7 @@ export function createAiChat<
         call("allowed_ai_models", { tenant: organizationId ?? null }, (value) =>
           recordsOf(value, "allowed_ai_models").map(modelOf),
         ),
-      upsert: (models, upsertOptions = {}) =>
+      upsert: ({ models, ...upsertOptions }) =>
         service(
           "upsert_ai_models",
           { models: { models }, prune: upsertOptions.prune },
@@ -778,7 +780,7 @@ export function createAiChat<
         ),
     },
     moderation: {
-      record: (event, extra) =>
+      record: ({ event, fields: extra }) =>
         service(
           "record_ai_moderation_event",
           {
@@ -796,7 +798,7 @@ export function createAiChat<
           },
           moderationOf,
         ),
-      list: (organizationId, size) =>
+      list: ({ organizationId, size }) =>
         call(
           "list_ai_moderation_events",
           { tenant: organizationId, size },

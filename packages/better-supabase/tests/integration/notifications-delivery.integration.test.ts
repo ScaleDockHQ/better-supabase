@@ -94,12 +94,15 @@ describe.skipIf(!live)("notification email delivery", () => {
   ): Promise<void> => {
     await s.as(owner);
     await notifications
-      .send("task.assigned", {
-        tenant: organization,
-        recipients: [member.id, bounced.id],
-        subject: { type: "task", id: "t1", label: "Paint" },
-        data: { title: "Paint" },
-        channels: ["in_app", "email"],
+      .send({
+        type: "task.assigned",
+        input: {
+          tenant: organization,
+          recipients: [member.id, bounced.id],
+          subject: { type: "task", id: "t1", label: "Paint" },
+          data: { title: "Paint" },
+          channels: ["in_app", "email"],
+        },
       })
       .orThrow();
     await s.service();
@@ -166,7 +169,9 @@ describe.skipIf(!live)("notification email delivery", () => {
       },
     });
 
-    expect(await notifications.unsuppress(bounced.email).orThrow()).toBe(true);
+    expect(
+      await notifications.unsuppress({ address: bounced.email }).orThrow(),
+    ).toBe(true);
     expect(await notifications.suppressions().orThrow()).toEqual([]);
   });
 

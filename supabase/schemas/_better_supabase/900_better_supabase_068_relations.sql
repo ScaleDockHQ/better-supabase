@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:a4406e252d04975a266767161c85b3206953eb7047bb5dbf9b45c623639a478e
+-- @bsb-hash sha256:79bb69129df2f791485c0fe5cdf08ff00107f101b05ca52ce2e07cb302b93196
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -908,6 +908,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.relations', target_type => 'relation', event_prefix => 'relation', deferred => true);
+end;
+$$;
 
 -- blocks.relations.api: entry points for the Data API.
 create schema if not exists "api";

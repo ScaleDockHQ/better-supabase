@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:91ef965486c49cbac7672ac4c201dcd0aef8be00402f9c65567e398352501965
+-- @bsb-hash sha256:2b878d4726969ba726ea342b2205761ecafb2d9e899da2c80a3fd560329b737a
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -346,6 +346,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "better_supabase"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "better_supabase"."drive_role"(drive_node_access.node),
+    'read', "better_supabase"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "better_supabase"."drive_can_download"(drive_node_access.node),
+    'upload', "better_supabase"."drive_can_upload"(drive_node_access.node),
+    'write', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "better_supabase"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_access"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -736,6 +759,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "better_supabase"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "better_supabase"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -1589,7 +1648,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:e40cef226315e507992ad8e7442fe7358daae7e292005274c3d03932292c2fd9
+-- @bsb-hash sha256:d624bc1fab764c6a96c4074f2a1eb6b7d978c5650be3819d41a06b6310441458
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1934,6 +1993,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "better_supabase"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "better_supabase"."drive_role"(drive_node_access.node),
+    'read', "better_supabase"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "better_supabase"."drive_can_download"(drive_node_access.node),
+    'upload', "better_supabase"."drive_can_upload"(drive_node_access.node),
+    'write', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "better_supabase"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_access"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -2337,6 +2419,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "better_supabase"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "better_supabase"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -3293,6 +3411,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.drive_nodes', target_type => 'drive_node', event_prefix => 'drive_node', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3323,7 +3448,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:faa42643dff44dba8d337acd2d943c17257b555ad8565f6151abf7f4e4ee96da
+-- @bsb-hash sha256:fafe706566deeff9789ac32912fb9d020cb319651ff738d8a1aa233a2e400463
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3673,6 +3798,29 @@ as $$
 $$;
 revoke execute on function "app_private"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "app_private"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "app_private"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "app_private"."drive_role"(drive_node_access.node),
+    'read', "app_private"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "app_private"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "app_private"."drive_can_download"(drive_node_access.node),
+    'upload', "app_private"."drive_can_upload"(drive_node_access.node),
+    'write', "app_private"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "app_private"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "app_private"."drive_node_access"(uuid) from public, anon;
+grant execute on function "app_private"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -4063,6 +4211,42 @@ end;
 $$;
 revoke execute on function "app_private"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "app_private"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "app_private"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("app_private"."drive_node_json"(c.r) || jsonb_build_object('role', "app_private"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "app_private"."drive_node_held"((c.r)."id"), 'downloadable', "app_private"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "app_private"."drive_nodes" x
+      where x."tenant_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "app_private"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "app_private"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "app_private"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "app_private"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -4916,7 +5100,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:a5358db3db6c3d12397369e5d545d6738652795c4511c87f87803f9e22528948
+-- @bsb-hash sha256:48452d6918c859e4f9644cc739eadf9ab134b23f1ba5f0b478a3fb3af3ad1d09
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5261,6 +5445,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "better_supabase"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "better_supabase"."drive_role"(drive_node_access.node),
+    'read', "better_supabase"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "better_supabase"."drive_can_download"(drive_node_access.node),
+    'upload', "better_supabase"."drive_can_upload"(drive_node_access.node),
+    'write', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "better_supabase"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_access"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -5651,6 +5858,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "better_supabase"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "better_supabase"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -6577,6 +6820,15 @@ as $$ select "better_supabase"."drive_can_upload"($1) $$;
 revoke execute on function "api"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "api"."drive_can_upload"(uuid) to authenticated, service_role;
 
+create or replace function "api"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_node_access"($1) $$;
+revoke execute on function "api"."drive_node_access"(uuid) from public, anon;
+grant execute on function "api"."drive_node_access"(uuid) to authenticated, service_role;
+
 create or replace function "api"."drive_share_link_allowed"(node text, tenant text, role text)
 returns boolean
 language sql
@@ -6621,6 +6873,15 @@ set search_path = ''
 as $$ select "better_supabase"."drive_list"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "api"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_search"($1, $2, $3) $$;
+revoke execute on function "api"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "api"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 create or replace function "api"."drive_shared"(tenant uuid, page_size integer default 100)
 returns jsonb
@@ -6778,7 +7039,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:02536ea189d15b03b4c411c2836411cbdbe22542f285e512b6516544e33a9949
+-- @bsb-hash sha256:9c14eb5b00b2c9e05b0f289a6d00bf5eb27a6af0cd4be884052aafcc1b687d2b
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7056,6 +7317,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "better_supabase"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "better_supabase"."drive_role"(drive_node_access.node),
+    'read', "better_supabase"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "better_supabase"."drive_can_download"(drive_node_access.node),
+    'upload', "better_supabase"."drive_can_upload"(drive_node_access.node),
+    'write', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "better_supabase"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_access"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -7449,6 +7733,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "better_supabase"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "better_supabase"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -8265,7 +8585,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:571b3b712cce83602ccaab96e731cf2481572e8402c23975ef056c56e58231c7
+-- @bsb-hash sha256:f20b82b4e8ec0f6a8ebb0014f3793f126581f0d2fb3640a51b5179b2273a9787
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8610,6 +8930,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
+-- What the caller may do with one node, in one read: the role and the
+-- read, comment, download, write and share flags. upload is whether they may
+-- add files to it (a folder).
+create or replace function "better_supabase"."drive_node_access"(node uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'role', "better_supabase"."drive_role"(drive_node_access.node),
+    'read', "better_supabase"."drive_can"(drive_node_access.node, 'viewer'),
+    'comment', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'download', "better_supabase"."drive_can_download"(drive_node_access.node),
+    'upload', "better_supabase"."drive_can_upload"(drive_node_access.node),
+    'write', "better_supabase"."drive_can"(drive_node_access.node, 'editor'),
+    'share', "better_supabase"."drive_can"(drive_node_access.node, 'owner')
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_access"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_access"(uuid) to authenticated, service_role;
 
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (owner) on it, and an upload link names a folder.
@@ -9000,6 +9343,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
+
+-- Nodes whose name, or stored text, contains the query, that the caller can
+-- read, folders first then by name. An empty query returns nothing.
+create or replace function "better_supabase"."drive_search"(tenant uuid, query text, page_size integer default 25)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_like text := '%' || replace(replace(replace(btrim(coalesce(drive_search.query, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_search.tenant, 'drive.read'), false)) then
+    raise exception 'not allowed to read this organization''s drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if btrim(coalesce(drive_search.query, '')) = '' then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."kind" <> 'folder', (c.r)."name", (c.r)."id"), '[]'::jsonb)
+    from (
+      select x as r from "better_supabase"."drive_nodes" x
+      where x."org_id" = drive_search.tenant and x."deleted_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (x."name" ilike v_like escape '\'
+      or exists (select 1 from "better_supabase"."drive_node_texts" t where t."node_id" = x."id" and t."content" ilike v_like escape '\'))
+      order by x."kind" <> 'folder', x."name", x."id"
+      limit least(greatest(coalesce(drive_search.page_size, 25), 1), 100)
+    ) c
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_search"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."drive_search"(uuid, text, integer) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)

@@ -381,7 +381,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:8e601d8c055f5acd21b29b82ce07e1fa8bff895e2ebe4fa46172492854802ea6
+-- @bsb-hash sha256:2058757d30335f6e44d5e20717db25d4ae72f1b374ac1adb35d2b1a8dad0d415
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -730,6 +730,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments"
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.enrichments', target_type => 'enrichment', event_prefix => 'enrichment', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

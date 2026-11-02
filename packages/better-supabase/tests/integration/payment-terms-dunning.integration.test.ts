@@ -45,41 +45,50 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const { org, parties, invoices } = await setup(s);
 
       const terms = await parties
-        .savePaymentTerm(org, {
-          code: "2/10N30",
-          name: "2% in 10 days, net 30",
-          days: 30,
-          discountBps: 200,
-          discountDays: 10,
+        .savePaymentTerm({
+          organizationId: org,
+          input: {
+            code: "2/10N30",
+            name: "2% in 10 days, net 30",
+            days: 30,
+            discountBps: 200,
+            discountDays: 10,
+          },
         })
         .orThrow();
 
       expect(terms).toMatchObject({ days: 30, discountBps: 200 });
       expect(
         hint(
-          await parties.savePaymentTerm(org, {
-            code: "BAD",
-            name: "Bad",
-            days: 10,
-            discountBps: 100,
-            discountDays: 20,
+          await parties.savePaymentTerm({
+            organizationId: org,
+            input: {
+              code: "BAD",
+              name: "Bad",
+              days: 10,
+              discountBps: 100,
+              discountDays: 20,
+            },
           }),
         ),
       ).not.toBe("ok");
 
       const customer = await parties
-        .saveCompany(org, { name: "Terms customer", customerTermsId: terms.id })
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Terms customer", customerTermsId: terms.id },
+        })
         .orThrow();
 
       const draft = await invoices
-        .create(
-          org,
-          {
+        .create({
+          organizationId: org,
+          input: {
             title: "With terms",
             company: { type: "company", id: customer.id },
           },
-          [{ description: "Work", unitAmount: eur(12_345n) }],
-        )
+          lines: [{ description: "Work", unitAmount: eur(12_345n) }],
+        })
         .orThrow();
 
       expect(draft).toMatchObject({
@@ -87,7 +96,7 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
         paymentTerms: { id: terms.id },
       });
 
-      const issued = await invoices.issue(draft.id).orThrow();
+      const issued = await invoices.issue({ invoiceId: draft.id }).orThrow();
       const today = Temporal.Now.plainDateISO();
 
       expect(issued.paymentTerms?.discountDueOn?.toString()).toBe(
@@ -98,11 +107,14 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       expect(issued.dueOn?.toString()).toBe(today.add({ days: 30 }).toString());
       expect(
         hint(
-          await invoices.create(
-            org,
-            { title: "Missing terms", paymentTermsId: crypto.randomUUID() },
-            [{ description: "Work", unitAmount: eur(1n) }],
-          ),
+          await invoices.create({
+            organizationId: org,
+            input: {
+              title: "Missing terms",
+              paymentTermsId: crypto.randomUUID(),
+            },
+            lines: [{ description: "Work", unitAmount: eur(1n) }],
+          }),
         ),
       ).toBe("INVOICE_PAYMENT_TERMS_NOT_FOUND");
     } finally {
@@ -117,35 +129,43 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const { org, parties, invoices } = await setup(s);
 
       const terms = await parties
-        .savePaymentTerm(org, {
-          code: "CR2",
-          name: "2% credit restriction",
-          creditRestrictionBps: 200,
+        .savePaymentTerm({
+          organizationId: org,
+          input: {
+            code: "CR2",
+            name: "2% credit restriction",
+            creditRestrictionBps: 200,
+          },
         })
         .orThrow();
 
-      const plain = await parties.saveCompany(org, { name: "Plain" }).orThrow();
+      const plain = await parties
+        .saveCompany({ organizationId: org, input: { name: "Plain" } })
+        .orThrow();
 
       const restricted = await parties
-        .saveCompany(org, { name: "Restricted", customerTermsId: terms.id })
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Restricted", customerTermsId: terms.id },
+        })
         .orThrow();
 
       const taxOf = async (party: string): Promise<bigint> => {
         const draft = await invoices
-          .create(
-            org,
-            { title: "Taxed", company: { type: "company", id: party } },
-            [
+          .create({
+            organizationId: org,
+            input: { title: "Taxed", company: { type: "company", id: party } },
+            lines: [
               {
                 description: "Work",
                 unitAmount: eur(10_000n),
                 taxRateBps: 2100,
               },
             ],
-          )
+          })
           .orThrow();
 
-        await invoices.issue(draft.id).orThrow();
+        await invoices.issue({ invoiceId: draft.id }).orThrow();
 
         const [row] = await s.rows<{ tax: string }>(
           "select coalesce(sum(tax), 0)::text as tax from better_supabase.invoice_tax_lines where invoice_id = $1",
@@ -170,28 +190,26 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const { clerk, org, parties, invoices } = await setup(s);
 
       const soft = await parties
-        .saveCompany(org, {
-          name: "Soft",
-          creditLimit: eur(1000n),
-          creditBlock: "soft",
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Soft", creditLimit: eur(1000n), creditBlock: "soft" },
         })
         .orThrow();
 
       const hard = await parties
-        .saveCompany(org, {
-          name: "Hard",
-          creditLimit: eur(1000n),
-          creditBlock: "hard",
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Hard", creditLimit: eur(1000n), creditBlock: "hard" },
         })
         .orThrow();
 
       const draftFor = async (party: string) =>
         invoices
-          .create(
-            org,
-            { title: "Large", company: { type: "company", id: party } },
-            [{ description: "Work", unitAmount: eur(1500n) }],
-          )
+          .create({
+            organizationId: org,
+            input: { title: "Large", company: { type: "company", id: party } },
+            lines: [{ description: "Work", unitAmount: eur(1500n) }],
+          })
           .orThrow();
 
       // The owner may override a credit limit; a member may not.
@@ -200,7 +218,9 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const softDraft = await draftFor(soft.id);
       const hardDraft = await draftFor(hard.id);
 
-      const warned = await invoices.issue(softDraft.id).orThrow();
+      const warned = await invoices
+        .issue({ invoiceId: softDraft.id })
+        .orThrow();
 
       expect(warned.status).toBe("issued");
       expect(warned.warnings).toEqual([
@@ -209,7 +229,7 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
           limit: 1000n,
         }),
       ]);
-      expect(hint(await invoices.issue(hardDraft.id))).toBe(
+      expect(hint(await invoices.issue({ invoiceId: hardDraft.id }))).toBe(
         "INVOICE_CREDIT_LIMIT_EXCEEDED",
       );
     } finally {
@@ -224,40 +244,43 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const { owner, org, parties, invoices } = await setup(s);
 
       const customer = await parties
-        .saveCompany(org, { name: "Late" })
+        .saveCompany({ organizationId: org, input: { name: "Late" } })
         .orThrow();
 
       const agency = await parties
-        .saveCompany(org, { name: "Agency" })
+        .saveCompany({ organizationId: org, input: { name: "Agency" } })
         .orThrow();
 
       await invoices
-        .setDunningLevels(org, [
-          {
-            daysAfterDue: 7,
-            templateKey: "reminder",
-            textKey: "dunning.first",
-          },
-          { daysAfterDue: 21, templateKey: "second", fee: 500n },
-        ])
+        .setDunningLevels({
+          organizationId: org,
+          levels: [
+            {
+              daysAfterDue: 7,
+              templateKey: "reminder",
+              textKey: "dunning.first",
+            },
+            { daysAfterDue: 21, templateKey: "second", fee: 500n },
+          ],
+        })
         .orThrow();
 
       const open = [];
 
       for (const title of ["One", "Two"]) {
         const draft = await invoices
-          .create(
-            org,
-            {
+          .create({
+            organizationId: org,
+            input: {
               title,
               company: { type: "company", id: customer.id },
               termsDays: 10,
             },
-            [{ description: "Work", unitAmount: eur(1000n) }],
-          )
+            lines: [{ description: "Work", unitAmount: eur(1000n) }],
+          })
           .orThrow();
 
-        open.push(await invoices.issue(draft.id).orThrow());
+        open.push(await invoices.issue({ invoiceId: draft.id }).orThrow());
       }
 
       await s.service();
@@ -270,7 +293,9 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
 
       await s.as(owner);
 
-      const [run] = await invoices.dunningRuns(org).orThrow();
+      const [run] = await invoices
+        .dunningRuns({ organizationId: org })
+        .orThrow();
 
       expect(run).toMatchObject({ items: 2, customers: 1 });
 
@@ -293,15 +318,26 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       ]);
 
       const [handed] = await invoices
-        .handOverToCollection([open[0]!.id], agency.id, { note: "Sent" })
+        .handOverToCollection({
+          invoiceIds: [open[0]!.id],
+          agencyPartyId: agency.id,
+          note: "Sent",
+        })
         .orThrow();
 
       expect(handed).toBe(open[0]!.id);
       expect(
-        hint(await invoices.handOverToCollection([open[0]!.id], agency.id)),
+        hint(
+          await invoices.handOverToCollection({
+            invoiceIds: [open[0]!.id],
+            agencyPartyId: agency.id,
+          }),
+        ),
       ).toBe("INVOICE_ALREADY_HANDED_OVER");
 
-      const after = await invoices.pauseDunning(open[0]!.id, null).orThrow();
+      const after = await invoices
+        .pauseDunning({ invoiceId: open[0]!.id, until: null })
+        .orThrow();
 
       expect(after.collection).toMatchObject({ agencyPartyId: agency.id });
       expect(
@@ -328,28 +364,34 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       const { org, parties } = await setup(s);
 
       const company = await parties
-        .saveCompany(org, { name: "Post only", language: "de-DE" })
+        .saveCompany({
+          organizationId: org,
+          input: { name: "Post only", language: "de-DE" },
+        })
         .orThrow();
 
       expect(company.language).toBe("de-DE");
       expect(
         hint(
-          await parties.saveCompany(org, {
-            id: company.id,
-            language: "not a tag",
+          await parties.saveCompany({
+            organizationId: org,
+            input: { id: company.id, language: "not a tag" },
           }),
         ),
       ).not.toBe("ok");
 
       const saved = await parties
-        .setDeliveryPreferences(company.id, [
-          { documentType: "invoice", channel: "post", copies: 2 },
-          {
-            documentType: "invoice",
-            channel: "email",
-            email: "ap@example.test",
-          },
-        ])
+        .setDeliveryPreferences({
+          partyId: company.id,
+          preferences: [
+            { documentType: "invoice", channel: "post", copies: 2 },
+            {
+              documentType: "invoice",
+              channel: "email",
+              email: "ap@example.test",
+            },
+          ],
+        })
         .orThrow();
 
       expect(saved).toHaveLength(2);
@@ -358,17 +400,21 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       ).toHaveLength(2);
       expect(
         hint(
-          await parties.setDeliveryPreferences(company.id, [
-            { documentType: "invoice", channel: "post" },
-            { documentType: "invoice", channel: "post" },
-          ]),
+          await parties.setDeliveryPreferences({
+            partyId: company.id,
+            preferences: [
+              { documentType: "invoice", channel: "post" },
+              { documentType: "invoice", channel: "post" },
+            ],
+          }),
         ),
       ).toBe("DELIVERY_PREFERENCE_INVALID");
 
       const replaced = await parties
-        .setDeliveryPreferences(company.id, [
-          { documentType: "reminder", channel: "portal" },
-        ])
+        .setDeliveryPreferences({
+          partyId: company.id,
+          preferences: [{ documentType: "reminder", channel: "portal" }],
+        })
         .orThrow();
 
       expect(replaced).toMatchObject([{ documentType: "reminder", copies: 1 }]);

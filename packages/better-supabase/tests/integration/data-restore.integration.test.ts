@@ -154,7 +154,7 @@ describe.skipIf(!live)("data restore", () => {
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
-        .run(request.id)
+        .run({ exportId: request.id })
         .orThrow();
 
       const files: RestoreFile[] = [...memory.files]

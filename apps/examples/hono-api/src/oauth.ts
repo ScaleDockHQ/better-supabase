@@ -116,7 +116,10 @@ export async function token(request: Request): Promise<Response> {
 
   const client = credentials
     ? await oauth
-        .verifyClient(credentials.clientId, credentials.secret)
+        .verifyClient({
+          clientId: credentials.clientId,
+          secret: credentials.secret,
+        })
         .orThrow()
     : null;
 
@@ -153,7 +156,7 @@ export async function token(request: Request): Promise<Response> {
   const now = Math.floor(Date.now() / 1000);
 
   const accessToken = await signingKeys
-    .signer(OWNER, { create: "Ed25519" })
+    .signer({ owner: OWNER, create: "Ed25519" })
     .signJwt(
       {
         iss: issuer,
@@ -184,5 +187,8 @@ export async function token(request: Request): Promise<Response> {
 
 /** The keys resource servers verify the access tokens with. */
 export function jwks(): Promise<Response> {
-  return serviceBlocks().signingKeys.jwksResponse(OWNER, { maxAge: 300 });
+  return serviceBlocks().signingKeys.jwksResponse({
+    owner: OWNER,
+    maxAge: 300,
+  });
 }

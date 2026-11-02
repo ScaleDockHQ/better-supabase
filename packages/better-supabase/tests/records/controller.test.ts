@@ -90,7 +90,9 @@ describe("createRecordController", () => {
     });
     expect(view().summary?.title).toBe("Acme");
     expect(view().status).toBe("subscribed");
-    expect(summary).toHaveBeenCalledWith(customer, ["notes", "files"], {
+    expect(summary).toHaveBeenCalledWith({
+      subject: customer,
+      sections: ["notes", "files"],
       seenAt: null,
     });
     expect(topic.open()).toEqual(["record:customer:7"]);

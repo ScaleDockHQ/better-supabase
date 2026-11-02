@@ -20,10 +20,13 @@ describe("inventory fields", () => {
     const inventory = createInventory({ transport: t, fields: Fields });
 
     const saved = await inventory
-      .saveLocation("o", {
-        code: "WH-1",
-        name: "Main",
-        fields: { timezone: "Europe/Amsterdam" },
+      .saveLocation({
+        organizationId: "o",
+        input: {
+          code: "WH-1",
+          name: "Main",
+          fields: { timezone: "Europe/Amsterdam" },
+        },
       })
       .orThrow();
 
@@ -37,10 +40,9 @@ describe("inventory fields", () => {
     const saved = await createInventory({
       transport: t,
       fields: Fields,
-    }).saveLocation("o", {
-      code: "WH-1",
-      name: "Main",
-      fields: { timezone: "" },
+    }).saveLocation({
+      organizationId: "o",
+      input: { code: "WH-1", name: "Main", fields: { timezone: "" } },
     });
 
     expect(saved.ok ? undefined : saved.error.kind).toBe("validation");

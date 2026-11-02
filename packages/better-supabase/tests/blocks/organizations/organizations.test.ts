@@ -67,7 +67,9 @@ describe("createOrganizations", () => {
     });
 
     expect(
-      await organizations.create({ name: "Acme", slug: "acme" }),
+      await organizations.create({
+        attributes: { name: "Acme", slug: "acme" },
+      }),
     ).toMatchObject({ ok: true, data: { id: "org-1" } });
     await organizations.invite({
       organizationId: "org-1",
@@ -96,10 +98,10 @@ describe("createOrganizations", () => {
 
   it("passes the owner for the service role", async () => {
     const { transport, calls } = fake({ create_organization: "org-1" });
-    await createOrganizations({ transport }).create(
-      { name: "Acme" },
-      { ownerId: "user-9" },
-    );
+    await createOrganizations({ transport }).create({
+      attributes: { name: "Acme" },
+      ownerId: "user-9",
+    });
     expect(calls[0]).toMatchObject({
       schema: "better_supabase",
       args: { attrs: { name: "Acme", owner_id: "user-9" } },
@@ -111,10 +113,10 @@ describe("createOrganizations", () => {
       remove_member: pgError("42501", "ORGANIZATION_FORBIDDEN"),
     });
 
-    const result = await createOrganizations({ transport }).removeMember(
-      "organization",
-      "user",
-    );
+    const result = await createOrganizations({ transport }).removeMember({
+      organizationId: "organization",
+      userId: "user",
+    });
 
     expect(result).toMatchObject({
       ok: false,
@@ -222,7 +224,11 @@ describe("createOrganizations", () => {
       "2026-10-10T12:00:00Z",
     );
     expect(result.ok && result.data.invitation.inviter).toBeNull();
-    const resent = await organizations.resendInvitation("inv-1").orThrow();
+
+    const resent = await organizations
+      .resendInvitation({ invitationId: "inv-1" })
+      .orThrow();
+
     expect(resent.invitation).toMatchObject({
       inviter: { id: "user-1", fullName: "Grace Hopper" },
       extra: { roleLabel: "Member" },
@@ -263,7 +269,10 @@ describe("createOrganizations", () => {
     const organizations = createOrganizations({ transport, events });
 
     const updated = await organizations
-      .updateInvitation("inv-1", { email: "grace@example.com", role: "admin" })
+      .updateInvitation({
+        invitationId: "inv-1",
+        changes: { email: "grace@example.com", role: "admin" },
+      })
       .orThrow();
 
     expect(updated).toMatchObject({
@@ -360,9 +369,19 @@ describe("createOrganizations", () => {
       actorId: "user-1",
     });
 
-    await organizations.update("org-1", { name: "Acme" });
-    await organizations.updateMemberRole("org-1", "user-2", "admin");
-    await organizations.transferOwnership("org-1", "user-2");
+    await organizations.update({
+      organizationId: "org-1",
+      attributes: { name: "Acme" },
+    });
+    await organizations.updateMemberRole({
+      organizationId: "org-1",
+      userId: "user-2",
+      role: "admin",
+    });
+    await organizations.transferOwnership({
+      organizationId: "org-1",
+      newOwnerId: "user-2",
+    });
     expect(await organizations.switch("org-1")).toMatchObject({
       ok: true,
       data: { organizationId: "org-1", refresh: true },
@@ -405,10 +424,18 @@ describe("createOrganizations", () => {
     const organizations = createOrganizations({ transport, events });
 
     expect(
-      await organizations.addMemberRole("org-1", "user-2", "billing"),
+      await organizations.addMemberRole({
+        organizationId: "org-1",
+        userId: "user-2",
+        role: "billing",
+      }),
     ).toMatchObject({ ok: true, data: true });
     expect(
-      await organizations.removeMemberRole("org-1", "user-2", "member"),
+      await organizations.removeMemberRole({
+        organizationId: "org-1",
+        userId: "user-2",
+        role: "member",
+      }),
     ).toMatchObject({ ok: true, data: false });
     expect(await organizations.members("org-1")).toMatchObject({
       ok: true,
@@ -458,10 +485,12 @@ describe("createOrganizations", () => {
       actorId: "user-1",
     });
 
-    expect(await organizations.removeMember("org-1", "user-2")).toMatchObject({
-      ok: true,
-      data: true,
-    });
+    expect(
+      await organizations.removeMember({
+        organizationId: "org-1",
+        userId: "user-2",
+      }),
+    ).toMatchObject({ ok: true, data: true });
     expect(await organizations.leave("org-1")).toMatchObject({
       ok: true,
       data: true,
@@ -508,7 +537,7 @@ describe("createOrganizations", () => {
     });
 
     const organizations = createOrganizations({ transport });
-    expect(await organizations.slugProblem("acme")).toMatchObject({
+    expect(await organizations.slugProblem({ slug: "acme" })).toMatchObject({
       ok: true,
       data: "taken",
     });
@@ -522,7 +551,7 @@ describe("createOrganizations", () => {
       branding: { color: "#123456" },
     });
     const empty = createOrganizations({ transport: fake({}).transport });
-    expect(await empty.slugProblem("free")).toMatchObject({
+    expect(await empty.slugProblem({ slug: "free" })).toMatchObject({
       ok: true,
       data: undefined,
     });
@@ -542,7 +571,7 @@ describe("createOrganizations", () => {
     const organizations = createOrganizations({ transport });
 
     for (const result of [
-      await organizations.slugProblem("x"),
+      await organizations.slugProblem({ slug: "x" }),
       await organizations.previewInvitation("x"),
       await organizations.switch("org-1"),
     ]) {
@@ -724,14 +753,18 @@ describe("membership suspension", () => {
     const seen: string[] = [];
     events.on("block", (event) => seen.push(event.type));
     const organizations = createOrganizations({ transport, events });
-    expect(await organizations.suspendMember("org-1", "user-2")).toMatchObject({
-      ok: true,
-      data: true,
-    });
-    expect(await organizations.resumeMember("org-1", "user-2")).toMatchObject({
-      ok: true,
-      data: false,
-    });
+    expect(
+      await organizations.suspendMember({
+        organizationId: "org-1",
+        userId: "user-2",
+      }),
+    ).toMatchObject({ ok: true, data: true });
+    expect(
+      await organizations.resumeMember({
+        organizationId: "org-1",
+        userId: "user-2",
+      }),
+    ).toMatchObject({ ok: true, data: false });
     expect(calls.map((call) => [call.fn, call.args])).toEqual([
       ["suspend_member", { organization: "org-1", member: "user-2" }],
       ["resume_member", { organization: "org-1", member: "user-2" }],
@@ -744,10 +777,10 @@ describe("membership suspension", () => {
       suspend_member: pgError("23514", "ORGANIZATION_OWNER_REQUIRED"),
     });
 
-    const result = await createOrganizations({ transport }).suspendMember(
-      "org-1",
-      "user-1",
-    );
+    const result = await createOrganizations({ transport }).suspendMember({
+      organizationId: "org-1",
+      userId: "user-1",
+    });
 
     expect(result).toMatchObject({
       ok: false,
@@ -836,12 +869,18 @@ describe("organization fields and hooks", () => {
 
     const organizations = createOrganizations({ transport, fields: Fields });
     expect(
-      await organizations.create({ name: "Acme", plan: "gold" as "pro" }),
+      await organizations.create({
+        attributes: { name: "Acme", plan: "gold" as "pro" },
+      }),
     ).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(calls).toEqual([]);
 
-    await organizations.create({ name: "Acme", plan: "pro" }).orThrow();
-    await organizations.update("org-1", { seats: 3 }).orThrow();
+    await organizations
+      .create({ attributes: { name: "Acme", plan: "pro" } })
+      .orThrow();
+    await organizations
+      .update({ organizationId: "org-1", attributes: { seats: 3 } })
+      .orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       { attrs: { plan: "pro", name: "Acme" } },
       { organization: "org-1", attrs: { seats: 3 } },

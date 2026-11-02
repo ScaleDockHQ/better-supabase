@@ -166,7 +166,10 @@ export interface DocumentTemplates {
    */
   saveTemplate(input: SaveDocumentTemplateInput): AsyncResult<DocumentTemplate>;
   /** An inactive template leaves the fallback chain. */
-  setTemplateActive(id: string, active: boolean): AsyncResult<DocumentTemplate>;
+  setTemplateActive(input: {
+    id: string;
+    active: boolean;
+  }): AsyncResult<DocumentTemplate>;
   getTemplate(id: string): AsyncResult<DocumentTemplate>;
   listTemplates(filter?: {
     readonly documentType?: DocumentType;
@@ -408,7 +411,7 @@ export function createDocumentTemplates(
           one("save_document_template"),
         ),
       ),
-    setTemplateActive: (id, active) =>
+    setTemplateActive: ({ id, active }) =>
       call(
         "set_document_template_active",
         { template_id: id, active },

@@ -22,6 +22,12 @@ export const CONFIG_DEFAULTS: {
     readonly entry: string;
     readonly output: string;
     readonly perTenant: string;
+    readonly defaults: { readonly onCreate: boolean; readonly locale: string };
+    readonly sample: {
+      readonly size: "s" | "m" | "l";
+      readonly seed: number;
+      readonly output: string;
+    };
   };
   readonly openapi: { readonly entry: string; readonly output: string };
   readonly specs: { readonly failOn: "error" };
@@ -47,6 +53,8 @@ export const CONFIG_DEFAULTS: {
     entry: "supabase/seed.ts",
     output: "supabase/seeds/000_better_supabase.sql",
     perTenant: "supabase/seed.tenant.ts",
+    defaults: { onCreate: true, locale: "en" },
+    sample: { size: "m", seed: 1, output: "supabase/seeds/900_sample.sql" },
   },
   openapi: { entry: "src/lib/openapi.ts", output: "openapi.json" },
   specs: { failOn: "error" },

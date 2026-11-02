@@ -150,31 +150,30 @@ export interface SigningKeys {
    * Generates a key for the owner and makes it active; the previous key is
    * retired.
    */
-  create(
-    owner: SigningKeyOwner,
-    alg?: SigningAlgorithm,
-  ): AsyncResult<CreatedSigningKey>;
+  create(input: {
+    owner: SigningKeyOwner;
+    alg?: SigningAlgorithm | undefined;
+  }): AsyncResult<CreatedSigningKey>;
   /** `create` with the active key's type, or `alg` when given. */
-  rotate(
-    owner: SigningKeyOwner,
-    alg?: SigningAlgorithm,
-  ): AsyncResult<CreatedSigningKey>;
+  rotate(input: {
+    owner: SigningKeyOwner;
+    alg?: SigningAlgorithm | undefined;
+  }): AsyncResult<CreatedSigningKey>;
   /** Retires a key without a replacement. `false` when it was not active. */
   retire(kid: string): AsyncResult<boolean>;
   /** Keeps a key published until at least `exp`. `false` for an unknown kid. */
-  noteExp(kid: string, exp: Temporal.Instant): AsyncResult<boolean>;
+  noteExp(input: { kid: string; exp: Temporal.Instant }): AsyncResult<boolean>;
   /** The owner's public keys still in use, as a JWK Set. */
-  jwks(owner: SigningKeyOwner, options?: JwksOptions): AsyncResult<Jwks>;
+  jwks(input: { owner: SigningKeyOwner } & JwksOptions): AsyncResult<Jwks>;
   /** `jwks` as an `application/jwk-set+json` response with `Cache-Control`. */
   jwksResponse(
-    owner: SigningKeyOwner,
-    options?: JwksResponseOptions,
+    input: { owner: SigningKeyOwner } & JwksResponseOptions,
   ): Promise<Response>;
   /** Deletes every key of the owner. */
   remove(owner: SigningKeyOwner): AsyncResult<number>;
   /** Deletes retired keys no token can still need. */
   purge(options?: JwksOptions): AsyncResult<number>;
-  signer(owner: SigningKeyOwner, options?: SignerOptions): Signer;
+  signer(input: { owner: SigningKeyOwner } & SignerOptions): Signer;
 }
 
 interface ActiveKey {
@@ -301,7 +300,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     });
   };
 
-  const noteExp: SigningKeys["noteExp"] = (kid, exp) =>
+  const noteExp: SigningKeys["noteExp"] = ({ kid, exp }) =>
     call(
       "note_signing_key_exp",
       { kid, exp: exp.toString() },
@@ -309,8 +308,8 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     );
 
   const client: SigningKeys = {
-    create: (owner, alg = "Ed25519") => add(owner, alg),
-    rotate: (owner, alg) =>
+    create: ({ owner, alg = "Ed25519" }) => add(owner, alg),
+    rotate: ({ owner, alg }) =>
       alg === undefined
         ? stored(owner).andThen((found) => add(owner, found?.alg ?? "Ed25519"))
         : add(owner, alg),
@@ -325,14 +324,14 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
         return value === true;
       }),
     noteExp,
-    jwks: (owner, jwksOptions = {}) =>
+    jwks: ({ owner, ...jwksOptions }) =>
       call(
         "signing_jwks",
         { ...ownerArgs(owner), grace: interval(jwksOptions.grace) },
         jwksOf,
       ),
-    jwksResponse: async (owner, responseOptions = {}) => {
-      const result = await client.jwks(owner, responseOptions);
+    jwksResponse: async ({ owner, ...responseOptions }) => {
+      const result = await client.jwks({ owner, ...responseOptions });
 
       if (!result.ok) {
         return Response.json(
@@ -363,7 +362,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
         { grace: interval(purgeOptions.grace) },
         Number,
       ),
-    signer: (owner, signerOptions = {}) => ({
+    signer: ({ owner, ...signerOptions }) => ({
       owner,
       sign: (data) =>
         active(owner, signerOptions.create).andThen((key) =>
@@ -398,10 +397,10 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
 
           const note =
             until !== undefined && until > (noted.get(key.kid) ?? 0)
-              ? noteExp(
-                  key.kid,
-                  temporal().Instant.fromEpochMilliseconds(until * 1000),
-                ).map((known) => {
+              ? noteExp({
+                  kid: key.kid,
+                  exp: temporal().Instant.fromEpochMilliseconds(until * 1000),
+                }).map((known) => {
                   noted.set(key.kid, until);
 
                   return known;

@@ -104,7 +104,7 @@ function fixture(status: string) {
       get: () => AsyncResult.ok({ id: "chat1" }),
     },
     messages: {
-      appendUser: (_chatId: string, message: unknown) => {
+      appendUser: ({ message }: { chatId: string; message: unknown }) => {
         stored.push(message);
 
         return AsyncResult.ok({});

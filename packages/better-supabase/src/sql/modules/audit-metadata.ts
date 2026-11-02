@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { recordedMarkSql } from "./audit-entry.ts";
 
 /** An entry insert's columns and values, and each value by column name. */
 export interface AuditInsert {
@@ -76,7 +77,7 @@ export function storedMetadata(
  * only the mapped columns whose key the metadata has, so an omitted key leaves
  * the column to its default.
  */
-export function eventInsert(
+function insertSql(
   ctx: BlockSqlContext,
   insert: AuditInsert,
   extra: readonly (readonly [column: string, key: string])[],
@@ -119,4 +120,16 @@ export function eventInsert(
   from pg_catalog.jsonb_object_keys(entry_row) k;
   execute pg_catalog.format(${sqlString(statement)}, entry_columns, entry_columns)
     using entry_row into entry_id;`;
+}
+
+/**
+ * `insertSql`, then the mark that keeps the row trigger from auditing the
+ * record again.
+ */
+export function eventInsert(
+  ctx: BlockSqlContext,
+  insert: AuditInsert,
+  extra: readonly (readonly [column: string, key: string])[],
+): string {
+  return `${insertSql(ctx, insert, extra)}\n${recordedMarkSql()}`;
 }

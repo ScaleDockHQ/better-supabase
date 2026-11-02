@@ -113,7 +113,9 @@ describe("searchTool", () => {
         { id: "b#0", title: "Doc b", content: "b chunk 0" },
       ],
     });
-    expect(search).toHaveBeenCalledWith("org", "refunds", {
+    expect(search).toHaveBeenCalledWith({
+      organizationId: "org",
+      query: "refunds",
       k: 3,
       signal: call.abortSignal,
     });

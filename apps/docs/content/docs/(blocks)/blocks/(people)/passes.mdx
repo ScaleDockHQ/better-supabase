@@ -162,6 +162,15 @@ blocks: {
 },
 ```
 
+### Scan a token
+
+`scan({ token, jwks })` checks a scanned token in and never fails for a bad one. An unreadable, forged or expired token comes back as `{ admitted: false, reason: "invalid" | "expired" }`, the same shape as a refused scan, so a door display handles one case. Other errors are the ones `checkIn` returns.
+
+```ts
+const outcome = await passes.scan({ token, jwks }).orThrow();
+if (!outcome.admitted) show(outcome.reason);
+```
+
 ## Class credits
 
 Turn on `credits` to sell a pack of classes: a pass with `usesAllowed` and no
@@ -206,6 +215,12 @@ for the booking and scan that: scanning the pack itself counts as another use.
 | ------------------------------- | ----------------------------------------------------- |
 | `bookWithCredit(passId, input)` | Books a class and takes a credit; returns the booking |
 | `credits(passId)`               | The pass's credit ledger, newest first                |
+
+## No overlapping passes
+
+`noOverlap: true` adds the `passes_no_overlap` exclusion constraint. A holder
+can't have two active passes of the same kind and resource with overlapping
+validity. It is off by default because existing data may already overlap.
 
 ## Errors
 

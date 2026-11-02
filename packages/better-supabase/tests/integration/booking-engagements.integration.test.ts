@@ -48,51 +48,73 @@ describe.skipIf(!live)("bookings to engagements", () => {
       await s.as(owner);
 
       const resource = await bookings
-        .saveResource(org, { name: "Ann", kind: "staff", tz: "UTC" })
-        .orThrow();
-
-      await bookings
-        .setAvailability(resource.id, [
-          { weekday: 1, start: "09:00", end: "12:00" },
-        ])
-        .orThrow();
-
-      const service = await bookings
-        .saveService(org, {
-          name: "Demo",
-          duration: Temporal.Duration.from({ minutes: 30 }),
-          resourceKinds: ["staff"],
+        .saveResource({
+          organizationId: org,
+          input: { name: "Ann", kind: "staff", tz: "UTC" },
         })
         .orThrow();
 
-      const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
-
-      const ada = await parties
-        .savePerson(org, { name: "Ada", email: "ada@acme.test" })
+      await bookings
+        .setAvailability({
+          resourceId: resource.id,
+          hours: [{ weekday: 1, start: "09:00", end: "12:00" }],
+        })
         .orThrow();
 
-      await parties.linkPerson(acme.id, ada.id, { primary: true }).orThrow();
+      const service = await bookings
+        .saveService({
+          organizationId: org,
+          input: {
+            name: "Demo",
+            duration: Temporal.Duration.from({ minutes: 30 }),
+            resourceKinds: ["staff"],
+          },
+        })
+        .orThrow();
+
+      const acme = await parties
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
+
+      const ada = await parties
+        .savePerson({
+          organizationId: org,
+          input: { name: "Ada", email: "ada@acme.test" },
+        })
+        .orThrow();
+
+      await parties
+        .linkPerson({
+          companyId: acme.id,
+          personId: ada.id,
+          link: { primary: true },
+        })
+        .orThrow();
       const person = { type: "person", id: ada.id };
 
       await s.as(member);
 
       const held = await bookings
-        .hold(
-          service.id,
-          resource.id,
-          Temporal.Instant.from("2030-03-04T09:00:00Z"),
-          { name: "Ada", email: "ADA@acme.test", notes: "Wants the API tour" },
-        )
+        .hold({
+          serviceId: service.id,
+          resourceId: resource.id,
+          startsAt: Temporal.Instant.from("2030-03-04T09:00:00Z"),
+          customer: {
+            name: "Ada",
+            email: "ADA@acme.test",
+            notes: "Wants the API tour",
+          },
+        })
         .orThrow();
 
       await s.as(owner);
-      expect(await engagements.of(person).orThrow()).toEqual([]);
+      expect(await engagements.of({ subject: person }).orThrow()).toEqual([]);
 
       await s.as(member);
       await bookings.confirm(held.id).orThrow();
 
       await s.as(owner);
-      const [meeting] = await engagements.of(person).orThrow();
+      const [meeting] = await engagements.of({ subject: person }).orThrow();
 
       expect(meeting).toMatchObject({
         type: "meeting",
@@ -106,12 +128,14 @@ describe.skipIf(!live)("bookings to engagements", () => {
       expect(meeting?.doneAt).toBeUndefined();
 
       await s.as(member);
-      await bookings.cancel(held.id, "double booked").orThrow();
+      await bookings
+        .cancel({ bookingId: held.id, reason: "double booked" })
+        .orThrow();
 
       await s.as(owner);
 
       const [cancelled] = await engagements
-        .of({ type: "company", id: acme.id })
+        .of({ subject: { type: "company", id: acme.id } })
         .orThrow();
 
       expect(cancelled?.id).toBe(meeting?.id);

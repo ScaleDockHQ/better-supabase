@@ -31,7 +31,9 @@ export type RecordTypePermissions = Readonly<
 export interface PermissionsBlock extends AnyBlock {
   readonly create:
     | ((options: never) => {
-        permissions(keys: readonly string[]): AsyncResult<PermissionSet>;
+        permissions(input: {
+          keys: readonly string[];
+        }): AsyncResult<PermissionSet>;
       })
     | undefined;
 }

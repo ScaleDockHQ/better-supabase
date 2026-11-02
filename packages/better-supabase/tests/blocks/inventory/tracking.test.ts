@@ -57,13 +57,16 @@ describe("inventory tracking", () => {
 
     expect(
       await inventory
-        .setStockItem("v1", {
-          unit: "kg",
-          scale: 3,
-          tracking: "lot",
-          tracksExpiry: true,
-          costing: "average",
-          currency: "EUR",
+        .setStockItem({
+          variantId: "v1",
+          input: {
+            unit: "kg",
+            scale: 3,
+            tracking: "lot",
+            tracksExpiry: true,
+            costing: "average",
+            currency: "EUR",
+          },
         })
         .orThrow(),
     ).toEqual({
@@ -77,16 +80,18 @@ describe("inventory tracking", () => {
       averageCost: null,
     });
     expect(
-      await inventory.saveBin("l1", { code: "HOLD", hold: true }).orThrow(),
+      await inventory
+        .saveBin({ locationId: "l1", input: { code: "HOLD", hold: true } })
+        .orThrow(),
     ).toEqual({ id: "b1", code: "HOLD", hold: true, active: true });
-    expect(await inventory.saveLot("v1", "L1", "2030-02-01").orThrow()).toEqual(
-      { id: "lot1", code: "L1", expiresOn: "2030-02-01" },
-    );
-    expect(await inventory.saveLot("v1", "L2").orThrow()).toEqual({
-      id: "lot2",
-      code: "L2",
-      expiresOn: null,
-    });
+    expect(
+      await inventory
+        .saveLot({ variantId: "v1", code: "L1", expiresOn: "2030-02-01" })
+        .orThrow(),
+    ).toEqual({ id: "lot1", code: "L1", expiresOn: "2030-02-01" });
+    expect(
+      await inventory.saveLot({ variantId: "v1", code: "L2" }).orThrow(),
+    ).toEqual({ id: "lot2", code: "L2", expiresOn: null });
     expect(calls).toEqual([
       {
         fn: "set_stock_item",
@@ -131,7 +136,9 @@ describe("inventory tracking", () => {
       averageCost: null,
     });
 
-    await createInventory({ transport }).setStockItem("v1", {}).orThrow();
+    await createInventory({ transport })
+      .setStockItem({ variantId: "v1", input: {} })
+      .orThrow();
 
     expect(calls[0]?.args).toEqual({
       variant: "v1",
@@ -199,7 +206,11 @@ describe("inventory tracking", () => {
 
     const inventory = createInventory({ transport });
 
-    expect(await inventory.stockDetail("v1", "l1").orThrow()).toEqual({
+    expect(
+      await inventory
+        .stockDetail({ variantId: "v1", locationId: "l1" })
+        .orThrow(),
+    ).toEqual({
       variantId: "v1",
       locationId: "l1",
       onHand: 10.5,
@@ -220,20 +231,24 @@ describe("inventory tracking", () => {
       ],
       serials: ["SN-1"],
     });
-    expect(await inventory.expiringLots("org", "2030-03-01").orThrow()).toEqual(
-      [
-        {
-          lotId: "lot1",
-          code: "L1",
-          variantId: "v1",
-          locationId: "l1",
-          binId: null,
-          expiresOn: "2030-02-01",
-          onHand: 10,
-        },
-      ],
-    );
-    expect(await inventory.expireLots("org").orThrow()).toBe(3);
+    expect(
+      await inventory
+        .expiringLots({ organizationId: "org", before: "2030-03-01" })
+        .orThrow(),
+    ).toEqual([
+      {
+        lotId: "lot1",
+        code: "L1",
+        variantId: "v1",
+        locationId: "l1",
+        binId: null,
+        expiresOn: "2030-02-01",
+        onHand: 10,
+      },
+    ]);
+    expect(
+      await inventory.expireLots({ organizationId: "org" }).orThrow(),
+    ).toBe(3);
     expect(await inventory.stockValuation("v1").orThrow()).toEqual({
       variantId: "v1",
       costing: "average",
@@ -263,13 +278,16 @@ describe("inventory tracking", () => {
     const inventory = createInventory({ transport });
 
     const allocation = await inventory
-      .allocate("org", {
-        variantId: "v1",
-        locationId: "l1",
-        quantity: 12,
-        documentType: "order",
-        documentId: "o1",
-        lineId: "ol1",
+      .allocate({
+        organizationId: "org",
+        input: {
+          variantId: "v1",
+          locationId: "l1",
+          quantity: 12,
+          documentType: "order",
+          documentId: "o1",
+          lineId: "ol1",
+        },
       })
       .orThrow();
 
@@ -286,19 +304,37 @@ describe("inventory tracking", () => {
     expect(allocation).not.toHaveProperty("movementId");
     expect(
       await inventory
-        .fulfillAllocation("a1", 2, { lot: { code: "L1" } })
+        .fulfillAllocation({
+          allocationId: "a1",
+          quantity: 2,
+          detail: { lot: { code: "L1" } },
+        })
         .orThrow(),
     ).toMatchObject({ fulfilled: 2, movementId: "m1" });
-    expect(await inventory.restoreAllocation("a1", 1).orThrow()).toMatchObject({
-      fulfilled: 1,
-    });
     expect(
-      await inventory.releaseAllocations("org", "order", "o1").orThrow(),
+      await inventory
+        .restoreAllocation({ allocationId: "a1", quantity: 1 })
+        .orThrow(),
+    ).toMatchObject({ fulfilled: 1 });
+    expect(
+      await inventory
+        .releaseAllocations({
+          organizationId: "org",
+          documentType: "order",
+          documentId: "o1",
+        })
+        .orThrow(),
     ).toBe(1);
     expect(
-      (await inventory.listAllocations("org", "order", "o1").orThrow()).map(
-        (row) => row.status,
-      ),
+      (
+        await inventory
+          .listAllocations({
+            organizationId: "org",
+            documentType: "order",
+            documentId: "o1",
+          })
+          .orThrow()
+      ).map((row) => row.status),
     ).toEqual(["released"]);
     expect(calls).toEqual([
       {
@@ -340,11 +376,11 @@ describe("inventory tracking", () => {
   it("refuses an allocation with an unknown status", async () => {
     const { transport } = recorder([{ ...ALLOCATION, status: "lost" }]);
 
-    const result = await createInventory({ transport }).listAllocations(
-      "org",
-      "order",
-      "o1",
-    );
+    const result = await createInventory({ transport }).listAllocations({
+      organizationId: "org",
+      documentType: "order",
+      documentId: "o1",
+    });
 
     expect(result.ok).toBe(false);
   });

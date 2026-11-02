@@ -217,12 +217,18 @@ describe("createWorkflowEditor", () => {
     await builder.definitions
       .upsert({ tenant: "t1", slug: "onboard", name: "Onboard" })
       .orThrow();
-    expect(await builder.definitions.list("t1").orThrow()).toHaveLength(1);
+    expect(
+      await builder.definitions.list({ tenant: "t1" }).orThrow(),
+    ).toHaveLength(1);
     expect(await builder.definitions.get("d1").orThrow()).toBeUndefined();
     expect(await builder.definitions.remove("d1").orThrow()).toBe(true);
-    expect((await builder.versions.upsert("d1", GRAPH).orThrow()).version).toBe(
-      1,
-    );
+    expect(
+      (
+        await builder.versions
+          .upsert({ definition: "d1", graph: GRAPH })
+          .orThrow()
+      ).version,
+    ).toBe(1);
     expect(await builder.versions.list("d1").orThrow()).toHaveLength(1);
     await builder.triggers
       .upsert({ definition: "d1", kind: "webhook" })
@@ -323,21 +329,23 @@ describe("createWorkflowEditor", () => {
     });
 
     const set = await builder.definitions
-      .setPurpose("d1", "lifecycle", { isDefault: true })
+      .setPurpose({ id: "d1", purpose: "lifecycle", isDefault: true })
       .orThrow();
 
     expect(set).toMatchObject({ purpose: "lifecycle", isDefault: true });
-    await builder.definitions.setPurpose("d1", "automation").orThrow();
+    await builder.definitions
+      .setPurpose({ id: "d1", purpose: "automation" })
+      .orThrow();
 
     const resolved = await builder.definitions
-      .resolve("t1", { subjectType: "deal" })
+      .resolve({ tenant: "t1", subjectType: "deal" })
       .orThrow();
 
     expect(resolved?.definition.isDefault).toBe(true);
     expect(resolved?.version.version).toBe(1);
     expect(
       await builder.definitions
-        .resolve("t1", { purpose: "lifecycle" })
+        .resolve({ tenant: "t1", purpose: "lifecycle" })
         .orThrow(),
     ).toBeUndefined();
     expect(await builder.nodeKinds.sync().orThrow()).toBe(1);
@@ -395,15 +403,15 @@ describe("createWorkflowEditor", () => {
       compile,
     });
 
-    expect((await builder.versions.publish("v1").orThrow()).compiled).toEqual({
-      compiled: true,
-    });
+    expect(
+      (await builder.versions.publish({ version: "v1" }).orThrow()).compiled,
+    ).toEqual({ compiled: true });
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls.map((c) => c.args)).toEqual([
       { version: "v1", compiled: { compiled: true } },
     ]);
     status = "published";
-    await builder.versions.publish("v1").orThrow();
+    await builder.versions.publish({ version: "v1" }).orThrow();
     expect(compile).toHaveBeenCalledOnce();
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls).toHaveLength(1);
@@ -411,7 +419,7 @@ describe("createWorkflowEditor", () => {
     status = "draft";
     const userOnly = createWorkflowEditor({ transport, compile });
     expect(
-      (await userOnly.versions.publish("v1").orThrow()).compiled,
+      (await userOnly.versions.publish({ version: "v1" }).orThrow()).compiled,
     ).toBeUndefined();
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls).toHaveLength(1);
@@ -424,7 +432,7 @@ describe("createWorkflowEditor", () => {
     });
 
     status = "draft";
-    const result = await failing.versions.publish("v1");
+    const result = await failing.versions.publish({ version: "v1" });
     expect(!result.ok && [result.error.kind, result.error.message]).toEqual([
       "invalid_input",
       "too big",
@@ -438,7 +446,7 @@ describe("createWorkflowEditor", () => {
       },
     });
 
-    const thrown = await plain.versions.publish("v1");
+    const thrown = await plain.versions.publish({ version: "v1" });
     expect(!thrown.ok && thrown.error.message).toBe("nope");
   });
 
@@ -470,7 +478,8 @@ describe("createWorkflowEditor", () => {
 
     const claims = { sub: "u1", role: "authenticated" };
     expect(
-      (await builder.versions.publish("v1", { claims }).orThrow()).status,
+      (await builder.versions.publish({ version: "v1", claims }).orThrow())
+        .status,
     ).toBe("published");
     expect(seen).toEqual([
       {
@@ -490,11 +499,11 @@ describe("createWorkflowEditor", () => {
       return settled.ok ? undefined : settled.error.hint;
     };
 
-    expect(await hint(builder.versions.publish("v1"))).toBe(
+    expect(await hint(builder.versions.publish({ version: "v1" }))).toBe(
       "WORKFLOW_PUBLISHER_FORBIDDEN",
     );
     answer = () => false;
-    const refused = await builder.versions.publish("v1", { claims });
+    const refused = await builder.versions.publish({ version: "v1", claims });
     expect(!refused.ok && refused.error).toMatchObject({
       kind: "forbidden",
       hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
@@ -504,11 +513,14 @@ describe("createWorkflowEditor", () => {
       throw new Error("provider down");
     };
 
-    expect(await hint(builder.versions.publish("v1", { claims }))).toBe(
-      "WORKFLOW_PUBLISHER_FORBIDDEN",
-    );
+    expect(
+      await hint(builder.versions.publish({ version: "v1", claims })),
+    ).toBe("WORKFLOW_PUBLISHER_FORBIDDEN");
     answer = async () => true;
-    await builder.versions.publish("v1", { claims: { role: "service_role" } });
+    await builder.versions.publish({
+      version: "v1",
+      claims: { role: "service_role" },
+    });
     expect(seen.at(-1)).toMatchObject({ publisher: null });
     expect(
       calls.filter((c) => c.fn === "publish_workflow_version"),
@@ -516,9 +528,9 @@ describe("createWorkflowEditor", () => {
 
     status = "published";
     answer = () => false;
-    expect((await builder.versions.publish("v1").orThrow()).status).toBe(
-      "published",
-    );
+    expect(
+      (await builder.versions.publish({ version: "v1" }).orThrow()).status,
+    ).toBe("published");
 
     status = "draft";
 
@@ -533,7 +545,7 @@ describe("createWorkflowEditor", () => {
       authorization: { automation: { mayPublish: () => true } },
     });
 
-    const broken = await failing.versions.publish("v1", { claims });
+    const broken = await failing.versions.publish({ version: "v1", claims });
     expect(!broken.ok && broken.error.message).toContain("boom");
   });
 
@@ -568,7 +580,7 @@ describe("createWorkflowEditor", () => {
       },
     });
 
-    expect(await builder.versions.runAs("v1").orThrow()).toEqual({
+    expect(await builder.versions.runAs({ version: "v1" }).orThrow()).toEqual({
       sub: "u1",
       permissions: ["crm.read"],
     });
@@ -580,7 +592,7 @@ describe("createWorkflowEditor", () => {
     ]);
 
     const refusal = async () => {
-      const result = await builder.versions.runAs("v1");
+      const result = await builder.versions.runAs({ version: "v1" });
 
       return result.ok ? undefined : [result.error.kind, result.error.message];
     };
@@ -602,7 +614,7 @@ describe("createWorkflowEditor", () => {
       "The app has no service principal for this organization's workflow",
     ]);
     claims = () => ({ role: "service_principal" });
-    expect(await builder.versions.runAs("v1").orThrow()).toEqual({
+    expect(await builder.versions.runAs({ version: "v1" }).orThrow()).toEqual({
       role: "service_principal",
     });
     expect(refs.at(-1)).toEqual({
@@ -610,14 +622,14 @@ describe("createWorkflowEditor", () => {
       tenant: "t1",
       permissions: [],
     });
-    const unversioned = await builder.versions.runAs(undefined);
+    const unversioned = await builder.versions.runAs({ version: undefined });
     expect(!unversioned.ok && unversioned.error.kind).toBe("invalid_request");
 
     const unhooked = createWorkflowEditor({
       transport: fake({ workflow_run_principal: () => principal }).transport,
     });
 
-    const missing = await unhooked.versions.runAs("v1");
+    const missing = await unhooked.versions.runAs({ version: "v1" });
     expect(!missing.ok && missing.error.hint).toBe(
       "WORKFLOW_PUBLISHER_REVOKED",
     );
@@ -627,7 +639,7 @@ describe("createWorkflowEditor", () => {
       owner: "organization",
       permissions: ["crm.read"],
     };
-    expect(await unhooked.versions.runAs("v1").orThrow()).toEqual({
+    expect(await unhooked.versions.runAs({ version: "v1" }).orThrow()).toEqual({
       role: "authenticated",
       sub: "sp1",
       tenant_id: "t1",
@@ -656,12 +668,14 @@ describe("createWorkflowEditor", () => {
     });
 
     try {
-      await builder.versions.runAs("v1").orThrow();
+      await builder.versions.runAs({ version: "v1" }).orThrow();
       expect(warn).not.toHaveBeenCalled();
 
       claims = { sub: "u1", bs_permission_cap: ["crm.read"] };
-      expect(await builder.versions.runAs("v1").orThrow()).toEqual(claims);
-      await builder.versions.runAs("v1").orThrow();
+      expect(await builder.versions.runAs({ version: "v1" }).orThrow()).toEqual(
+        claims,
+      );
+      await builder.versions.runAs({ version: "v1" }).orThrow();
 
       expect(warn).toHaveBeenCalledOnce();
       expect(warn.mock.calls[0]?.[0]).toContain(
@@ -692,11 +706,15 @@ describe("createWorkflowEditor", () => {
     });
 
     const builder = createWorkflowEditor({ transport });
-    const missing = await builder.versions.publish("missing");
+    const missing = await builder.versions.publish({ version: "missing" });
     expect(!missing.ok && missing.error.kind).toBe("not_found");
-    const noDiff = await builder.versions.diff("v1", "missing");
+    const noDiff = await builder.versions.diff({ from: "v1", to: "missing" });
     expect(!noDiff.ok && noDiff.error.kind).toBe("not_found");
-    const diff = await builder.versions.diff("v1", "v2").orThrow();
+
+    const diff = await builder.versions
+      .diff({ from: "v1", to: "v2" })
+      .orThrow();
+
     expect(diff.nodes.added).toEqual([]);
     expect(diff.nodes.removed).toHaveLength(6);
     expect(await builder.versions.get("v1").orThrow()).toMatchObject({
@@ -931,7 +949,9 @@ describe("createWorkflowEditor", () => {
       [{ principalKind: "team", action: "edit" }],
     );
     expect(
-      await builder.definitions.list("t1", { subjectType: "deal" }).orThrow(),
+      await builder.definitions
+        .list({ tenant: "t1", filter: { subjectType: "deal" } })
+        .orThrow(),
     ).toMatchObject([
       {
         scope: "system",
@@ -1046,9 +1066,13 @@ describe("createWorkflowEditor", () => {
 
     const unwired = await createWorkflowEditor({
       transport,
-    }).triggers.syncSchedule(
-      triggerOf({ ...TRIGGER, kind: "schedule", config: { cron: "@daily" } }),
-    );
+    }).triggers.syncSchedule({
+      trigger: triggerOf({
+        ...TRIGGER,
+        kind: "schedule",
+        config: { cron: "@daily" },
+      }),
+    });
 
     expect(!unwired.ok && unwired.error.hint).toBe(
       "WORKFLOW_BUILDER_WORKFLOWS_CLIENT",
@@ -1060,7 +1084,10 @@ describe("createWorkflowEditor", () => {
       workflows: createWorkflows({ transport }),
     });
 
-    const bad = await builder.triggers.syncSchedule(triggerOf(TRIGGER));
+    const bad = await builder.triggers.syncSchedule({
+      trigger: triggerOf(TRIGGER),
+    });
+
     expect(!bad.ok && bad.error.kind).toBe("invalid_input");
 
     const schedule = triggerOf({
@@ -1070,14 +1097,16 @@ describe("createWorkflowEditor", () => {
     });
 
     expect(
-      await builder.triggers.syncSchedule(schedule, "t1").orThrow(),
+      await builder.triggers
+        .syncSchedule({ trigger: schedule, tenant: "t1" })
+        .orThrow(),
     ).toMatchObject({
       name: "builder-trigger:tr1",
       workflow: "builder:d1",
       tenant: "t1",
     });
     await builder.triggers
-      .syncSchedule({ ...schedule, config: { cron: "@daily" } })
+      .syncSchedule({ trigger: { ...schedule, config: { cron: "@daily" } } })
       .orThrow();
     expect(
       calls.filter((c) => c.fn === "create_workflow_schedule"),
@@ -1178,7 +1207,10 @@ describe("createWorkflowEditor", () => {
 
     expect(
       await builder.credentials
-        .authorize("c1", { redirectUri: "https://a.test/cb", state: "s" })
+        .authorize({
+          id: "c1",
+          options: { redirectUri: "https://a.test/cb", state: "s" },
+        })
         .orThrow(),
     ).toBe("https://auth.test/go");
     expect(await builder.credentials.resolve("c1").orThrow()).toMatchObject({
@@ -1190,7 +1222,10 @@ describe("createWorkflowEditor", () => {
     row = null;
 
     for (const result of [
-      await builder.credentials.authorize("c1", { redirectUri: "x" }),
+      await builder.credentials.authorize({
+        id: "c1",
+        options: { redirectUri: "x" },
+      }),
       await builder.credentials.resolve("c1"),
     ]) {
       expect(!result.ok && result.error.kind).toBe("not_found");
@@ -1218,7 +1253,10 @@ describe("createWorkflowEditor", () => {
     row = { ...CREDENTIAL, ref: { provider: "vault", tenant: "t1" } };
 
     for (const result of [
-      await builder.credentials.authorize("c1", { redirectUri: "x" }),
+      await builder.credentials.authorize({
+        id: "c1",
+        options: { redirectUri: "x" },
+      }),
       await builder.credentials.resolve("c1"),
       await builder.credentials.revoke("c1"),
     ]) {
@@ -1246,8 +1284,9 @@ describe("createWorkflowEditor", () => {
 
     const builder = createWorkflowEditor({ transport, credentials: noStore });
 
-    const authorize = await builder.credentials.authorize("c1", {
-      redirectUri: "x",
+    const authorize = await builder.credentials.authorize({
+      id: "c1",
+      options: { redirectUri: "x" },
     });
 
     expect(!authorize.ok && authorize.error.kind).toBe("unsupported");

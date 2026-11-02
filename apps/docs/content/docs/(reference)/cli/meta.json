@@ -8,6 +8,7 @@
     "dev",
     "db",
     "table",
+    "automations",
     "migrate",
     "spec",
     "powersync",
@@ -16,6 +17,7 @@
     "agent-mode",
     "mcp",
     "completion",
+    "login",
     "errors",
     "---Config---",
     "config"

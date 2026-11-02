@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:04ab57ef768728566b5461f901185233855e1d0f002d3a7870775608cd7672d5
@@ -483,7 +483,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
@@ -497,10 +497,10 @@ values ('e-prescribing', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:256b9a14273b42862cc847ed3e95ef5720114f298501a8bcaecce98da6fb595a
+-- @bsb-hash sha256:86e759ef7deb9e462c6ea6c42610a916858f5054909b850ac8139fbb927f04a2
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1029,6 +1029,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.prescriptions', target_type => 'prescription', event_prefix => 'prescription', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1042,7 +1049,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
@@ -1056,7 +1063,7 @@ values ('e-prescribing', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:c2e603278d06eaaef41d9edb087d3bd2a2cac4492c8dde5531f670fd73fa54dc
@@ -1546,7 +1553,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
@@ -1560,7 +1567,7 @@ values ('e-prescribing', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:ab24322c44f99b800c162e26de21ae8cc45a18319fe932946623177fb9b671b6
@@ -2130,7 +2137,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
@@ -2144,7 +2151,7 @@ values ('e-prescribing', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:d5f39c8256832baae462e4424d0ad1ce3d15ff76e021e50d96a5151ad744dbff
@@ -2622,7 +2629,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe
@@ -2636,7 +2643,7 @@ values ('e-prescribing', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:5a9f1dc6e59d2cd3042ed6451730a4f82b4d8d9a2c2c5e878a520ed728e4027c
@@ -3121,7 +3128,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe

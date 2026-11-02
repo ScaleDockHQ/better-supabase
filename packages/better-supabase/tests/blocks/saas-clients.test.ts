@@ -62,14 +62,24 @@ describe("saas block clients", () => {
       }),
     );
 
-    expect((await teams.create("org", "Ops", "desk").orThrow()).slug).toBe(
-      "ops",
+    expect(
+      (
+        await teams
+          .create({ organizationId: "org", name: "Ops", description: "desk" })
+          .orThrow()
+      ).slug,
+    ).toBe("ops");
+    expect((await teams.update({ id: "t1", name: "Ops" }).orThrow()).name).toBe(
+      "Ops",
     );
-    expect((await teams.update("t1", "Ops").orThrow()).name).toBe("Ops");
     expect(await teams.archive("t1").orThrow()).toBe(true);
     expect(await teams.delete("t1").orThrow()).toBe(false);
-    expect(await teams.addMember("t1", "u1").orThrow()).toBe(true);
-    expect(await teams.removeMember("t1", "u1").orThrow()).toBe(false);
+    expect(
+      await teams.addMember({ teamId: "t1", userId: "u1" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await teams.removeMember({ teamId: "t1", userId: "u1" }).orThrow(),
+    ).toBe(false);
     expect(await teams.list("org").orThrow()).toEqual([
       {
         id: "t1",
@@ -100,12 +110,12 @@ describe("saas block clients", () => {
     });
 
     await teams
-      .create("org", "Ops", undefined, undefined, { slug: "ops-desk" })
+      .create({ organizationId: "org", name: "Ops", slug: "ops-desk" })
       .orThrow();
     await teams
-      .update("t1", "Ops", undefined, undefined, { description: null })
+      .update({ id: "t1", name: "Ops", options: { description: null } })
       .orThrow();
-    await teams.update("t1", "Ops").orThrow();
+    await teams.update({ id: "t1", name: "Ops" }).orThrow();
     expect(await teams.restore("t1").orThrow()).toBe(true);
     expect(calls).toEqual([
       [
@@ -138,11 +148,24 @@ describe("saas block clients", () => {
 
   it("allocates a number from a bigint, a string, or rejects anything else", async () => {
     const numbers = createNumbering(options({ next_number: 7n }));
-    expect(await numbers.next("org", "invoice").orThrow()).toBe("7");
+    expect(
+      await numbers
+        .next({ organizationId: "org", entity: "invoice" })
+        .orThrow(),
+    ).toBe("7");
     const text = createNumbering(options({ next_number: "8" }));
-    expect(await text.next("org", "invoice", "2026-01-01").orThrow()).toBe("8");
+    expect(
+      await text
+        .next({ organizationId: "org", entity: "invoice", at: "2026-01-01" })
+        .orThrow(),
+    ).toBe("8");
     const broken = createNumbering(options({ next_number: {} }));
-    const result = await broken.next("org", "invoice");
+
+    const result = await broken.next({
+      organizationId: "org",
+      entity: "invoice",
+    });
+
     expect(result.ok).toBe(false);
   });
 
@@ -160,7 +183,9 @@ describe("saas block clients", () => {
       },
     });
 
-    await numbers.next("org", "invoice", "2026-01-01").orThrow();
+    await numbers
+      .next({ organizationId: "org", entity: "invoice", at: "2026-01-01" })
+      .orThrow();
     expect(calls).toEqual([
       { at: "2026-01-01", p_entity: "invoice", tenant: "org" },
     ]);
@@ -180,8 +205,14 @@ describe("saas block clients", () => {
       },
     });
 
-    expect(await numbers.preview("org", "invoice").orThrow()).toBe("INV-0042");
-    await numbers.preview("org", "invoice", "2026-01-01").orThrow();
+    expect(
+      await numbers
+        .preview({ organizationId: "org", entity: "invoice" })
+        .orThrow(),
+    ).toBe("INV-0042");
+    await numbers
+      .preview({ organizationId: "org", entity: "invoice", at: "2026-01-01" })
+      .orThrow();
     expect(calls).toEqual([
       ["preview_number", { p_entity: "invoice", p_tenant: "org" }],
       [
@@ -191,18 +222,26 @@ describe("saas block clients", () => {
     ]);
 
     const broken = createNumbering(options({ preview_number: 7 }));
-    expect((await broken.preview("org", "invoice")).ok).toBe(false);
+    expect(
+      (await broken.preview({ organizationId: "org", entity: "invoice" })).ok,
+    ).toBe(false);
   });
 
   it("transitions a subject", async () => {
     const machine = createStateMachine(options({ transition: true }));
     expect(
-      await machine.transition({ type: "quotes", id: "q1" }, "sent").orThrow(),
+      await machine
+        .transition({ subject: { type: "quotes", id: "q1" }, to: "sent" })
+        .orThrow(),
     ).toBe(true);
     const denied = createStateMachine(options({ transition: false }));
     expect(
       await denied
-        .transition({ type: "quotes", id: "q1" }, "sent", { reason: "nope" })
+        .transition({
+          subject: { type: "quotes", id: "q1" },
+          to: "sent",
+          reason: "nope",
+        })
         .orThrow(),
     ).toBe(false);
   });
@@ -214,11 +253,18 @@ describe("saas block clients", () => {
     });
 
     expect(
-      (await reminders.upsert({ type: "invoices", id: "i1" }).orThrow()).id,
+      (
+        await reminders
+          .upsert({ subject: { type: "invoices", id: "i1" } })
+          .orThrow()
+      ).id,
     ).toBe("r1");
     expect(
       await reminders
-        .markSent("r1", Temporal.Instant.from("2026-01-01T00:00:00Z"))
+        .markSent({
+          reminderId: "r1",
+          occurrenceAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+        })
         .orThrow(),
     ).toBe(true);
   });
@@ -281,7 +327,13 @@ describe("saas block clients", () => {
 
   it("starts an import and suggests a header mapping", async () => {
     const imports = createImports(options({ start_import: { id: "i1" } }));
-    expect((await imports.start("org", "people").orThrow()).id).toBe("i1");
+    expect(
+      (
+        await imports
+          .start({ organizationId: "org", source: "people" })
+          .orThrow()
+      ).id,
+    ).toBe("i1");
     expect(
       suggestMapping(["Full Name", "email"], ["full_name", "email"]),
     ).toEqual({ "Full Name": "full_name", email: "email" });
@@ -323,10 +375,16 @@ describe("saas block clients", () => {
           .orThrow()
       ).id,
     ).toBe("g1");
-    expect(await tags.update("g1", { name: "Gold" }).orThrow()).toBe(true);
+    expect(
+      await tags.update({ id: "g1", patch: { name: "Gold" } }).orThrow(),
+    ).toBe(true);
     expect(await tags.delete("g1").orThrow()).toBe(true);
-    expect(await tags.attach(DEAL, "g1").orThrow()).toBe(true);
-    expect(await tags.detach(DEAL, "g1").orThrow()).toBe(false);
+    expect(await tags.attach({ record: DEAL, tagId: "g1" }).orThrow()).toBe(
+      true,
+    );
+    expect(await tags.detach({ record: DEAL, tagId: "g1" }).orThrow()).toBe(
+      false,
+    );
     expect(await tags.list({ kind: "deal" }).orThrow()).toEqual([
       {
         id: "g1",
@@ -355,17 +413,27 @@ describe("saas block clients", () => {
     expect(
       (
         await fields
-          .saveDefinition("employee", "tier", "Tier", "text", true)
+          .saveDefinition({
+            entity: "employee",
+            key: "tier",
+            label: "Tier",
+            type: "text",
+            sensitive: true,
+          })
           .orThrow()
       ).id,
     ).toBe("d1");
     expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
-    expect(await fields.readValues(EMPLOYEE).orThrow()).toEqual([
+    expect(await fields.readValues({ subject: EMPLOYEE }).orThrow()).toEqual([
       { key: "tier" },
     ]);
-    expect((await fields.setValue(EMPLOYEE, "d1", "gold").orThrow()).id).toBe(
-      "v1",
-    );
+    expect(
+      (
+        await fields
+          .setValue({ subject: EMPLOYEE, definitionId: "d1", value: "gold" })
+          .orThrow()
+      ).id,
+    ).toBe("v1");
   });
 
   it("lists an entity's field definitions", async () => {
@@ -435,18 +503,26 @@ describe("saas block clients", () => {
 
     const tags = createTags({ transport });
     expect(
-      await tags.reorder("g1", { previous: "V", next: "W" }).orThrow(),
+      await tags
+        .reorder({ id: "g1", neighbors: { previous: "V", next: "W" } })
+        .orThrow(),
     ).toBe("VV");
     const fields = createCustomFields({ transport });
-    expect(await fields.reorderDefinition("d1", { next: "V" }).orThrow()).toBe(
-      "F",
-    );
+    expect(
+      await fields
+        .reorderDefinition({ id: "d1", neighbors: { next: "V" } })
+        .orThrow(),
+    ).toBe("F");
     expect(calls).toEqual([
       { fn: "rank_tag", args: { tag_id: "g1", rank: "VV" } },
       { fn: "rank_field_definition", args: { definition: "d1", rank: "F" } },
     ]);
 
-    const wrong = await tags.reorder("g1", { previous: "W", next: "V" });
+    const wrong = await tags.reorder({
+      id: "g1",
+      neighbors: { previous: "W", next: "V" },
+    });
+
     expect(wrong.ok ? null : wrong.error).toMatchObject({
       kind: "invalid_request",
       hint: "RANK_KEY_INVALID",

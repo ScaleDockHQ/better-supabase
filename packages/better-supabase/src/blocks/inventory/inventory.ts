@@ -8,6 +8,7 @@ import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { InventoryCounts } from "./counts.ts";
 import type { InventoryProcurement } from "./procurement.ts";
+import type { InventoryReads } from "./reads.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
 import { detailArg } from "../../commerce/stock-detail.ts";
@@ -28,6 +29,7 @@ import {
 } from "../shared.ts";
 import { inventoryCounts } from "./counts.ts";
 import { inventoryProcurement } from "./procurement.ts";
+import { inventoryReads } from "./reads.ts";
 import { inventoryTracking } from "./tracking.ts";
 
 export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
@@ -201,69 +203,76 @@ export interface Receipt {
 
 /** `F` types the locations' extra columns, from the `fields` schema. */
 export interface Inventory<F extends object = Record<never, never>>
-  extends InventoryTracking, InventoryProcurement, InventoryCounts {
-  saveLocation(
-    organizationId: string,
-    input: LocationInput<F>,
-  ): AsyncResult<SavedLocation<F>>;
+  extends
+    InventoryTracking,
+    InventoryProcurement,
+    InventoryCounts,
+    InventoryReads {
+  saveLocation(input: {
+    organizationId: string;
+    input: LocationInput<F>;
+  }): AsyncResult<SavedLocation<F>>;
   /** An inactive location takes no new reservations or transfers. */
-  setLocationActive(locationId: string, active: boolean): AsyncResult<boolean>;
+  setLocationActive(input: {
+    locationId: string;
+    active: boolean;
+  }): AsyncResult<boolean>;
   /**
    * Sets a location's address, or clears it with null. Refused with
    * `INVENTORY_ADDRESS_INVALID` for a key besides the ones of `LocationAddress`
    * or a country that isn't a two-letter capital code.
    */
-  setLocationAddress(
-    locationId: string,
-    address: LocationAddress | null,
-  ): AsyncResult<boolean>;
+  setLocationAddress(input: {
+    locationId: string;
+    address: LocationAddress | null;
+  }): AsyncResult<boolean>;
   /** Refused with `INVENTORY_LOCATION_IN_USE` once it has stock history. */
   deleteLocation(locationId: string): AsyncResult<boolean>;
   /**
    * Writes a movement of `quantity` (negative to remove). Emits
    * `stock.adjusted`.
    */
-  adjustStock(
-    variantId: string,
-    locationId: string,
-    quantity: number,
-    reason: AdjustReason,
-    note?: string,
-    detail?: StockDetail,
-  ): AsyncResult<StockChange>;
+  adjustStock(input: {
+    variantId: string;
+    locationId: string;
+    quantity: number;
+    reason: AdjustReason;
+    note?: string | undefined;
+    detail?: StockDetail | undefined;
+  }): AsyncResult<StockChange>;
   /**
    * Sets on-hand to a counted number and writes the difference as a `count`
    * movement. With a bin or lot in `detail`, counts that bucket only.
    */
-  countStock(
-    variantId: string,
-    locationId: string,
-    counted: number,
-    note?: string,
-    detail?: StockDetail,
-  ): AsyncResult<StockCount>;
+  countStock(input: {
+    variantId: string;
+    locationId: string;
+    counted: number;
+    note?: string | undefined;
+    detail?: StockDetail | undefined;
+  }): AsyncResult<StockCount>;
   /** Emits `stock.reorder_point_reached` when available stock drops to it. */
-  setReorderPoint(
-    variantId: string,
-    locationId: string,
-    reorderPoint: number,
-  ): AsyncResult<boolean>;
+  setReorderPoint(input: {
+    variantId: string;
+    locationId: string;
+    reorderPoint: number;
+  }): AsyncResult<boolean>;
   /** Holds stock until it is committed, released or expires. */
-  reserve(
-    variantId: string,
-    locationId: string,
-    input: ReserveInput,
-  ): AsyncResult<Reservation>;
+  reserve(input: {
+    variantId: string;
+    locationId: string;
+    input: ReserveInput;
+  }): AsyncResult<Reservation>;
   /** Turns a hold into a `sale` movement. Resolves to the movement id. */
   commitReservation(reservationId: string): AsyncResult<string>;
   /** Resolves to `false` when the hold was already closed. */
   releaseReservation(reservationId: string): AsyncResult<boolean>;
   /** Releases expired holds. Service only. Resolves to the number released. */
   expireReservations(maxRows?: number): AsyncResult<number>;
-  createTransfer(
-    organizationId: string,
-    input: TransferInput,
-  ): AsyncResult<{ readonly id: string }>;
+  createTransfer(input: {
+    organizationId: string;
+    input: TransferInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** Takes the stock out of the source location. */
   shipTransfer(transferId: string): AsyncResult<boolean>;
   /** Puts the stock into the destination location. */
@@ -271,17 +280,17 @@ export interface Inventory<F extends object = Record<never, never>>
   /** Returns shipped stock to the source location. */
   cancelTransfer(transferId: string): AsyncResult<boolean>;
   /** Creates or updates a draft purchase order. */
-  savePurchaseOrder(
-    organizationId: string,
-    input: PurchaseOrderInput,
-  ): AsyncResult<{ readonly id: string }>;
+  savePurchaseOrder(input: {
+    organizationId: string;
+    input: PurchaseOrderInput;
+  }): AsyncResult<{ readonly id: string }>;
   /** Marks the order as ordered and counts its lines as incoming stock. */
   placePurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** Receives some or all of the ordered units; the rest stay on backorder. */
-  receivePurchaseOrder(
-    purchaseOrderId: string,
-    lines: readonly ReceiptLine[],
-  ): AsyncResult<Receipt>;
+  receivePurchaseOrder(input: {
+    purchaseOrderId: string;
+    lines: readonly ReceiptLine[];
+  }): AsyncResult<Receipt>;
   cancelPurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** The handler for a scheduled job that runs `expireReservations`. */
   readonly job: JobHandler<unknown>;
@@ -358,7 +367,7 @@ export function createInventory<
     service("expire_reservations", { max_rows: maxRows ?? null }, Number);
 
   const inventory: Inventory<F> = {
-    saveLocation: (organizationId, input) =>
+    saveLocation: ({ organizationId, input }) =>
       AsyncResult.from(() =>
         input.fields === undefined
           ? Promise.resolve(ok(undefined))
@@ -397,16 +406,17 @@ export function createInventory<
                 fields: value,
               }));
         }),
-    setLocationActive: (locationId, active) =>
+    setLocationActive: ({ locationId, active }) =>
       call("set_location_active", { location: locationId, active }, isTrue),
-    setLocationAddress: (locationId, address) =>
+    setLocationAddress: ({ locationId, address }) =>
       call("set_location_address", { location: locationId, address }, isTrue),
     deleteLocation: (locationId) =>
       call("delete_location", { location: locationId }, isTrue),
     ...inventoryTracking(call),
     ...inventoryCounts(call),
     ...inventoryProcurement(call),
-    adjustStock: (variantId, locationId, quantity, reason, note, detail) =>
+    ...inventoryReads(call),
+    adjustStock: ({ variantId, locationId, quantity, reason, note, detail }) =>
       call(
         "adjust_stock",
         {
@@ -419,7 +429,7 @@ export function createInventory<
         },
         stockChangeOf,
       ),
-    countStock: (variantId, locationId, counted, note, detail) =>
+    countStock: ({ variantId, locationId, counted, note, detail }) =>
       call(
         "count_stock",
         {
@@ -439,7 +449,7 @@ export function createInventory<
           };
         },
       ),
-    setReorderPoint: (variantId, locationId, reorderPoint) =>
+    setReorderPoint: ({ variantId, locationId, reorderPoint }) =>
       call(
         "set_reorder_point",
         {
@@ -449,7 +459,7 @@ export function createInventory<
         },
         isTrue,
       ),
-    reserve: (variantId, locationId, input) =>
+    reserve: ({ variantId, locationId, input }) =>
       call(
         "reserve_stock",
         {
@@ -477,7 +487,7 @@ export function createInventory<
     releaseReservation: (reservationId) =>
       call("release_reservation", { reservation: reservationId }, isTrue),
     expireReservations,
-    createTransfer: (organizationId, input) =>
+    createTransfer: ({ organizationId, input }) =>
       call(
         "create_transfer",
         {
@@ -499,7 +509,7 @@ export function createInventory<
       call("receive_transfer", { transfer: transferId }, isTrue),
     cancelTransfer: (transferId) =>
       call("cancel_transfer", { transfer: transferId }, isTrue),
-    savePurchaseOrder: (organizationId, input) => {
+    savePurchaseOrder: ({ organizationId, input }) => {
       const lines = purchaseLines(input);
 
       if (typeof lines === "string") {
@@ -528,7 +538,7 @@ export function createInventory<
     },
     placePurchaseOrder: (purchaseOrderId) =>
       call("place_purchase_order", { purchase_order: purchaseOrderId }, isTrue),
-    receivePurchaseOrder: (purchaseOrderId, lines) =>
+    receivePurchaseOrder: ({ purchaseOrderId, lines }) =>
       call(
         "receive_purchase_order",
         {

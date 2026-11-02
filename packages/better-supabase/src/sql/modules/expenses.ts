@@ -13,6 +13,7 @@ import {
   accountingContributions,
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
+import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { expenseAccountingSources } from "./expenses-accounting.ts";
@@ -86,6 +87,7 @@ const EVENTS: BlockSqlEvents<ExpensesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  links: [link("project", "reference", "expense_line", "tasks", "project")],
   entities: {
     expense_report: {
       table: "reports",

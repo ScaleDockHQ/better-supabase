@@ -38,10 +38,10 @@ export const loadConversations = bsb.action(
   async ({ status, assignee }, { tenant, db }) => {
     const filter: ConversationFilter = { status, limit: 50 };
 
-    const listed = await db.inbox.conversations.list(
+    const listed = await db.inbox.conversations.list({
       tenant,
-      assignee === "anyone" ? filter : { ...filter, assignee },
-    );
+      filter: assignee === "anyone" ? filter : { ...filter, assignee },
+    });
 
     return listed.ok ? ok(listed.data.map(toConversationRow)) : listed;
   },
@@ -58,7 +58,7 @@ export const loadThread = bsb.action(
 
     const [conversation, messages] = await Promise.all([
       inbox.conversations.get(conversationId),
-      inbox.messages.list(conversationId, { limit: 100 }),
+      inbox.messages.list({ conversationId, limit: 100 }),
     ]);
 
     if (!conversation.ok) {
@@ -111,9 +111,9 @@ export const loadMessage = bsb.action(
 export const saveDraft = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
   async ({ conversationId, body, note }, { db }) => {
-    const saved = await db.inbox.drafts.upsert(conversationId, {
-      body,
-      kind: note ? "note" : "message",
+    const saved = await db.inbox.drafts.upsert({
+      conversationId,
+      input: { body, kind: note ? "note" : "message" },
     });
 
     return saved.ok ? ok(saved.data.id) : saved;
@@ -127,8 +127,8 @@ export const reply = bsb.action(
     const { messages } = db.inbox;
 
     const sent = note
-      ? await messages.note(conversationId, body)
-      : await messages.send(conversationId, { body });
+      ? await messages.note({ conversationId, body })
+      : await messages.send({ conversationId, input: { body } });
 
     return sent.ok ? ok(sent.data.id) : sent;
   },
@@ -137,8 +137,9 @@ export const reply = bsb.action(
 export const assign = bsb.action(
   { input: v.object({ conversationId: Id, toMe: v.boolean() }) },
   async ({ conversationId, toMe }, { auth, db }) => {
-    const assigned = await db.inbox.conversations.assign(conversationId, {
-      assigneeId: toMe && auth.kind === "user" ? auth.user.id : null,
+    const assigned = await db.inbox.conversations.assign({
+      conversationId,
+      to: { assigneeId: toMe && auth.kind === "user" ? auth.user.id : null },
     });
 
     return assigned.ok ? ok(assigned.data.assigneeId) : assigned;
@@ -149,10 +150,10 @@ export const assign = bsb.action(
 export const takeOver = bsb.action(
   { input: ConversationInput },
   async ({ conversationId }, { db }) => {
-    const changed = await db.inbox.conversations.handoff(
+    const changed = await db.inbox.conversations.handoff({
       conversationId,
-      "staff took over",
-    );
+      reason: "staff took over",
+    });
 
     return changed.ok ? ok(changed.data.botMode) : changed;
   },
@@ -175,10 +176,10 @@ export const setStatus = bsb.action(
 export const snooze = bsb.action(
   { input: v.object({ conversationId: Id, until: Later }) },
   async ({ conversationId, until }, { db }) => {
-    const changed = await db.inbox.conversations.snooze(
+    const changed = await db.inbox.conversations.snooze({
       conversationId,
-      laterInstant(until),
-    );
+      until: laterInstant(until),
+    });
 
     return changed.ok ? ok(changed.data.status) : changed;
   },
@@ -198,11 +199,11 @@ export const loadScheduled = bsb.action(
 export const scheduleReply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, at: Later }) },
   async ({ conversationId, body, at }, { db }) => {
-    const scheduled = await db.inbox.messages.schedule(
+    const scheduled = await db.inbox.messages.schedule({
       conversationId,
-      { body },
-      laterInstant(at),
-    );
+      input: { body },
+      at: laterInstant(at),
+    });
 
     return scheduled.ok ? ok(scheduled.data.id) : scheduled;
   },
@@ -221,10 +222,9 @@ export const cancelScheduled = bsb.action(
 export const askForHelp = bsb.action(
   { input: v.object({ message: Body }) },
   async ({ message }, { auth, db, supabase }) => {
-    const opened = await db.inbox.conversations.open(HELP_INBOX_ID, {
-      subject: message.slice(0, 80),
-      message,
-      botMode: "bot",
+    const opened = await db.inbox.conversations.open({
+      inboxId: HELP_INBOX_ID,
+      input: { subject: message.slice(0, 80), message, botMode: "bot" },
     });
 
     if (!opened.ok) {
@@ -244,8 +244,9 @@ export const askForHelp = bsb.action(
 export const sendHelp = bsb.action(
   { input: v.object({ conversationId: Id, message: Body }) },
   async ({ conversationId, message }, { auth, db, supabase }) => {
-    const sent = await db.inbox.messages.send(conversationId, {
-      body: message,
+    const sent = await db.inbox.messages.send({
+      conversationId,
+      input: { body: message },
     });
 
     if (!sent.ok) {

@@ -271,3 +271,7 @@ const carePlans = createCarePlans({ transport, tenant: organizationId });
 
 const plans = await carePlans.list("contact", clientId).orThrow();
 ```
+
+## Create a whole plan
+
+`createTree({ plan, problems })` creates the plan, then each problem with its `goals` and their `actions`, and returns the plan as `get` reads it. It stops at the first failure and keeps what it saved.

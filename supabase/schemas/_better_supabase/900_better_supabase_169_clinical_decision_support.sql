@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:be2bd8215a1ce7e69bd27b280464145aecdc163392a66a121a10f8ca81dc497c
+-- @bsb-hash sha256:3f02fa0a5d0353ce59e4fb3648546112e0a9326893bb23f7dd68b87e686c165d
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -931,6 +931,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts"
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.care_alerts', target_type => 'care_alert', event_prefix => 'care_alert', deferred => true);
+  perform better_supabase.audit('better_supabase.care_rules', target_type => 'care_rule', event_prefix => 'care_rule', deferred => true);
+end;
+$$;
 
 -- blocks.clinical-decision-support.api: entry points for the Data API.
 create schema if not exists "api";

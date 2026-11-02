@@ -77,26 +77,25 @@ export interface InventoryProcurement {
    * opens an approval request under the organization's policy. Emits
    * `purchase_requisition.created`.
    */
-  requestPurchase(
-    organizationId: string,
-    input: RequisitionInput,
-  ): AsyncResult<PurchaseRequisition>;
+  requestPurchase(input: {
+    organizationId: string;
+    input: RequisitionInput;
+  }): AsyncResult<PurchaseRequisition>;
   /**
    * Approves or rejects a pending requisition without an approval request.
    * Needs `inventory.purchase`. Emits `purchase_requisition.approved`.
    */
-  decidePurchaseRequisition(
-    requisitionId: string,
-    approve: boolean,
-  ): AsyncResult<PurchaseRequisition>;
+  decidePurchaseRequisition(input: {
+    requisitionId: string;
+    approve: boolean;
+  }): AsyncResult<PurchaseRequisition>;
   /**
    * A draft purchase order from approved requisitions of one location, their
    * lines summed per variant. The supplier and currency default to the ones the
    * requisitions share.
    */
   purchaseOrderFromRequisitions(
-    requisitionIds: readonly string[],
-    options?: {
+    input: { requisitionIds: readonly string[] } & {
       readonly supplier?: { readonly type: string; readonly id: string };
       readonly currency?: string;
     },
@@ -151,7 +150,7 @@ function requisitionOf(value: unknown): PurchaseRequisition {
 
 export function inventoryProcurement(call: BlockCall): InventoryProcurement {
   return {
-    requestPurchase: (organizationId, input) =>
+    requestPurchase: ({ organizationId, input }) =>
       call(
         "request_purchase",
         {
@@ -175,13 +174,13 @@ export function inventoryProcurement(call: BlockCall): InventoryProcurement {
         },
         requisitionOf,
       ),
-    decidePurchaseRequisition: (requisitionId, approve) =>
+    decidePurchaseRequisition: ({ requisitionId, approve }) =>
       call(
         "decide_purchase_requisition",
         { requisition: requisitionId, approve },
         requisitionOf,
       ),
-    purchaseOrderFromRequisitions: (requisitionIds, options = {}) =>
+    purchaseOrderFromRequisitions: ({ requisitionIds, ...options }) =>
       call(
         "purchase_order_from_requisitions",
         {

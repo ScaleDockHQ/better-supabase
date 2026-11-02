@@ -96,12 +96,15 @@ const notesBlock = defineBlock({
 });
 
 interface Keys {
-  permissions(
-    keys: readonly string[],
-  ): AsyncResult<{ readonly tenant: string; readonly keys: readonly string[] }>;
+  permissions(input: {
+    keys: readonly string[];
+  }): AsyncResult<{
+    readonly tenant: string;
+    readonly keys: readonly string[];
+  }>;
 }
 
-const permissionsCall = vi.fn((keys: readonly string[]) =>
+const permissionsCall = vi.fn(({ keys }: { keys: readonly string[] }) =>
   resolved({
     tenant: "org",
     keys: keys.filter(
@@ -175,11 +178,9 @@ describe("recordServer", () => {
   it("loads bindings as plain data with the caller's flags", async () => {
     const view = await customer.load("7");
 
-    expect(permissionsCall).toHaveBeenCalledWith([
-      "notes.read",
-      "notes.create",
-      "notes.moderate",
-    ]);
+    expect(permissionsCall).toHaveBeenCalledWith({
+      keys: ["notes.read", "notes.create", "notes.moderate"],
+    });
     expect(view).toEqual({
       subject: { type: "customer", id: "7" },
       bindings: {

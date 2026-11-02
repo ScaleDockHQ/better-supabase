@@ -112,7 +112,7 @@ describe("signatures client", () => {
       .orThrow();
 
     const signed = await signatures
-      .sign("r1", { method: "typed", typedName: "Ada" })
+      .sign({ requestId: "r1", input: { method: "typed", typedName: "Ada" } })
       .orThrow();
 
     expect(signed).toMatchObject({
@@ -121,11 +121,16 @@ describe("signatures client", () => {
       requestStatus: "pending",
     });
     expect(signed.imageAttachmentId).toBeUndefined();
-    await signatures.sign("r1", { method: "drawn", imageAttachmentId: "i1" });
-    await signatures.sign("r1", { method: "click" });
+    await signatures.sign({
+      requestId: "r1",
+      input: { method: "drawn", imageAttachmentId: "i1" },
+    });
+    await signatures.sign({ requestId: "r1", input: { method: "click" } });
 
-    expect((await signatures.decline("r1").orThrow()).status).toBe("declined");
-    await signatures.decline("r1", "Wrong terms");
+    expect(
+      (await signatures.decline({ requestId: "r1" }).orThrow()).status,
+    ).toBe("declined");
+    await signatures.decline({ requestId: "r1", reason: "Wrong terms" });
     const cancelled = await signatures.cancel("r1").orThrow();
     expect(cancelled.completedAt?.toString()).toBe(AT);
 
@@ -139,8 +144,11 @@ describe("signatures client", () => {
       signatures: [{ id: "s1", signer: "u1", valid: true }],
     });
 
-    expect(await signatures.list("o").orThrow()).toHaveLength(1);
-    await signatures.list("o", {
+    expect(
+      await signatures.list({ organizationId: "o" }).orThrow(),
+    ).toHaveLength(1);
+    await signatures.list({
+      organizationId: "o",
       subjectType: "contract",
       subjectId: "c1",
       status: "pending",

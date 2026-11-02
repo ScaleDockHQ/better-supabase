@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
@@ -31,6 +32,7 @@ import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberingBlock } from "better-supabase/blocks/numbering";
@@ -41,6 +43,7 @@ import { contactsBlock } from "better-supabase/blocks/contacts";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { relationsBlock } from "better-supabase/blocks/relations";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -52,6 +55,7 @@ import { blockConfig } from "./ehs.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
@@ -80,6 +84,7 @@ export const blockSet = defineBlocks(blockConfig, {
   forms: formsBlock,
   signatures: signaturesBlock,
   inventory: inventoryBlock,
+  queue: queueBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numbering: numberingBlock,
@@ -90,6 +95,7 @@ export const blockSet = defineBlocks(blockConfig, {
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
   relations: relationsBlock,
+  reminders: remindersBlock,
   settings: settingsBlock,
   stateMachine: stateMachineBlock,
   subjects: subjectsBlock,

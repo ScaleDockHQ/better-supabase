@@ -86,12 +86,15 @@ describe.skipIf(!live)(
         await s.as("member");
 
         const stored = await notifications
-          .send("task.assigned", {
-            tenant: organization,
-            recipients: [USERS.owner],
-            subject: { type: "task", id: "t1", label: "Close the books" },
-            data: { title: "Close the books" },
-            channels: ["in_app", "email"],
+          .send({
+            type: "task.assigned",
+            input: {
+              tenant: organization,
+              recipients: [USERS.owner],
+              subject: { type: "task", id: "t1", label: "Close the books" },
+              data: { title: "Close the books" },
+              channels: ["in_app", "email"],
+            },
           })
           .orThrow();
 
@@ -178,7 +181,10 @@ describe.skipIf(!live)(
           }),
         });
 
-        const secret = await webhooks.rotateSecret(destination!.id).orThrow();
+        const secret = await webhooks
+          .rotateSecret({ endpointId: destination!.id })
+          .orThrow();
+
         expect(
           await s.rows(
             "select secret from centrakit.webhook_destination_secrets where destination_id = $1",
@@ -198,11 +204,15 @@ describe.skipIf(!live)(
         });
 
         await outbox
-          .register("webhooks", { types: ["notification.*"], fromStart: true })
+          .register({
+            consumer: "webhooks",
+            types: ["notification.*"],
+            fromStart: true,
+          })
           .orThrow();
-        expect(await outbox.relay("webhooks", webhooks.sink())).toEqual({
-          delivered: 1,
-        });
+        expect(
+          await outbox.relay({ consumer: "webhooks", sink: webhooks.sink() }),
+        ).toEqual({ delivered: 1 });
 
         const [delivery] = await s.rows<{
           event_id: string;

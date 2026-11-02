@@ -1,0 +1,48 @@
+---
+title: Procurement
+description: Requests for quotation, inventory, invoices and banking, with one helper that pays the bills that are due.
+---
+
+Covers buying: send a request for quotation, receive stock, record purchase bills and pay them from the bank.
+
+```bash
+better-supabase add procurement
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { procurement: {} } });
+```
+
+`add` lists `procurement` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/procurement` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { procurementBlock } from "better-supabase/blocks/procurement";
+```
+
+## Parts
+
+Installing `procurement` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`rfqs`](/docs/blocks/rfqs)
+- [`inventory`](/docs/blocks/inventory)
+- [`invoices`](/docs/blocks/invoices)
+- [`banking`](/docs/blocks/banking)
+
+## Helpers
+
+`payDueBills({ batch, sepa })` batches the bills due by the date in `batch`, posts the batch to the books, and with `sepa` exports the bank file. A bill that needs approval refuses the batch before anything posts. It returns the batch and the SEPA file or `null`.
+
+```ts
+const paid = await blocks.procurement
+  .payDueBills({ batch: { dueBy: Temporal.PlainDate.from("2026-12-31") } })
+  .orThrow();
+```
+
+## Remove
+
+```bash
+better-supabase remove procurement
+better-supabase remove procurement --with-parts
+```
+
+The first command replaces `procurement` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

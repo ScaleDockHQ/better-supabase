@@ -385,7 +385,9 @@ export function createPartnerApi(
     installation: string,
     id: string,
   ): Promise<MarketplaceResource> => {
-    const resource = await data(marketplace.resource(installation, id));
+    const resource = await data(
+      marketplace.resource({ configurationId: installation, externalId: id }),
+    );
 
     return resource === undefined || resource.status === "deleted"
       ? fail(
@@ -434,10 +436,10 @@ export function createPartnerApi(
     }
 
     await data(
-      marketplace.deleteResource(
-        installation.configurationId,
-        resource.externalId,
-      ),
+      marketplace.deleteResource({
+        configurationId: installation.configurationId,
+        externalId: resource.externalId,
+      }),
     );
   };
 
@@ -520,7 +522,9 @@ export function createPartnerApi(
         );
 
         if (token !== undefined) {
-          await data(marketplace.sealAccessToken(id, token));
+          await data(
+            marketplace.sealAccessToken({ configurationId: id, token }),
+          );
         }
 
         const linked = await options.install?.({

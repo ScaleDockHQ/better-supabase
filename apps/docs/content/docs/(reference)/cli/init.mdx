@@ -266,6 +266,10 @@ and the command that turns the files into a migration.
 `better-supabase blocks list` shows the names. `--force` overwrites files
 that exist.
 
+A composite block such as `crm` or `finance` is listed in `blocks` by its own
+name, and `add` writes the modules of all its parts ([Composite
+blocks](/docs/extending/composite-blocks)).
+
 A new block can change the SQL of blocks you already have: organizations
 renders its audit triggers once audit is installed, and entitlements reads
 plan quotas once billing is. `add` renders those installed blocks again, writes
@@ -341,6 +345,7 @@ Side effects: Writes files, reads the database with `--adopt`, calls the Supabas
 ```bash
 pnpm better-supabase remove comments --dry-run
 pnpm better-supabase remove comments tags
+pnpm better-supabase remove crm --with-parts
 ```
 
 `remove` takes blocks out of `blocks` in the config and out of
@@ -351,6 +356,11 @@ that drops their tables, so you can read the `drop` statements before they
 run. `--dry-run` prints what it would change, and `--check` exits 1 while
 the files still differ. A module file edited by hand stays, and the command
 exits 1 naming it; `--force` deletes it anyway.
+
+Removing a composite block keeps its parts: `remove crm` replaces `crm` in
+`blocks` with the blocks it was made of. `--with-parts` removes the parts too,
+except any part another installed block or composite still needs. `--with-parts`
+on a name that is not a composite is a usage error.
 
 Side effects: Writes files.
 

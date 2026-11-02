@@ -114,10 +114,13 @@ describe("createPush", () => {
     const devices = createPush({ transport: t });
     expect(
       await devices
-        .recordTickets("dl1", [
-          { token: "a", id: "r1" },
-          { token: "b", error: "MessageTooBig", message: "too big" },
-        ])
+        .recordTickets({
+          deliveryId: "dl1",
+          tickets: [
+            { token: "a", id: "r1" },
+            { token: "b", error: "MessageTooBig", message: "too big" },
+          ],
+        })
         .orThrow(),
     ).toBe(2);
     expect(call).toHaveBeenLastCalledWith(

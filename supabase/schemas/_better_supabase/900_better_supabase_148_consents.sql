@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@2 managed
--- @bsb-hash sha256:9e7deb46e28cac78412a62ef48d7791b3db3de17d2b8f093caa9bddae9c9e01f
+-- @bsb-hash sha256:f62abd38e5f8a828fc02dc52921b59345807fd043b191b1f70fa8b49caebda49
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1624,6 +1624,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_rece
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.consents', target_type => 'consent', event_prefix => 'consent', deferred => true);
+  perform better_supabase.audit('better_supabase.consent_purposes', target_type => 'consent_purpose', event_prefix => 'consent_purpose', deferred => true);
+end;
+$$;
 
 -- blocks.consents.api: entry points for the Data API.
 create schema if not exists "api";

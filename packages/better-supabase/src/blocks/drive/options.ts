@@ -73,6 +73,12 @@ export type DriveSqlOptions = {
   readonly quota?: DriveQuota;
   readonly control?: DriveControl;
   readonly sync?: DriveSync;
+  /**
+   * Adds a stored `search_tsv` column and a GIN index to the extracted file
+   * texts, so queries match with `search_tsv @@ websearch_to_tsquery('simple',
+   * ...)`. Default `false`.
+   */
+  readonly searchColumn?: boolean;
 };
 
 export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
@@ -96,4 +102,5 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     quota: option.unknown<DriveQuota>(),
     control: option.unknown<DriveControl>(),
     sync: option.unknown<DriveSync>(),
+    searchColumn: option.boolean({ default: false }),
   });

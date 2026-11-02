@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:e04b77f36ef29926cd87a41a918af5c5471c8a3bb2efada8dd242cd9b8c3c091
+-- @bsb-hash sha256:7a188de1a03af7202cf73ab71e88b88416961a2f3c122bd36e70d132c34b163e
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1945,6 +1945,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.time_entries', target_type => 'time_entry', event_prefix => 'time_entry', deferred => true);
+  perform better_supabase.audit('better_supabase.timesheets', target_type => 'timesheet', event_prefix => 'timesheet', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

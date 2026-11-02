@@ -788,12 +788,15 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       const stored = await notifications
-        .send("task.assigned", {
-          tenant: organization,
-          recipients: [USERS.member, USERS.owner],
-          subject: { type: "task", id: "t9", label: "Paint" },
-          data: { title: "Paint" },
-          channels: ["in_app", "email"],
+        .send({
+          type: "task.assigned",
+          input: {
+            tenant: organization,
+            recipients: [USERS.member, USERS.owner],
+            subject: { type: "task", id: "t9", label: "Paint" },
+            data: { title: "Paint" },
+            channels: ["in_app", "email"],
+          },
         })
         .orThrow();
 
@@ -837,14 +840,16 @@ describe.skipIf(!live)("notifications", () => {
       expect(read.items[0]).toMatchObject({ id: item!.id, eventId: id });
       expect(read.items[0]!.readAt).not.toBeNull();
       expect(
-        await notifications.get(item!.id, { include: ["actor"] }).orThrow(),
+        await notifications
+          .get({ id: item!.id, options: { include: ["actor"] } })
+          .orThrow(),
       ).toMatchObject({
         id: item!.id,
         text: { title: "Assigned: Paint" },
         actor: { id: USERS.owner },
       });
       await s.as("owner");
-      expect(await notifications.get(item!.id).orThrow()).toBeNull();
+      expect(await notifications.get({ id: item!.id }).orThrow()).toBeNull();
 
       await s.as("service");
       expect(await notifications.deliver()).toEqual({
@@ -924,12 +929,15 @@ describe.skipIf(!live)("notifications", () => {
         summary: string,
       ) =>
         notifications
-          .send(type, {
-            tenant: organization,
-            recipients: [USERS.member],
-            subject,
-            summary,
-            data: { title: summary },
+          .send({
+            type,
+            input: {
+              tenant: organization,
+              recipients: [USERS.member],
+              subject,
+              summary,
+              data: { title: summary },
+            },
           })
           .orThrow();
 
@@ -1026,7 +1034,7 @@ describe.skipIf(!live)("notifications", () => {
       expect(
         await notifications.markUnread({ ids: [fence.id] }).orThrow(),
       ).toEqual({ count: 0, items: [] });
-      expect(await notifications.get(fence.id).orThrow()).toBeNull();
+      expect(await notifications.get({ id: fence.id }).orThrow()).toBeNull();
       expect(
         await notifications.page({ tenant: organization }).orThrow(),
       ).toEqual({ items: [], total: 0 });

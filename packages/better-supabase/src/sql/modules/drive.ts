@@ -39,6 +39,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "drive_shared", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "drive_path", args: ["uuid"], returns: "jsonb" },
+    { name: "drive_node_access", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "drive_search",
+      args: ["{id}", "text", "integer"],
+      returns: "jsonb",
+    },
     {
       name: "drive_move",
       args: ["uuid", "uuid", "text", "text", "uuid"],

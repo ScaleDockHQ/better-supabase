@@ -320,12 +320,25 @@ describe.skipIf(!live)("reviews module", () => {
       const reviews = createReviews({ transport: sqlTransport(s.sql) });
 
       const submitted = await reviews
-        .submit(tenant, "ticket", ticket!.id, { rating: 3 })
+        .submit({
+          organizationId: tenant,
+          subjectType: "ticket",
+          subjectId: ticket!.id,
+          input: { rating: 3 },
+        })
         .orThrow();
 
       expect(submitted).toMatchObject({ status: "pending", verified: false });
       expect(
-        (await reviews.mine(tenant, "ticket", ticket!.id).orThrow())?.rating,
+        (
+          await reviews
+            .mine({
+              organizationId: tenant,
+              subjectType: "ticket",
+              subjectId: ticket!.id,
+            })
+            .orThrow()
+        )?.rating,
       ).toBe(3);
     } finally {
       await s.close();

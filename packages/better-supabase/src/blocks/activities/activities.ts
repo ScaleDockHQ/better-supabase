@@ -141,24 +141,26 @@ export interface Activities<F extends object = Record<never, never>> {
    * Logs an engagement on the records in `subjects`, the first being its main
    * record.
    */
-  log(
-    organizationId: string,
+  log(input: {
+    organizationId: string;
     input: EngagementInput<F> & {
       readonly type: string;
       readonly title: string;
-    },
-    subjects: readonly EngagementSubject[],
-  ): AsyncResult<Engagement<F>>;
+    };
+    subjects: readonly EngagementSubject[];
+  }): AsyncResult<Engagement<F>>;
   /** Changes an engagement, and its records when `subjects` is given. */
-  update(
-    id: string,
-    input: EngagementInput<F>,
-    subjects?: readonly EngagementSubject[],
-  ): AsyncResult<Engagement<F>>;
+  update(input: {
+    id: string;
+    input: EngagementInput<F>;
+    subjects?: readonly EngagementSubject[] | undefined;
+  }): AsyncResult<Engagement<F>>;
   /** Marks it done now, with an outcome, or open again with `done: false`. */
   complete(
-    id: string,
-    options?: { readonly done?: boolean; readonly outcome?: string },
+    input: { id: string } & {
+      readonly done?: boolean;
+      readonly outcome?: string;
+    },
   ): AsyncResult<Engagement<F>>;
   remove(id: string): AsyncResult<boolean>;
   /**
@@ -166,16 +168,15 @@ export interface Activities<F extends object = Record<never, never>> {
    * with `body`, on the same records, with the same type, title and audience. A
    * locked note changes this way only.
    */
-  amend(id: string, body: string): AsyncResult<Engagement<F>>;
+  amend(input: { id: string; body: string }): AsyncResult<Engagement<F>>;
   /**
    * Flags an engagement as entered in error with a reason. The row stays and
    * locks. The author, the owner and members with `activities.manage` may.
    */
-  markError(id: string, reason: string): AsyncResult<Engagement<F>>;
+  markError(input: { id: string; reason: string }): AsyncResult<Engagement<F>>;
   /** A record's engagements, newest first (50 by default, at most 200). */
   of(
-    subject: EngagementSubject,
-    options?: {
+    input: { subject: EngagementSubject } & {
       readonly types?: readonly string[];
       readonly before?: Temporal.Instant;
       readonly limit?: number;
@@ -185,8 +186,7 @@ export interface Activities<F extends object = Record<never, never>> {
   next(subject: EngagementSubject): AsyncResult<Engagement<F> | undefined>;
   /** A member's open engagements, earliest due first. Default: the caller's. */
   open(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly ownerId?: string;
       readonly dueBefore?: Temporal.Instant;
       readonly limit?: number;
@@ -198,29 +198,30 @@ export interface Activities<F extends object = Record<never, never>> {
    * `engagements.transcribe`.
    */
   attachRecording(
-    engagementId: string,
-    fileId: string,
-    options?: { readonly language?: string },
+    input: { engagementId: string; fileId: string } & {
+      readonly language?: string;
+    },
   ): AsyncResult<EngagementRecording>;
   /** An engagement's recordings, oldest first. */
   recordings(engagementId: string): AsyncResult<EngagementRecording[]>;
   /** A recording's speaker turns in order (500 by default, at most 5000). */
   transcript(
-    recordingId: string,
-    options?: { readonly after?: number; readonly limit?: number },
+    input: { recordingId: string } & {
+      readonly after?: number;
+      readonly limit?: number;
+    },
   ): AsyncResult<TranscriptSegment[]>;
   /** Replaces a recording's transcript, from a transcriber or an import. */
-  saveTranscript(
-    recordingId: string,
-    transcript: Transcript & { readonly model?: string },
-  ): AsyncResult<EngagementRecording>;
+  saveTranscript(input: {
+    recordingId: string;
+    transcript: Transcript & { readonly model?: string };
+  }): AsyncResult<EngagementRecording>;
   /**
    * Transcribes a recording with `transcriber`, reading the file through
    * `files`, and saves the result. Runs on `service` when given.
    */
   transcribe(
-    recordingId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { recordingId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<EngagementRecording>;
   /**
    * The handler for the `engagements.transcribe` queue. The last attempt marks
@@ -238,17 +239,16 @@ export interface Activities<F extends object = Record<never, never>> {
   /** The engagement's notes, or `undefined`. */
   notes(engagementId: string): AsyncResult<EngagementNotes | undefined>;
   /** Saves notes a member wrote, replacing earlier ones. */
-  saveNotes(
-    engagementId: string,
-    notes: EngagementNotesInput,
-  ): AsyncResult<EngagementNotes>;
+  saveNotes(input: {
+    engagementId: string;
+    notes: EngagementNotesInput;
+  }): AsyncResult<EngagementNotes>;
   /**
    * Writes the engagement's notes with `noteTaker` from its transcripts and
    * saves them.
    */
   summarize(
-    engagementId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { engagementId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<EngagementNotes>;
 }
 
@@ -427,10 +427,10 @@ export function createActivities<
     }));
   };
 
-  const saveTranscript: Activities<F>["saveTranscript"] = (
+  const saveTranscript: Activities<F>["saveTranscript"] = ({
     recordingId,
     transcript,
-  ) =>
+  }) =>
     service(
       "save_activity_transcript",
       {
@@ -445,10 +445,10 @@ export function createActivities<
       recordingOf,
     );
 
-  const transcribe: Activities<F>["transcribe"] = (
+  const transcribe: Activities<F>["transcribe"] = ({
     recordingId,
-    transcribeOptions = {},
-  ) => {
+    ...transcribeOptions
+  }) => {
     const { files } = options;
 
     if (transcriber === undefined) {
@@ -501,9 +501,9 @@ export function createActivities<
         ),
       )
       .andThen((transcript) =>
-        saveTranscript(recordingId, {
-          ...transcript,
-          model: transcriber.model,
+        saveTranscript({
+          recordingId,
+          transcript: { ...transcript, model: transcriber.model },
         }),
       );
   };
@@ -516,7 +516,7 @@ export function createActivities<
     );
 
   const client: Activities<F> = {
-    log: (organizationId, input, subjects) =>
+    log: ({ organizationId, input, subjects }) =>
       checked(input)
         .andThen((attrs) =>
           call(
@@ -526,7 +526,7 @@ export function createActivities<
           ),
         )
         .andThen(parsed),
-    update: (id, input, subjects) =>
+    update: ({ id, input, subjects }) =>
       checked(input)
         .andThen((attrs) =>
           call(
@@ -540,7 +540,7 @@ export function createActivities<
           ),
         )
         .andThen(parsed),
-    complete: (id, complete = {}) =>
+    complete: ({ id, ...complete }) =>
       call(
         "complete_activity",
         {
@@ -552,17 +552,17 @@ export function createActivities<
       ).andThen(parsed),
     remove: (id) =>
       call("delete_activity", { engagement: id }, (value) => value === true),
-    amend: (id, body) =>
+    amend: ({ id, body }) =>
       call("amend_activity", { engagement: id, body }, engagementOf).andThen(
         parsed,
       ),
-    markError: (id, reason) =>
+    markError: ({ id, reason }) =>
       call(
         "mark_activity_error",
         { engagement: id, reason },
         engagementOf,
       ).andThen(parsed),
-    of: (subject, list = {}) =>
+    of: ({ subject, ...list }) =>
       call(
         "activities_of",
         {
@@ -582,7 +582,7 @@ export function createActivities<
       ).andThen((found) =>
         found === undefined ? AsyncResult.ok(undefined) : parsed(found),
       ),
-    open: (organizationId, list = {}) =>
+    open: ({ organizationId, ...list }) =>
       call(
         "open_activities",
         {
@@ -593,7 +593,7 @@ export function createActivities<
         },
         (value) => recordsOf(value, "open_activities").map(engagementOf),
       ).andThen(parsedAll),
-    attachRecording: (engagementId, fileId, attach = {}) =>
+    attachRecording: ({ engagementId, fileId, ...attach }) =>
       call(
         "attach_activity_recording",
         {
@@ -607,7 +607,7 @@ export function createActivities<
       call("activity_recordings", { engagement: engagementId }, (value) =>
         recordsOf(value, "activity_recordings").map(recordingOf),
       ),
-    transcript: (recordingId, page = {}) =>
+    transcript: ({ recordingId, ...page }) =>
       call(
         "activity_transcript",
         {
@@ -620,7 +620,10 @@ export function createActivities<
     saveTranscript,
     transcribe,
     transcribeJob: () => async (payload, job, signal) => {
-      const result = await transcribe(payload.recordingId, { signal });
+      const result = await transcribe({
+        recordingId: payload.recordingId,
+        signal,
+      });
 
       if (result.ok) {
         return;
@@ -646,10 +649,10 @@ export function createActivities<
               break;
             }
 
-            const result = await transcribe(
-              id,
-              drain.signal === undefined ? {} : { signal: drain.signal },
-            );
+            const result = await transcribe({
+              recordingId: id,
+              ...(drain.signal === undefined ? {} : { signal: drain.signal }),
+            });
 
             if (result.ok) {
               done += 1;
@@ -665,7 +668,7 @@ export function createActivities<
       call("activity_notes", { engagement: engagementId }, (value) =>
         value === null ? undefined : notesOf(value),
       ),
-    saveNotes: (engagementId, notes) =>
+    saveNotes: ({ engagementId, notes }) =>
       call(
         "save_activity_notes",
         {
@@ -674,7 +677,7 @@ export function createActivities<
         },
         notesOf,
       ),
-    summarize: (engagementId, summarizeOptions = {}) => {
+    summarize: ({ engagementId, ...summarizeOptions }) => {
       if (noteTaker === undefined) {
         return missing("note taker", "ENGAGEMENT_NO_NOTE_TAKER");
       }

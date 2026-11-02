@@ -94,7 +94,7 @@ describe.skipIf(!live)("templates module", () => {
         },
       });
 
-      const [system] = await templates.list(null).orThrow();
+      const [system] = await templates.list({ organizationId: null }).orThrow();
       expect(system).toMatchObject({
         scope: "system",
         key: "launch",
@@ -107,7 +107,10 @@ describe.skipIf(!live)("templates module", () => {
           .then(hint),
       ).toBe("TEMPLATE_FORBIDDEN");
 
-      const fork = await templates.fork(system!.id, tenant).orThrow();
+      const fork = await templates
+        .fork({ source: system!.id, organizationId: tenant })
+        .orThrow();
+
       expect(fork).toMatchObject({
         scope: "tenant",
         organizationId: tenant,
@@ -127,7 +130,7 @@ describe.skipIf(!live)("templates module", () => {
       expect((await templates.get(fork.id).orThrow())?.behind).toBe(true);
 
       const draft = await templates.versions
-        .upsert(fork.id, { tasks: ["Kickoff", "Plan"] })
+        .upsert({ template: fork.id, body: { tasks: ["Kickoff", "Plan"] } })
         .orThrow();
 
       expect(draft).toMatchObject({ version: 2, publishedAt: undefined });
@@ -137,7 +140,7 @@ describe.skipIf(!live)("templates module", () => {
       expect(await templates.versions.publish(fork.id).then(hint)).toBe(
         "TEMPLATE_NO_DRAFT",
       );
-      expect(await templates.setDefault(fork.id).orThrow()).toBe(true);
+      expect(await templates.setDefault({ id: fork.id }).orThrow()).toBe(true);
 
       const definition = await builder.definitions
         .upsert({
@@ -149,7 +152,9 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       const version = await builder.versions
-        .upsert(definition.id, GRAPH, {
+        .upsert({
+          definition: definition.id,
+          graph: GRAPH,
           inputSchema: {
             type: "object",
             required: ["owner"],
@@ -159,7 +164,7 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       expect(version.inputSchema).toMatchObject({ required: ["owner"] });
-      await builder.versions.publish(version.id).orThrow();
+      await builder.versions.publish({ version: version.id }).orThrow();
       expect(
         await templates.workflows
           .attach({ template: fork.id, definition: definition.id })
@@ -174,9 +179,11 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       await s.asRole(outsider);
-      expect(await templates.apply(fork.id, { into: tenant }).then(hint)).toBe(
-        "TEMPLATE_FORBIDDEN",
-      );
+      expect(
+        await templates
+          .apply({ template: fork.id, options: { into: tenant } })
+          .then(hint),
+      ).toBe("TEMPLATE_FORBIDDEN");
 
       await s.asRole(member);
       expect(
@@ -191,7 +198,7 @@ describe.skipIf(!live)("templates module", () => {
       ).toBe("TEMPLATE_FORBIDDEN");
 
       const applied = await templates
-        .apply(fork.id, { into: tenant })
+        .apply({ template: fork.id, options: { into: tenant } })
         .orThrow();
 
       expect(created[0]?.body).toEqual({ tasks: ["Kickoff", "Plan"] });
@@ -202,7 +209,11 @@ describe.skipIf(!live)("templates module", () => {
       expect(starts).toHaveLength(0);
 
       await s.asRole(owner);
-      const second = await templates.apply(fork.id, { into: tenant }).orThrow();
+
+      const second = await templates
+        .apply({ template: fork.id, options: { into: tenant } })
+        .orThrow();
+
       expect(second.subject).toEqual({ type: "project", id: "p2" });
       expect(second.runs).toEqual([
         { definition: definition.id, runId: "wrun_1" },
@@ -215,7 +226,10 @@ describe.skipIf(!live)("templates module", () => {
       });
       expect(
         await templates.applications
-          .list(tenant, { subject: { type: "project", id: "p1" } })
+          .list({
+            organizationId: tenant,
+            filter: { subject: { type: "project", id: "p1" } },
+          })
           .orThrow(),
       ).toMatchObject([{ id: applied.application.id, appliedBy: member.id }]);
 
@@ -263,7 +277,9 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       const version = await builder.versions
-        .upsert(definition.id, GRAPH, {
+        .upsert({
+          definition: definition.id,
+          graph: GRAPH,
           inputSchema: {
             type: "object",
             required: ["owner"],
@@ -272,7 +288,7 @@ describe.skipIf(!live)("templates module", () => {
         })
         .orThrow();
 
-      await builder.versions.publish(version.id).orThrow();
+      await builder.versions.publish({ version: version.id }).orThrow();
 
       const attach = (inputs: Record<string, unknown>) =>
         templates.workflows.attach({
@@ -291,7 +307,9 @@ describe.skipIf(!live)("templates module", () => {
         { definition: definition.id, inputs: { owner: "ada" } },
       ]);
       expect(
-        await templates.workflows.detach(template.id, definition.id).orThrow(),
+        await templates.workflows
+          .detach({ template: template.id, definition: definition.id })
+          .orThrow(),
       ).toBe(true);
     } finally {
       await s.close();

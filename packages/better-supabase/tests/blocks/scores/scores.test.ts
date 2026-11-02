@@ -272,12 +272,12 @@ describe("createScores", () => {
     const lead = { type: "lead", id: "l1" };
 
     const computed = await scores
-      .compute(
-        "lead",
-        lead,
-        { stage: "qualified" },
-        { timeZone: "Europe/Amsterdam" },
-      )
+      .compute({
+        modelKey: "lead",
+        subject: lead,
+        fields: { stage: "qualified" },
+        timeZone: "Europe/Amsterdam",
+      })
       .orThrow();
 
     expect(computed).toMatchObject({
@@ -295,11 +295,13 @@ describe("createScores", () => {
     });
     expect(computed.computedAt.toString()).toBe(AT);
 
-    await scores.compute("lead", lead, {}).orThrow();
+    await scores
+      .compute({ modelKey: "lead", subject: lead, fields: {} })
+      .orThrow();
     expect(await scores.list({ on: lead }).orThrow()).toHaveLength(1);
 
     const [, old] = await scores
-      .history("lead", lead, { pageSize: 5 })
+      .history({ modelKey: "lead", subject: lead, pageSize: 5 })
       .orThrow();
 
     expect(old).toMatchObject({
@@ -310,11 +312,11 @@ describe("createScores", () => {
     expect(old?.band).toBeUndefined();
     expect(old?.modelName).toBeUndefined();
 
-    await scores.history("lead", lead).orThrow();
+    await scores.history({ modelKey: "lead", subject: lead }).orThrow();
     await scores
-      .top("lead", { band: "hot", minScore: 10, pageSize: 3 })
+      .top({ modelKey: "lead", band: "hot", minScore: 10, pageSize: 3 })
       .orThrow();
-    await scores.top("lead").orThrow();
+    await scores.top({ modelKey: "lead" }).orThrow();
 
     expect(fake.calls.map(([fn, args]) => [fn, args])).toEqual([
       [
@@ -392,7 +394,7 @@ describe("createScores", () => {
 
     expect((await scores.models()).ok).toBe(false);
     expect((await scores.saveModel({ key: "x" })).ok).toBe(false);
-    expect((await scores.top("lead")).ok).toBe(false);
+    expect((await scores.top({ modelKey: "lead" })).ok).toBe(false);
     expect(fake.calls).toEqual([]);
   });
 });

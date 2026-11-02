@@ -293,3 +293,7 @@ const funding = createFunding({ transport, service: serviceTransport });
 
 const open = await funding.claims(organizationId, { status: "sent" }).orThrow();
 ```
+
+## Awards with usage
+
+`awardsWithUsage({ organizationId, subject })` reads the awards, then the usage of each one, and returns `{ award, usage }` rows.

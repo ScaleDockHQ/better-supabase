@@ -140,11 +140,11 @@ export interface Guests {
    * Lets a guest reach one record. Needs `guests.manage`; the record must be in
    * the guest's organization.
    */
-  grant(
-    guestId: string,
-    subject: RecordRef,
-    input?: GuestGrantInput,
-  ): AsyncResult<GuestGrant>;
+  grant(input: {
+    guestId: string;
+    subject: RecordRef;
+    input?: GuestGrantInput | undefined;
+  }): AsyncResult<GuestGrant>;
   /** `false` when the grant is gone or the caller can't manage it. */
   revokeGrant(grantId: string): AsyncResult<boolean>;
   /** The guests who reach a record. The record decides the tenant. */
@@ -152,7 +152,10 @@ export interface Guests {
   /** What the caller reaches as a guest, for a portal's home page. */
   mine(): AsyncResult<readonly GuestMembership[]>;
   /** Whether the caller reaches a record as a guest for an action. */
-  can(subject: RecordRef, action?: GuestAction): AsyncResult<boolean>;
+  can(input: {
+    subject: RecordRef;
+    action?: GuestAction | undefined;
+  }): AsyncResult<boolean>;
 }
 
 const STATUSES: readonly GuestStatus[] = ["invited", "active", "revoked"];
@@ -267,7 +270,7 @@ export function createGuests(options: GuestsOptions): Guests {
             ),
         ),
       ),
-    grant: (guestId, subject, input = {}) =>
+    grant: ({ guestId, subject, input = {} }) =>
       call(
         "grant_guest_access",
         {
@@ -304,7 +307,7 @@ export function createGuests(options: GuestsOptions): Guests {
           ),
         })),
       ),
-    can: (subject, action = "read") =>
+    can: ({ subject, action = "read" }) =>
       call(
         "guest_can",
         { subject_type: subject.type, subject_id: subject.id, action },

@@ -65,6 +65,10 @@ breaking ones.
   PowerSync, the `psa`, `ats` and `intranet` presets, and on
   [drive](/docs/blocks/drive) a retention sweep per label, a changes feed and
   a WOPI host.
+- **Declared composition:** blocks declare their links, row-level concerns
+  and automations in manifests and module names, and composite blocks compose
+  other blocks and add glue, helpers and one-call reads. See
+  [ADR 0196](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0196-declared-composition.md).
 - **One naming convention** (breaking): entity keys equal the entity's
   singular, event types are `<entity>.<past verb>`, module tables and the task
   and activity foreign key columns follow their entity, inbox contacts are

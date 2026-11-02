@@ -165,16 +165,22 @@ describe("createCompliance", () => {
     const controls = createCompliance({ transport: t });
 
     const saved = await controls
-      .saveFramework("org-1", {
-        key: "soc2",
-        name: "SOC 2",
-        version: "2017",
-        description: "Trust services criteria",
+      .saveFramework({
+        organizationId: "org-1",
+        input: {
+          key: "soc2",
+          name: "SOC 2",
+          version: "2017",
+          description: "Trust services criteria",
+        },
       })
       .orThrow();
 
     await controls
-      .saveFramework("org-1", { key: "iso", name: "ISO", kind: "legal" })
+      .saveFramework({
+        organizationId: "org-1",
+        input: { key: "iso", name: "ISO", kind: "legal" },
+      })
       .orThrow();
 
     const [, bare] = await controls.frameworks("org-1").orThrow();
@@ -340,9 +346,12 @@ describe("createCompliance", () => {
     const t = fieldsTransport({ list_controls: () => [CONTROL, BARE_CONTROL] });
     const controls = createCompliance({ transport: t });
 
-    expect(await controls.controls("org-1").orThrow()).toHaveLength(2);
+    expect(
+      await controls.controls({ organizationId: "org-1" }).orThrow(),
+    ).toHaveLength(2);
     await controls
-      .controls("org-1", {
+      .controls({
+        organizationId: "org-1",
         frameworkId: "f1",
         status: "failing",
         ownerId: "u1",
@@ -383,15 +392,22 @@ describe("createCompliance", () => {
     const controls = createCompliance({ transport: t });
 
     await controls
-      .addEvidence("c1", {
-        attachmentId: "a1",
-        note: "Export",
-        validUntil: Temporal.PlainDate.from("2027-01-20"),
-        evidenceTaskId: "t1",
+      .addEvidence({
+        controlId: "c1",
+        input: {
+          attachmentId: "a1",
+          note: "Export",
+          validUntil: Temporal.PlainDate.from("2027-01-20"),
+          evidenceTaskId: "t1",
+        },
       })
       .orThrow();
-    await controls.addEvidence("c1", { note: "Checked" }).orThrow();
-    await controls.addEvidence("c1", { attachmentId: "a2" }).orThrow();
+    await controls
+      .addEvidence({ controlId: "c1", input: { note: "Checked" } })
+      .orThrow();
+    await controls
+      .addEvidence({ controlId: "c1", input: { attachmentId: "a2" } })
+      .orThrow();
 
     const removed = await controls.removeEvidence("e2").orThrow();
 
@@ -441,23 +457,32 @@ describe("createCompliance", () => {
     const controls = createCompliance({ transport: t });
 
     await controls
-      .saveEvidenceTask("c1", {
-        title: "Quarterly access review",
-        intervalDays: 90,
-        dueOn: Temporal.PlainDate.from("2026-10-01"),
-        assigneeId: "u1",
-        active: false,
-        evidenceTaskId: "t1",
+      .saveEvidenceTask({
+        controlId: "c1",
+        input: {
+          title: "Quarterly access review",
+          intervalDays: 90,
+          dueOn: Temporal.PlainDate.from("2026-10-01"),
+          assigneeId: "u1",
+          active: false,
+          evidenceTaskId: "t1",
+        },
       })
       .orThrow();
     await controls
-      .saveEvidenceTask("c1", { title: "Pen test", intervalDays: 365 })
+      .saveEvidenceTask({
+        controlId: "c1",
+        input: { title: "Pen test", intervalDays: 365 },
+      })
       .orThrow();
 
-    const [, bare] = await controls.evidenceTasks("org-1").orThrow();
+    const [, bare] = await controls
+      .evidenceTasks({ organizationId: "org-1" })
+      .orThrow();
 
     await controls
-      .evidenceTasks("org-1", {
+      .evidenceTasks({
+        organizationId: "org-1",
         controlId: "c1",
         assigneeId: "u1",
         overdueOnly: true,
@@ -535,9 +560,13 @@ describe("createCompliance", () => {
 
     const controls = createCompliance({ transport: t });
 
-    const [soc2, iso] = await controls.posture("org-1").orThrow();
+    const [soc2, iso] = await controls
+      .posture({ organizationId: "org-1" })
+      .orThrow();
 
-    await controls.posture("org-1", "f1").orThrow();
+    await controls
+      .posture({ organizationId: "org-1", frameworkId: "f1" })
+      .orThrow();
 
     expect(soc2).toMatchObject({ version: "2017", failing: 2, total: 10 });
     expect(iso).toEqual({
@@ -568,25 +597,41 @@ describe("createCompliance", () => {
     const controls = createCompliance({ transport: t });
 
     const saved = await controls
-      .savePolicy("org-1", {
-        key: "security",
-        title: "Information security policy",
-        ownerId: "u1",
-        requiresAcknowledgement: false,
-        policyId: "p1",
+      .savePolicy({
+        organizationId: "org-1",
+        input: {
+          key: "security",
+          title: "Information security policy",
+          ownerId: "u1",
+          requiresAcknowledgement: false,
+          policyId: "p1",
+        },
       })
       .orThrow();
 
     await controls
-      .savePolicy("org-1", { key: "travel", title: "Travel" })
+      .savePolicy({
+        organizationId: "org-1",
+        input: { key: "travel", title: "Travel" },
+      })
       .orThrow();
-    await controls.publishPolicy("p1", { body: "Text" }).orThrow();
-    await controls.publishPolicy("p1", { body: "Text" }, "2026").orThrow();
+    await controls
+      .publishPolicy({ policyId: "p1", content: { body: "Text" } })
+      .orThrow();
+    await controls
+      .publishPolicy({
+        policyId: "p1",
+        content: { body: "Text" },
+        label: "2026",
+      })
+      .orThrow();
 
     const archived = await controls.archivePolicy("p2").orThrow();
 
-    await controls.policies("org-1").orThrow();
-    await controls.policies("org-1", { includeArchived: true }).orThrow();
+    await controls.policies({ organizationId: "org-1" }).orThrow();
+    await controls
+      .policies({ organizationId: "org-1", includeArchived: true })
+      .orThrow();
 
     expect(saved).toMatchObject({
       versionId: "v1",
@@ -658,11 +703,15 @@ describe("createCompliance", () => {
 
     expect((await controls.getControl("c2")).ok).toBe(false);
     expect(
-      (await controls.saveEvidenceTask("c1", { title: "x", intervalDays: 1 }))
-        .ok,
+      (
+        await controls.saveEvidenceTask({
+          controlId: "c1",
+          input: { title: "x", intervalDays: 1 },
+        })
+      ).ok,
     ).toBe(false);
 
-    const listed = await controls.controls("org-1");
+    const listed = await controls.controls({ organizationId: "org-1" });
 
     expect(listed.ok ? undefined : listed.error.kind).toBe("validation");
   });

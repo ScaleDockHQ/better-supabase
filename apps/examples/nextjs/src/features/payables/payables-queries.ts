@@ -34,7 +34,12 @@ async function loadPayables(): Promise<PayablesAging | null> {
   const asOf = Temporal.Now.plainDateISO("UTC");
 
   const aging = await db.invoices
-    .aging(tenant, SHOP_CURRENCY, asOf, "purchase")
+    .aging({
+      organizationId: tenant,
+      currency: SHOP_CURRENCY,
+      asOf,
+      direction: "purchase",
+    })
     .orThrow();
 
   return {

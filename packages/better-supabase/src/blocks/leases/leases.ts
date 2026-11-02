@@ -173,12 +173,15 @@ export interface Leases<F extends object = Record<never, never>> {
    */
   activate(leaseId: string): AsyncResult<Lease<F>>;
   /** Extends an active lease with an end, optionally at a new rent. */
-  renew(leaseId: string, renewal: LeaseRenewal): AsyncResult<Lease<F>>;
+  renew(input: {
+    leaseId: string;
+    renewal: LeaseRenewal;
+  }): AsyncResult<Lease<F>>;
   /** Ends a lease, captures any deduction from the deposit and refunds the rest. */
-  terminate(
-    leaseId: string,
-    termination?: LeaseTermination,
-  ): AsyncResult<Lease<F>>;
+  terminate(input: {
+    leaseId: string;
+    termination?: LeaseTermination | undefined;
+  }): AsyncResult<Lease<F>>;
   /** Needs `leases.read`. */
   get(leaseId: string): AsyncResult<Lease<F>>;
   list(options?: LeaseListOptions): AsyncResult<readonly Lease<F>[]>;
@@ -188,14 +191,13 @@ export interface Leases<F extends object = Record<never, never>> {
    */
   postDueRent(options?: PostDueRentOptions): AsyncResult<number>;
   /** Moves a payment from the lease's balance due to rent received. */
-  recordPayment(
-    leaseId: string,
-    payment: RentPaymentInput,
-  ): AsyncResult<RentPayment>;
+  recordPayment(input: {
+    leaseId: string;
+    payment: RentPaymentInput;
+  }): AsyncResult<RentPayment>;
   /** The rent periods posted, newest first. */
   charges(
-    leaseId: string,
-    options?: { readonly pageSize?: number },
+    input: { leaseId: string } & { readonly pageSize?: number },
   ): AsyncResult<readonly LeaseCharge[]>;
 }
 
@@ -346,7 +348,7 @@ export function createLeases<
         { lease_id: leaseId },
         lease("activate_lease"),
       ).andThen(fields.row),
-    renew: (leaseId, renewal) =>
+    renew: ({ leaseId, renewal }) =>
       call(
         "renew_lease",
         {
@@ -356,7 +358,7 @@ export function createLeases<
         },
         lease("renew_lease"),
       ).andThen(fields.row),
-    terminate: (leaseId, termination = {}) =>
+    terminate: ({ leaseId, termination = {} }) =>
       call(
         "terminate_lease",
         {
@@ -408,7 +410,7 @@ export function createLeases<
           },
         ),
       ),
-    recordPayment: (leaseId, payment) =>
+    recordPayment: ({ leaseId, payment }) =>
       call(
         "record_rent_payment",
         {
@@ -432,7 +434,7 @@ export function createLeases<
           };
         },
       ),
-    charges: (leaseId, list = {}) =>
+    charges: ({ leaseId, ...list }) =>
       call(
         "list_lease_charges",
         { lease_id: leaseId, page_size: list.pageSize ?? null },

@@ -36,11 +36,14 @@ describe("connectors fields", () => {
     const connectors = createConnectors({ transport: t, fields: Fields });
 
     const created = await connectors.servers
-      .create("o1", {
-        name: "GitHub",
-        url: "https://mcp.example.com",
-        authType: "none",
-        fields: { region: "eu" },
+      .create({
+        organizationId: "o1",
+        server: {
+          name: "GitHub",
+          url: "https://mcp.example.com",
+          authType: "none",
+          fields: { region: "eu" },
+        },
       })
       .orThrow();
 
@@ -53,14 +56,18 @@ describe("connectors fields", () => {
       auth_type: "none",
     });
     await connectors.servers
-      .update("o1", "s1", { fields: { region: "us" } })
+      .update({
+        organizationId: "o1",
+        serverId: "s1",
+        fields: { fields: { region: "us" } },
+      })
       .orThrow();
     expect(t.calls[1]?.[1]["fields"]).toEqual({ region: "us" });
     const list = await connectors.servers.list("o1").orThrow();
     expect(list.map((server) => server.fields.region)).toEqual(["eu", "eu"]);
-    expect((await connectors.servers.get("s1").orThrow()).fields).toEqual({
-      region: "eu",
-    });
+    expect(
+      (await connectors.servers.get({ serverId: "s1" }).orThrow()).fields,
+    ).toEqual({ region: "eu" });
   });
 
   it("refuses a bad field before the call and a bad row after it", async () => {
@@ -70,13 +77,15 @@ describe("connectors fields", () => {
 
     const connectors = createConnectors({ transport: t, fields: Fields });
 
-    const updated = await connectors.servers.update("o1", "s1", {
-      fields: { region: "mars" as never },
+    const updated = await connectors.servers.update({
+      organizationId: "o1",
+      serverId: "s1",
+      fields: { fields: { region: "mars" as never } },
     });
 
     expect(updated.ok ? undefined : updated.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
-    const got = await connectors.servers.get("s1");
+    const got = await connectors.servers.get({ serverId: "s1" });
     expect(got.ok ? undefined : got.error.kind).toBe("validation");
   });
 });

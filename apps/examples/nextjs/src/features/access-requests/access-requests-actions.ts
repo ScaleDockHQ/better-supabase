@@ -68,8 +68,8 @@ export const decideAccessRequest = bsb.action(
 
     const decided =
       decision === "approve"
-        ? await approvals.approve(approvalId)
-        : await approvals.reject(approvalId);
+        ? await approvals.approve({ id: approvalId })
+        : await approvals.reject({ id: approvalId });
 
     if (!decided.ok) {
       return decided;

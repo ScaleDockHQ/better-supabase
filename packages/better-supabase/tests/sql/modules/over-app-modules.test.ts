@@ -118,6 +118,7 @@ const MODULES = [
   "warehouse",
   "rfqs",
   "tills",
+  "periods",
   "clinical-decision-support",
   "e-prescribing",
   "agent-checkout",

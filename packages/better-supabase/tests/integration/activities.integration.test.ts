@@ -49,23 +49,30 @@ describe.skipIf(!live)("engagements", () => {
       const engagements = createActivities({ transport });
 
       await s.as(rep);
-      const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
-      const ada = await parties.savePerson(org, { name: "Ada" }).orThrow();
+
+      const acme = await parties
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
+
+      const ada = await parties
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
+        .orThrow();
+
       const company = { type: "company", id: acme.id };
       const person = { type: "person", id: ada.id };
 
       const call = await engagements
-        .log(
-          org,
-          {
+        .log({
+          organizationId: org,
+          input: {
             type: "call",
             title: "Discovery call",
             outcome: "connected",
             doneAt: Temporal.Now.instant(),
             durationSeconds: 900,
           },
-          [company, person],
-        )
+          subjects: [company, person],
+        })
         .orThrow();
 
       expect(call.subjects).toEqual([company, person]);
@@ -74,59 +81,76 @@ describe.skipIf(!live)("engagements", () => {
       const later = Temporal.Now.instant().add({ hours: 48 });
       const soon = Temporal.Now.instant().add({ hours: 2 });
       await engagements
-        .log(org, { type: "task", title: "Send proposal", dueAt: later }, [
-          company,
-        ])
+        .log({
+          organizationId: org,
+          input: { type: "task", title: "Send proposal", dueAt: later },
+          subjects: [company],
+        })
         .orThrow();
 
       const followUp = await engagements
-        .log(
-          org,
-          { type: "meeting", title: "Demo", dueAt: soon, ownerId: owner.id },
-          [company],
-        )
+        .log({
+          organizationId: org,
+          input: {
+            type: "meeting",
+            title: "Demo",
+            dueAt: soon,
+            ownerId: owner.id,
+          },
+          subjects: [company],
+        })
         .orThrow();
 
       expect((await engagements.next(company).orThrow())?.id).toBe(followUp.id);
       expect(await engagements.next(person).orThrow()).toBeUndefined();
 
-      const timeline = await engagements.of(company).orThrow();
+      const timeline = await engagements.of({ subject: company }).orThrow();
       expect(timeline.map((item) => item.title)).toEqual([
         "Send proposal",
         "Demo",
         "Discovery call",
       ]);
       expect(
-        (await engagements.of(company, { types: ["call"] }).orThrow()).map(
-          (item) => item.type,
-        ),
+        (
+          await engagements.of({ subject: company, types: ["call"] }).orThrow()
+        ).map((item) => item.type),
       ).toEqual(["call"]);
 
       expect(
         hint(
-          await engagements.log(org, { type: "fax", title: "x" }, [company]),
+          await engagements.log({
+            organizationId: org,
+            input: { type: "fax", title: "x" },
+            subjects: [company],
+          }),
         ),
       ).toBe("ACTIVITY_TYPE_INVALID");
       const foreign = await s.value<string>("(select gen_random_uuid()::text)");
       expect(
         hint(
-          await engagements.log(org, { type: "note", title: "x" }, [
-            { type: "company", id: foreign },
-          ]),
+          await engagements.log({
+            organizationId: org,
+            input: { type: "note", title: "x" },
+            subjects: [{ type: "company", id: foreign }],
+          }),
         ),
       ).toBe("ACTIVITY_SUBJECT_FORBIDDEN");
 
       await s.as(owner);
 
       const done = await engagements
-        .complete(followUp.id, { outcome: "held" })
+        .complete({ id: followUp.id, outcome: "held" })
         .orThrow();
 
       expect(done.doneAt).toBeDefined();
-      expect(await engagements.open(org).orThrow()).toHaveLength(0);
+      expect(
+        await engagements.open({ organizationId: org }).orThrow(),
+      ).toHaveLength(0);
       await s.as(rep);
       expect(
-        (await engagements.open(org).orThrow()).map((item) => item.title),
+        (await engagements.open({ organizationId: org }).orThrow()).map(
+          (item) => item.title,
+        ),
       ).toEqual(["Send proposal"]);
 
       const assigned = await s.value<number>(
@@ -139,7 +163,11 @@ describe.skipIf(!live)("engagements", () => {
       await s.as(stranger);
       expect(
         hint(
-          await engagements.log(other, { type: "note", title: "x" }, [company]),
+          await engagements.log({
+            organizationId: other,
+            input: { type: "note", title: "x" },
+            subjects: [company],
+          }),
         ),
       ).toBe("ACTIVITY_SUBJECT_FORBIDDEN");
       await s.asRole(stranger);
@@ -149,9 +177,11 @@ describe.skipIf(!live)("engagements", () => {
         ]),
       ).toHaveLength(0);
       await s.as(stranger);
-      expect(hint(await engagements.update(call.id, { title: "mine" }))).toBe(
-        "ACTIVITY_NOT_FOUND",
-      );
+      expect(
+        hint(
+          await engagements.update({ id: call.id, input: { title: "mine" } }),
+        ),
+      ).toBe("ACTIVITY_NOT_FOUND");
     } finally {
       await s.close();
     }
@@ -201,12 +231,16 @@ describe.skipIf(!live)("engagements", () => {
 
       await s.asRole(rep);
 
-      const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
+      const acme = await parties
+        .saveCompany({ organizationId: org, input: { name: "Acme" } })
+        .orThrow();
 
       const task = await engagements
-        .log(org, { type: "task", title: "Send the signed contract" }, [
-          { type: "company", id: acme.id },
-        ])
+        .log({
+          organizationId: org,
+          input: { type: "task", title: "Send the signed contract" },
+          subjects: [{ type: "company", id: acme.id }],
+        })
         .orThrow();
 
       const subject = { type: "activity", id: task.id };
@@ -217,7 +251,9 @@ describe.skipIf(!live)("engagements", () => {
         size: 10,
       };
 
-      const { attachment } = await files(org).upload(subject, file).orThrow();
+      const { attachment } = await files(org)
+        .upload({ subject, attachment: file })
+        .orThrow();
 
       expect(attachment.subject).toEqual(subject);
       expect(
@@ -226,7 +262,9 @@ describe.skipIf(!live)("engagements", () => {
 
       await s.asRole(stranger);
 
-      expect((await files(org).upload(subject, file)).ok).toBe(false);
+      expect((await files(org).upload({ subject, attachment: file })).ok).toBe(
+        false,
+      );
     } finally {
       await s.close();
     }

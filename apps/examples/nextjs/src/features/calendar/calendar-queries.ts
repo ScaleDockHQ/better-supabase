@@ -97,10 +97,10 @@ export async function loadUpcomingReminders(): Promise<UpcomingReminders | null>
   const from = Temporal.Now.instant();
 
   const occurrences = await calendar
-    .occurrences(
-      calendars.map((item) => item.id),
-      { from, until: from.add({ hours: UPCOMING_DAYS * 24 }) },
-    )
+    .occurrences({
+      calendarIds: calendars.map((item) => item.id),
+      range: { from, until: from.add({ hours: UPCOMING_DAYS * 24 }) },
+    })
     .orThrow();
 
   const next = new Map<string, (typeof occurrences)[number]>();
@@ -163,10 +163,10 @@ export async function loadCalendarMonth(
     Temporal.PlainDate.from(day).toZonedDateTime(tz).toInstant();
 
   const occurrences = await calendar
-    .occurrences(
-      calendars.map((item) => item.id),
-      { from: at(from), until: at(until) },
-    )
+    .occurrences({
+      calendarIds: calendars.map((item) => item.id),
+      range: { from: at(from), until: at(until) },
+    })
     .orThrow();
 
   return {

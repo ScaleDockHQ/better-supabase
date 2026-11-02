@@ -194,10 +194,10 @@ export function createAiFiles<
 
   const client: AiFiles<F> = {
     files: {
-      upload: (
+      upload: ({
         organizationId,
-        { filename, mediaType, size, chatId, projectId, ...extra },
-      ) =>
+        file: { filename, mediaType, size, chatId, projectId, ...extra },
+      }) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra))
           .andThen((more) =>
             call(
@@ -226,7 +226,7 @@ export function createAiFiles<
               token: url.token,
             })),
           ),
-      confirm: (fileId, sha256) => {
+      confirm: ({ fileId, sha256 }) => {
         const confirmed = () =>
           call(
             "confirm_ai_file",
@@ -304,7 +304,7 @@ export function createAiFiles<
             return removed.ok ? ok(true) : err(removed.error);
           },
         ),
-      store: (organizationId, file) => {
+      store: ({ organizationId, file }) => {
         const { ownerId, filename, mediaType, data, chatId, source, ...extra } =
           file;
 
@@ -387,13 +387,13 @@ export function createAiFiles<
         }),
     },
     providerFiles: {
-      get: (fileId, provider) =>
+      get: ({ fileId, provider }) =>
         service(
           "get_ai_provider_file",
           { file_id: fileId, provider },
           (value) => (isRecord(value) ? providerFileOf(value) : undefined),
         ),
-      upsert: (fileId, provider, reference, expiresAt) =>
+      upsert: ({ fileId, provider, reference, expiresAt }) =>
         service(
           "set_ai_provider_file",
           {
@@ -404,13 +404,13 @@ export function createAiFiles<
           },
           (value) => value === true,
         ),
-      expiring: (horizon, batch) =>
+      expiring: ({ horizon, batch } = {}) =>
         service("expiring_ai_provider_files", { horizon, batch }, (value) =>
           recordsOf(value, "expiring_ai_provider_files").map(providerFileOf),
         ),
     },
     documents: {
-      create: (organizationId, document) =>
+      create: ({ organizationId, document }) =>
         (document.ownerId === undefined ? call : service)(
           "create_ai_document",
           {
@@ -445,7 +445,7 @@ export function createAiFiles<
                 ),
           ),
         ),
-      update: (documentId, edit) =>
+      update: ({ documentId, edit }) =>
         call(
           "update_ai_document",
           {
@@ -458,7 +458,7 @@ export function createAiFiles<
           },
           documentOf,
         ),
-      rollback: (documentId, version) =>
+      rollback: ({ documentId, version }) =>
         call(
           "rollback_ai_document",
           { document_id: documentId, version },
@@ -477,7 +477,7 @@ export function createAiFiles<
           { document_id: documentId },
           (value) => value === true,
         ),
-      suggest: (documentId, suggestion) =>
+      suggest: ({ documentId, suggestion }) =>
         call(
           "suggest_ai_document_edit",
           {
@@ -488,13 +488,13 @@ export function createAiFiles<
           },
           suggestionOf,
         ),
-      suggestions: (documentId, query = {}) =>
+      suggestions: ({ documentId, ...query }) =>
         call(
           "list_ai_suggestions",
           { document_id: documentId, open_only: query.openOnly ?? true },
           (value) => recordsOf(value, "list_ai_suggestions").map(suggestionOf),
         ),
-      resolve: (suggestionId, accepted) =>
+      resolve: ({ suggestionId, accepted }) =>
         call(
           "resolve_ai_suggestion",
           { suggestion_id: suggestionId, accepted },

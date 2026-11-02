@@ -159,7 +159,7 @@ describe("createStepUpController", () => {
     expect(view().factors?.map((each) => each.id)).toEqual(["f0"]);
     expect(view().satisfied).toBe(false);
     expect(view().nextLevel).toBe("aal2");
-    const result = await view().verify("123456");
+    const result = await view().verify({ code: "123456" });
     expect(result.ok).toBe(true);
     expect(mfa.challengeAndVerify).toHaveBeenCalledWith({
       factorId: "f0",
@@ -175,7 +175,7 @@ describe("createStepUpController", () => {
     );
 
     await flush();
-    const result = await view().verify("123456");
+    const result = await view().verify({ code: "123456" });
     expect(result.ok).toBe(false);
     expect(view().error?.kind).toBe("invalid_input");
     unmount();

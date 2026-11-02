@@ -232,11 +232,13 @@ describe("durableChat respond", () => {
     expect(body).toContain('"delta":"Hi"');
     await Promise.all(s.pending);
 
-    expect(s.calls.find((call) => call.name === "claim")?.args).toEqual([
-      "c1",
-      "id1",
-      { model: "openai/gpt-5", messageId: "id2", engine: "workflow" },
-    ]);
+    expect(s.calls.find((call) => call.name === "claim")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "id1",
+      model: "openai/gpt-5",
+      messageId: "id2",
+      engine: "workflow",
+    });
     expect(api.start).toHaveBeenCalledWith(
       s.workflow,
       [
@@ -258,10 +260,10 @@ describe("durableChat respond", () => {
         },
       },
     );
-    expect(s.calls.find((call) => call.name === "attach")?.args).toEqual([
-      "run2",
-      "wrun",
-    ]);
+    expect(s.calls.find((call) => call.name === "attach")?.args[0]).toEqual({
+      runId: "run2",
+      externalRunId: "wrun",
+    });
     expect(api.getRun).toHaveBeenCalledWith("wrun");
     const status = await s.streams.status("id1").orThrow();
     expect(status).toBeDefined();
@@ -286,11 +288,12 @@ describe("durableChat respond", () => {
     const response = await s.durable.respond(post("not json"), s.context);
     expect(response.status).toBe(500);
     expect(await response.json()).toMatchObject({ code: "AI_CHAT_RUN_FAILED" });
-    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
-      "c1",
-      "id1",
-      { status: "failed", error: "Error: no world" },
-    ]);
+    expect(s.calls.find((call) => call.name === "release")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "id1",
+      status: "failed",
+      error: "Error: no world",
+    });
   });
 
   it("cancels the run and releases the claim when the run can't be attached", async () => {
@@ -305,11 +308,12 @@ describe("durableChat respond", () => {
     const response = await s.durable.respond(post({ id: "c1" }), s.context);
     expect(response.status).toBe(503);
     expect(cancel).toHaveBeenCalledOnce();
-    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
-      "c1",
-      "id1",
-      { status: "failed", error: "offline" },
-    ]);
+    expect(s.calls.find((call) => call.name === "release")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "id1",
+      status: "failed",
+      error: "offline",
+    });
   });
 
   it("decides approvals and continues the waiting turn", async () => {
@@ -328,21 +332,19 @@ describe("durableChat respond", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get(WORKFLOW_RUN_ID_HEADER)).toBe("wrun");
     expect(await response.text()).toContain('"messageId":"m1"');
-    expect(s.calls.find((call) => call.name === "decide")?.args).toEqual([
-      "a1",
-      true,
-      "ok",
-    ]);
-    expect(s.calls.find((call) => call.name === "claim")?.args).toEqual([
-      "c1",
-      "id1",
-      {
-        engine: "workflow",
-        externalRunId: "wrun",
-        model: "openai/gpt-5",
-        messageId: "m1",
-      },
-    ]);
+    expect(s.calls.find((call) => call.name === "decide")?.args[0]).toEqual({
+      approvalId: "a1",
+      approved: true,
+      reason: "ok",
+    });
+    expect(s.calls.find((call) => call.name === "claim")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "id1",
+      engine: "workflow",
+      externalRunId: "wrun",
+      model: "openai/gpt-5",
+      messageId: "m1",
+    });
     expect(api.resumeHook).toHaveBeenCalledWith("ai-chat-turn:wrun", {
       streamId: "id1",
       runId: "run2",
@@ -442,7 +444,9 @@ describe("durableChat respond", () => {
     expect(await response.json()).toMatchObject({
       code: "AI_CHAT_NOT_WAITING",
     });
-    expect(s.calls.find((call) => call.name === "release")?.args[2]).toEqual({
+    expect(
+      s.calls.find((call) => call.name === "release")?.args[0],
+    ).toMatchObject({
       status: "failed",
       error: expect.stringContaining("HookNotFoundError"),
     });
@@ -607,11 +611,11 @@ describe("durableChat stop", () => {
     const s = setup({ stopped: { streamId: "s1", runId: "run1" } });
     expect((await s.durable.stop("c1", s.context)).status).toBe(204);
     expect(cancel).toHaveBeenCalledOnce();
-    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
-      "c1",
-      "s1",
-      { status: "cancelled" },
-    ]);
+    expect(s.calls.find((call) => call.name === "release")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "s1",
+      status: "cancelled",
+    });
   });
 
   it("releases the segment and answers 500 when the run can't be cancelled", async () => {
@@ -627,11 +631,11 @@ describe("durableChat stop", () => {
     expect(await response.json()).toMatchObject({
       code: "AI_CHAT_STOP_FAILED",
     });
-    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
-      "c1",
-      "s1",
-      { status: "cancelled" },
-    ]);
+    expect(s.calls.find((call) => call.name === "release")?.args[0]).toEqual({
+      chatId: "c1",
+      streamId: "s1",
+      status: "cancelled",
+    });
   });
 
   it("does nothing when no durable answer runs", async () => {

@@ -19,7 +19,7 @@ describe("createMemory hooks", () => {
         render: { before: () => dbError("forbidden", "No rendering here") },
         core: {
           view: {
-            after: (result, [organizationId]) => {
+            after: (result, [{ organizationId }]) => {
               seen.push(`after view ${organizationId} ${String(result.ok)}`);
             },
           },
@@ -27,9 +27,11 @@ describe("createMemory hooks", () => {
       },
     });
 
-    const rendered = await memory.render("o1");
+    const rendered = await memory.render({ organizationId: "o1" });
     expect(rendered.ok).toBe(false);
-    expect(await memory.core.view("o1").orThrow()).toBeUndefined();
+    expect(
+      await memory.core.view({ organizationId: "o1" }).orThrow(),
+    ).toBeUndefined();
     expect(seen).toEqual(["memory_view", "after view o1 true"]);
   });
 });

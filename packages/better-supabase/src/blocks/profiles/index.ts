@@ -1,4 +1,6 @@
 export {
+  type AvatarUpload,
+  type AvatarUploader,
   createProfiles,
   type Profile,
   type Profiles,

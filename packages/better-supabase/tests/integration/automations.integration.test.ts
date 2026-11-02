@@ -280,58 +280,76 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(owner);
       expect(
         (
-          await rules.upsert(tenant, {
-            subjectType: "invoice",
-            trigger: "x",
-            name: "x",
-            conditions: submitted,
+          await rules.upsert({
+            organizationId: tenant,
+            input: {
+              subjectType: "invoice",
+              trigger: "x",
+              name: "x",
+              conditions: submitted,
+            },
           })
         ).error?.hint,
       ).toBe("RULE_SUBJECT_UNKNOWN");
       expect(
         (
-          await rules.upsert(tenant, {
-            subjectType: "expense",
-            trigger: "expense.submitted",
-            name: "Bad",
-            conditions: group([rule("amount", "contains", "1")]),
+          await rules.upsert({
+            organizationId: tenant,
+            input: {
+              subjectType: "expense",
+              trigger: "expense.submitted",
+              name: "Bad",
+              conditions: group([rule("amount", "contains", "1")]),
+            },
           })
         ).error?.hint,
       ).toBe("RULE_OPERATOR_INVALID");
       expect(
         (
-          await rules.upsert(tenant, {
-            subjectType: "expense",
-            trigger: "expense.submitted",
-            name: "Bad",
-            conditions: group([rule("amount", "between", [1])]),
+          await rules.upsert({
+            organizationId: tenant,
+            input: {
+              subjectType: "expense",
+              trigger: "expense.submitted",
+              name: "Bad",
+              conditions: group([rule("amount", "between", [1])]),
+            },
           })
         ).error?.hint,
       ).toBe("RULE_VALUE_INVALID");
       expect(
         (
-          await rules.upsert(tenant, {
-            subjectType: "expense",
-            trigger: "expense.submitted",
-            name: "Bad",
-            conditions: submitted,
-            actions: [{ kind: "Not A Kind" }],
+          await rules.upsert({
+            organizationId: tenant,
+            input: {
+              subjectType: "expense",
+              trigger: "expense.submitted",
+              name: "Bad",
+              conditions: submitted,
+              actions: [{ kind: "Not A Kind" }],
+            },
           })
         ).error?.hint,
       ).toBe("AUTOMATION_ACTIONS_INVALID");
 
       const large = await rules
-        .upsert(tenant, {
-          subjectType: "expense",
-          trigger: "expense.submitted",
-          name: "Large expenses",
-          conditions: group([
-            rule("status", "is", "submitted"),
-            rule("amount", "gt", 1000),
-          ]),
-          actions: [
-            { kind: "approvals.request", config: { action: "finance_review" } },
-          ],
+        .upsert({
+          organizationId: tenant,
+          input: {
+            subjectType: "expense",
+            trigger: "expense.submitted",
+            name: "Large expenses",
+            conditions: group([
+              rule("status", "is", "submitted"),
+              rule("amount", "gt", 1000),
+            ]),
+            actions: [
+              {
+                kind: "approvals.request",
+                config: { action: "finance_review" },
+              },
+            ],
+          },
         })
         .orThrow();
 
@@ -343,13 +361,16 @@ describe.skipIf(!live)("rules module", () => {
       });
 
       const all = await rules
-        .upsert(tenant, {
-          subjectType: "expense",
-          trigger: "expense.submitted",
-          name: "Every submitted expense",
-          conditions: submitted,
-          actions: [{ kind: "notifications.send" }],
-          enabled: true,
+        .upsert({
+          organizationId: tenant,
+          input: {
+            subjectType: "expense",
+            trigger: "expense.submitted",
+            name: "Every submitted expense",
+            conditions: submitted,
+            actions: [{ kind: "notifications.send" }],
+            enabled: true,
+          },
         })
         .orThrow();
 
@@ -358,16 +379,18 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(editor);
 
       const renamed = await rules
-        .upsert(tenant, { id: large.id, version: 1, name: "Large ones" })
+        .upsert({
+          organizationId: tenant,
+          input: { id: large.id, version: 1, name: "Large ones" },
+        })
         .orThrow();
 
       expect(renamed.version).toBe(2);
       expect(
         (
-          await rules.upsert(tenant, {
-            id: large.id,
-            version: 1,
-            name: "Stale",
+          await rules.upsert({
+            organizationId: tenant,
+            input: { id: large.id, version: 1, name: "Stale" },
           })
         ).error?.hint,
       ).toBe("AUTOMATION_CONFLICT");
@@ -378,7 +401,7 @@ describe.skipIf(!live)("rules module", () => {
       ).toEqual([2, 1]);
 
       await s.as(member);
-      const listed = await rules.list(tenant).orThrow();
+      const listed = await rules.list({ organizationId: tenant }).orThrow();
       expect(
         listed.filter((r) => r.defaultKey === undefined).map((r) => r.id),
       ).toEqual([large.id, all.id]);
@@ -392,20 +415,24 @@ describe.skipIf(!live)("rules module", () => {
         "quotes.quote_to_order",
       ]);
       expect(
-        (await rules.upsert(tenant, { id: large.id, name: "Mine" })).error
-          ?.hint,
+        (
+          await rules.upsert({
+            organizationId: tenant,
+            input: { id: large.id, name: "Mine" },
+          })
+        ).error?.hint,
       ).toBe("AUTOMATION_FORBIDDEN");
-      expect((await rules.setEnabled(large.id, true)).error?.hint).toBe(
-        "AUTOMATION_FORBIDDEN",
-      );
+      expect(
+        (await rules.setEnabled({ id: large.id, enabled: true })).error?.hint,
+      ).toBe("AUTOMATION_FORBIDDEN");
 
       await s.as(rival);
       expect(await rules.get(large.id).orThrow()).toBeUndefined();
-      expect((await rules.list(tenant)).error?.hint).toBe(
+      expect((await rules.list({ organizationId: tenant })).error?.hint).toBe(
         "AUTOMATION_FORBIDDEN",
       );
       expect(
-        (await rules.list(other).orThrow()).filter(
+        (await rules.list({ organizationId: other }).orThrow()).filter(
           (r) => r.defaultKey === undefined,
         ),
       ).toEqual([]);
@@ -423,7 +450,12 @@ describe.skipIf(!live)("rules module", () => {
       expect((await rules.remove(shipped.id)).error?.hint).toBe(
         "AUTOMATION_DEFAULT",
       );
-      await rules.upsert(tenant, { id: shipped.id, name: "Renamed" }).orThrow();
+      await rules
+        .upsert({
+          organizationId: tenant,
+          input: { id: shipped.id, name: "Renamed" },
+        })
+        .orThrow();
       expect((await rules.resetDefault(shipped.id).orThrow()).name).toBe(
         shipped.name,
       );
@@ -431,18 +463,24 @@ describe.skipIf(!live)("rules module", () => {
         "AUTOMATION_NOT_DEFAULT",
       );
 
-      await rules.setEnabled(large.id, true).orThrow();
+      await rules.setEnabled({ id: large.id, enabled: true }).orThrow();
       await rules
-        .upsert(tenant, { id: large.id, stopProcessing: true })
+        .upsert({
+          organizationId: tenant,
+          input: { id: large.id, stopProcessing: true },
+        })
         .orThrow();
 
       const expense = subjects[0];
 
       const matches = await rules
-        .matching(tenant, {
-          subjectType: "expense",
-          trigger: "expense.submitted",
-          subject: expense,
+        .matching({
+          organizationId: tenant,
+          input: {
+            subjectType: "expense",
+            trigger: "expense.submitted",
+            subject: expense,
+          },
         })
         .orThrow();
 
@@ -450,20 +488,25 @@ describe.skipIf(!live)("rules module", () => {
       expect(
         (
           await rules
-            .matching(tenant, {
-              subjectType: "expense",
-              trigger: "expense.submitted",
-              subject: { ...expense, amount: 20 },
+            .matching({
+              organizationId: tenant,
+              input: {
+                subjectType: "expense",
+                trigger: "expense.submitted",
+                subject: { ...expense, amount: 20 },
+              },
             })
             .orThrow()
         ).map((match) => match.rule.id),
       ).toEqual([all.id]);
 
-      const tested = await rules.test(large, subjects[1]).orThrow();
+      const tested = await rules
+        .test({ rule: large, subject: subjects[1] })
+        .orThrow();
 
       expect(tested.matched).toBe(false);
       expect(
-        (await rules.evaluations(large.id).orThrow()).map(
+        (await rules.evaluations({ id: large.id }).orThrow()).map(
           (entry) => entry.mode,
         ),
       ).toEqual(["test"]);
@@ -473,11 +516,14 @@ describe.skipIf(!live)("rules module", () => {
       const run = await createAutomationsAdmin({
         transport: sqlTransport(s.sql),
       })
-        .run(tenant, {
-          subjectType: "expense",
-          trigger: "expense.submitted",
-          subjectId: "exp_1",
-          subject: expense,
+        .run({
+          organizationId: tenant,
+          input: {
+            subjectType: "expense",
+            trigger: "expense.submitted",
+            subjectId: "exp_1",
+            subject: expense,
+          },
         })
         .orThrow();
 
@@ -498,10 +544,13 @@ describe.skipIf(!live)("rules module", () => {
           }),
         ]),
       })
-        .dispatch([...run, { rule: all, results: {} }], {
-          organizationId: tenant,
-          subjectType: "expense",
-          subjectId: "exp_1",
+        .dispatch({
+          matches: [...run, { rule: all, results: {} }],
+          context: {
+            organizationId: tenant,
+            subjectType: "expense",
+            subjectId: "exp_1",
+          },
         })
         .orThrow();
 

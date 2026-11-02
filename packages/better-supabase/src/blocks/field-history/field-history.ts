@@ -38,8 +38,7 @@ export interface FieldHistory {
    * access to the record.
    */
   of(
-    subject: { readonly type: string; readonly id: string },
-    options?: {
+    input: { subject: { readonly type: string; readonly id: string } } & {
       /** Only this column's changes. */
       readonly field?: string;
       /** The `id` of the last change of the previous page. */
@@ -85,7 +84,7 @@ export function createFieldHistory(options: FieldHistoryOptions): FieldHistory {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: FieldHistory = {
-    of: (subject, filter = {}) =>
+    of: ({ subject, ...filter }) =>
       call(
         "field_history",
         {

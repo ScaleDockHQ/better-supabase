@@ -5,14 +5,17 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { DealBoard } from "../../sql/modules/deals-reads.ts";
 import type { DealForecast } from "../deal-forecast.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { DEAL_BOARD_RESULT as BOARD } from "../../sql/modules/deals-reads.ts";
 import { forecastOf } from "../deal-forecast.ts";
 import {
   amountsError,
@@ -36,6 +39,7 @@ import {
   textOf,
   bigintOf,
 } from "../shared.ts";
+import { strictChanges } from "../strict-changes.ts";
 
 /** How a rep calls a deal for the period. `undefined` is "not called". */
 export type ForecastCategory = "commit" | "best_case" | "pipeline" | "omit";
@@ -234,37 +238,64 @@ export interface DealHealth {
 }
 
 /** `F` types the deals' extra columns, from the `fields` schema. */
+export type { DealBoard };
+
 export interface Deals<F extends object = Record<never, never>> {
-  create(
-    organizationId: string,
-    input: DealInput<F>,
-    contacts?: readonly DealContact[],
-  ): AsyncResult<Deal<F>>;
-  /** Applies cell edits; a refused change leaves the others applied. */
-  update(changes: readonly DealChange[]): AsyncResult<DealChangeResult>;
+  create(input: {
+    organizationId: string;
+    input: DealInput<F>;
+    contacts?: readonly DealContact[] | undefined;
+  }): AsyncResult<Deal<F>>;
+  /**
+   * Applies cell edits; a refused change leaves the others applied. With
+   * `strict`, the first refused change comes back as the error, with its hint
+   * as the code, instead of a `rejected` entry.
+   */
+  update(input: {
+    changes: readonly DealChange[];
+    strict?: boolean | undefined;
+  }): AsyncResult<DealChangeResult>;
+  /**
+   * Moves the deal to `stageId` and returns the refusal as the error. It is
+   * `update` with one `stageId` change and `strict`, so the `update` hooks see
+   * the move.
+   */
+  moveStage(input: { dealId: string; stageId: string }): AsyncResult<true>;
   /** Moves the deal to its pipeline's won stage. `note` is the closing note. */
-  win(dealId: string, note?: string): AsyncResult<Deal<F>>;
+  win(input: {
+    dealId: string;
+    note?: string | undefined;
+  }): AsyncResult<Deal<F>>;
   /** Moves the deal to its pipeline's lost stage. */
-  lose(dealId: string, reason?: string): AsyncResult<Deal<F>>;
+  lose(input: {
+    dealId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Deal<F>>;
   /** Opens a closed deal again, in `stageId` or the first open stage. */
-  reopen(dealId: string, stageId?: string): AsyncResult<Deal<F>>;
-  setContacts(
-    dealId: string,
-    contacts: readonly DealContact[],
-  ): AsyncResult<number>;
+  reopen(input: {
+    dealId: string;
+    stageId?: string | undefined;
+  }): AsyncResult<Deal<F>>;
+  setContacts(input: {
+    dealId: string;
+    contacts: readonly DealContact[];
+  }): AsyncResult<number>;
   /** Replaces the deal team; each member watches the deal. */
-  setMembers(
-    dealId: string,
-    members: readonly { readonly userId: string; readonly role?: string }[],
-  ): AsyncResult<number>;
-  setLines(
-    dealId: string,
-    lines: readonly DealLineInput[],
-  ): AsyncResult<DealTotals>;
-  archive(dealId: string, archived?: boolean): AsyncResult<boolean>;
+  setMembers(input: {
+    dealId: string;
+    members: readonly { readonly userId: string; readonly role?: string }[];
+  }): AsyncResult<number>;
+  setLines(input: {
+    dealId: string;
+    lines: readonly DealLineInput[];
+  }): AsyncResult<DealTotals>;
+  archive(input: {
+    dealId: string;
+    archived?: boolean | undefined;
+  }): AsyncResult<boolean>;
   remove(dealId: string): AsyncResult<boolean>;
-  forecast(
-    organizationId: string,
+  forecast(input: {
+    organizationId: string;
     period: {
       readonly since: Temporal.PlainDate;
       readonly until: Temporal.PlainDate;
@@ -273,9 +304,14 @@ export interface Deals<F extends object = Record<never, never>> {
       readonly target?: Money;
       readonly pipelineId?: string;
       readonly ownerId?: string;
-    },
-  ): AsyncResult<DealForecast>;
+    };
+  }): AsyncResult<DealForecast>;
   health(pipelineId: string): AsyncResult<DealHealth[]>;
+  /**
+   * A pipeline's stages with their deals, totals and weighted forecast, in one
+   * call.
+   */
+  board(args: { pipelineId: string }): AsyncResult<DealBoard>;
 }
 
 export interface DealsOptions<
@@ -518,7 +554,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     }));
 
   const client: Deals<F> = {
-    create: (organizationId, input, contacts) => {
+    create: ({ organizationId, input, contacts }) => {
       const { fields: extra, ...rest } = input;
 
       const invalid = amountsError(input.currency, [
@@ -558,7 +594,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
         )
         .andThen(parsed);
     },
-    update: (changes) =>
+    update: ({ changes, strict }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (
@@ -614,39 +650,46 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
               ),
             };
           },
-        ),
+        ).andThen((result) => strictChanges(result, strict)),
       ),
-    win: (dealId, note) =>
+    moveStage: ({ dealId, stageId }) =>
+      hooked
+        .update({
+          changes: [{ dealId, field: "stageId", value: stageId }],
+          strict: true,
+        })
+        .map(() => true as const),
+    win: ({ dealId, note }) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "won", reason: note ?? null },
         dealOf,
       ).andThen(parsed),
-    lose: (dealId, reason) =>
+    lose: ({ dealId, reason }) =>
       call(
         "close_deal",
         { deal: dealId, outcome: "lost", reason: reason ?? null },
         dealOf,
       ).andThen(parsed),
-    reopen: (dealId, stageId) =>
+    reopen: ({ dealId, stageId }) =>
       call(
         "reopen_deal",
         { deal: dealId, stage: stageId ?? null },
         dealOf,
       ).andThen(parsed),
-    setContacts: (dealId, contacts) =>
+    setContacts: ({ dealId, contacts }) =>
       call(
         "set_deal_contacts",
         { deal: dealId, contacts: contacts.map((contact) => ({ ...contact })) },
         (value) => num(value) ?? 0,
       ),
-    setMembers: (dealId, members) =>
+    setMembers: ({ dealId, members }) =>
       call(
         "set_deal_members",
         { deal: dealId, members: members.map((member) => ({ ...member })) },
         (value) => num(value) ?? 0,
       ),
-    setLines: (dealId, lines) => {
+    setLines: ({ dealId, lines }) => {
       const invalid = currencyMismatch(
         undefined,
         lines.map((line) => line.unitAmount),
@@ -660,7 +703,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           )
         : AsyncResult.err(invalid);
     },
-    archive: (dealId, archived = true) =>
+    archive: ({ dealId, archived = true }) =>
       call(
         "archive_deal",
         { deal: dealId, archived },
@@ -668,7 +711,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     remove: (dealId) =>
       call("delete_deal", { deal: dealId }, (value) => value === true),
-    forecast: (organizationId, period) => {
+    forecast: ({ organizationId, period }) => {
       const invalid = amountsError(period.currency, [period.target]);
 
       return invalid === undefined
@@ -687,6 +730,10 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           )
         : AsyncResult.err(invalid);
     },
+    board: ({ pipelineId }) =>
+      call("deal_board", { pipeline: pipelineId }, (value) =>
+        decodeRead<DealBoard>(BOARD, value, "deal_board"),
+      ),
     health: (pipelineId) =>
       call("deal_health", { pipeline: pipelineId }, (value) =>
         recordsOf(value, "deal_health").map((row) => ({
@@ -702,8 +749,11 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Deals<F> = withBlockHooks(client, options.hooks, {
     block: "deals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

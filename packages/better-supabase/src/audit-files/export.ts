@@ -26,9 +26,9 @@ type Outcome<T> = PromiseLike<
  * `accounts`, `journalListing` and `openingBalances`.
  */
 export interface AuditLedgerSource {
-  accounts(
-    organizationId: string,
-  ): Outcome<
+  accounts(input: {
+    organizationId: string;
+  }): Outcome<
     readonly {
       readonly id: string;
       readonly code: string;
@@ -37,13 +37,11 @@ export interface AuditLedgerSource {
       readonly active: boolean;
     }[]
   >;
-  journalListing(
-    organizationId: string,
-    options: {
-      readonly since: Temporal.PlainDate;
-      readonly until: Temporal.PlainDate;
-    },
-  ): Outcome<{
+  journalListing(input: {
+    readonly organizationId: string;
+    readonly since: Temporal.PlainDate;
+    readonly until: Temporal.PlainDate;
+  }): Outcome<{
     readonly journals: readonly {
       readonly code: string;
       readonly name: string;
@@ -65,10 +63,10 @@ export interface AuditLedgerSource {
       }[];
     }[];
   }>;
-  openingBalances(
-    organizationId: string,
-    fiscalYear: number,
-  ): Outcome<{
+  openingBalances(input: {
+    organizationId: string;
+    fiscalYear: number;
+  }): Outcome<{
     readonly posted: boolean;
     readonly balances: readonly {
       readonly accountId: string;
@@ -157,13 +155,23 @@ export async function booksFromLedger(
     PlainDate.from({ year: selection.year, month: 12, day: 31 });
 
   const [accounts, listing, opening] = await Promise.all([
-    read(source.accounts(options.organizationId), "the accounts"),
     read(
-      source.journalListing(options.organizationId, { since: from, until: to }),
+      source.accounts({ organizationId: options.organizationId }),
+      "the accounts",
+    ),
+    read(
+      source.journalListing({
+        organizationId: options.organizationId,
+        since: from,
+        until: to,
+      }),
       "the journal listing",
     ),
     read(
-      source.openingBalances(options.organizationId, selection.year),
+      source.openingBalances({
+        organizationId: options.organizationId,
+        fiscalYear: selection.year,
+      }),
       "the opening balances",
     ),
   ]);

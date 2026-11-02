@@ -123,43 +123,43 @@ export interface OrderBoardQuery {
  * change stations.
  */
 export interface OrderKitchen {
-  saveStation(
-    organizationId: string,
-    input: KitchenStationInput,
-    stationId?: string,
-  ): AsyncResult<KitchenStation>;
+  saveStation(input: {
+    organizationId: string;
+    input: KitchenStationInput;
+    stationId?: string | undefined;
+  }): AsyncResult<KitchenStation>;
   deleteStation(stationId: string): AsyncResult<boolean>;
   stations(organizationId: string): AsyncResult<readonly KitchenStation[]>;
   /**
    * Queues the order's lines not sent yet at their product's station. `notes`
    * maps a line id to a note for the cook. Returns how many it queued.
    */
-  send(
-    orderId: string,
-    notes?: Readonly<Record<string, string>>,
-  ): AsyncResult<number>;
+  send(input: {
+    orderId: string;
+    notes?: Readonly<Record<string, string>> | undefined;
+  }): AsyncResult<number>;
   /** Moves one line; moving back clears the later times. */
-  setState(
-    lineId: string,
-    state: PreparationState,
-  ): AsyncResult<PreparationLine>;
+  setState(input: {
+    lineId: string;
+    state: PreparationState;
+  }): AsyncResult<PreparationLine>;
   /**
    * Moves every line of the order behind `state` up to it, at one station or
    * all. Returns how many lines moved.
    */
-  bump(
-    orderId: string,
-    state: PreparationState,
-    stationId?: string,
-  ): AsyncResult<number>;
-  queue(
-    organizationId: string,
-    query?: KitchenQueueQuery,
-  ): AsyncResult<readonly KitchenTicket[]>;
-  board(
-    organizationId: string,
-    query?: OrderBoardQuery,
-  ): AsyncResult<readonly OrderBoardCard[]>;
+  bump(input: {
+    orderId: string;
+    state: PreparationState;
+    stationId?: string | undefined;
+  }): AsyncResult<number>;
+  queue(input: {
+    organizationId: string;
+    query?: KitchenQueueQuery | undefined;
+  }): AsyncResult<readonly KitchenTicket[]>;
+  board(input: {
+    organizationId: string;
+    query?: OrderBoardQuery | undefined;
+  }): AsyncResult<readonly OrderBoardCard[]>;
 }
 
 const countOf = (value: unknown): number =>
@@ -257,7 +257,7 @@ function stationArg(input: KitchenStationInput): Record<string, unknown> {
 /** The kitchen methods over the orders SQL functions. */
 export function orderKitchen(call: BlockCall): OrderKitchen {
   return {
-    saveStation: (organizationId, input, stationId) =>
+    saveStation: ({ organizationId, input, stationId }) =>
       call(
         "save_kitchen_station",
         {
@@ -277,21 +277,21 @@ export function orderKitchen(call: BlockCall): OrderKitchen {
       call("kitchen_stations", { tenant: organizationId }, (value) =>
         recordsOf(value, "kitchen_stations").map(stationOf),
       ),
-    send: (orderId, notes) =>
+    send: ({ orderId, notes }) =>
       call(
         "send_order_to_kitchen",
         { order_id: orderId, notes: notes ?? null },
         countOf,
       ),
-    setState: (lineId, state) =>
+    setState: ({ lineId, state }) =>
       call("set_line_preparation", { line: lineId, state }, preparationLineOf),
-    bump: (orderId, state, stationId) =>
+    bump: ({ orderId, state, stationId }) =>
       call(
         "bump_kitchen_ticket",
         { order_id: orderId, station: stationId ?? null, state },
         countOf,
       ),
-    queue: (organizationId, query = {}) =>
+    queue: ({ organizationId, query = {} }) =>
       call(
         "kitchen_queue",
         {
@@ -302,7 +302,7 @@ export function orderKitchen(call: BlockCall): OrderKitchen {
         },
         (value) => recordsOf(value, "kitchen_queue").map(ticketOf),
       ),
-    board: (organizationId, query = {}) =>
+    board: ({ organizationId, query = {} }) =>
       call(
         "order_board",
         {

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import {
   copyFile,
   mkdir,
@@ -367,6 +367,40 @@ describe("bundle", () => {
     closures.set(MAPPER_STARTUP, await closure(MAPPER_BIN, false));
     // Bundles every entry in turn; under `pnpm verify` it shares the CPU with the other tasks.
   }, 60_000);
+
+  it("keeps a composite entry down to its own code and shares its parts' chunks", () => {
+    // A composite's gzip size is the union of its parts' manifests (crm is
+    // about 195 KB because it composes 17 blocks). The entry chunk itself
+    // holds only the glue helpers; a larger one means a part got inlined.
+    const composites = [
+      "care",
+      "cms",
+      "collaboration",
+      "commerce",
+      "crm",
+      "events",
+      "filespace",
+      "finance",
+      "governance",
+      "learning",
+      "people",
+      "procurement",
+      "projects",
+      "recruiting",
+      "saas",
+      "sales",
+      "scheduling",
+      "service",
+      "support",
+    ];
+
+    const oversized = composites.filter(
+      (name) =>
+        statSync(join(PACKAGE, `dist/blocks/${name}/index.js`)).size > 12_000,
+    );
+
+    expect(oversized).toEqual([]);
+  });
 
   it("keeps runtime entries free of Node built-ins (WinterTC)", () => {
     const offenders = [...closures]

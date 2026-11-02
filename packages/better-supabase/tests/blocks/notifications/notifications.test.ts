@@ -205,12 +205,15 @@ describe("createNotifications().send", () => {
       onSent,
     });
 
-    const sent = await notifications.send("task.assigned", {
-      recipients: ["u1"],
-      tenant: "organization_1",
-      subject: { type: "task", id: "42", label: "Ship it" },
-      data: { title: "Ship it" },
-      key: "task-42",
+    const sent = await notifications.send({
+      type: "task.assigned",
+      input: {
+        recipients: ["u1"],
+        tenant: "organization_1",
+        subject: { type: "task", id: "42", label: "Ship it" },
+        data: { title: "Ship it" },
+        key: "task-42",
+      },
     });
 
     expect(sent).toMatchObject({
@@ -254,10 +257,10 @@ describe("createNotifications().send", () => {
   it("rejects a permission audience without a tenant before calling", async () => {
     const { transport, calls } = fakeTransport();
 
-    const sent = await createNotifications({ transport, types }).send(
-      "task.assigned",
-      { permission: "tasks.read", data: { title: "Ship it" } },
-    );
+    const sent = await createNotifications({ transport, types }).send({
+      type: "task.assigned",
+      input: { permission: "tasks.read", data: { title: "Ship it" } },
+    });
 
     expect(sent).toMatchObject({
       ok: false,
@@ -292,12 +295,15 @@ describe("createNotifications().send", () => {
     });
 
     await createNotifications({ transport, types })
-      .send("task.assigned", {
-        recipients: ["u1"],
-        subject: { type: "task", id: "42" },
-        data: { title: "Ship it" },
-        watchers: false,
-        exclude: ["u2"],
+      .send({
+        type: "task.assigned",
+        input: {
+          recipients: ["u1"],
+          subject: { type: "task", id: "42" },
+          data: { title: "Ship it" },
+          watchers: false,
+          exclude: ["u2"],
+        },
       })
       .orThrow();
     expect(calls[0]).toMatchObject({
@@ -309,20 +315,24 @@ describe("createNotifications().send", () => {
     const { transport, calls } = fakeTransport();
     const notifications = createNotifications({ transport, types });
 
-    const unknown = await notifications.send(
-      // @ts-expect-error -- not a configured type
-      "nope",
-      { data: {} },
-    );
+    const unknown = await notifications.send({
+      // @ts-expect-error -- unknown type
+      type: "nope",
+      // @ts-expect-error -- no title
+      input: { data: {} },
+    });
 
     expect(unknown).toMatchObject({
       ok: false,
       error: { kind: "validation", hint: "NOTIFICATION_TYPE_UNKNOWN" },
     });
 
-    const invalid = await notifications.send("task.assigned", {
-      // @ts-expect-error -- title is required
-      data: {},
+    const invalid = await notifications.send({
+      type: "task.assigned",
+      input: {
+        // @ts-expect-error -- title is required
+        data: {},
+      },
     });
 
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -334,8 +344,9 @@ describe("createNotifications().send", () => {
     const onSent = vi.fn();
     const notifications = createNotifications({ transport, types, onSent });
 
-    const sent = await notifications.send("task.assigned", {
-      data: { title: "x" },
+    const sent = await notifications.send({
+      type: "task.assigned",
+      input: { data: { title: "x" } },
     });
 
     expect(sent).toMatchObject({ ok: true, data: null });
@@ -354,8 +365,9 @@ describe("createNotifications().send", () => {
 
     const notifications = createNotifications({ transport, types });
 
-    const denied = await notifications.send("task.assigned", {
-      data: { title: "x" },
+    const denied = await notifications.send({
+      type: "task.assigned",
+      input: { data: { title: "x" } },
     });
 
     expect(denied).toMatchObject({
@@ -373,7 +385,11 @@ describe("createNotifications().send", () => {
       },
     });
 
-    const sent = await failing.send("task.assigned", { data: { title: "x" } });
+    const sent = await failing.send({
+      type: "task.assigned",
+      input: { data: { title: "x" } },
+    });
+
     expect(sent.ok).toBe(false);
   });
 });
@@ -395,9 +411,11 @@ describe("createNotifications reads and writes", () => {
     });
 
     expect(
-      await notifications.get("r1", { locale: "nl" }).orThrow(),
+      await notifications
+        .get({ id: "r1", options: { locale: "nl" } })
+        .orThrow(),
     ).toMatchObject({ id: "r1", text: { title: "nl: Assigned" } });
-    expect(await notifications.get("r9").orThrow()).toBeNull();
+    expect(await notifications.get({ id: "r9" }).orThrow()).toBeNull();
     await notifications
       .page({ resolved: true, read: false, dismissed: null })
       .orThrow();
@@ -797,9 +815,9 @@ describe("createNotifications reads and writes", () => {
         enabled: false,
       }),
     ).toMatchObject({ ok: true });
-    expect(await notifications.purge("30 days", 500)).toMatchObject({
-      data: 12,
-    });
+    expect(
+      await notifications.purge({ olderThan: "30 days", batch: 500 }),
+    ).toMatchObject({ data: 12 });
     expect(calls.map((call) => [call.fn, call.args])).toEqual([
       [
         "notification_counts",
@@ -1069,7 +1087,7 @@ describe("typed notification data and hooks", () => {
     });
 
     const notifications = createNotifications({ transport, types: typed });
-    expect(await notifications.get("r1")).toMatchObject({
+    expect(await notifications.get({ id: "r1" })).toMatchObject({
       ok: false,
       error: { kind: "validation", hint: "NOTIFICATION_DATA_INVALID" },
     });
@@ -1081,7 +1099,9 @@ describe("typed notification data and hooks", () => {
     });
 
     const before = vi.fn(
-      ([, input]: readonly [string, { readonly tenant?: string }]) =>
+      ([{ input }]: readonly [
+        { type: string; input: { readonly tenant?: string } },
+      ]) =>
         input.tenant === "frozen"
           ? dbError("forbidden", "This organization is frozen")
           : undefined,
@@ -1094,9 +1114,9 @@ describe("typed notification data and hooks", () => {
     });
 
     expect(
-      await notifications.send("task.assigned", {
-        tenant: "frozen",
-        data: { title: "x" },
+      await notifications.send({
+        type: "task.assigned",
+        input: { tenant: "frozen", data: { title: "x" } },
       }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     expect(calls).toEqual([]);

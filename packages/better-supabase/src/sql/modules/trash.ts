@@ -708,6 +708,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("purge_expired_trash"),
+      function: own.fn("purge_expired_trash"),
+      every: "1 day",
+    },
+  ],
   bulk: (own) => [
     {
       name: "trash.trash",
@@ -723,7 +730,7 @@ export const TRASH: BlockSqlDefinition = {
   title: "Trash",
   description:
     "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.",
-  requires: ["memberships", "permissions"],
+  requires: ["memberships", "permissions", "housekeeping"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],

@@ -159,30 +159,34 @@ export interface AiSchedulesOptions<
 /** `F` is the extra task fields `options.fields` describes. */
 export interface AiSchedules<F extends object = Record<never, never>> {
   /** Keys besides the task's own are its extra columns. */
-  create(
-    organizationId: string,
-    task: NewAiTask & Partial<F>,
-  ): AsyncResult<AiTask & F>;
-  update(
-    organizationId: string,
-    taskId: string,
-    fields: AiTaskFields & Partial<F>,
-  ): AsyncResult<AiTask & F>;
-  pause(organizationId: string, taskId: string): AsyncResult<AiTask & F>;
+  create(input: {
+    organizationId: string;
+    task: NewAiTask & Partial<F>;
+  }): AsyncResult<AiTask & F>;
+  update(input: {
+    organizationId: string;
+    taskId: string;
+    fields: AiTaskFields & Partial<F>;
+  }): AsyncResult<AiTask & F>;
+  pause(input: {
+    organizationId: string;
+    taskId: string;
+  }): AsyncResult<AiTask & F>;
   /** Enables a task again; it runs at its next occurrence. */
-  resume(organizationId: string, taskId: string): AsyncResult<AiTask & F>;
+  resume(input: {
+    organizationId: string;
+    taskId: string;
+  }): AsyncResult<AiTask & F>;
   remove(taskId: string): AsyncResult<boolean>;
   /**
    * The caller's tasks, or every task in the tenant with `all` and
    * `ai_schedules.manage`.
    */
   list(
-    organizationId: string,
-    options?: { readonly all?: boolean },
+    input: { organizationId: string } & { readonly all?: boolean },
   ): AsyncResult<readonly (AiTask & F)[]>;
   runs(
-    taskId: string,
-    options?: { readonly limit?: number },
+    input: { taskId: string } & { readonly limit?: number },
   ): AsyncResult<readonly AiTaskRun[]>;
   /**
    * Claims due tasks (service role): queues a run for each, which the
@@ -197,8 +201,7 @@ export interface AiSchedules<F extends object = Record<never, never>> {
    * worker has it.
    */
   execute(
-    runId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { runId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<boolean>;
   /** The handler for the `ai_task_run` queue. */
   runJob(): JobHandler<{ readonly run_id: string }>;
@@ -314,16 +317,19 @@ function notifyThrough(
   }
 
   return (outcome) =>
-    notifier.send(notification, {
-      recipients: [outcome.task.userId],
-      tenant: outcome.task.organizationId,
-      key: `ai-task-run:${outcome.run.id}`,
-      data: {
-        taskId: outcome.task.id,
-        runId: outcome.run.id,
-        ok: outcome.ok,
-        ...(outcome.error === undefined ? {} : { error: outcome.error }),
-        ...(outcome.chatId === undefined ? {} : { chatId: outcome.chatId }),
+    notifier.send({
+      type: notification,
+      input: {
+        recipients: [outcome.task.userId],
+        tenant: outcome.task.organizationId,
+        key: `ai-task-run:${outcome.run.id}`,
+        data: {
+          taskId: outcome.task.id,
+          runId: outcome.run.id,
+          ok: outcome.ok,
+          ...(outcome.error === undefined ? {} : { error: outcome.error }),
+          ...(outcome.chatId === undefined ? {} : { chatId: outcome.chatId }),
+        },
       },
     });
 }
@@ -462,10 +468,12 @@ export function createAiSchedules<
         : service("schedule_ai_tasks", { items: { items } }, () => runs);
     });
 
-  const execute = (
-    runId: string,
-    executeOptions: { readonly signal?: AbortSignal } = {},
-  ): AsyncResult<boolean> =>
+  const execute = ({
+    runId,
+    ...executeOptions
+  }: { runId: string } & {
+    readonly signal?: AbortSignal;
+  }): AsyncResult<boolean> =>
     service("start_ai_task_run", { id: runId }, (value) => value).andThen(
       (value) =>
         AsyncResult.from(async () => {
@@ -524,21 +532,21 @@ export function createAiSchedules<
     );
 
   const client: AiSchedules<F> = {
-    create: (organizationId, task) =>
+    create: ({ organizationId, task }) =>
       schedule(task, task.timezone).andThen((nextRunAt) =>
         save(organizationId, undefined, task, nextRunAt),
       ),
-    update: (organizationId, taskId, fields) =>
+    update: ({ organizationId, taskId, fields }) =>
       schedule(fields, fields.timezone).andThen((nextRunAt) =>
         save(organizationId, taskId, fields, nextRunAt),
       ),
-    pause: (organizationId, taskId) =>
+    pause: ({ organizationId, taskId }) =>
       save(organizationId, taskId, { enabled: false }, undefined),
-    resume: (organizationId, taskId) =>
+    resume: ({ organizationId, taskId }) =>
       save(organizationId, taskId, { enabled: true }, undefined),
     remove: (taskId) =>
       call("delete_ai_task", { id: taskId }, (value) => value === true),
-    list: (organizationId, listOptions = {}) =>
+    list: ({ organizationId, ...listOptions }) =>
       call(
         "list_ai_tasks",
         { tenant: organizationId, mine: listOptions.all !== true },
@@ -547,7 +555,7 @@ export function createAiSchedules<
             (raw) => [raw, taskOf(raw)] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
-    runs: (taskId, runsOptions = {}) =>
+    runs: ({ taskId, ...runsOptions }) =>
       call(
         "list_ai_task_runs",
         { task_id: taskId, max_rows: runsOptions.limit },
@@ -556,7 +564,7 @@ export function createAiSchedules<
     tick,
     execute,
     runJob: () => async (payload, _job, signal) => {
-      const result = await execute(payload.run_id, { signal });
+      const result = await execute({ runId: payload.run_id, signal });
 
       if (!result.ok) {
         throw new DbException(result.error);
@@ -577,7 +585,7 @@ export function createAiSchedules<
               break;
             }
 
-            const result = await execute(run.id, drainOptions);
+            const result = await execute({ runId: run.id, ...drainOptions });
 
             if (!result.ok) {
               failures.push({ runId: run.id, error: result.error });

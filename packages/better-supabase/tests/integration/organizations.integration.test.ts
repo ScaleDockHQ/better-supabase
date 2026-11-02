@@ -1423,7 +1423,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         transport: sqlTransport(savepointSql(client)),
         schema,
       })
-        .resendInvitation(invite.id)
+        .resendInvitation({ invitationId: invite.id })
         .orThrow();
 
       expect(resent.invitation).toMatchObject({
@@ -1666,14 +1666,23 @@ describe.skipIf(!live)("organizations and invitations", () => {
       const slug = `api-${USERS.owner.slice(0, 8)}`;
 
       const created = await organizations
-        .create({ name: "Api", slug })
+        .create({ attributes: { name: "Api", slug } })
         .orThrow();
 
-      expect((await organizations.slugProblem(slug)).data).toBe("taken");
+      expect((await organizations.slugProblem({ slug })).data).toBe("taken");
       expect(
-        (await organizations.slugProblem(slug, created.id)).data,
+        (
+          await organizations.slugProblem({
+            slug,
+            exceptOrganizationId: created.id,
+          })
+        ).data,
       ).toBeUndefined();
-      const taken = await organizations.create({ name: "Again", slug });
+
+      const taken = await organizations.create({
+        attributes: { name: "Again", slug },
+      });
+
       expect(taken.error).toMatchObject({ hint: "ORGANIZATION_SLUG_TAKEN" });
 
       const switched = await organizations.switch(created.id).orThrow();
@@ -1705,8 +1714,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       await s.as("member");
 
-      const forbidden = await organizations.update(created.id, {
-        name: "Mine",
+      const forbidden = await organizations.update({
+        organizationId: created.id,
+        attributes: { name: "Mine" },
       });
 
       expect(forbidden.error).toMatchObject({ hint: "ORGANIZATION_FORBIDDEN" });
@@ -1718,7 +1728,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(await s.role(created.id, "member")).toBeNull();
 
       await s.as("owner");
-      await organizations.update(created.id, { name: "Api 2" }).orThrow();
+      await organizations
+        .update({ organizationId: created.id, attributes: { name: "Api 2" } })
+        .orThrow();
       expect(await organizations.delete(created.id).orThrow()).toBe(true);
       expect(seen).toEqual([
         "organization.created",

@@ -87,7 +87,7 @@ async function loadVitals(
   }
 
   const latest = await db.observations
-    .latest("customer", customer.id)
+    .latest({ subjectType: "customer", subjectId: customer.id })
     .orThrow();
 
   const rows = await Promise.all(
@@ -98,7 +98,11 @@ async function loadVitals(
 
       const points = numeric
         ? await db.observations
-            .series("customer", customer.id, observation.definitionKey)
+            .series({
+              subjectType: "customer",
+              subjectId: customer.id,
+              definitionKey: observation.definitionKey,
+            })
             .orThrow()
         : [];
 

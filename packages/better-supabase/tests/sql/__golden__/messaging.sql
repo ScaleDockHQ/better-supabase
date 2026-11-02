@@ -1775,7 +1775,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:611d334fef12adcdf12ddb98472d06072c2ab619b7d05e0e92b1f9c10759bba2
+-- @bsb-hash sha256:e93211cd1623cb9477cceb74de187e1ee67e2e8495e5a32e2e4c6f700a217438
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3813,6 +3813,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summa
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.messages', target_type => 'message', event_prefix => 'message', deferred => true);
+  perform better_supabase.audit('better_supabase.conversations', target_type => 'conversation', event_prefix => 'conversation', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

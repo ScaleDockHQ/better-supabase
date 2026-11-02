@@ -21,7 +21,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
@@ -158,45 +158,75 @@ export interface PipelineHealth {
 
 export interface Pipelines<F extends object = Record<never, never>> {
   /** The organization's active pipelines of a subject type, with their stages. */
-  list(organizationId: string, subjectType: string): AsyncResult<Pipeline<F>[]>;
+  list(input: {
+    organizationId: string;
+    subjectType: string;
+  }): AsyncResult<Pipeline<F>[]>;
   /**
    * Creates or renames a pipeline. The first of a type and scope is its
    * default.
    */
-  upsert(
-    organizationId: string,
-    input: PipelineInput<F>,
-  ): AsyncResult<Pipeline<F>>;
+  upsert(input: {
+    organizationId: string;
+    input: PipelineInput<F>;
+  }): AsyncResult<Pipeline<F>>;
+  /**
+   * The organization's default pipeline of a subject type (and scope), or
+   * `undefined` when it has none. It reads `list`.
+   */
+  default(input: {
+    organizationId: string;
+    subjectType: string;
+    scopeId?: string | undefined;
+  }): AsyncResult<Pipeline<F> | undefined>;
+  /**
+   * The pipeline with this `key` and scope, created when it does not exist (the
+   * first of a type and scope becomes the default). With `stages`, a new
+   * pipeline gets those stages added in order and an existing one is left as it
+   * is, so calling it on every start is safe. It calls `list`, `upsert` and
+   * `saveStage`, so their hooks see each step.
+   */
+  ensure(input: {
+    organizationId: string;
+    subjectType: string;
+    key: string;
+    name: string;
+    scopeId?: string | undefined;
+    stages?: readonly PipelineStageInput[] | undefined;
+  }): AsyncResult<Pipeline<F>>;
   /** Archives a pipeline that holds no records. */
   archive(pipelineId: string): AsyncResult<boolean>;
   /** Adds a stage at the end of a pipeline, or changes one. */
-  saveStage(
-    pipelineId: string,
-    input: PipelineStageInput,
-  ): AsyncResult<PipelineStage>;
+  saveStage(input: {
+    pipelineId: string;
+    input: PipelineStageInput;
+  }): AsyncResult<PipelineStage>;
   /** Moves a stage between the stages with rank keys `previous` and `next`. */
-  reorderStage(stageId: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorderStage(input: {
+    stageId: string;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
   /** Archives an empty stage. A pipeline keeps at least one open stage. */
   archiveStage(stageId: string): AsyncResult<boolean>;
   /** Replaces the allowed stage changes. An empty list allows every change. */
-  setTransitions(
-    pipelineId: string,
-    transitions: readonly PipelineTransition[],
-  ): AsyncResult<number>;
+  setTransitions(input: {
+    pipelineId: string;
+    transitions: readonly PipelineTransition[];
+  }): AsyncResult<number>;
   /** The board: each active stage with its count and totals per currency. */
   board(
-    subjectType: string,
-    pipelineId: string,
-    options?: { readonly owner?: string },
+    input: { subjectType: string; pipelineId: string } & {
+      readonly owner?: string;
+    },
   ): AsyncResult<PipelineColumn[]>;
   /** Entries, time in stage and win rate from the stage history. */
-  stats(
-    pipelineId: string,
+  stats(input: {
+    pipelineId: string;
     window: {
       readonly since: Temporal.Instant;
       readonly until: Temporal.Instant;
-    },
-  ): AsyncResult<PipelineStats>;
+    };
+  }): AsyncResult<PipelineStats>;
   /** The open records, oldest entry first, with their days in stage. */
   health(pipelineId: string): AsyncResult<PipelineHealth[]>;
 }
@@ -351,13 +381,13 @@ export function createPipelines<
   const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
 
   const client: Pipelines<F> = {
-    list: (organizationId, subjectType) =>
+    list: ({ organizationId, subjectType }) =>
       call(
         "list_pipelines",
         { tenant: organizationId, subject_type: subjectType },
         (value) => recordsOf(value, "list_pipelines").map(pipelineOf),
       ).andThen((pipelines) => readAllFields(fields, pipelines)),
-    upsert: (organizationId, input) =>
+    upsert: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         call(
           "save_pipeline",
@@ -374,13 +404,73 @@ export function createPipelines<
           pipelineOf,
         ),
       ).andThen((pipeline) => readFields(fields, pipeline)),
+    default: ({ organizationId, subjectType, scopeId }) =>
+      hooked
+        .list({ organizationId, subjectType })
+        .map((pipelines) =>
+          pipelines.find(
+            (pipeline) => pipeline.isDefault && pipeline.scopeId === scopeId,
+          ),
+        ),
+    ensure: ({ organizationId, subjectType, key, name, scopeId, stages }) =>
+      AsyncResult.from(async () => {
+        const existing = await hooked.list({ organizationId, subjectType });
+
+        if (!existing.ok) {
+          return existing;
+        }
+
+        const found = existing.data.find(
+          (pipeline) => pipeline.key === key && pipeline.scopeId === scopeId,
+        );
+
+        if (found !== undefined) {
+          return ok(found);
+        }
+
+        const created = await hooked.upsert({
+          organizationId,
+          input: {
+            subjectType,
+            key,
+            name,
+            ...(scopeId === undefined ? {} : { scopeId }),
+          },
+        });
+
+        if (!created.ok || stages === undefined || stages.length === 0) {
+          return created;
+        }
+
+        for (const stage of stages) {
+          const saved = await hooked.saveStage({
+            pipelineId: created.data.id,
+            input: stage,
+          });
+
+          if (!saved.ok) {
+            return saved;
+          }
+        }
+
+        const reread = await hooked.list({ organizationId, subjectType });
+
+        if (!reread.ok) {
+          return reread;
+        }
+
+        return ok(
+          reread.data.find((pipeline) => pipeline.id === created.data.id) ??
+            created.data,
+        );
+      }),
     archive: (pipelineId) =>
       call(
         "archive_pipeline",
         { pipeline: pipelineId },
         (value) => value === true,
       ),
-    saveStage: (pipelineId, input) =>
+    saveStage: ({ pipelineId, input }) =>
       call(
         "save_pipeline_stage",
         {
@@ -396,7 +486,7 @@ export function createPipelines<
         },
         stageOf,
       ),
-    reorderStage: (stageId, neighbors) => {
+    reorderStage: ({ stageId, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -415,7 +505,7 @@ export function createPipelines<
         { stage: stageId },
         (value) => value === true,
       ),
-    setTransitions: (pipelineId, transitions) =>
+    setTransitions: ({ pipelineId, transitions }) =>
       call(
         "set_pipeline_transitions",
         {
@@ -424,7 +514,7 @@ export function createPipelines<
         },
         (value) => numberOf(value) ?? 0,
       ),
-    board: (subjectType, pipelineId, board = {}) =>
+    board: ({ subjectType, pipelineId, ...board }) =>
       call(
         "pipeline_board",
         {
@@ -434,7 +524,7 @@ export function createPipelines<
         },
         (value) => recordsOf(value, "pipeline_board").map(columnOf),
       ),
-    stats: (pipelineId, window) =>
+    stats: ({ pipelineId, window }) =>
       call(
         "pipeline_stats",
         {
@@ -450,8 +540,11 @@ export function createPipelines<
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Pipelines<F> = withBlockHooks(client, options.hooks, {
     block: "pipelines",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

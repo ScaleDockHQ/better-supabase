@@ -12,7 +12,11 @@ import { bsb } from "@/lib/supabase/server";
 export const apiKeyCreated = bsb.action(
   { requireTenant: true, permission: "api_keys.own" },
   async (_input, { tenant: organizationId, db }) => {
-    await db.onboarding.complete(gettingStarted, "api-key", organizationId);
+    await db.onboarding.complete({
+      checklist: gettingStarted,
+      step: "api-key",
+      organizationId,
+    });
 
     return ok(true);
   },

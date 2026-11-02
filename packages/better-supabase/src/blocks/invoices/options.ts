@@ -77,6 +77,12 @@ export type InvoicesSqlOptions = {
    * Default `false`, so lines price as before.
    */
   readonly discountMatrix?: boolean;
+  /**
+   * Adds a stored `search_tsv` column and a GIN index to invoices, so queries
+   * match with `search_tsv @@ websearch_to_tsquery('simple', ...)`. Default
+   * `false`.
+   */
+  readonly searchColumn?: boolean;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -106,4 +112,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     matchTolerance:
       option.unknown<NonNullable<InvoicesSqlOptions["matchTolerance"]>>(),
     discountMatrix: option.boolean({ default: false }),
+    searchColumn: option.boolean({ default: false }),
   });

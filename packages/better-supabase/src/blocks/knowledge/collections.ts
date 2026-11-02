@@ -55,20 +55,26 @@ export interface KnowledgeCollections {
    * Creates a collection. `organizationId` null creates a system collection
    * (service role).
    */
-  create(
-    organizationId: string | null,
-    collection: NewKnowledgeCollection,
-  ): AsyncResult<KnowledgeCollection>;
-  update(
-    collectionId: string,
-    patch: Partial<NewKnowledgeCollection>,
-  ): AsyncResult<KnowledgeCollection>;
+  create(input: {
+    organizationId: string | null;
+    collection: NewKnowledgeCollection;
+  }): AsyncResult<KnowledgeCollection>;
+  update(input: {
+    collectionId: string;
+    patch: Partial<NewKnowledgeCollection>;
+  }): AsyncResult<KnowledgeCollection>;
   /** Deletes a collection; its documents stay, without a collection. */
   remove(collectionId: string): AsyncResult<boolean>;
   /** The collections the caller reads, system ones included. */
   list(organizationId: string): AsyncResult<readonly KnowledgeCollection[]>;
-  grant(collectionId: string, to: KnowledgeGrantee): AsyncResult<boolean>;
-  revoke(collectionId: string, from: KnowledgeGrantee): AsyncResult<boolean>;
+  grant(input: {
+    collectionId: string;
+    to: KnowledgeGrantee;
+  }): AsyncResult<boolean>;
+  revoke(input: {
+    collectionId: string;
+    from: KnowledgeGrantee;
+  }): AsyncResult<boolean>;
   grants(
     collectionId: string,
   ): AsyncResult<readonly KnowledgeCollectionGrant[]>;
@@ -117,7 +123,7 @@ export function knowledgeCollections(call: BlockCall): KnowledgeCollections {
     );
 
   return {
-    create: (organizationId, collection) =>
+    create: ({ organizationId, collection }) =>
       call(
         "create_knowledge_collection",
         {
@@ -129,7 +135,7 @@ export function knowledgeCollections(call: BlockCall): KnowledgeCollections {
         },
         collectionOf,
       ),
-    update: (collectionId, patch) =>
+    update: ({ collectionId, patch }) =>
       call(
         "update_knowledge_collection",
         { collection_id: collectionId, patch },
@@ -145,8 +151,8 @@ export function knowledgeCollections(call: BlockCall): KnowledgeCollections {
       call("list_knowledge_collections", { tenant: organizationId }, (value) =>
         recordsOf(value, "knowledge_collections").map(collectionOf),
       ),
-    grant: (collectionId, to) => setGrant(collectionId, to, true),
-    revoke: (collectionId, from) => setGrant(collectionId, from, false),
+    grant: ({ collectionId, to }) => setGrant(collectionId, to, true),
+    revoke: ({ collectionId, from }) => setGrant(collectionId, from, false),
     grants: (collectionId) =>
       call(
         "list_knowledge_collection_grants",

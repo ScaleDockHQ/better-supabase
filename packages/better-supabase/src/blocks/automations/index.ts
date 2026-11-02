@@ -63,7 +63,9 @@ export {
 } from "./tree.ts";
 
 export {
+  type ActionManifest,
   approvalsAction,
+  blockActions,
   notifyAction,
   type RuleApprovals,
   type RuleFieldSetter,
@@ -79,6 +81,7 @@ export {
 
 export {
   defineConversionAction,
+  narrowClients,
   type ConversionClients,
   type ConversionContext,
   type ConversionOutcome,

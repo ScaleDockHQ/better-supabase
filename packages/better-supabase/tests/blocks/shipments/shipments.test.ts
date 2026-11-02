@@ -289,7 +289,7 @@ describe("createShipments", () => {
       carriers: [carrier(), other],
     });
 
-    const rates = await shipments.rates("s1").orThrow();
+    const rates = await shipments.rates({ id: "s1" }).orThrow();
 
     expect(rates.map((rate) => `${rate.carrier}:${rate.service}`)).toEqual([
       "other:cheap",
@@ -299,7 +299,9 @@ describe("createShipments", () => {
     ]);
     expect(rates[1]?.amount).toEqual(money(695, "EUR"));
 
-    const dollars = await shipments.rates("s1", { currency: "USD" }).orThrow();
+    const dollars = await shipments
+      .rates({ id: "s1", currency: "USD" })
+      .orThrow();
 
     expect(dollars.map((rate) => rate.service)).toEqual(["dollar"]);
   });
@@ -310,7 +312,7 @@ describe("createShipments", () => {
       carriers: [carrier()],
     });
 
-    const gone = await missing.rates("s9");
+    const gone = await missing.rates({ id: "s9" });
 
     expect(!gone.ok && gone.error.kind).toBe("not_found");
 
@@ -324,7 +326,7 @@ describe("createShipments", () => {
       carriers: [broken],
     });
 
-    const result = await failing.rates("s1");
+    const result = await failing.rates({ id: "s1" });
 
     expect(!result.ok && result.error.kind).toBe("network");
   });
@@ -341,7 +343,10 @@ describe("createShipments", () => {
     });
 
     const shipment = await shipments
-      .buyLabel("s1", { carrier: "flat-rate", service: "standard" })
+      .buyLabel({
+        id: "s1",
+        choice: { carrier: "flat-rate", service: "standard" },
+      })
       .orThrow();
 
     expect(shipment.status).toBe("label_created");
@@ -367,16 +372,16 @@ describe("createShipments", () => {
       carriers: [carrier()],
     });
 
-    const unknown = await shipments.buyLabel("s1", {
-      carrier: "nobody",
-      service: "standard",
+    const unknown = await shipments.buyLabel({
+      id: "s1",
+      choice: { carrier: "nobody", service: "standard" },
     });
 
     expect(!unknown.ok && unknown.error.hint).toBe("SHIPMENT_CARRIER_UNKNOWN");
 
-    const again = await shipments.buyLabel("s1", {
-      carrier: "flat-rate",
-      service: "standard",
+    const again = await shipments.buyLabel({
+      id: "s1",
+      choice: { carrier: "flat-rate", service: "standard" },
     });
 
     expect(!again.ok && again.error.hint).toBe("SHIPMENT_NOT_DRAFT");
@@ -396,9 +401,9 @@ describe("createShipments", () => {
       carriers: [voiding],
     });
 
-    const result = await shipments.buyLabel("s1", {
-      carrier: "flat-rate",
-      service: "standard",
+    const result = await shipments.buyLabel({
+      id: "s1",
+      choice: { carrier: "flat-rate", service: "standard" },
     });
 
     expect(result.ok).toBe(false);
@@ -424,9 +429,9 @@ describe("createShipments", () => {
       logger,
     });
 
-    const result = await shipments.buyLabel("s1", {
-      carrier: "flat-rate",
-      service: "standard",
+    const result = await shipments.buyLabel({
+      id: "s1",
+      choice: { carrier: "flat-rate", service: "standard" },
     });
 
     expect(result.ok).toBe(false);
@@ -501,14 +506,17 @@ describe("createShipments", () => {
     const shipments = createShipments({ transport: fake.transport });
 
     const result = await shipments
-      .recordTracking("s1", [
-        {
-          id: "m1",
-          status: "delivered",
-          occurredAt: instant(LATER),
-          location: "Berlin",
-        },
-      ])
+      .recordTracking({
+        id: "s1",
+        events: [
+          {
+            id: "m1",
+            status: "delivered",
+            occurredAt: instant(LATER),
+            location: "Berlin",
+          },
+        ],
+      })
       .orThrow();
 
     expect(result.recorded).toBe(0);
@@ -557,7 +565,7 @@ describe("createShipments", () => {
     const headers = await signWebhook(SECRET, { id: "msg_1", body });
 
     const result = await shipments
-      .ingest("flat-rate", { headers, body })
+      .ingest({ carrier: "flat-rate", request: { headers, body } })
       .orThrow();
 
     expect(result).toEqual([
@@ -594,20 +602,26 @@ describe("createShipments", () => {
 
     const body = JSON.stringify({ trackingNumber: "FR1", events: [] });
 
-    const forged = await shipments.ingest("flat-rate", {
-      headers: await signWebhook("whsec_b3RoZXItc2VjcmV0", { id: "m", body }),
-      body,
+    const forged = await shipments.ingest({
+      carrier: "flat-rate",
+      request: {
+        headers: await signWebhook("whsec_b3RoZXItc2VjcmV0", { id: "m", body }),
+        body,
+      },
     });
 
     expect(!forged.ok && forged.error.kind).toBe("unauthorized");
 
-    const pull = await shipments.ingest("pull-only", { headers: {}, body });
+    const pull = await shipments.ingest({
+      carrier: "pull-only",
+      request: { headers: {}, body },
+    });
 
     expect(!pull.ok && pull.error.hint).toBe("SHIPMENT_WEBHOOK_UNSUPPORTED");
 
-    const failed = await shipments.ingest("flat-rate", {
-      headers: await signWebhook(SECRET, { id: "m2", body }),
-      body,
+    const failed = await shipments.ingest({
+      carrier: "flat-rate",
+      request: { headers: await signWebhook(SECRET, { id: "m2", body }), body },
     });
 
     expect(failed.ok).toBe(false);

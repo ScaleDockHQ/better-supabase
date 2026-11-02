@@ -44,7 +44,10 @@ export interface ReactionsSnapshot {
 
 export interface ReactionsActions {
   /** Adds the emoji, or removes it when the user already reacted with it. */
-  readonly toggle: (subject: RecordRef, emoji: string) => Promise<void>;
+  readonly toggle: (input: {
+    subject: RecordRef;
+    emoji: string;
+  }) => Promise<void>;
   readonly refresh: () => Promise<void>;
   /**
    * Watches other subjects, such as the rows on screen after a scroll, and
@@ -136,7 +139,7 @@ export function createReactionsController(
               void refresh();
             }
           },
-          toggle: async (subject, emoji) => {
+          toggle: async ({ subject, emoji }) => {
             const key = subjectKey(subject);
 
             const present = !state
@@ -145,7 +148,7 @@ export function createReactionsController(
                 (reaction) => reaction.emoji === emoji && reaction.reacted,
               );
 
-            const result = await client.react(subject, emoji, { present });
+            const result = await client.react({ subject, emoji, present });
 
             if (!result.ok) {
               state.set({ error: result.error });

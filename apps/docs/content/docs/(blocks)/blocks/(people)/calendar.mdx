@@ -111,6 +111,13 @@ count and a new uid. EXDATEs and overrides after the split move to the new
 series. `splitRule(rrule, dtstart, at)` computes both rules if you need them
 yourself.
 
+## No overlapping events
+
+`noOverlap: true` adds the `calendar_events_no_overlap` exclusion constraint
+(`btree_gist`). Two timed, opaque, non-recurring, non-cancelled events on the
+same calendar can't cover the same time range. It is off by default because
+existing data may already overlap.
+
 ## Availability
 
 Each member can set weekly working hours, mark time as out of office or focus

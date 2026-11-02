@@ -245,15 +245,15 @@ export interface Moderation {
    * Sends a notice of illegal content. A notice from an active trusted flagger
    * is marked `trusted` and comes first in `notices()`.
    */
-  submitNotice(
-    subject: RecordRef,
+  submitNotice(input: {
+    subject: RecordRef;
     notice: {
       readonly explanation: string;
       readonly url?: string;
       readonly notifierName?: string;
       readonly notifierEmail?: string;
-    },
-  ): AsyncResult<ModerationNotice>;
+    };
+  }): AsyncResult<ModerationNotice>;
   /** The notices that wait for a decision, trusted flaggers first. */
   notices(filter?: {
     readonly status?: (typeof NOTICE_STATUSES)[number];
@@ -261,34 +261,36 @@ export interface Moderation {
   }): AsyncResult<readonly ModerationNotice[]>;
   /** Hides or removes the content, or rejects the notice. */
   decideNotice(
-    noticeId: string,
-    decision: ModerationNoticeDecision,
-    options?: { readonly outcome?: string },
+    input: { noticeId: string; decision: ModerationNoticeDecision } & {
+      readonly outcome?: string;
+    },
   ): AsyncResult<ModerationNotice>;
   /** Records the statement of reasons for a restricted item. */
-  issueStatement(
-    itemId: string,
-    statement: ModerationStatementInput,
-  ): AsyncResult<ModerationStatement>;
+  issueStatement(input: {
+    itemId: string;
+    statement: ModerationStatementInput;
+  }): AsyncResult<ModerationStatement>;
   /** An item's statements of reasons, newest first. Its author can read them. */
   statements(itemId: string): AsyncResult<readonly ModerationStatement[]>;
   /** Awards trusted flagger status, or updates its name. */
   setTrustedFlagger(
-    userId: string,
-    flagger: { readonly name: string; readonly awardedBy?: string },
+    input: { userId: string } & {
+      readonly name: string;
+      readonly awardedBy?: string;
+    },
   ): AsyncResult<ModerationTrustedFlagger>;
   /** Revokes trusted flagger status. */
   revokeTrustedFlagger(userId: string): AsyncResult<ModerationTrustedFlagger>;
   /** Appeals a statement of reasons, or a rejected notice you sent. */
-  appeal(
-    target: { readonly statementId: string } | { readonly noticeId: string },
-    reasons: string,
-  ): AsyncResult<ModerationAppeal>;
+  appeal(input: {
+    target: { readonly statementId: string } | { readonly noticeId: string };
+    reasons: string;
+  }): AsyncResult<ModerationAppeal>;
   /** Decides an appeal. Reversing it restores the content or reopens the notice. */
   decideAppeal(
-    appealId: string,
-    outcome: ModerationAppealOutcome,
-    options?: { readonly reason?: string },
+    input: { appealId: string; outcome: ModerationAppealOutcome } & {
+      readonly reason?: string;
+    },
   ): AsyncResult<ModerationAppeal>;
   /**
    * The transparency report for a period as CSV with the columns `metric`,
@@ -304,10 +306,10 @@ export interface Moderation {
    * returns that report. `autoHidden` is true when this report reached the
    * auto-hide threshold.
    */
-  report(
-    subject: RecordRef,
-    report: { readonly reason: string; readonly note?: string },
-  ): AsyncResult<ModerationReport & { readonly autoHidden: boolean }>;
+  report(input: {
+    subject: RecordRef;
+    report: { readonly reason: string; readonly note?: string };
+  }): AsyncResult<ModerationReport & { readonly autoHidden: boolean }>;
   /** The review queue, most recently changed first. */
   queue(filter?: ModerationQueueFilter): AsyncResult<readonly ModerationItem[]>;
   /**
@@ -317,22 +319,21 @@ export interface Moderation {
   item(subject: RecordRef): AsyncResult<ModerationItemDetail | null>;
   /** Decides on an item. `ban` needs the ban permission as well. */
   decide(
-    itemId: string,
-    decision: ModerationDecision,
-    options?: { readonly reason?: string },
+    input: { itemId: string; decision: ModerationDecision } & {
+      readonly reason?: string;
+    },
   ): AsyncResult<ModerationItem>;
   /**
    * The statuses of the subjects that are not visible, by id, for filtering a
    * list. Visible and unmoderated subjects are left out. At most 500 ids.
    */
-  statuses(
-    subjectType: string,
-    ids: readonly string[],
-  ): AsyncResult<Readonly<Record<string, ModerationStatus>>>;
+  statuses(input: {
+    subjectType: string;
+    ids: readonly string[];
+  }): AsyncResult<Readonly<Record<string, ModerationStatus>>>;
   /** Bans a user in the organization, until `expiresAt` or for good. */
   ban(
-    userId: string,
-    options?: {
+    input: { userId: string } & {
       readonly reason?: string;
       readonly expiresAt?: Temporal.Instant;
     },
@@ -526,7 +527,7 @@ export function createModeration(options: ModerationOptions): Moderation {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Moderation = {
-    report: (subject, report) =>
+    report: ({ subject, report }) =>
       tenant().andThen((organizationId) =>
         call(
           "report_content",
@@ -589,13 +590,13 @@ export function createModeration(options: ModerationOptions): Moderation {
           },
         ),
       ),
-    decide: (itemId, decision, decide = {}) =>
+    decide: ({ itemId, decision, ...decide }) =>
       call(
         "moderate",
         { item_id: itemId, action: decision, reason: decide.reason ?? null },
         (value) => itemOf(value, "moderate"),
       ),
-    statuses: (subjectType, ids) =>
+    statuses: ({ subjectType, ids }) =>
       tenant().andThen((organizationId) =>
         call(
           "moderation_statuses",
@@ -607,7 +608,7 @@ export function createModeration(options: ModerationOptions): Moderation {
           statusesOf,
         ),
       ),
-    ban: (userId, ban = {}) =>
+    ban: ({ userId, ...ban }) =>
       tenant().andThen((organizationId) =>
         call(
           "ban_user",
@@ -620,7 +621,7 @@ export function createModeration(options: ModerationOptions): Moderation {
           (value) => banOf(value, "ban_user"),
         ),
       ),
-    submitNotice: (subject, notice) =>
+    submitNotice: ({ subject, notice }) =>
       tenant().andThen((organizationId) =>
         call(
           "submit_notice",
@@ -651,13 +652,13 @@ export function createModeration(options: ModerationOptions): Moderation {
             ),
         ),
       ),
-    decideNotice: (noticeId, decision, decide = {}) =>
+    decideNotice: ({ noticeId, decision, ...decide }) =>
       call(
         "decide_notice",
         { notice_id: noticeId, decision, outcome: decide.outcome ?? null },
         (value) => noticeOf(value, "decide_notice"),
       ),
-    issueStatement: (itemId, statement) =>
+    issueStatement: ({ itemId, statement }) =>
       call(
         "issue_statement",
         {
@@ -679,7 +680,7 @@ export function createModeration(options: ModerationOptions): Moderation {
           statementOf(row, "list_statements"),
         ),
       ),
-    setTrustedFlagger: (userId, flagger) =>
+    setTrustedFlagger: ({ userId, ...flagger }) =>
       tenant().andThen((organizationId) =>
         call(
           "set_trusted_flagger",
@@ -707,7 +708,7 @@ export function createModeration(options: ModerationOptions): Moderation {
           (value) => flaggerOf(value, "set_trusted_flagger"),
         ),
       ),
-    appeal: (target, reasons) =>
+    appeal: ({ target, reasons }) =>
       call(
         "file_appeal",
         {
@@ -717,7 +718,7 @@ export function createModeration(options: ModerationOptions): Moderation {
         },
         (value) => appealOf(value, "file_appeal"),
       ),
-    decideAppeal: (appealId, outcome, decide = {}) =>
+    decideAppeal: ({ appealId, outcome, ...decide }) =>
       call(
         "decide_appeal",
         { appeal_id: appealId, outcome, reason: decide.reason ?? null },

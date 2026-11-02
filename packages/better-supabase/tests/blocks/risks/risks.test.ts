@@ -159,7 +159,9 @@ describe("createRisks", () => {
       })
       .orThrow();
 
-    const updated = await risks.update("r2", { title: "Flood" }).orThrow();
+    const updated = await risks
+      .update({ riskId: "r2", change: { title: "Flood" } })
+      .orThrow();
 
     const refused = await risks.create({
       title: "Bad",
@@ -208,15 +210,21 @@ describe("createRisks", () => {
     const risks = createRisks({ transport: t, tenant: "org-1" });
 
     await risks
-      .assess("r1", {
-        inherent: { likelihood: 4, impact: 5 },
-        residual: { likelihood: 2, impact: 3 },
-        rationale: "Two suppliers",
+      .assess({
+        riskId: "r1",
+        input: {
+          inherent: { likelihood: 4, impact: 5 },
+          residual: { likelihood: 2, impact: 3 },
+          rationale: "Two suppliers",
+        },
       })
       .orThrow();
-    await risks.setTreatment("r1", "accept").orThrow();
-    await risks.review("r1", "Still fine").orThrow();
-    const closed = await risks.close("r1", "Supplier replaced").orThrow();
+    await risks.setTreatment({ riskId: "r1", treatment: "accept" }).orThrow();
+    await risks.review({ riskId: "r1", note: "Still fine" }).orThrow();
+
+    const closed = await risks
+      .close({ riskId: "r1", reason: "Supplier replaced" })
+      .orThrow();
 
     expect(closed.status).toBe("closed");
     expect(closed.closedAt?.toString()).toBe("2026-10-29T10:00:00Z");

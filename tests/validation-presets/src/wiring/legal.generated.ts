@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
@@ -15,6 +16,7 @@ import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -31,6 +33,7 @@ import { blockConfig } from "./legal.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
@@ -43,6 +46,7 @@ export const blockSet = defineBlocks(blockConfig, {
   entitlements: entitlementsBlock,
   signatures: signaturesBlock,
   invoices: invoicesBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,

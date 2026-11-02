@@ -266,11 +266,14 @@ describe("costBackfill", () => {
     expect(
       await handler({ generationId: "gen", organizationId: "o" }, job, signal),
     ).toBe(1200);
-    expect(setCost).toHaveBeenCalledWith("gen", 1200, {
-      inputTokens: 10,
-      outputTokens: 4,
+    expect(setCost).toHaveBeenCalledWith({
+      generationId: "gen",
+      costMicroUsd: 1200,
+      usage: { inputTokens: 10, outputTokens: 4 },
     });
-    expect(record).toHaveBeenCalledWith("o", "ai.cost", {
+    expect(record).toHaveBeenCalledWith({
+      organizationId: "o",
+      meter: "ai.cost",
       quantity: 1200,
       idempotencyKey: "ai-cost:gen",
       source: "ai:gateway",
@@ -333,8 +336,8 @@ describe("modelCatalogRefresh", () => {
     });
 
     expect(await handler(undefined, job, signal)).toBe(2);
-    expect(upsert).toHaveBeenCalledWith(
-      [
+    expect(upsert).toHaveBeenCalledWith({
+      models: [
         {
           id: "openai/gpt-5",
           provider: "openai",
@@ -351,8 +354,8 @@ describe("modelCatalogRefresh", () => {
           plans: ["pro"],
         },
       ],
-      { prune: true },
-    );
+      prune: true,
+    });
   });
 
   it("maps one model", () => {

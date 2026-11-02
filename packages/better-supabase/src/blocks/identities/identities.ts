@@ -73,19 +73,19 @@ export interface Identities {
    * Signed-in user: issues a one-time code for the bot or the mail side to
    * redeem.
    */
-  readonly beginLink: (
-    kind: IdentityRef["kind"],
-    provider?: string,
-  ) => AsyncResult<LinkCode>;
+  readonly beginLink: (input: {
+    kind: IdentityRef["kind"];
+    provider?: string | undefined;
+  }) => AsyncResult<LinkCode>;
   /**
    * Service role: binds `identity` to the user who issued `code`. Pass only an
    * identity the platform authenticated, such as the author of a signed Slack
    * event or a DKIM-verified sender.
    */
-  readonly redeemLink: (
-    code: string,
-    identity: IdentityRef,
-  ) => AsyncResult<RedeemedLink>;
+  readonly redeemLink: (input: {
+    code: string;
+    identity: IdentityRef;
+  }) => AsyncResult<RedeemedLink>;
   /** Service role: the user or contact `identity` is linked to, or `null`. */
   readonly resolve: (
     identity: IdentityRef,
@@ -138,7 +138,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Identities = {
-    beginLink: (kind, provider) =>
+    beginLink: ({ kind, provider }) =>
       call(
         "begin_identity_link",
         { kind, provider: provider ?? null },
@@ -151,7 +151,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
           };
         },
       ),
-    redeemLink: (code, identity) =>
+    redeemLink: ({ code, identity }) =>
       call(
         "redeem_identity_link",
         { code, ...identityArgs(identity) },
@@ -213,7 +213,7 @@ export function beginLink(
   kind: IdentityRef["kind"],
   provider?: string,
 ): AsyncResult<LinkCode> {
-  return createIdentities({ transport }).beginLink(kind, provider);
+  return createIdentities({ transport }).beginLink({ kind, provider });
 }
 
 /**
@@ -225,5 +225,5 @@ export function redeemLink(
   code: string,
   identity: IdentityRef,
 ): AsyncResult<RedeemedLink> {
-  return createIdentities({ transport }).redeemLink(code, identity);
+  return createIdentities({ transport }).redeemLink({ code, identity });
 }

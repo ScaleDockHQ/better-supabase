@@ -126,25 +126,33 @@ describe.skipIf(!live)("signatures", () => {
 
       await s.as(bob);
       expect(
-        await signatures.sign(request.id, { method: "click" }).then(hint),
+        await signatures
+          .sign({ requestId: request.id, input: { method: "click" } })
+          .then(hint),
       ).toBe("SIGNATURE_OUT_OF_ORDER");
       await s.as(ada);
       expect(
         await signatures
-          .sign(request.id, { method: "typed", typedName: " " })
+          .sign({
+            requestId: request.id,
+            input: { method: "typed", typedName: " " },
+          })
           .then(hint),
       ).toBe("SIGNATURE_METHOD_INVALID");
       expect(
         await signatures
-          .sign(request.id, {
-            method: "drawn",
-            imageAttachmentId: crypto.randomUUID(),
+          .sign({
+            requestId: request.id,
+            input: { method: "drawn", imageAttachmentId: crypto.randomUUID() },
           })
           .then(hint),
       ).toBe("SIGNATURE_METHOD_INVALID");
 
       const first = await signatures
-        .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
+        .sign({
+          requestId: request.id,
+          input: { method: "typed", typedName: "Ada Lovelace" },
+        })
         .orThrow();
 
       expect(first).toMatchObject({
@@ -155,7 +163,9 @@ describe.skipIf(!live)("signatures", () => {
       });
       expect(first.signedHash).toMatch(/^[0-9a-f]{64}$/);
       expect(
-        await signatures.sign(request.id, { method: "click" }).then(hint),
+        await signatures
+          .sign({ requestId: request.id, input: { method: "click" } })
+          .then(hint),
       ).toBe("SIGNATURE_ALREADY_SIGNED");
 
       const decided = await s.rows<{ status: string }>(
@@ -168,7 +178,7 @@ describe.skipIf(!live)("signatures", () => {
       await s.as(bob);
 
       const second = await signatures
-        .sign(request.id, { method: "click" })
+        .sign({ requestId: request.id, input: { method: "click" } })
         .orThrow();
 
       expect(second.requestStatus).toBe("completed");
@@ -186,13 +196,15 @@ describe.skipIf(!live)("signatures", () => {
         contentMatches: true,
         changedSince: false,
       });
-      expect(await signatures.decline(request.id).then(hint)).toBe(
-        "SIGNATURE_REQUEST_CLOSED",
-      );
       expect(
-        (await signatures.list(tenant, { mine: true }).orThrow()).map(
-          (row) => row.id,
-        ),
+        await signatures.decline({ requestId: request.id }).then(hint),
+      ).toBe("SIGNATURE_REQUEST_CLOSED");
+      expect(
+        (
+          await signatures
+            .list({ organizationId: tenant, mine: true })
+            .orThrow()
+        ).map((row) => row.id),
       ).toEqual([request.id]);
 
       await s.service();
@@ -249,7 +261,7 @@ describe.skipIf(!live)("signatures", () => {
 
       await s.as(bob);
       expect(await signatures.get(fresh.id).then(hint)).toBe("ok");
-      expect(await signatures.decline(fresh.id).then(hint)).toBe(
+      expect(await signatures.decline({ requestId: fresh.id }).then(hint)).toBe(
         "SIGNATURE_FORBIDDEN",
       );
       await s.as(stranger);
@@ -262,7 +274,7 @@ describe.skipIf(!live)("signatures", () => {
       await s.as(ada);
 
       const declined = await signatures
-        .decline(fresh.id, "Wrong terms")
+        .decline({ requestId: fresh.id, reason: "Wrong terms" })
         .orThrow();
 
       expect(declined.status).toBe("declined");

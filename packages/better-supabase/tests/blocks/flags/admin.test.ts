@@ -43,21 +43,30 @@ describe("createFlags", () => {
     });
     expect(
       await admin
-        .upsert("beta", {
-          enabled: false,
-          archived: true,
-          description: null,
-          rolloutPercentage: 10,
-          defaultVariant: "off",
+        .upsert({
+          key: "beta",
+          input: {
+            enabled: false,
+            archived: true,
+            description: null,
+            rolloutPercentage: 10,
+            defaultVariant: "off",
+          },
         })
         .orThrow(),
     ).toMatchObject({ key: "beta" });
     expect(await admin.remove("beta").orThrow()).toBe(true);
-    expect(await admin.override("beta", { userId: "u1" }, null).orThrow()).toBe(
-      true,
-    );
+    expect(
+      await admin
+        .override({ key: "beta", target: { userId: "u1" }, variant: null })
+        .orThrow(),
+    ).toBe(true);
     await admin
-      .override("beta", { context: "brand", contextKey: "acme" }, "on")
+      .override({
+        key: "beta",
+        target: { context: "brand", contextKey: "acme" },
+        variant: "on",
+      })
       .orThrow();
     expect(calls.slice(1)).toEqual([
       [
@@ -144,7 +153,7 @@ describe("createFlags", () => {
     const admin = createFlags({ transport });
 
     await admin
-      .upsert("beta", { enabled: true }, { message: "Ship it" })
+      .upsert({ key: "beta", input: { enabled: true }, message: "Ship it" })
       .orThrow();
     expect(calls[0]).toEqual([
       "save_flag",
@@ -160,9 +169,9 @@ describe("createFlags", () => {
       definition: { key: "beta", rolloutVariants: [] },
     });
 
-    expect(await admin.restore("beta", 2).orThrow()).toMatchObject({
-      key: "beta",
-    });
+    expect(
+      await admin.restore({ key: "beta", revision: 2 }).orThrow(),
+    ).toMatchObject({ key: "beta" });
     expect(calls.at(-1)).toEqual([
       "restore_flag",
       { key: "beta", revision: 2 },
@@ -186,7 +195,9 @@ describe("createFlags", () => {
       transport: { call: () => Promise.resolve(null) },
     });
 
-    expect(await admin.upsert("x", {}).orThrow()).toBeUndefined();
+    expect(
+      await admin.upsert({ key: "x", input: {} }).orThrow(),
+    ).toBeUndefined();
     expect(await admin.remove("x").orThrow()).toBe(false);
   });
 });

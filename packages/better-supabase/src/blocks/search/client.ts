@@ -46,7 +46,10 @@ export interface CommandSearchActions {
   readonly setQuery: (query: string) => void;
   /** Records the item as opened (for recents) and closes the dialog. */
   readonly select: (item: CommandSearchItem) => Promise<void>;
-  readonly star: (item: CommandSearchItem, starred?: boolean) => Promise<void>;
+  readonly star: (input: {
+    item: CommandSearchItem;
+    starred?: boolean | undefined;
+  }) => Promise<void>;
 }
 
 export type CommandSearchController = Controller<
@@ -158,10 +161,9 @@ export function createCommandSearchController(
         timer = setTimeout(() => {
           timer = undefined;
           void client
-            .search(trimmed, {
-              limit,
-              organizationId,
-              ...(types ? { types } : {}),
+            .search({
+              q: trimmed,
+              query: { limit, organizationId, ...(types ? { types } : {}) },
             })
             .then((result) => {
               if (request !== ticket) {
@@ -222,19 +224,23 @@ export function createCommandSearchController(
             query = "";
             schedule();
             show();
-            const result = await client.touch(item.subjectType, item.subjectId);
+
+            const result = await client.touch({
+              subjectType: item.subjectType,
+              subjectId: item.subjectId,
+            });
 
             if (!result.ok) {
               error = result.error;
               show();
             }
           },
-          star: async (item, starred = true) => {
-            const result = await client.star(
-              item.subjectType,
-              item.subjectId,
+          star: async ({ item, starred = true }) => {
+            const result = await client.star({
+              subjectType: item.subjectType,
+              subjectId: item.subjectId,
               starred,
-            );
+            });
 
             if (!result.ok) {
               error = result.error;

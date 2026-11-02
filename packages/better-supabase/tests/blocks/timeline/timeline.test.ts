@@ -83,14 +83,12 @@ describe("createTimeline", () => {
     });
 
     const history = await activity
-      .list(
-        { type: "quote", id: "q1" },
-        {
-          cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"),
-          limit: 2,
-          sources: ["event", "audit"],
-        },
-      )
+      .list({
+        subject: { type: "quote", id: "q1" },
+        cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"),
+        limit: 2,
+        sources: ["event", "audit"],
+      })
       .orThrow();
 
     expect(history[0]).toMatchObject({
@@ -165,7 +163,10 @@ describe("createTimeline", () => {
       transport: fake.transport,
       tenant: "org-1",
     })
-      .list({ type: "deal", id: "d1" }, { sources: ["transition", "message"] })
+      .list({
+        subject: { type: "deal", id: "d1" },
+        sources: ["transition", "message"],
+      })
       .orThrow();
 
     expect(history.map((entry) => entry.source)).toEqual([

@@ -240,8 +240,7 @@ export interface ClinicalDecisionSupportClient {
    * are already stored. Needs `clinical_decision_support.write`.
    */
   evaluate(
-    subject: RecordRef,
-    options?: { readonly signal?: AbortSignal },
+    input: { subject: RecordRef } & { readonly signal?: AbortSignal },
   ): AsyncResultType<readonly CareAlert[]>;
   /** The context an engine would get; needs `clinical_decision_support.read`. */
   context(subject: RecordRef): AsyncResultType<CareDecisionContext>;
@@ -252,9 +251,9 @@ export interface ClinicalDecisionSupportClient {
    * critical alert, needs a `reason`. Needs `clinical_decision_support.write`.
    */
   decide(
-    alertId: string,
-    decision: CareAlertDecision,
-    options?: { readonly reason?: string },
+    input: { alertId: string; decision: CareAlertDecision } & {
+      readonly reason?: string;
+    },
   ): AsyncResultType<CareAlert>;
 }
 
@@ -485,7 +484,7 @@ export function createClinicalDecisionSupport(
           ),
         ),
       ),
-    evaluate: (subject, run = {}) =>
+    evaluate: ({ subject, ...run }) =>
       tenant().andThen((organizationId) => {
         let chain: AsyncResultType<unknown> = call(
           "evaluate_care_rules",
@@ -528,7 +527,7 @@ export function createClinicalDecisionSupport(
             ),
         ),
       ),
-    decide: (alertId, decision, decide = {}) =>
+    decide: ({ alertId, decision, ...decide }) =>
       call(
         "decide_care_alert",
         {

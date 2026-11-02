@@ -26,7 +26,16 @@ export {
   type PaymentBatchItemStatus,
   type PaymentBatchStatus,
   type SepaExportOptions,
+  type BankReviewItem,
 } from "./banking.ts";
+
+export type {
+  BankBoardLine,
+  BankBoardStatus,
+  BankBoardSuggestion,
+  BankReads,
+  BankReconciliationBoard,
+} from "./reads.ts";
 
 export {
   extendBlock,

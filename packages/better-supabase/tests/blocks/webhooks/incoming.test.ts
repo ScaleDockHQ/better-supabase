@@ -24,8 +24,12 @@ describe("createIncomingWebhooks", () => {
   it("refuses other methods and bad schema names", async () => {
     const hooks = createIncomingWebhooks({ sql: fakeSql().sql });
     expect(
-      (await hooks.receive(new Request("https://api.test/hooks/tok"), "tok"))
-        .status,
+      (
+        await hooks.receive({
+          request: new Request("https://api.test/hooks/tok"),
+          token: "tok",
+        })
+      ).status,
     ).toBe(405);
     expect(() =>
       createIncomingWebhooks({ sql: fakeSql().sql, schema: "x; drop" }),
@@ -36,16 +40,21 @@ describe("createIncomingWebhooks", () => {
     const fake = fakeSql([["incoming_webhook_by_token", [endpoint()]]]);
     const hooks = createIncomingWebhooks({ sql: fake.sql });
 
-    const declared = await hooks.receive(
-      post("{}", { "content-length": "999" }),
-      "tok",
-    );
+    const declared = await hooks.receive({
+      request: post("{}", { "content-length": "999" }),
+      token: "tok",
+    });
 
     expect(declared.status).toBe(413);
     expect(await declared.json()).toMatchObject({ code: "WEBHOOK_TOO_LARGE" });
-    expect((await hooks.receive(post('{"a":"long body"}'), "tok")).status).toBe(
-      413,
-    );
+    expect(
+      (
+        await hooks.receive({
+          request: post('{"a":"long body"}'),
+          token: "tok",
+        })
+      ).status,
+    ).toBe(413);
     expect(
       fake.calls
         .filter((call) => call.text.includes("record_incoming_webhook"))
@@ -67,10 +76,10 @@ describe("createIncomingWebhooks", () => {
       keepHeaders: ["X-Request-Id", "x-missing"],
     });
 
-    const response = await hooks.receive(
-      post("hello", { "x-request-id": "r1" }),
-      "tok",
-    );
+    const response = await hooks.receive({
+      request: post("hello", { "x-request-id": "r1" }),
+      token: "tok",
+    });
 
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ id: 4, duplicate: false });
@@ -87,7 +96,7 @@ describe("createIncomingWebhooks", () => {
       "x-bsb-endpoint-id": "e1",
     });
     expect(stored.values[5]).toBe("t1");
-    await hooks.receive(post(""), "tok");
+    await hooks.receive({ request: post(""), token: "tok" });
     expect(
       fake.calls.filter((call) => call.text.includes("receive_webhook"))[1]!
         .values[3],
@@ -99,10 +108,10 @@ describe("createIncomingWebhooks", () => {
 
     expect(
       (
-        await createIncomingWebhooks({ sql: disabled.sql }).receive(
-          post("{}"),
-          "tok",
-        )
+        await createIncomingWebhooks({ sql: disabled.sql }).receive({
+          request: post("{}"),
+          token: "tok",
+        })
       ).status,
     ).toBe(404);
     expect(disabled.calls.some((call) => call.text.includes("record_"))).toBe(
@@ -117,8 +126,14 @@ describe("createIncomingWebhooks", () => {
     ]);
 
     const hooks = createIncomingWebhooks({ sql: fake.sql });
-    await hooks.receive(post("{}", { "webhook-id": "msg_std" }), "tok");
-    await hooks.receive(post("{}", { "svix-id": "msg_svix" }), "tok");
+    await hooks.receive({
+      request: post("{}", { "webhook-id": "msg_std" }),
+      token: "tok",
+    });
+    await hooks.receive({
+      request: post("{}", { "svix-id": "msg_svix" }),
+      token: "tok",
+    });
     expect(
       fake.calls
         .filter((call) => call.text.includes("receive_webhook"))
@@ -133,10 +148,10 @@ describe("createIncomingWebhooks", () => {
 
     expect(
       (
-        await createIncomingWebhooks({ sql: fake.sql }).receive(
-          post("{}"),
-          "tok",
-        )
+        await createIncomingWebhooks({ sql: fake.sql }).receive({
+          request: post("{}"),
+          token: "tok",
+        })
       ).status,
     ).toBe(403);
   });
@@ -154,7 +169,9 @@ describe("createIncomingWebhooks", () => {
       rateLimit: { max: 5, period: "1 hour" },
     });
 
-    expect((await hooks.receive(post("{}"), "tok")).status).toBe(200);
+    expect(
+      (await hooks.receive({ request: post("{}"), token: "tok" })).status,
+    ).toBe(200);
     expect(
       fake.calls.find((call) => call.text.includes("hit_rate_limit"))!.values,
     ).toEqual(["forms:endpoint", "e1", 5, "1 hour"]);
@@ -221,7 +238,11 @@ describe("createIncomingWebhooks", () => {
     expect(created.subject).toEqual({ type: "workflow", id: "w1" });
     expect(created).not.toHaveProperty("subjectType");
     expect(fake.calls[0]!.values.slice(5)).toEqual(["workflow", "w1"]);
-    const listed = await hooks.list("t", { type: "workflow" }).orThrow();
+
+    const listed = await hooks
+      .list({ tenant: "t", subject: { type: "workflow" } })
+      .orThrow();
+
     expect(listed[0]).toMatchObject({
       subject: { type: "workflow", id: "w1" },
       receiveCount: 3,
@@ -258,12 +279,13 @@ describe("createIncomingWebhooks", () => {
     expect(
       await hooks.create({ tenant: "7", name: "Form" }).orThrow(),
     ).toMatchObject({ tenant: "7", token: "abc" });
-    expect(await hooks.rotate("e1", { rotateSecret: true }).orThrow()).toEqual({
-      token: "def",
-      secret: "s",
-    });
-    await hooks.rotate("e1").orThrow();
-    expect(await hooks.setEnabled("e1", false).orThrow()).toBe(true);
+    expect(
+      await hooks.rotate({ id: "e1", rotateSecret: true }).orThrow(),
+    ).toEqual({ token: "def", secret: "s" });
+    await hooks.rotate({ id: "e1" }).orThrow();
+    expect(await hooks.setEnabled({ id: "e1", enabled: false }).orThrow()).toBe(
+      true,
+    );
     expect(await hooks.remove("e1").orThrow()).toBe(false);
     expect(fake.calls[0]!.values).toEqual([
       "7",
@@ -286,7 +308,7 @@ describe("createIncomingWebhooks", () => {
       ok: false,
       error: { kind: "forbidden" },
     });
-    expect(await broken.rotate("e1")).toMatchObject({ ok: false });
+    expect(await broken.rotate({ id: "e1" })).toMatchObject({ ok: false });
   });
 
   it("checks a shared secret header in constant time and never stores it", async () => {
@@ -312,7 +334,7 @@ describe("createIncomingWebhooks", () => {
     });
 
     const status = async (token: string, headers: Record<string, string>) =>
-      (await hooks.receive(post("{}", headers), token)).status;
+      (await hooks.receive({ request: post("{}", headers), token })).status;
 
     expect(
       await status("tok", {
@@ -386,9 +408,10 @@ describe("createIncomingWebhooks", () => {
 
     for (const secret of [oldStd, newStd]) {
       const headers = await signWebhook(secret, { id: "w1", body });
-      expect((await hooks.receive(post(body, headers), "std")).status).toBe(
-        202,
-      );
+      expect(
+        (await hooks.receive({ request: post(body, headers), token: "std" }))
+          .status,
+      ).toBe(202);
     }
 
     const stranger = await signWebhook(`whsec_${btoa("other")}`, {
@@ -396,7 +419,10 @@ describe("createIncomingWebhooks", () => {
       body,
     });
 
-    expect((await hooks.receive(post(body, stranger), "std")).status).toBe(401);
+    expect(
+      (await hooks.receive({ request: post(body, stranger), token: "std" }))
+        .status,
+    ).toBe(401);
 
     const hex = async (key: string) =>
       Array.from(
@@ -417,28 +443,38 @@ describe("createIncomingWebhooks", () => {
       ).join("");
 
     const old = { "x-signature": await hex("old") };
-    expect((await hooks.receive(post(body, old), "mac")).status).toBe(202);
+    expect(
+      (await hooks.receive({ request: post(body, old), token: "mac" })).status,
+    ).toBe(202);
     expect(
       (
-        await hooks.receive(
-          post(body, { "x-signature": await hex("new") }),
-          "mac",
-        )
+        await hooks.receive({
+          request: post(body, { "x-signature": await hex("new") }),
+          token: "mac",
+        })
       ).status,
     ).toBe(202);
-    expect((await hooks.receive(post(body, old), "expired")).status).toBe(401);
     expect(
-      await hooks.rotateSecret("e1", { grace: "1 hour" }).orThrow(),
+      (await hooks.receive({ request: post(body, old), token: "expired" }))
+        .status,
+    ).toBe(401);
+    expect(
+      await hooks
+        .rotateSecret({ id: "e1", options: { grace: "1 hour" } })
+        .orThrow(),
     ).toMatchObject({ secret: "s2" });
 
     const timed = await hooks
-      .rotateSecret("e1", { grace: Temporal.Duration.from({ minutes: 30 }) })
+      .rotateSecret({
+        id: "e1",
+        options: { grace: Temporal.Duration.from({ minutes: 30 }) },
+      })
       .orThrow();
 
     expect(timed.previousSecretExpiresAt?.toString()).toBe(
       "2026-10-08T10:00:00Z",
     );
-    expect(await hooks.rotateSecret("e1").orThrow()).toEqual({
+    expect(await hooks.rotateSecret({ id: "e1" }).orThrow()).toEqual({
       secret: "s2",
       previousSecretExpiresAt: null,
     });
@@ -472,10 +508,13 @@ describe("createIncomingWebhooks", () => {
     const hooks = createIncomingWebhooks({ sql: fake.sql });
     expect(
       await hooks
-        .update("e1", {
-          name: "Renamed",
-          metadata: { workflow: "w2" },
-          verify: "hmac-sha256",
+        .update({
+          id: "e1",
+          input: {
+            name: "Renamed",
+            metadata: { workflow: "w2" },
+            verify: "hmac-sha256",
+          },
         })
         .orThrow(),
     ).toEqual({
@@ -494,7 +533,9 @@ describe("createIncomingWebhooks", () => {
       "hmac-sha256",
       null,
     ]);
-    await hooks.update("e1", { signatureHeader: "x-hub" }).orThrow();
+    await hooks
+      .update({ id: "e1", input: { signatureHeader: "x-hub" } })
+      .orThrow();
     expect(fake.calls[1]!.values).toEqual(["e1", null, null, null, "x-hub"]);
 
     const odd = fakeSql([
@@ -505,7 +546,10 @@ describe("createIncomingWebhooks", () => {
     ]);
 
     expect(
-      await createIncomingWebhooks({ sql: odd.sql }).update("e1", {}),
+      await createIncomingWebhooks({ sql: odd.sql }).update({
+        id: "e1",
+        input: {},
+      }),
     ).toMatchObject({ ok: false });
 
     const sparse = fakeSql([
@@ -517,7 +561,7 @@ describe("createIncomingWebhooks", () => {
 
     expect(
       await createIncomingWebhooks({ sql: sparse.sql })
-        .update("e1", {})
+        .update({ id: "e1", input: {} })
         .orThrow(),
     ).toMatchObject({ secret: null, signatureHeader: null, metadata: {} });
   });
@@ -549,12 +593,17 @@ describe("createIncomingWebhooks", () => {
 
     const hooks = createIncomingWebhooks({ sql: fake.sql });
     const headers = await signWebhook(secret, { id: "w1", body });
-    expect((await hooks.receive(post(body, headers), "std")).status).toBe(202);
+    expect(
+      (await hooks.receive({ request: post(body, headers), token: "std" }))
+        .status,
+    ).toBe(202);
     expect(
       fake.calls.find((call) => call.text.includes("receive_webhook"))!
         .values[1],
     ).toBe("e1:w1");
-    expect((await hooks.receive(post(body), "std")).status).toBe(401);
+    expect(
+      (await hooks.receive({ request: post(body), token: "std" })).status,
+    ).toBe(401);
 
     const key = await crypto.subtle.importKey(
       "raw",
@@ -572,13 +621,23 @@ describe("createIncomingWebhooks", () => {
     ).join("");
 
     expect(
-      (await hooks.receive(post(body, { "x-hub": hex }), "mac")).status,
+      (
+        await hooks.receive({
+          request: post(body, { "x-hub": hex }),
+          token: "mac",
+        })
+      ).status,
     ).toBe(202);
-    expect((await hooks.receive(post(body), "mac")).status).toBe(401);
-    await hooks.receive(
-      post(body, { "x-hub": `sha256=${hex}`, "webhook-id": "replayed" }),
-      "mac",
-    );
+    expect(
+      (await hooks.receive({ request: post(body), token: "mac" })).status,
+    ).toBe(401);
+    await hooks.receive({
+      request: post(body, {
+        "x-hub": `sha256=${hex}`,
+        "webhook-id": "replayed",
+      }),
+      token: "mac",
+    });
     expect(
       fake.calls
         .filter((call) => call.text.includes("receive_webhook"))
@@ -603,14 +662,14 @@ describe("createIncomingWebhooks", () => {
 
     const fake = fakeSql([["incoming_webhook_by_token", [endpoint()]]]);
 
-    const response = await createIncomingWebhooks({ sql: fake.sql }).receive(
-      new Request("https://api.test/hooks/tok", {
+    const response = await createIncomingWebhooks({ sql: fake.sql }).receive({
+      request: new Request("https://api.test/hooks/tok", {
         method: "POST",
         body: stream,
         duplex: "half",
       } as RequestInit),
-      "tok",
-    );
+      token: "tok",
+    });
 
     expect(response.status).toBe(413);
     expect(pulled).toBeLessThan(5);

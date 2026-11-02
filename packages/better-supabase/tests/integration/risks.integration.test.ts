@@ -88,18 +88,24 @@ describe.skipIf(!live)("risks", () => {
 
       expect(
         await risks
-          .assess(spill.id, {
-            inherent: { likelihood: 6, impact: 1 },
-            residual: { likelihood: 1, impact: 1 },
+          .assess({
+            riskId: spill.id,
+            input: {
+              inherent: { likelihood: 6, impact: 1 },
+              residual: { likelihood: 1, impact: 1 },
+            },
           })
           .then(hint),
       ).toBe("RISK_LEVEL_OUT_OF_RANGE");
 
       const assessed = await risks
-        .assess(spill.id, {
-          inherent: { likelihood: 4, impact: 5 },
-          residual: { likelihood: 2, impact: 3 },
-          rationale: "Bunded storage",
+        .assess({
+          riskId: spill.id,
+          input: {
+            inherent: { likelihood: 4, impact: 5 },
+            residual: { likelihood: 2, impact: 3 },
+            rationale: "Bunded storage",
+          },
         })
         .orThrow();
 
@@ -126,7 +132,10 @@ describe.skipIf(!live)("risks", () => {
       const compliance = createCompliance({ transport });
 
       const soc2 = await compliance
-        .saveFramework(org, { key: "iso14001", name: "ISO 14001" })
+        .saveFramework({
+          organizationId: org,
+          input: { key: "iso14001", name: "ISO 14001" },
+        })
         .orThrow();
 
       const control = await compliance
@@ -151,14 +160,20 @@ describe.skipIf(!live)("risks", () => {
       expect(
         await risks.create({ title: "Sneaky", category: "quality" }).then(hint),
       ).toBe("RISK_FORBIDDEN");
-      expect(await risks.setTreatment(spill.id, "accept").then(hint)).toBe(
-        "RISK_FORBIDDEN",
-      );
+      expect(
+        await risks
+          .setTreatment({ riskId: spill.id, treatment: "accept" })
+          .then(hint),
+      ).toBe("RISK_FORBIDDEN");
 
       await s.as(owner);
 
       const accepted = await risks
-        .setTreatment(spill.id, "accept", "Within appetite")
+        .setTreatment({
+          riskId: spill.id,
+          treatment: "accept",
+          note: "Within appetite",
+        })
         .orThrow();
 
       expect(accepted).toMatchObject({
@@ -184,21 +199,28 @@ describe.skipIf(!live)("risks", () => {
 
       await s.as(owner);
 
-      const reviewed = await risks.review(spill.id, "Still bunded").orThrow();
+      const reviewed = await risks
+        .review({ riskId: spill.id, note: "Still bunded" })
+        .orThrow();
 
       expect(reviewed.reviewedAt).toBeDefined();
       expect(reviewed.nextReviewOn?.toString()).toBe(
         Temporal.Now.plainDateISO("UTC").add({ months: 6 }).toString(),
       );
 
-      const closed = await risks.close(spill.id, "Solvent replaced").orThrow();
+      const closed = await risks
+        .close({ riskId: spill.id, reason: "Solvent replaced" })
+        .orThrow();
 
       expect(closed.status).toBe("closed");
       expect(
         await risks
-          .assess(spill.id, {
-            inherent: { likelihood: 1, impact: 1 },
-            residual: { likelihood: 1, impact: 1 },
+          .assess({
+            riskId: spill.id,
+            input: {
+              inherent: { likelihood: 1, impact: 1 },
+              residual: { likelihood: 1, impact: 1 },
+            },
           })
           .then(hint),
       ).toBe("RISK_CLOSED");

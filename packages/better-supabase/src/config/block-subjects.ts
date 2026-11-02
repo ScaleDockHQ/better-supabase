@@ -319,6 +319,9 @@ function subjectsOf(
               ),
             }),
         ...(subject.cascade === true ? { cascade: true } : {}),
+        ...(subject.history === undefined
+          ? {}
+          : { history: subject.history.map(column) }),
         ...entity.subjectSettings,
       };
 

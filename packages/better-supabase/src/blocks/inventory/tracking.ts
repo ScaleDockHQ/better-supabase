@@ -161,59 +161,62 @@ export interface Allocation {
 /** Units, bins, lots, serials, costs and document allocations. */
 export interface InventoryTracking {
   /** Refused with `INVENTORY_ITEM_LOCKED` once the variant has stock. */
-  setStockItem(
-    variantId: string,
-    input: StockItemInput,
-  ): AsyncResult<StockItem>;
-  saveBin(locationId: string, input: BinInput): AsyncResult<Bin>;
-  saveLot(
-    variantId: string,
-    code: string,
-    expiresOn?: string,
-  ): AsyncResult<Lot>;
-  stockDetail(
-    variantId: string,
-    locationId: string,
-  ): AsyncResult<StockLevelDetail>;
+  setStockItem(input: {
+    variantId: string;
+    input: StockItemInput;
+  }): AsyncResult<StockItem>;
+  saveBin(input: { locationId: string; input: BinInput }): AsyncResult<Bin>;
+  saveLot(input: {
+    variantId: string;
+    code: string;
+    expiresOn?: string | undefined;
+  }): AsyncResult<Lot>;
+  stockDetail(input: {
+    variantId: string;
+    locationId: string;
+  }): AsyncResult<StockLevelDetail>;
   /** Lots with stock that expire before `before` (`YYYY-MM-DD`). */
-  expiringLots(
-    organizationId: string,
-    before: string,
-  ): AsyncResult<readonly ExpiringLot[]>;
+  expiringLots(input: {
+    organizationId: string;
+    before: string;
+  }): AsyncResult<readonly ExpiringLot[]>;
   /**
    * Scraps the stock of lots that expired by `asOf` (default today). Resolves
    * to the number of buckets scrapped.
    */
-  expireLots(organizationId: string, asOf?: string): AsyncResult<number>;
+  expireLots(input: {
+    organizationId: string;
+    asOf?: string | undefined;
+  }): AsyncResult<number>;
   stockValuation(variantId: string): AsyncResult<StockValuation>;
   /** Holds stock for a document line; the rest waits on backorder. */
-  allocate(
-    organizationId: string,
-    input: AllocationInput,
-  ): AsyncResult<Allocation>;
+  allocate(input: {
+    organizationId: string;
+    input: AllocationInput;
+  }): AsyncResult<Allocation>;
   /** Takes allocated stock out as a `sale` movement. */
-  fulfillAllocation(
-    allocationId: string,
-    quantity: number,
-    detail?: StockDetail,
-  ): AsyncResult<Allocation>;
+  fulfillAllocation(input: {
+    allocationId: string;
+    quantity: number;
+    detail?: StockDetail | undefined;
+  }): AsyncResult<Allocation>;
   /** Puts fulfilled stock back as a `return` movement. */
-  restoreAllocation(
-    allocationId: string,
-    quantity: number,
-    detail?: StockDetail,
-  ): AsyncResult<Allocation>;
+  restoreAllocation(input: {
+    allocationId: string;
+    quantity: number;
+    detail?: StockDetail | undefined;
+  }): AsyncResult<Allocation>;
   /** Releases a document's open allocations. Resolves to the number released. */
-  releaseAllocations(
-    organizationId: string,
-    documentType: string,
-    documentId: string,
-  ): AsyncResult<number>;
-  listAllocations(
-    organizationId: string,
-    documentType: string,
-    documentId: string,
-  ): AsyncResult<readonly Allocation[]>;
+  releaseAllocations(input: {
+    organizationId: string;
+    documentType: string;
+    documentId: string;
+  }): AsyncResult<number>;
+  listAllocations(input: {
+    organizationId: string;
+    documentType: string;
+    documentId: string;
+  }): AsyncResult<readonly Allocation[]>;
 }
 
 const nullable = (value: unknown): string | null => optionalText(value) ?? null;
@@ -304,7 +307,7 @@ function valuationOf(value: unknown): StockValuation {
 /** The tracking methods of the inventory client. */
 export function inventoryTracking(call: BlockCall): InventoryTracking {
   return {
-    setStockItem: (variantId, input) =>
+    setStockItem: ({ variantId, input }) =>
       call(
         "set_stock_item",
         {
@@ -318,7 +321,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
         },
         itemOf,
       ),
-    saveBin: (locationId, input) =>
+    saveBin: ({ locationId, input }) =>
       call(
         "save_bin",
         {
@@ -340,7 +343,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           };
         },
       ),
-    saveLot: (variantId, code, expiresOn) =>
+    saveLot: ({ variantId, code, expiresOn }) =>
       call(
         "save_lot",
         { variant: variantId, code, expires_on: expiresOn ?? null },
@@ -354,7 +357,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           };
         },
       ),
-    stockDetail: (variantId, locationId) =>
+    stockDetail: ({ variantId, locationId }) =>
       call(
         "stock_detail",
         { variant: variantId, location: locationId },
@@ -374,11 +377,11 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           };
         },
       ),
-    expiringLots: (organizationId, before) =>
+    expiringLots: ({ organizationId, before }) =>
       call("expiring_lots", { tenant: organizationId, before }, (value) =>
         recordsOf(value, "expiring_lots").map(expiringOf),
       ),
-    expireLots: (organizationId, asOf) =>
+    expireLots: ({ organizationId, asOf }) =>
       call(
         "expire_lots",
         { tenant: organizationId, as_of: asOf ?? null },
@@ -386,7 +389,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
       ),
     stockValuation: (variantId) =>
       call("stock_valuation", { variant: variantId }, valuationOf),
-    allocate: (organizationId, input) =>
+    allocate: ({ organizationId, input }) =>
       call(
         "allocate_stock",
         {
@@ -401,19 +404,19 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
         },
         allocationOf,
       ),
-    fulfillAllocation: (allocationId, quantity, detail) =>
+    fulfillAllocation: ({ allocationId, quantity, detail }) =>
       call(
         "fulfill_allocation",
         { allocation: allocationId, quantity, detail: detailArg(detail) },
         allocationOf,
       ),
-    restoreAllocation: (allocationId, quantity, detail) =>
+    restoreAllocation: ({ allocationId, quantity, detail }) =>
       call(
         "restore_allocation",
         { allocation: allocationId, quantity, detail: detailArg(detail) },
         allocationOf,
       ),
-    releaseAllocations: (organizationId, documentType, documentId) =>
+    releaseAllocations: ({ organizationId, documentType, documentId }) =>
       call(
         "release_allocations",
         {
@@ -423,7 +426,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
         },
         Number,
       ),
-    listAllocations: (organizationId, documentType, documentId) =>
+    listAllocations: ({ organizationId, documentType, documentId }) =>
       call(
         "list_allocations",
         {

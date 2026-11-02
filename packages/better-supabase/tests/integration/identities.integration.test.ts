@@ -34,7 +34,7 @@ describe.skipIf(!live)("identities module", () => {
       await s.asRole(alice);
 
       const { code, expiresAt } = await identities
-        .beginLink("chat", "slack")
+        .beginLink({ kind: "chat", provider: "slack" })
         .orThrow();
 
       expect(code).toMatch(/^[0-9A-F]{12}$/);
@@ -44,7 +44,7 @@ describe.skipIf(!live)("identities module", () => {
       await s.client.query("set local role service_role");
 
       const linked = await identities
-        .redeemLink(code.toLowerCase(), slack(chatUser))
+        .redeemLink({ code: code.toLowerCase(), identity: slack(chatUser) })
         .orThrow();
 
       expect(linked.userId).toBe(alice.id);
@@ -145,14 +145,18 @@ describe.skipIf(!live)("identities module", () => {
 
       const begin = async (user: typeof alice): Promise<string> => {
         await s.as(user);
-        const { code } = await identities.beginLink("chat", "slack").orThrow();
+
+        const { code } = await identities
+          .beginLink({ kind: "chat", provider: "slack" })
+          .orThrow();
+
         await s.service();
 
         return code;
       };
 
       const redeem = (code: string, value: string) =>
-        identities.redeemLink(code, slack(value));
+        identities.redeemLink({ code, identity: slack(value) });
 
       const once = await begin(alice);
       await redeem(once, "U-alice").orThrow();
@@ -180,10 +184,9 @@ describe.skipIf(!live)("identities module", () => {
 
       const wrongProvider = await begin(alice);
       expect(
-        await identities.redeemLink(wrongProvider, {
-          kind: "chat",
-          provider: "teams",
-          value: "U-alice-5",
+        await identities.redeemLink({
+          code: wrongProvider,
+          identity: { kind: "chat", provider: "teams", value: "U-alice-5" },
         }),
       ).toMatchObject({ ok: false, error: { hint: "IDENTITY_LINK_INVALID" } });
 

@@ -447,7 +447,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:4bad82cb17b167f79554076e290faacc809515ec72f4de6a28bfcda272250845
+-- @bsb-hash sha256:9710187952ff4e334b179138942395091a1773bc7a9b37755a2efeef0cb188fb
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -942,6 +942,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."team_members
 create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.teams', target_type => 'team', event_prefix => 'team', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

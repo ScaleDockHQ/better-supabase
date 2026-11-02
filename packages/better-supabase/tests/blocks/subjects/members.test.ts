@@ -44,14 +44,14 @@ describe("subjects members", () => {
     const { members } = createSubjects({ transport: fake.transport });
 
     const member = await members
-      .add(
-        { type: "patient", id: "p1" },
-        {
+      .add({
+        subject: { type: "patient", id: "p1" },
+        member: {
           userId: "u1",
           role: "lead",
           startsOn: Temporal.PlainDate.from("2026-10-01"),
         },
-      )
+      })
       .orThrow();
 
     expect(fake.calls).toEqual([
@@ -89,10 +89,10 @@ describe("subjects members", () => {
     const { members } = createSubjects({ transport: fake.transport });
 
     const ended = await members
-      .end("m1", { endsOn: Temporal.PlainDate.from("2026-10-28") })
+      .end({ memberId: "m1", endsOn: Temporal.PlainDate.from("2026-10-28") })
       .orThrow();
 
-    await members.end("m1").orThrow();
+    await members.end({ memberId: "m1" }).orThrow();
 
     expect(ended.endsOn?.toString()).toBe("2026-10-28");
     expect(ended.endsAt?.toString()).toBe("2026-10-28T09:30:00Z");
@@ -134,7 +134,7 @@ describe("subjects members", () => {
     const { members } = createSubjects({ transport: fake.transport });
 
     const page = await members
-      .mine("org", { subjectType: "patient", limit: 1 })
+      .mine({ tenant: "org", subjectType: "patient", limit: 1 })
       .orThrow();
 
     expect(fake.calls[0]?.args).toEqual({

@@ -37,15 +37,15 @@ export interface CalendarSnapshot {
 export interface CalendarActions {
   readonly refresh: () => Promise<void>;
   /** Saves one occurrence's change, then loads the range again. */
-  readonly editOccurrence: (
-    occurrence: CalendarOccurrence,
-    changes: CalendarEventInput,
-  ) => Promise<boolean>;
+  readonly editOccurrence: (input: {
+    occurrence: CalendarOccurrence;
+    changes: CalendarEventInput;
+  }) => Promise<boolean>;
   /** Saves the change for this and every later occurrence, then loads again. */
-  readonly editFollowing: (
-    occurrence: CalendarOccurrence,
-    changes: CalendarEventInput,
-  ) => Promise<boolean>;
+  readonly editFollowing: (input: {
+    occurrence: CalendarOccurrence;
+    changes: CalendarEventInput;
+  }) => Promise<boolean>;
   readonly cancelOccurrence: (
     occurrence: CalendarOccurrence,
   ) => Promise<boolean>;
@@ -81,9 +81,12 @@ export function createCalendarController(
         state.set({ loading: true });
         const time = temporal();
 
-        const result = await client.occurrences(calendarIds, {
-          from: time.Instant.fromEpochMilliseconds(range.start.getTime()),
-          until: time.Instant.fromEpochMilliseconds(range.end.getTime()),
+        const result = await client.occurrences({
+          calendarIds,
+          range: {
+            from: time.Instant.fromEpochMilliseconds(range.start.getTime()),
+            until: time.Instant.fromEpochMilliseconds(range.end.getTime()),
+          },
         });
 
         if (request !== ticket) {
@@ -125,10 +128,10 @@ export function createCalendarController(
             range = next;
             void refresh();
           },
-          editOccurrence: async (occurrence, changes) =>
-            after(await client.editOccurrence(occurrence, changes)),
-          editFollowing: async (occurrence, changes) =>
-            after(await client.editFollowing(occurrence, changes)),
+          editOccurrence: async ({ occurrence, changes }) =>
+            after(await client.editOccurrence({ occurrence, changes })),
+          editFollowing: async ({ occurrence, changes }) =>
+            after(await client.editFollowing({ occurrence, changes })),
           cancelOccurrence: async (occurrence) =>
             after(await client.cancelOccurrence(occurrence)),
         },

@@ -5,6 +5,7 @@ import type {
   AppTableConfig,
   AppTablesConfig,
 } from "../config/types/app-tables.ts";
+import type { SeedConfig } from "../config/types/database.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
@@ -44,6 +45,19 @@ export interface CreateDesign {
   >;
   /** Canvas positions by `schema.table`, as `[x, y]`; the config ignores them. */
   readonly positions?: Readonly<Record<string, readonly [number, number]>>;
+  /**
+   * What `db seed --defaults` and `--sample` start from (format 9, ADR 0196):
+   * the starting set each block seeds and the language of the rows.
+   */
+  readonly seeds?: DesignSeeds;
+}
+
+/** `CreateDesign.seeds`: `database.seed.defaults.variants` and `.locale`. */
+export interface DesignSeeds {
+  /** A block's starting set, keyed by block name. */
+  readonly variants?: Readonly<Record<string, string>>;
+  /** The language of defaults and sample data, such as `nl`. */
+  readonly locale?: string;
 }
 
 /**
@@ -63,9 +77,9 @@ const DESIGN_VERSION = "0";
  * `events` (ADR 0048) and subject `versions`. Format 5 adds column `access`
  * (ADR 0051). Format 6 adds column `encrypted` and table `auditReads` (ADR
  * 0087). Format 7 adds `preset`, which replaces the 0.14 preset codes. Format 8
- * adds the preset's `instances`.
+ * adds the preset's `instances`. Format 9 adds `seeds` (ADR 0196).
  */
-export const DESIGN_FORMAT = 8;
+export const DESIGN_FORMAT = 9;
 
 const FORMAT_1_TABLE_KEYS = ["id", "unique", "indexes", "comment"] as const;
 
@@ -80,6 +94,10 @@ const FORMAT_1_COLUMN_KEYS = [
 
 /** The lowest design format that reads `design`. */
 export function designFormat(design: CreateDesign): number {
+  if (design.seeds !== undefined) {
+    return 9;
+  }
+
   if (
     typeof design.preset === "object" &&
     design.preset.instances !== undefined
@@ -187,7 +205,9 @@ export type DesignErrorCode =
   /** A design file that isn't JSON or lacks its keys. */
   | "invalid_file"
   /** A preset that isn't a preset name or object, or a design file without one. */
-  | "invalid_preset";
+  | "invalid_preset"
+  /** `seeds` that isn't `{ variants?, locale? }` of strings. */
+  | "invalid_seeds";
 
 /** One problem with a design, as `safeParseDesign` reports it. */
 export interface DesignParseIssue {
@@ -602,6 +622,7 @@ function designOfValue(
       name !== "appTables" &&
       name !== "extraColumns" &&
       name !== "positions" &&
+      name !== "seeds" &&
       name !== "version",
   );
 
@@ -609,7 +630,7 @@ function designOfValue(
     throw new DesignParseError(
       "unknown_key",
       jsonPointer(unknownKey),
-      `design: unknown key "${unknownKey}"; a design has preset, appTables, extraColumns and positions`,
+      `design: unknown key "${unknownKey}"; a design has preset, appTables, extraColumns, positions and seeds`,
     );
   }
 
@@ -661,6 +682,9 @@ function designOfValue(
       ? {}
       : (positionsOf(value["positions"]) ?? {});
 
+  const seeds =
+    value["seeds"] === undefined ? undefined : seedsOf(value["seeds"]);
+
   const filled = Object.fromEntries(
     Object.entries(extraColumns).filter(
       ([, columns]) => Object.keys(columns).length > 0,
@@ -672,6 +696,84 @@ function designOfValue(
     ...(Object.keys(appTables).length === 0 ? {} : { appTables }),
     ...(Object.keys(filled).length === 0 ? {} : { extraColumns: filled }),
     ...(Object.keys(positions).length === 0 ? {} : { positions }),
+    ...(seeds === undefined ? {} : { seeds }),
+  };
+}
+
+const SEED_KEY = /^[a-z][a-z0-9_-]{0,63}$/;
+const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+
+/** A design's `seeds`, or undefined when it holds nothing. */
+function seedsOf(value: unknown): DesignSeeds | undefined {
+  if (!isRecord(value)) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      "/seeds",
+      "design.seeds must be an object",
+    );
+  }
+
+  const extra = Object.keys(value).find(
+    (name) => name !== "variants" && name !== "locale",
+  );
+
+  if (extra !== undefined) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      jsonPointer("seeds", extra),
+      `design.seeds: unknown key "${extra}"; seeds has variants and locale`,
+    );
+  }
+
+  const locale = value["locale"];
+
+  if (
+    locale !== undefined &&
+    (typeof locale !== "string" || !LOCALE.test(locale))
+  ) {
+    throw new DesignParseError(
+      "invalid_seeds",
+      "/seeds/locale",
+      "design.seeds.locale must be a language code such as en or nl-BE",
+    );
+  }
+
+  const raw = value["variants"];
+  const variants: Record<string, string> = {};
+
+  if (raw !== undefined) {
+    if (!isRecord(raw)) {
+      throw new DesignParseError(
+        "invalid_seeds",
+        "/seeds/variants",
+        "design.seeds.variants must be an object of block name to variant name",
+      );
+    }
+
+    for (const [block, variant] of Object.entries(raw)) {
+      if (
+        !SEED_KEY.test(block) ||
+        typeof variant !== "string" ||
+        !SEED_KEY.test(variant)
+      ) {
+        throw new DesignParseError(
+          "invalid_seeds",
+          jsonPointer("seeds", "variants", block),
+          `design.seeds.variants.${block} must be a lower-case variant name`,
+        );
+      }
+
+      variants[block] = variant;
+    }
+  }
+
+  if (Object.keys(variants).length === 0 && locale === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(Object.keys(variants).length === 0 ? {} : { variants }),
+    ...(locale === undefined ? {} : { locale }),
   };
 }
 
@@ -872,7 +974,10 @@ export async function presetAndDesignOf(
 export function designConfig(
   resolved: ResolvedPreset,
   design: CreateDesign,
-): ReturnType<typeof presetConfig> & { readonly appTables?: AppTablesConfig } {
+): ReturnType<typeof presetConfig> & {
+  readonly appTables?: AppTablesConfig;
+  readonly seed?: SeedConfig;
+} {
   const base = presetConfig(resolved);
 
   const blocks: Record<string, BlockConfig | AccessBlockConfig | undefined> = {
@@ -905,6 +1010,17 @@ export function designConfig(
     ...base,
     blocks: asBlocksConfig(blocks),
     ...(Object.keys(appTables).length === 0 ? {} : { appTables }),
+    ...(design.seeds === undefined ? {} : { seed: seedConfigOf(design.seeds) }),
+  };
+}
+
+/** `database.seed` for a design's `seeds`. */
+function seedConfigOf(seeds: DesignSeeds): SeedConfig {
+  return {
+    defaults: {
+      ...(seeds.variants === undefined ? {} : { variants: seeds.variants }),
+      ...(seeds.locale === undefined ? {} : { locale: seeds.locale }),
+    },
   };
 }
 

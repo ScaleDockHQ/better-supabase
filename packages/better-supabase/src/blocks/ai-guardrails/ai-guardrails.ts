@@ -133,22 +133,20 @@ export interface AiGuardrails {
      * system.
      */
     upsert(
-      agent: string,
-      stage: GuardrailStage,
-      config: GuardrailPolicyConfig,
-      options?: {
-        readonly organizationId?: string;
-        readonly enabled?: boolean;
-      },
+      input: {
+        agent: string;
+        stage: GuardrailStage;
+        config: GuardrailPolicyConfig;
+      } & { readonly organizationId?: string; readonly enabled?: boolean },
     ): AsyncResult<GuardrailPolicy>;
     /**
      * The enabled policy that applies: the tenant's for the agent, the tenant's
      * for `*`, then the system's. `undefined` when none applies.
      */
     get(
-      agent: string,
-      stage: GuardrailStage,
-      options?: { readonly organizationId?: string },
+      input: { agent: string; stage: GuardrailStage } & {
+        readonly organizationId?: string;
+      },
     ): AsyncResult<GuardrailPolicy | undefined>;
   };
   readonly decisions: {
@@ -363,7 +361,7 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
 
   const client: AiGuardrails = {
     policies: {
-      upsert: (agent, stage, config, setOptions = {}) =>
+      upsert: ({ agent, stage, config, ...setOptions }) =>
         call(
           "set_guardrail_policy",
           {
@@ -375,7 +373,7 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
           },
           policyOf,
         ),
-      get: (agent, stage, getOptions = {}) =>
+      get: ({ agent, stage, ...getOptions }) =>
         call(
           "get_guardrail_policy",
           { agent, stage, tenant: getOptions.organizationId },
@@ -399,7 +397,10 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
     },
     check: (input) =>
       client.policies
-        .get(input.agent, input.stage, {
+
+        .get({
+          agent: input.agent,
+          stage: input.stage,
           ...(input.organizationId
             ? { organizationId: input.organizationId }
             : {}),

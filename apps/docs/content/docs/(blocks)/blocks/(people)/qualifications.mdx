@@ -223,6 +223,10 @@ blocks: {
 `before_qualification_revoke` and `after_qualification_revoke` run in the same
 transaction as the change. See [extending blocks](/docs/extending/blocks).
 
+## The matrix
+
+`qualifications.matrix({ organizationId })` returns the active types as columns and, for each holder with a valid holding or a gap, one cell per type key: `valid`, `missing`, `expiring`, `expired` or `none`. It combines `types`, `gaps` and one `qualifiedHolders` read per type. The holder's name comes from the gaps, so a holder without a gap shows its id as the title, and a holder with neither a holding nor a gap does not appear.
+
 ## Errors
 
 | Hint                                  | Cause                                                                              |
@@ -247,4 +251,14 @@ import { createQualifications } from "better-supabase/blocks/qualifications";
 
 const qualifications = createQualifications({ transport });
 const gaps = await qualifications.gaps(organizationId).orThrow();
+```
+
+## Check one holder
+
+`check({ organizationId, typeKey, holderId })` returns whether the holder is among the qualified holders today, or on `on`.
+
+```ts
+const ok = await db.qualifications
+  .check({ organizationId, typeKey: "first-aid", holderId: userId })
+  .orThrow();
 ```

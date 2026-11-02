@@ -18,7 +18,7 @@ export async function getConversations(): Promise<readonly ConversationRow[]> {
   }
 
   const conversations = await db.inbox.conversations
-    .list(tenant, { limit: 50 })
+    .list({ tenant, filter: { limit: 50 } })
     .orThrow();
 
   return conversations.map(toConversationRow);

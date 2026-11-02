@@ -62,8 +62,8 @@ describe.skipIf(!live)("tags", () => {
         expect.arrayContaining(["project", "invoice"]),
       );
       expect(await tags.list({ on: subject }).orThrow()).toEqual([]);
-      await tags.attach(subject, risk.id).orThrow();
-      await tags.attach(subject, vip.id).orThrow();
+      await tags.attach({ record: subject, tagId: risk.id }).orThrow();
+      await tags.attach({ record: subject, tagId: vip.id }).orThrow();
       expect(
         (await tags.list({ on: subject }).orThrow()).map((tag) => tag.id),
       ).toEqual([vip.id, risk.id]);
@@ -150,17 +150,28 @@ describe.skipIf(!live)("tags", () => {
       ).toMatch(/icon|null value/u);
       expect((await tags.delete(hot.id)).error?.hint).toBe("TAG_FORBIDDEN");
 
-      await tags.attach({ type: "project", id: mine!.id }, hot.id).orThrow();
+      await tags
+        .attach({ record: { type: "project", id: mine!.id }, tagId: hot.id })
+        .orThrow();
       expect(
-        (await tags.attach({ type: "project", id: theirs!.id }, hot.id)).error
-          ?.hint,
+        (
+          await tags.attach({
+            record: { type: "project", id: theirs!.id },
+            tagId: hot.id,
+          })
+        ).error?.hint,
       ).toBe("TAG_SUBJECT_FORBIDDEN");
 
       await s.as(owner);
       await tags
-        .update(hot.id, { color: "red", description: "Warm leads" })
+        .update({
+          id: hot.id,
+          patch: { color: "red", description: "Warm leads" },
+        })
         .orThrow();
-      await tags.update(hot.id, { color: null, slug: "warm" }).orThrow();
+      await tags
+        .update({ id: hot.id, patch: { color: null, slug: "warm" } })
+        .orThrow();
 
       const [row] = await s.rows<{
         slug: string;

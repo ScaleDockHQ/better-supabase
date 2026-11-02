@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:b378b25331771aebe5e245d750e23a994e3c7771da8e3b775a29efd088d95d14
+-- @bsb-hash sha256:cca8c1e09c3317950156f4365ca0e4036e64622bc3740a21ec113d194849aeb2
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -666,6 +666,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.tags', target_type => 'tag', event_prefix => 'tag', deferred => true);
+end;
+$$;
 
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";

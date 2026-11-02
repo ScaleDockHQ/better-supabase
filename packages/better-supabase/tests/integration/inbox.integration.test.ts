@@ -59,7 +59,10 @@ describe.skipIf(!live)("inbox module", () => {
       await s.asRole(visitor);
 
       const opened = await inbox.conversations
-        .open(widget.id, { message: "Where is my invoice?" })
+        .open({
+          inboxId: widget.id,
+          input: { message: "Where is my invoice?" },
+        })
         .orThrow();
 
       expect(opened).toMatchObject({
@@ -75,18 +78,29 @@ describe.skipIf(!live)("inbox module", () => {
       });
 
       await s.asRole(member);
-      const [listed] = await inbox.conversations.list(org).orThrow();
+
+      const [listed] = await inbox.conversations
+        .list({ tenant: org })
+        .orThrow();
+
       expect(listed).toMatchObject({ id: opened.id, unread: true });
       expect(await inbox.conversations.counts(org).orThrow()).toMatchObject({
         open: 1,
         unassigned: 1,
       });
       await inbox.messages
-        .note(opened.id, "Check the billing page", { mentions: [owner.id] })
+        .note({
+          conversationId: opened.id,
+          body: "Check the billing page",
+          input: { mentions: [owner.id] },
+        })
         .orThrow();
 
       const reply = await inbox.messages
-        .send(opened.id, { body: "It is under Billing." })
+        .send({
+          conversationId: opened.id,
+          input: { body: "It is under Billing." },
+        })
         .orThrow();
 
       expect(reply).toMatchObject({
@@ -96,14 +110,22 @@ describe.skipIf(!live)("inbox module", () => {
       expect(
         (await inbox.conversations.get(opened.id).orThrow())?.botMode,
       ).toBe("human");
-      expect(await inbox.conversations.typing(opened.id).orThrow()).toBe(true);
+      expect(
+        await inbox.conversations
+          .typing({ conversationId: opened.id })
+          .orThrow(),
+      ).toBe(true);
       await inbox.conversations.markRead(opened.id).orThrow();
-      expect((await inbox.conversations.list(org).orThrow())[0]?.unread).toBe(
-        false,
-      );
+      expect(
+        (await inbox.conversations.list({ tenant: org }).orThrow())[0]?.unread,
+      ).toBe(false);
 
       await s.asRole(visitor);
-      const seen = await inbox.messages.list(opened.id).orThrow();
+
+      const seen = await inbox.messages
+        .list({ conversationId: opened.id })
+        .orThrow();
+
       expect(seen.map((message) => message.kind)).toEqual([
         "message",
         "message",
@@ -115,17 +137,29 @@ describe.skipIf(!live)("inbox module", () => {
       expect(
         (await inbox.conversations.get(opened.id).orThrow())?.contactReadAt,
       ).toBeNull();
-      const note = await inbox.messages.note(opened.id, "sneaky");
+
+      const note = await inbox.messages.note({
+        conversationId: opened.id,
+        body: "sneaky",
+      });
+
       expect(note.ok ? undefined : note.error.kind).toBe("forbidden");
-      await inbox.messages.send(opened.id, { body: "Thanks" }).orThrow();
-      const own = await inbox.conversations.list(org).orThrow();
+      await inbox.messages
+        .send({ conversationId: opened.id, input: { body: "Thanks" } })
+        .orThrow();
+      const own = await inbox.conversations.list({ tenant: org }).orThrow();
       expect(
         own.map((conversation) => [conversation.id, conversation.inbox]),
       ).toEqual([[opened.id, null]]);
 
       await s.asRole(viewer);
       expect(await inbox.conversations.get(opened.id).orThrow()).toBeNull();
-      const blocked = await inbox.messages.send(opened.id, { body: "hi" });
+
+      const blocked = await inbox.messages.send({
+        conversationId: opened.id,
+        input: { body: "hi" },
+      });
+
       expect(blocked.ok).toBe(false);
 
       await s.asRole(owner);
@@ -133,15 +167,19 @@ describe.skipIf(!live)("inbox module", () => {
         (await inbox.conversations.get(opened.id).orThrow())?.contactReadAt,
       ).not.toBeNull();
 
-      const toViewer = await inbox.conversations.assign(opened.id, {
-        assigneeId: viewer.id,
+      const toViewer = await inbox.conversations.assign({
+        conversationId: opened.id,
+        to: { assigneeId: viewer.id },
       });
 
       expect(toViewer.ok).toBe(false);
       expect(
         (
           await inbox.conversations
-            .assign(opened.id, { assigneeId: member.id })
+            .assign({
+              conversationId: opened.id,
+              to: { assigneeId: member.id },
+            })
             .orThrow()
         ).assigneeId,
       ).toBe(member.id);
@@ -161,11 +199,15 @@ describe.skipIf(!live)("inbox module", () => {
       await s.asRole(member);
 
       const ownHelp = await inbox.conversations
-        .open(widget.id, { message: "Staff need help too" })
+        .open({ inboxId: widget.id, input: { message: "Staff need help too" } })
         .orThrow();
 
       expect(ownHelp.contact?.userId).toBe(member.id);
-      const [asked] = await inbox.messages.list(ownHelp.id).orThrow();
+
+      const [asked] = await inbox.messages
+        .list({ conversationId: ownHelp.id })
+        .orThrow();
+
       expect(asked).toMatchObject({
         authorType: "contact",
         direction: "inbound",
@@ -173,7 +215,10 @@ describe.skipIf(!live)("inbox module", () => {
       expect(
         (
           await inbox.messages
-            .send(ownHelp.id, { body: "Still there?" })
+            .send({
+              conversationId: ownHelp.id,
+              input: { body: "Still there?" },
+            })
             .orThrow()
         ).authorType,
       ).toBe("contact");
@@ -236,7 +281,9 @@ describe.skipIf(!live)("inbox module", () => {
         adapter: "whatsapp",
         headers: { "x-hub": "1" },
       });
-      await inbox.inbound.setStatus(stored.id, "processed").orThrow();
+      await inbox.inbound
+        .setStatus({ id: stored.id, status: "processed" })
+        .orThrow();
       expect(await inbox.inbound.pending().orThrow()).toEqual([]);
 
       const input = {
@@ -260,7 +307,10 @@ describe.skipIf(!live)("inbox module", () => {
       await s.asRole(owner);
 
       const reply = await inbox.messages
-        .send(first.conversationId, { body: "Hello Ada" })
+        .send({
+          conversationId: first.conversationId,
+          input: { body: "Hello Ada" },
+        })
         .orThrow();
 
       const [outbound] = await claim(s, "inbox_outbound");
@@ -289,9 +339,9 @@ describe.skipIf(!live)("inbox module", () => {
       ).toMatchObject({ status: "read" });
 
       const mirrored = await inbox.messages
-        .send(first.conversationId, {
-          body: "sent by the bot",
-          deliveredByCaller: true,
+        .send({
+          conversationId: first.conversationId,
+          input: { body: "sent by the bot", deliveredByCaller: true },
         })
         .orThrow();
 
@@ -330,21 +380,28 @@ describe.skipIf(!live)("inbox module", () => {
       await s.asRole(visitor);
 
       const opened = await inbox.conversations
-        .open(widget.id, { message: "Can someone call me back?" })
+        .open({
+          inboxId: widget.id,
+          input: { message: "Can someone call me back?" },
+        })
         .orThrow();
 
       await s.asRole(member);
 
-      const past = await inbox.messages.schedule(
-        opened.id,
-        { body: "Too late" },
-        Temporal.Now.instant().subtract({ minutes: 1 }),
-      );
+      const past = await inbox.messages.schedule({
+        conversationId: opened.id,
+        input: { body: "Too late" },
+        at: Temporal.Now.instant().subtract({ minutes: 1 }),
+      });
 
       expect(past.ok).toBe(false);
 
       const scheduled = await inbox.messages
-        .schedule(opened.id, { body: "Calling you at nine." }, later)
+        .schedule({
+          conversationId: opened.id,
+          input: { body: "Calling you at nine." },
+          at: later,
+        })
         .orThrow();
 
       expect(scheduled).toMatchObject({
@@ -354,7 +411,11 @@ describe.skipIf(!live)("inbox module", () => {
       });
 
       const dropped = await inbox.messages
-        .schedule(opened.id, { body: "Never mind" }, later)
+        .schedule({
+          conversationId: opened.id,
+          input: { body: "Never mind" },
+          at: later,
+        })
         .orThrow();
 
       await inbox.messages.cancelScheduled(dropped.id).orThrow();
@@ -363,15 +424,17 @@ describe.skipIf(!live)("inbox module", () => {
           (row) => row.id,
         ),
       ).toEqual([scheduled.id]);
-      await inbox.conversations.snooze(opened.id, later).orThrow();
+      await inbox.conversations
+        .snooze({ conversationId: opened.id, until: later })
+        .orThrow();
 
       await s.asRole(viewer);
 
-      const denied = await inbox.messages.schedule(
-        opened.id,
-        { body: "x" },
-        later,
-      );
+      const denied = await inbox.messages.schedule({
+        conversationId: opened.id,
+        input: { body: "x" },
+        at: later,
+      });
 
       expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
       expect(await inbox.messages.scheduled().orThrow()).toEqual([]);
@@ -400,7 +463,11 @@ describe.skipIf(!live)("inbox module", () => {
       expect(await inbox.wakeSnoozed().orThrow()).toBe(1);
 
       await s.asRole(member);
-      const messages = await inbox.messages.list(opened.id).orThrow();
+
+      const messages = await inbox.messages
+        .list({ conversationId: opened.id })
+        .orThrow();
+
       expect(messages.at(-1)).toMatchObject({
         body: "Calling you at nine.",
         authorId: member.id,

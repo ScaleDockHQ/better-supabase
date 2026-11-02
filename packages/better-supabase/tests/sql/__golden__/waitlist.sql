@@ -481,7 +481,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:45d1beecc807765979f8da6f6eb25a58df7d68ced281d55ce4e5f3cb66811ae0
+-- @bsb-hash sha256:3225aa80997712c0184a2076dea1dae321db45f18287c23ad60ca9aea0400d1e
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,6 +970,13 @@ grant execute on function "better_supabase"."revoke_invite_code"(uuid) to authen
 grant execute on function "better_supabase"."waitlist_admit"(text, text) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."redeem_for"(text, uuid) to service_role;
 grant execute on function "better_supabase"."redeem_invite_code"(text) to authenticated, service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.waitlist_entries', target_type => 'waitlist_entry', event_prefix => 'waitlist_entry', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

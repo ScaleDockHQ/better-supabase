@@ -5,9 +5,9 @@ import type {
 } from "better-supabase/blocks/banking";
 import type { MoneyJson } from "better-supabase/commerce";
 
-import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
+import * as v from "valibot";
 
 import { bsb } from "@/lib/supabase/server";
 
@@ -65,8 +65,19 @@ export interface BankAccountReconciliation {
   readonly transactions: readonly BankTransactionRow[];
 }
 
-/** Unmatched transactions get a suggestion each; the rest show their status. */
-const SUGGESTED = 20;
+/** The latest transactions a grid shows per account. */
+const LINES = 100;
+
+const TransactionStatus = v.picklist(["unmatched", "matched", "ignored"]);
+
+const MatchReasons = v.array(
+  v.picklist(["reference", "remittance", "amount", "counterparty"]),
+);
+
+/** The money of a board row: minor-unit text and its currency. */
+function amountOf(amount: string, currency: string): MoneyJson {
+  return { amount, currency };
+}
 
 async function loadReconciliation(): Promise<
   readonly BankAccountReconciliation[] | null
@@ -81,29 +92,16 @@ async function loadReconciliation(): Promise<
   const { banking } = db;
   const accounts = await banking.accounts().orThrow();
 
+  // One `reconciliationBoard` call per account replaces the status, the
+  // transactions and the review queue.
   return Promise.all(
     accounts.map(async (account) => {
-      const [status, transactions] = await Promise.all([
-        banking.reconciliation(account.id).orThrow(),
-        banking.transactions(account.id, { limit: 100 }).orThrow(),
-      ]);
+      const { status, lines, suggestions } = await banking
+        .reconciliationBoard({ accountId: account.id, limit: LINES })
+        .orThrow();
 
-      const open = transactions
-        .filter((transaction) => transaction.status === "unmatched")
-        .slice(0, SUGGESTED);
-
-      const suggestions = new Map(
-        await Promise.all(
-          open.map(
-            async (transaction) =>
-              [
-                transaction.id,
-                (await banking.suggestMatches(transaction.id).orThrow()).find(
-                  (suggestion) => suggestion.targetType === "invoice",
-                ),
-              ] as const,
-          ),
-        ),
+      const suggested = new Map(
+        suggestions.map((item) => [item.transactionId, item] as const),
       );
 
       return {
@@ -111,28 +109,30 @@ async function loadReconciliation(): Promise<
         name: account.name,
         iban: account.iban ?? null,
         statementBalance: status.statementBalance
-          ? moneyToJson(status.statementBalance)
+          ? amountOf(status.statementBalance, status.currency)
           : null,
         unmatchedCount: status.unmatchedCount,
-        unmatchedTotal: moneyToJson(status.unmatchedTotal),
-        difference: status.difference ? moneyToJson(status.difference) : null,
+        unmatchedTotal: amountOf(status.unmatchedTotal, status.currency),
+        difference: status.difference
+          ? amountOf(status.difference, status.currency)
+          : null,
         reconciled: status.reconciled,
-        transactions: transactions.map((transaction): BankTransactionRow => {
-          const suggestion = suggestions.get(transaction.id);
+        transactions: lines.map((line): BankTransactionRow => {
+          const suggestion = suggested.get(line.id);
 
           return {
-            id: transaction.id,
-            bookedOn: transaction.bookedOn.toString(),
-            amount: moneyToJson(transaction.amount),
-            counterparty: transaction.counterpartyName ?? null,
-            remittance: transaction.remittance ?? null,
-            status: transaction.status,
+            id: line.id,
+            bookedOn: line.bookedOn,
+            amount: amountOf(line.amount, line.currency),
+            counterparty: line.counterpartyName,
+            remittance: line.remittance,
+            status: v.parse(TransactionStatus, line.status),
             suggestion: suggestion
               ? {
                   targetId: suggestion.targetId,
                   label: suggestion.label,
-                  balance: moneyToJson(suggestion.balance),
-                  reasons: suggestion.reasons,
+                  balance: amountOf(suggestion.balance, suggestion.currency),
+                  reasons: v.parse(MatchReasons, suggestion.reasons),
                 }
               : null,
           };

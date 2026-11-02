@@ -291,6 +291,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0174: Payroll runs count only the time entries of weeks with an approved timesheet.
 - 0175: Sent e-invoices keep the channel's reference in `invoice_deliveries`; `sendEInvoice` records it through the invoices client (amends 0159; superseded by 0182).
 - 0176: The tills example creates each till with a cash account, mapped from or added to the accounting chart.
+- 0177: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
+- 0196: Modules declare tenant defaults in `BlockSql.seeds`; `db seed --defaults` and the cloud `--sample` (Pro) use them.
+- 0197: Shared recurrence, period, money and digest engines are planned, not shipped.
 - 0177: Maintenance plans take RFC 5545 calendar rules and required qualifications, checked on technician assignment and calibration.
 - 0178: E-prescribing keeps prescriptions in SQL that only their prescriber signs, and delivers them through a versioned `PrescriptionGateway` port.
 - 0179: Adapters start from tested templates in `tests/adapter-templates` and a Write an adapter docs page, one per port.
@@ -309,6 +312,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0193: DAM reads C2PA manifests through a port and exports usage rights as ODRL.
 - 0194: Content writes sitemaps, robots.txt and JSON-LD as pure functions.
 - 0195: Maintenance ingests meter telemetry through a Fetch handler.
+- 0196: Links, row-level concerns and automations are declared in manifests and module names; composite blocks compose other blocks and add glue (amends 0029, 0048, 0093, 0102).
 
 ## Pre-release pins
 

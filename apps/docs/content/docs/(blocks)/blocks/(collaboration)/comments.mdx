@@ -346,6 +346,16 @@ const comments = createComments({
 });
 ```
 
+### Comment with files
+
+`createWithFiles({ subject, comment, files, onProgress? })` opens the record's conversation, uploads each file through the `attachments` port and posts the comment with their ids. When an upload or the post fails, the files already uploaded are removed, so no orphan stays on the conversation. The block consumes `attachments` as an optional port: without it the call fails with hint `COMMENTS_ATTACHMENTS_MISSING`. `createBlocks` passes the port when the attachments block is installed.
+
+```ts
+await comments
+  .createWithFiles({ subject, comment: { body: "See the scans" }, files })
+  .orThrow();
+```
+
 ## Notifications
 
 With the [notifications](/docs/blocks/notifications) block, a new comment
@@ -536,3 +546,7 @@ const comments = createComments({
 await comments.create(subject, { body, document });
 await comments.edit(id, { body, document: null }); // null removes the document
 ```
+
+## Reply and reopen
+
+`reply({ subject, parentId, comment })` is `create` with `parentId`. `reopen(id)` is `resolve` with `resolved: false`.

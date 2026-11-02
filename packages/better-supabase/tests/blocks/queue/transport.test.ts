@@ -231,7 +231,7 @@ describe("transportQueueProvider", () => {
 
     const jobs = createQueue({ transport, queues: { emails: v.object({}) } });
     expect((await jobs.stats(["emails"]).orThrow()).emails.dead).toBe(1);
-    expect(await jobs.listDead("emails").orThrow()).toEqual([]);
+    expect(await jobs.listDead({ queue: "emails" }).orThrow()).toEqual([]);
     expect(calls.map((call) => [call.schema, call.fn])).toEqual([
       ["better_supabase", "job_queue_stats"],
       ["better_supabase", "list_dead_jobs"],
@@ -267,18 +267,22 @@ describe("idempotency and leases over a transport", () => {
       ttl: 60,
     });
 
-    const response = await idempotency.handle(
-      new Request("https://api.test/orders", {
+    const response = await idempotency.handle({
+      request: new Request("https://api.test/orders", {
         method: "POST",
         headers: { "idempotency-key": "k-1" },
         body: "{}",
       }),
-      () => Response.json({ ok: true }, { status: 201 }),
-    );
+      handler: () => Response.json({ ok: true }, { status: 201 }),
+    });
 
     expect(response.status).toBe(201);
-    expect(await idempotency.release("k-1", "h-1").orThrow()).toBe(true);
-    expect(await idempotency.extend("k-1", "h-1").orThrow()).toBe(true);
+    expect(
+      await idempotency.release({ key: "k-1", holder: "h-1" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await idempotency.extend({ key: "k-1", holder: "h-1" }).orThrow(),
+    ).toBe(true);
     expect(calls.map((call) => call.fn)).toEqual([
       "begin_idempotent",
       "complete_idempotent",
@@ -296,7 +300,12 @@ describe("idempotency and leases over a transport", () => {
 
     const { transport: none } = fakeTransport({ begin_idempotent: [] });
     expect(
-      (await createIdempotency({ transport: none }).begin("k", "f")).ok,
+      (
+        await createIdempotency({ transport: none }).begin({
+          key: "k",
+          fingerprint: "f",
+        })
+      ).ok,
     ).toBe(false);
     expectWrapped("idempotency", calls);
   });

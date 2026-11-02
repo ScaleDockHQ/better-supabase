@@ -430,6 +430,20 @@ The snapshot has `attachments` (`undefined` until the first load), the topic's
 run it with `useBlockController`, which reads `auth` and `ports` from the
 provider.
 
+### Upload a file in one call
+
+`uploadFile({ subject, file, attachment?, onProgress? })` creates the record, sends `file` to its signed upload URL and confirms it. The bucket you pass to `createAttachments` needs `uploadToSignedUrl`, which supabase-js storage clients have. When Storage refuses the file, the record is deleted again. supabase-js reports no byte progress, so `onProgress` is called twice: with `loaded: 0` before the bytes go out and with `loaded: total` once Storage has them.
+
+```ts
+const attachment = await attachments
+  .uploadFile({
+    subject,
+    file,
+    onProgress: ({ loaded, total }) => setBar(loaded / total),
+  })
+  .orThrow();
+```
+
 ## Versions
 
 `replace(id, file)` starts a new version of a file and returns a signed

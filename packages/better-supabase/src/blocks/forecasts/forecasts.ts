@@ -88,8 +88,8 @@ export interface Forecasts {
    * Stores the forecast call for the period with every deal it counted. Needs
    * `forecasts.snapshot`; a cron calls it with the service role.
    */
-  snapshot(
-    organizationId: string,
+  snapshot(input: {
+    organizationId: string;
     period: {
       readonly since: Temporal.PlainDate;
       readonly until: Temporal.PlainDate;
@@ -97,19 +97,21 @@ export interface Forecasts {
       /** In `currency`. */
       readonly target?: Money;
       readonly pipelineId?: string;
-    },
-  ): AsyncResult<ForecastSnapshot>;
+    };
+  }): AsyncResult<ForecastSnapshot>;
   /** Snapshots, newest first, of one pipeline or period when given. */
-  list(
-    organizationId: string,
-    filter?: {
-      readonly pipelineId?: string;
-      readonly since?: Temporal.PlainDate;
-      readonly until?: Temporal.PlainDate;
-      /** At most this many. Default: 50, at most 200. */
-      readonly limit?: number;
-    },
-  ): AsyncResult<ForecastSnapshot[]>;
+  list(input: {
+    organizationId: string;
+    filter?:
+      | {
+          readonly pipelineId?: string;
+          readonly since?: Temporal.PlainDate;
+          readonly until?: Temporal.PlainDate;
+          /** At most this many. Default: 50, at most 200. */
+          readonly limit?: number;
+        }
+      | undefined;
+  }): AsyncResult<ForecastSnapshot[]>;
   /** One snapshot with the deals it counted, the largest amount first. */
   get(
     snapshotId: string,
@@ -120,10 +122,10 @@ export interface Forecasts {
    * The deals that were added, removed, won, lost or changed between two
    * snapshots of one organization and currency.
    */
-  changes(
-    fromSnapshotId: string,
-    toSnapshotId: string,
-  ): AsyncResult<ForecastChanges>;
+  changes(input: {
+    fromSnapshotId: string;
+    toSnapshotId: string;
+  }): AsyncResult<ForecastChanges>;
 }
 
 export interface ForecastsOptions extends BlockTemporalOptions {
@@ -232,7 +234,7 @@ export function createForecasts(options: ForecastsOptions): Forecasts {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const forecasts: Forecasts = {
-    snapshot: (organizationId, period) => {
+    snapshot: ({ organizationId, period }) => {
       const invalid = amountsError(period.currency, [period.target]);
 
       return invalid === undefined
@@ -250,7 +252,7 @@ export function createForecasts(options: ForecastsOptions): Forecasts {
           )
         : AsyncResult.err(invalid);
     },
-    list: (organizationId, filter = {}) =>
+    list: ({ organizationId, filter = {} }) =>
       call(
         "forecast_snapshots",
         {
@@ -275,7 +277,7 @@ export function createForecasts(options: ForecastsOptions): Forecasts {
           ),
         };
       }),
-    changes: (fromSnapshotId, toSnapshotId) =>
+    changes: ({ fromSnapshotId, toSnapshotId }) =>
       call(
         "forecast_changes",
         { from_snapshot: fromSnapshotId, to_snapshot: toSnapshotId },

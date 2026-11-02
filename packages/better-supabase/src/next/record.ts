@@ -32,7 +32,12 @@ import type { RecordRef } from "../schema/types.ts";
 import type { ActionResult } from "../server/kit.ts";
 
 import { createBlockClient } from "../blocks/create-blocks.ts";
+import { subjectsBlock } from "../blocks/subjects/manifest.ts";
+import { trashBlock } from "../blocks/trash/manifest.ts";
+import { dbError } from "../core/errors.ts";
+import { err } from "../core/result.ts";
 import { loadBindings } from "../records/bindings.ts";
+import { copyBindings } from "../records/copy.ts";
 import {
   bindingWrites,
   findBindingWrite,
@@ -62,6 +67,8 @@ export interface RecordServerContext {
  */
 export interface RecordServerHost {
   context(): Promise<RecordServerContext>;
+  /** The active tenant, or `undefined` without one. */
+  tenant?(): Promise<string | undefined>;
   action<S extends StandardSchemaV1, T>(
     options: { readonly input: S; readonly requireTenant: true },
     fn: (
@@ -203,7 +210,7 @@ async function permissionsOf(
     feature.config === undefined ? {} : { config: feature.config },
   );
 
-  const result = await access.permissions(keys);
+  const result = await access.permissions({ keys });
 
   return result.ok ? { set: result.data } : { set: null, error: result.error };
 }
@@ -351,6 +358,101 @@ export function recordServer<
           bindingTag(subject, binding, scope),
         ),
       ];
+    },
+  };
+}
+
+/** The record at one id, for the actions the bindings don't cover. */
+export interface RecordAt<N extends string> {
+  readonly subject: RecordRef;
+  /** The caller's `can` flags for these actions (default read, write, delete). */
+  can(
+    actions?: readonly string[],
+  ): Promise<Result<Readonly<Record<string, boolean>>>>;
+  /**
+   * Copies the record's rows onto the record `toId` of the same type, binding
+   * by binding, and returns how many each copied. Only bindings with a `copy`
+   * run (tags, comments, custom fields); versions and signatures never copy.
+   */
+  copyTo(
+    toId: string,
+    options?: { readonly bindings?: readonly N[] },
+  ): Promise<Result<Readonly<Record<string, number>>>>;
+  /** Trashes the record and its children in one batch (the trash block). */
+  trash(): Promise<Result<unknown>>;
+  /** Restores the whole batch of a trash item. */
+  restore(itemId: string): Promise<Result<unknown>>;
+}
+
+/**
+ * One record's server-side verbs: `can`, `copyTo`, `trash` and `restore`. It
+ * reads the request like `recordServer(...).load`, so call it outside `"use
+ * cache"` (ADR 0196).
+ */
+export function recordAtServer<
+  T extends string,
+  B extends RecordTypeBlocks,
+  N extends BindingName<B>,
+>(
+  bsb: RecordServerHost,
+  feature: RecordType<T, B> & { readonly bindings: readonly N[] },
+  id: string,
+): RecordAt<N> {
+  const subject = recordSubject(feature, id);
+
+  const tenantOf = async (): Promise<string | undefined> =>
+    (await bsb.tenant?.()) ?? undefined;
+
+  const noTenant = err(
+    dbError("invalid_request", "bsb.recordAt needs an active tenant"),
+  );
+
+  return {
+    subject,
+    async can(actions = ["read", "write", "delete"]) {
+      const ctx = await bsb.context();
+
+      return createBlockClient(
+        ctx.db,
+        subjectsBlock,
+        clientOptions(feature, ctx),
+      ).can({ subject, actions });
+    },
+    async copyTo(toId, options = {}) {
+      const ctx = await bsb.context();
+
+      return copyBindings(
+        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
+        subject,
+        recordSubject(feature, toId),
+        options.bindings,
+      );
+    },
+    async trash() {
+      const [ctx, tenant] = await Promise.all([bsb.context(), tenantOf()]);
+
+      if (tenant === undefined) {
+        return noTenant;
+      }
+
+      return createBlockClient(
+        ctx.db,
+        trashBlock,
+        clientOptions(feature, ctx),
+      ).trash({
+        organizationId: tenant,
+        subjectType: subject.type,
+        subjectId: subject.id,
+      });
+    },
+    async restore(itemId) {
+      const ctx = await bsb.context();
+
+      return createBlockClient(
+        ctx.db,
+        trashBlock,
+        clientOptions(feature, ctx),
+      ).restore(itemId);
     },
   };
 }

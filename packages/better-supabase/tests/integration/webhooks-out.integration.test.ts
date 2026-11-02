@@ -18,6 +18,7 @@ import {
 import { AsyncResult } from "../../src/core/result.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
+import { flushDeferred } from "./block-session.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -668,9 +669,9 @@ describe.skipIf(!live)("webhooks-out", () => {
       });
 
       const updated = await webhooks
-        .updateEndpoint(created.id, {
-          eventTypes: ["deal.lost"],
-          enabled: false,
+        .updateEndpoint({
+          endpointId: created.id,
+          changes: { eventTypes: ["deal.lost"], enabled: false },
         })
         .orThrow();
 
@@ -767,6 +768,8 @@ describe.skipIf(!live)("webhooks-out", () => {
         [{ module: "webhooks-out", version: 2 }],
         LAYOUT,
       );
+
+      await flushDeferred(client);
 
       for (const step of plan!.steps) {
         await client.query(step.sql);

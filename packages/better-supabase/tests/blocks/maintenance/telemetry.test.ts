@@ -13,10 +13,11 @@ const meterFor = (device: string, metric: string): string | undefined =>
   device === "pump-1" && metric === "run_hours" ? "m-1" : undefined;
 
 function maintenance() {
-  const recordReading = vi.fn(async (meterId: string) =>
-    meterId === "m-bad"
-      ? err(dbError("raised", "lower", { hint: "MAINTENANCE_METER_LOWER" }))
-      : ok({ id: meterId }),
+  const recordReading = vi.fn(
+    async ({ meterId }: { meterId: string; value: string; readAt: unknown }) =>
+      meterId === "m-bad"
+        ? err(dbError("raised", "lower", { hint: "MAINTENANCE_METER_LOWER" }))
+        : ok({ id: meterId }),
   );
 
   return { recordReading, client: { recordReading } as never };
@@ -134,9 +135,7 @@ describe("ingestTelemetry", () => {
       failures: [],
     });
     expect(recordReading).toHaveBeenCalledOnce();
-    expect((recordReading.mock.calls[0] as unknown[] | undefined)?.[1]).toBe(
-      "12.25",
-    );
+    expect(recordReading.mock.calls[0]?.[0].value).toBe("12.25");
   });
 
   it("ignores negative values and reports failing meters without stopping", async () => {

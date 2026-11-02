@@ -1,9 +1,11 @@
 import type {
   ActionDescriptor,
+  ActionFactory,
   BlockSchedule,
   DefaultAutomation,
 } from "../core/automation.ts";
 import type { EventMap, Events } from "../core/block-events.ts";
+import type { PresetSubjectSettings } from "../preset/fields.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
@@ -78,6 +80,36 @@ type Nothing = Record<never, never>;
 /** Event pattern to the read methods it makes stale. */
 export type BlockInvalidates = Readonly<Record<string, readonly string[]>>;
 
+/**
+ * What a composite sets on one of its parts when the app leaves it unset: the
+ * part's `blocks.<part>.options` keys (ADR 0196). The app's own `blocks.<part>`
+ * entry wins key by key.
+ */
+export interface PartDefaults {
+  readonly options?: Readonly<Record<string, unknown>>;
+  /** Entity names, by entity key (`{ task: "ticket" }`). */
+  readonly names?: Readonly<Record<string, string>>;
+  /** The record team and read log of the subjects the part registers. */
+  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
+}
+
+/**
+ * The blocks a composite is built from, by the key its creator reads them
+ * under.
+ */
+export type ComposedParts = Readonly<Record<string, AnyBlock>>;
+
+/** The clients of a composite's parts, as its creator receives them. */
+export type PartClients<P extends ComposedParts> = {
+  readonly [K in keyof P]: ClientOf<P[K]>;
+};
+
+/** What a composite's creator receives besides the shared block options. */
+export interface CompositeOptions<P extends ComposedParts> {
+  /** The parts' built clients, hooks included. */
+  readonly parts: PartClients<P>;
+}
+
 /** What `defineBlock` takes. */
 export interface BlockDefinition<
   Name extends string,
@@ -134,12 +166,31 @@ export interface BlockDefinition<
    */
   readonly actions?: readonly ActionDescriptor[];
   /**
+   * The factory for each action kind in `actions`, which the automations
+   * block's `blockActions` builds the action registry from. A kind without a
+   * factory stays in the app's registry by hand.
+   */
+  readonly handlers?: Readonly<Record<string, ActionFactory>>;
+  /**
    * The automations the block ships. Its SQL module writes them as default
    * rows, which each organization may turn off or edit.
    */
   readonly automations?: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
   readonly schedules?: readonly BlockSchedule[];
+  /**
+   * The blocks this one is built from, keyed by the block's name (a composite,
+   * ADR 0196). Installing the composite installs its parts, and `create`
+   * receives their clients as `options.parts`. A composite is an ordinary block
+   * otherwise: one manifest, one name, one docs page. Parts may be composites;
+   * a composite is a singleton.
+   */
+  readonly composes?: ComposedParts;
+  /**
+   * What the composite sets on each part, by part name, until the app sets it.
+   * Keys must exist on the part (conformance checks them).
+   */
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
 }
 
 /**
@@ -188,10 +239,16 @@ export interface Block<
   readonly extension: string | undefined;
   /** The action kinds the block ships. */
   readonly actions: readonly ActionDescriptor[];
+  /** The factory for each action kind, by kind. */
+  readonly handlers: Readonly<Record<string, ActionFactory>>;
   /** The automations the block ships as default rows. */
   readonly automations: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
   readonly schedules: readonly BlockSchedule[];
+  /** The blocks it is built from, by name; empty for a plain block. */
+  readonly composes: ComposedParts;
+  /** What it sets on each part until the app does. */
+  readonly defaults: Readonly<Record<string, PartDefaults>>;
   /** The env keys it reads, for `.env.example` and doctor's BS504. */
   readonly env: readonly BlockEnvKey[];
   /** The interfaces the app implements for it, for `providers.ts` and BS505. */
@@ -241,8 +298,11 @@ export interface AnyBlock {
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
   readonly actions?: readonly ActionDescriptor[];
+  readonly handlers?: Readonly<Record<string, ActionFactory>>;
   readonly automations?: readonly DefaultAutomation[];
   readonly schedules?: readonly BlockSchedule[];
+  readonly composes?: ComposedParts;
+  readonly defaults?: Readonly<Record<string, PartDefaults>>;
   readonly env?: readonly BlockEnvKey[];
   readonly providers?: readonly BlockProvider[];
   readonly routes?: readonly string[];
@@ -350,8 +410,11 @@ function blockOf<
     record: parts.record,
     extension: parts.extension,
     actions: parts.actions ?? [],
+    handlers: parts.handlers ?? {},
     automations: parts.automations ?? [],
     schedules: parts.schedules ?? [],
+    composes: parts.composes ?? {},
+    defaults: parts.defaults ?? {},
     env: parts.env ?? [],
     providers: parts.providers ?? [],
     routes: parts.routes ?? [],

@@ -78,21 +78,27 @@ describe.skipIf(!live)("file anchors", () => {
       });
 
       const comment = await comments
-        .create(subject, { body: "Is this figure right?", anchor })
+        .create({ subject, comment: { body: "Is this figure right?", anchor } })
         .orThrow();
 
       expect(comment.anchor).toEqual(anchor);
 
-      const wrong = await comments.create(subject, {
-        body: "Wrong file",
-        anchor: fileAnchor(elsewhere!.id, { page: 1 }),
+      const wrong = await comments.create({
+        subject,
+        comment: {
+          body: "Wrong file",
+          anchor: fileAnchor(elsewhere!.id, { page: 1 }),
+        },
       });
 
       expect(wrong.ok ? undefined : wrong.error.hint).toBe(
         "MESSAGING_ANCHOR_INVALID",
       );
 
-      const listed = await comments.anchoredTo(file!.id).orThrow();
+      const listed = await comments
+        .anchoredTo({ attachmentId: file!.id })
+        .orThrow();
+
       expect(listed.map((row) => [row.id, row.subject])).toEqual([
         [comment.id, subject],
       ]);

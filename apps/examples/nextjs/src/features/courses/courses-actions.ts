@@ -39,17 +39,23 @@ export const createSampleCourse = bsb.action(
       return course;
     }
 
-    const outlineModule = await courses.saveModule(course.data.id, { title });
+    const outlineModule = await courses.saveModule({
+      courseId: course.data.id,
+      module: { title },
+    });
 
     if (!outlineModule.ok) {
       return outlineModule;
     }
 
     for (const { title: lessonTitle, text } of lessons) {
-      const lesson = await courses.saveLesson(course.data.id, {
-        moduleId: outlineModule.data.id,
-        title: lessonTitle,
-        body: { text },
+      const lesson = await courses.saveLesson({
+        courseId: course.data.id,
+        lesson: {
+          moduleId: outlineModule.data.id,
+          title: lessonTitle,
+          body: { text },
+        },
       });
 
       if (!lesson.ok) {
@@ -80,7 +86,7 @@ export const enrollInCourse = bsb.action(
     permission: "courses.read",
   },
   async ({ courseId }, { db, auth }) => {
-    const learner = await db.courses.enroll(courseId);
+    const learner = await db.courses.enroll({ courseId });
 
     if (!learner.ok) {
       return learner;
@@ -130,7 +136,7 @@ export const submitQuiz = bsb.action(
     permission: "courses.read",
   },
   async ({ lessonId, answers }, { db, auth }) => {
-    const result = await db.courses.submitQuiz(lessonId, answers);
+    const result = await db.courses.submitQuiz({ lessonId, answers });
 
     if (!result.ok) {
       return result;

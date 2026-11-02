@@ -64,6 +64,13 @@ await reactions
   .orThrow();
 ```
 
+`who({ subject, emoji? })` lists the actors behind each emoji for a "who reacted" popover. The database returns the first ten actors per emoji, and `hidden` counts the rest. It follows the same read rules as `summary`.
+
+```ts
+const byEmoji = await reactions.who({ subject }).orThrow();
+// { "👍": { actors: [...], hidden: 3 } }
+```
+
 ## Votes
 
 A vote is a reaction with `kind: "vote"`: up (`1`) or down (`-1`), one per actor and subject. `vote(subject, value)` sets the caller's vote, `0` clears it, and voting the other way switches it. It needs the same permissions as `react` and returns the subject's tally:
@@ -254,3 +261,7 @@ const byDoc = await reactions
 byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
 await reactions.react(doc, "👍", { present: false }).orThrow();
 ```
+
+## Toggle a reaction
+
+`toggle({ subject, emoji })` adds the caller's reaction, or removes it when they already reacted with that emoji, and returns the counts.

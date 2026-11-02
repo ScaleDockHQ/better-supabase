@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:d79e4c6d5b6a7d3523808f5e12ad8c0bae378773c500d96b60103327b07deebe
+-- @bsb-hash sha256:4b5d1d3c0bad8351054e9c1b55bfe0006cd095d6d46f7202f95d644bb89b1040
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -993,6 +993,23 @@ $$;
 revoke execute on function "better_supabase"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "better_supabase"."notify_due_risk_reviews"() to service_role;
 
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1102,7 +1119,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:01781d680dbae5d2720b7671f1583f6f477ff0e74b36723529d753daa2ea1b3c
+-- @bsb-hash sha256:f4999ac8384b30a34c2d8bb060f338f7fe5ad5be745e7fd1671412a50c217915
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2207,6 +2224,23 @@ $$;
 revoke execute on function "better_supabase"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "better_supabase"."notify_due_risk_reviews"() to service_role;
 
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2286,6 +2320,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."risk_assessments" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.risks', target_type => 'risk', event_prefix => 'risk', deferred => true);
+  perform better_supabase.audit('better_supabase.risk_matrices', target_type => 'risk_matrix', event_prefix => 'risk_matrix', deferred => true);
+  perform better_supabase.audit('better_supabase.risk_assessments', target_type => 'risk_assessment', event_prefix => 'risk_assessment', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2316,7 +2359,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:65a753228e8aeec77b1e9ea0ad53b23e720239146801932feed55b272f111d8b
+-- @bsb-hash sha256:be7fa30a91d679ffe73e17a014f3988c44b51eaaf822cae5527071015c8e9e28
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3313,6 +3356,23 @@ $$;
 revoke execute on function "app_private"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "app_private"."notify_due_risk_reviews"() to service_role;
 
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "app_private"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "app_private"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "app_private"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "app_private"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "app_private"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3422,7 +3482,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:c56ea5e65e5ca793b01d61cb15d13410dc1869d3e34f532ca0a07858fa0307cc
+-- @bsb-hash sha256:eb8c0bea52ed6c1006620e92e96615c06598184f75c153c422fb0909f879b22e
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4414,6 +4474,23 @@ $$;
 revoke execute on function "better_supabase"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "better_supabase"."notify_due_risk_reviews"() to service_role;
 
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4641,6 +4718,15 @@ as $$ select "better_supabase"."notify_due_risk_reviews"() $$;
 revoke execute on function "api"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "api"."notify_due_risk_reviews"() to service_role;
 
+create or replace function "api"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_risks_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4671,7 +4757,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:e4323d8ef2f04dbc8b24924b78cd19a4ecb5220680b7db473f6e9710ee7e4de1
+-- @bsb-hash sha256:af7be40eace3fd36e4f676d1013238f18eba3fd8b93b59eebec8a18facc75fc1
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5648,6 +5734,23 @@ $$;
 revoke execute on function "better_supabase"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "better_supabase"."notify_due_risk_reviews"() to service_role;
 
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."tenant_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5757,7 +5860,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:f958fe92f11d304c1b7ccb6d008486e07f822fcad14d4912f3dfcb20e7947e19
+-- @bsb-hash sha256:fe6b3cefc5e706bb697a01548df9e2b55a2febd3156c9ff794f2e7150d66ffe8
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6748,6 +6851,23 @@ end;
 $$;
 revoke execute on function "better_supabase"."notify_due_risk_reviews"() from public, anon, authenticated;
 grant execute on function "better_supabase"."notify_due_risk_reviews"() to service_role;
+
+-- Seeds the rows every organization starts with for risks. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_risks_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."risk_matrices" ("org_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
+  select p_tenant, 'default', 'Default 5x5', '[{"value":1,"label":"Rare"},{"value":2,"label":"Unlikely"},{"value":3,"label":"Possible"},{"value":4,"label":"Likely"},{"value":5,"label":"Almost certain"}]'::jsonb, '[{"value":1,"label":"Insignificant"},{"value":2,"label":"Minor"},{"value":3,"label":"Moderate"},{"value":4,"label":"Major"},{"value":5,"label":"Severe"}]'::jsonb, '[{"key":"low","label":"Low","min":1,"max":4},{"key":"medium","label":"Medium","min":5,"max":9},{"key":"high","label":"High","min":10,"max":16},{"key":"critical","label":"Critical","min":17,"max":25}]'::jsonb, 'product', (not exists (select 1 from "better_supabase"."risk_matrices" d where d."org_id" = p_tenant and d."is_default"))
+  where not exists (select 1 from "better_supabase"."risk_matrices" x where x."org_id" = p_tenant and x."key" is not distinct from 'default');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

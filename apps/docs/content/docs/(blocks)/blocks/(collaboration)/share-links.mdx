@@ -188,3 +188,7 @@ const client = createShareLinks({
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
 ```
+
+## Rotate a link
+
+`rotate({ subject, linkId, options })` creates a replacement link, then revokes the old one. The old link stays valid when the new one fails.

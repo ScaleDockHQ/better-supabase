@@ -16,11 +16,14 @@ export const scheduleSampleTask = bsb.action(
     permission: "ai_schedules.write",
   },
   async (_input, { tenant, supabase }) => {
-    const created = await aiTasks(supabase).create(tenant, {
-      title: "Weekday customer summary",
-      prompt: "Summarize the customers added since yesterday.",
-      cron: "0 9 * * 1-5",
-      timezone: "UTC",
+    const created = await aiTasks(supabase).create({
+      organizationId: tenant,
+      task: {
+        title: "Weekday customer summary",
+        prompt: "Summarize the customers added since yesterday.",
+        cron: "0 9 * * 1-5",
+        timezone: "UTC",
+      },
     });
 
     if (!created.ok) {
@@ -44,8 +47,8 @@ export const setAiTaskEnabled = bsb.action(
     const tasks = aiTasks(supabase);
 
     const saved = enabled
-      ? await tasks.resume(tenant, id)
-      : await tasks.pause(tenant, id);
+      ? await tasks.resume({ organizationId: tenant, taskId: id })
+      : await tasks.pause({ organizationId: tenant, taskId: id });
 
     if (!saved.ok) {
       return saved;

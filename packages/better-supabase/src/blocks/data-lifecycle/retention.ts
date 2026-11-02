@@ -66,16 +66,16 @@ export interface Retention {
    * `Temporal.Duration`), replacing the scope's earlier policy. A purge keeps
    * rows for the policy whatever its own `older_than`.
    */
-  setPolicy(
-    kind: RetentionKind,
-    keep: Temporal.Duration | string,
-    scope?: RetentionScope,
-  ): AsyncResult<RetentionPolicy>;
+  setPolicy(input: {
+    kind: RetentionKind;
+    keep: Temporal.Duration | string;
+    scope?: RetentionScope | undefined;
+  }): AsyncResult<RetentionPolicy>;
   /** `false` when the scope had no policy for `kind`. */
-  removePolicy(
-    kind: RetentionKind,
-    scope?: RetentionScope,
-  ): AsyncResult<boolean>;
+  removePolicy(input: {
+    kind: RetentionKind;
+    scope?: RetentionScope | undefined;
+  }): AsyncResult<boolean>;
   policies(kind?: RetentionKind): AsyncResult<readonly RetentionPolicy[]>;
   /**
    * Stops every purge (and the organization purge) from deleting what the hold
@@ -132,13 +132,13 @@ export function createRetention(options: RetentionOptions): Retention {
   });
 
   return {
-    setPolicy: (kind, keep, scope) =>
+    setPolicy: ({ kind, keep, scope }) =>
       call(
         "set_retention_policy",
         { kind, keep: String(keep), ...scoped(scope) },
         policyOf,
       ),
-    removePolicy: (kind, scope) =>
+    removePolicy: ({ kind, scope }) =>
       call(
         "remove_retention_policy",
         { kind, ...scoped(scope) },

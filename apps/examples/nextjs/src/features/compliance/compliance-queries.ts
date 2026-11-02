@@ -52,7 +52,7 @@ async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
   }
 
   const contracts = await db.contracts
-    .list(tenant, { status: "active", pageSize: 100 })
+    .list({ organizationId: tenant, status: "active", pageSize: 100 })
     .orThrow();
 
   const today = Date.parse(new Date().toISOString().slice(0, 10));
@@ -107,8 +107,10 @@ async function loadPosture(): Promise<Posture | null> {
   const { compliance: controls } = db;
 
   const [frameworks, tasks] = await Promise.all([
-    controls.posture(tenant).orThrow(),
-    controls.evidenceTasks(tenant, { overdueOnly: true }).orThrow(),
+    controls.posture({ organizationId: tenant }).orThrow(),
+    controls
+      .evidenceTasks({ organizationId: tenant, overdueOnly: true })
+      .orThrow(),
   ]);
 
   return {

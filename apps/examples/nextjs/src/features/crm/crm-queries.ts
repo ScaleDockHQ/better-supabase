@@ -90,8 +90,8 @@ export async function loadContacts(): Promise<
   const { contacts: parties } = db.$blocks;
 
   const [companies, people] = await Promise.all([
-    parties.listCompanies(tenant, { limit: PAGE }).orThrow(),
-    parties.listPeople(tenant, { limit: PAGE }).orThrow(),
+    parties.listCompanies({ organizationId: tenant, limit: PAGE }).orThrow(),
+    parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
   ]);
 
   return [
@@ -134,12 +134,12 @@ export async function loadContact(
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const companies = await parties
-      .listCompanies(
-        tenant,
-        companyCursor
+      .listCompanies({
+        organizationId: tenant,
+        ...(companyCursor
           ? { limit: PAGE, cursor: companyCursor }
-          : { limit: PAGE },
-      )
+          : { limit: PAGE }),
+      })
       .orThrow();
 
     const company = companies.items.find((item) => item.id === id);
@@ -147,7 +147,7 @@ export async function loadContact(
     if (company) {
       const [people, everyone] = await Promise.all([
         parties.peopleOf(company.id).orThrow(),
-        parties.listPeople(tenant, { limit: PAGE }).orThrow(),
+        parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
       ]);
 
       const linked = new Set(people.map((person) => person.id));
@@ -196,10 +196,12 @@ export async function loadContact(
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const people = await parties
-      .listPeople(
-        tenant,
-        personCursor ? { limit: PAGE, cursor: personCursor } : { limit: PAGE },
-      )
+      .listPeople({
+        organizationId: tenant,
+        ...(personCursor
+          ? { limit: PAGE, cursor: personCursor }
+          : { limit: PAGE }),
+      })
       .orThrow();
 
     const person = people.items.find((item) => item.id === id);
@@ -255,7 +257,9 @@ export async function loadTimeline(
     return null;
   }
 
-  const entries = await db.activities.of({ type, id }, { limit: 50 }).orThrow();
+  const entries = await db.activities
+    .of({ subject: { type, id }, limit: 50 })
+    .orThrow();
 
   return entries.map((entry) => ({
     id: entry.id,
@@ -305,7 +309,11 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
   }
 
   const { pipelines, deals } = db;
-  const all = await pipelines.list(tenant, "deal").orThrow();
+
+  const all = await pipelines
+    .list({ organizationId: tenant, subjectType: "deal" })
+    .orThrow();
+
   const pipeline = all.find((item) => item.isDefault) ?? all[0];
 
   if (!pipeline) {
@@ -313,7 +321,7 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
   }
 
   const [columns, positions, health] = await Promise.all([
-    pipelines.board("deal", pipeline.id).orThrow(),
+    pipelines.board({ subjectType: "deal", pipelineId: pipeline.id }).orThrow(),
     pipelines.health(pipeline.id).orThrow(),
     deals.health(pipeline.id).orThrow(),
   ]);
@@ -375,7 +383,7 @@ export async function loadTargets(): Promise<readonly TargetRow[] | null> {
     return null;
   }
 
-  const targets = await db.goals.progress(tenant).orThrow();
+  const targets = await db.goals.progress({ organizationId: tenant }).orThrow();
 
   return targets.map((target) => ({
     id: target.id,

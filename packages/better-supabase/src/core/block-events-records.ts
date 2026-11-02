@@ -296,6 +296,14 @@ export interface SlaEventData extends SubjectEventData {
   readonly dueAt: string;
   /** For `sla.completed`: whether it was met after its due time. */
   readonly late?: boolean;
+  /** For `sla.escalated`: the share of the time that fired the step. */
+  readonly atPercent?: number;
+  /** For `sla.escalated`: `notify`, `reassign` or `page`. */
+  readonly action?: string;
+  /** For `sla.escalated`: the user a reassign moved the record to. */
+  readonly target?: string | null;
+  /** For `sla.escalated`: `sent`, `done`, `unchanged` or `skipped`. */
+  readonly result?: string;
 }
 
 /** Events from the hiring module about a job. */

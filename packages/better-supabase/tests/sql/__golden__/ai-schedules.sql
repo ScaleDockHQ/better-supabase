@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ee327010daca185e0a66e2c0647419a36f7d44ee614c588ceb302402acb6e958
+-- @bsb-hash sha256:fb801db355c4e8054142a8095371104d43054da80efbd7117a16c593dcb8d95b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -885,6 +885,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_scheduled_tasks', target_type => 'ai_scheduled_task', event_prefix => 'ai_scheduled_task', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

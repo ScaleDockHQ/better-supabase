@@ -79,9 +79,19 @@ async function loadPanels(
     metrics.map(async ({ key }) => {
       const [kpi, series] = await Promise.all([
         client
-          .kpi(key, range, { organizationId, compare: "previous" })
+          .kpi({
+            metric: key,
+            range,
+            options: { organizationId, compare: "previous" },
+          })
           .orThrow(),
-        client.series(key, range, { organizationId, grain: "day" }).orThrow(),
+        client
+          .series({
+            metric: key,
+            range,
+            options: { organizationId, grain: "day" },
+          })
+          .orThrow(),
       ]);
 
       return { key, kpi, rows: toChartData(series) };

@@ -69,11 +69,11 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     const expiresAt = Temporal.Now.instant().add({ hours: 1 }).round("second");
 
     const link = await links
-      .create({ type: "doc", id: d1 }, { expiresAt })
+      .create({ subject: { type: "doc", id: d1 }, options: { expiresAt } })
       .orThrow();
 
     await session.as("anon");
-    const resolved = await links.resolve(link.token).orThrow();
+    const resolved = await links.resolve({ token: link.token }).orThrow();
     expect(resolved).toMatchObject({
       id: link.id,
       organizationId: org,
@@ -87,32 +87,42 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     const d1 = await doc("d1");
     await session.as(owner);
 
-    const past = await links.create(
-      { type: "doc", id: d1 },
-      { expiresAt: Temporal.Now.instant().subtract({ minutes: 1 }) },
-    );
+    const past = await links.create({
+      subject: { type: "doc", id: d1 },
+      options: { expiresAt: Temporal.Now.instant().subtract({ minutes: 1 }) },
+    });
 
     expect(past.ok ? undefined : past.error.hint).toBe("SHARE_EXPIRY_INVALID");
-    const link = await links.create({ type: "doc", id: d1 }).orThrow();
+
+    const link = await links
+      .create({ subject: { type: "doc", id: d1 } })
+      .orThrow();
+
     await session.service();
     await session.client.query(
       "update better_supabase.share_links set expires_at = now() - interval '1 second' where id = $1",
       [link.id],
     );
     await session.as("anon");
-    expect(await links.resolve(link.token).orThrow()).toBeNull();
+    expect(await links.resolve({ token: link.token }).orThrow()).toBeNull();
   });
 
   it("refuses a subject of another organization or an unknown type", async () => {
     const d1 = await doc("d1");
     await session.as(outsider);
 
-    const foreign = await foreignLinks.create({ type: "doc", id: d1 });
+    const foreign = await foreignLinks.create({
+      subject: { type: "doc", id: d1 },
+    });
 
     expect(foreign.ok ? undefined : foreign.error.hint).toBe(
       "SHARE_SUBJECT_NOT_FOUND",
     );
-    const unknown = await foreignLinks.create({ type: "invoice", id: d1 });
+
+    const unknown = await foreignLinks.create({
+      subject: { type: "invoice", id: d1 },
+    });
+
     expect(unknown.ok ? undefined : unknown.error.hint).toBe(
       "SHARE_SUBJECT_UNKNOWN",
     );
@@ -123,44 +133,44 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     await session.as(owner);
 
     const link = await links
-      .create({ type: "doc", id: d1 }, { maxUses: 2 })
+      .create({ subject: { type: "doc", id: d1 }, options: { maxUses: 2 } })
       .orThrow();
 
     await session.as("anon");
-    expect(await links.resolve(link.token).orThrow()).toMatchObject({
+    expect(await links.resolve({ token: link.token }).orThrow()).toMatchObject({
       maxUses: 2,
     });
-    expect(await links.resolve(link.token).orThrow()).not.toBeNull();
-    expect(await links.resolve(link.token).orThrow()).toBeNull();
+    expect(await links.resolve({ token: link.token }).orThrow()).not.toBeNull();
+    expect(await links.resolve({ token: link.token }).orThrow()).toBeNull();
   });
 
   it("asks for a link's password and refuses one that is too short", async () => {
     const d1 = await doc("d1");
     await session.as(owner);
 
-    const short = await links.create(
-      { type: "doc", id: d1 },
-      { password: "short" },
-    );
+    const short = await links.create({
+      subject: { type: "doc", id: d1 },
+      options: { password: "short" },
+    });
 
     expect(short.ok ? undefined : short.error.hint).toBe(
       "SHARE_LINK_PASSWORD_INVALID",
     );
 
     const link = await links
-      .create(
-        { type: "doc", id: d1 },
-        { password: "correct horse", downloadAllowed: false },
-      )
+      .create({
+        subject: { type: "doc", id: d1 },
+        options: { password: "correct horse", downloadAllowed: false },
+      })
       .orThrow();
 
     await session.as("anon");
 
     for (const password of [undefined, "wrong horse"]) {
-      const locked = await links.resolve(
-        link.token,
-        password === undefined ? {} : { password },
-      );
+      const locked = await links.resolve({
+        token: link.token,
+        ...(password === undefined ? {} : { password }),
+      });
 
       expect(locked.ok ? undefined : locked.error).toMatchObject({
         hint: "SHARE_LINK_PASSWORD_REQUIRED",
@@ -169,7 +179,9 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     }
 
     expect(
-      await links.resolve(link.token, { password: "correct horse" }).orThrow(),
+      await links
+        .resolve({ token: link.token, password: "correct horse" })
+        .orThrow(),
     ).toMatchObject({
       id: link.id,
       downloadAllowed: false,
@@ -182,16 +194,20 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     await session.as(owner);
 
     const link = await links
-      .create({ type: "doc", id: d1 }, { password: "correct horse" })
+      .create({
+        subject: { type: "doc", id: d1 },
+        options: { password: "correct horse" },
+      })
       .orThrow();
 
     await session.as("anon");
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      await links.resolve(link.token, { password: "wrong horse" });
+      await links.resolve({ token: link.token, password: "wrong horse" });
     }
 
-    const locked = await links.resolve(link.token, {
+    const locked = await links.resolve({
+      token: link.token,
       password: "correct horse",
     });
 
@@ -204,7 +220,11 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   it("lets only the creator or a manager revoke a link", async () => {
     const d2 = await doc("d2");
     await session.as(owner);
-    const link = await links.create({ type: "doc", id: d2 }).orThrow();
+
+    const link = await links
+      .create({ subject: { type: "doc", id: d2 } })
+      .orThrow();
+
     await session.as(outsider);
     const refused = await links.revoke(link.id);
     expect(refused.ok ? undefined : refused.error.hint).toBe("SHARE_NOT_FOUND");
@@ -215,26 +235,34 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   it("lists links only to their organization", async () => {
     const d3 = await doc("d3");
     await session.as(owner);
-    await links.create({ type: "doc", id: d3 }).orThrow();
-    expect(await links.list({ type: "doc", id: d3 }).orThrow()).toHaveLength(1);
+    await links.create({ subject: { type: "doc", id: d3 } }).orThrow();
+    expect(
+      await links.list({ subject: { type: "doc", id: d3 } }).orThrow(),
+    ).toHaveLength(1);
     await session.as(outsider);
-    expect(await links.list({ type: "doc", id: d3 }).orThrow()).toEqual([]);
+    expect(
+      await links.list({ subject: { type: "doc", id: d3 } }).orThrow(),
+    ).toEqual([]);
   });
 
   it("records views for members only", async () => {
     await session.as(outsider);
 
-    const refused = await links.recordView(
-      { type: "doc", id: "d1" },
-      "user",
-      outsider.id,
-    );
+    const refused = await links.recordView({
+      subject: { type: "doc", id: "d1" },
+      viewerKind: "user",
+      viewer: outsider.id,
+    });
 
     expect(refused.ok ? undefined : refused.error.hint).toBe("SHARE_FORBIDDEN");
     await session.as(owner);
     expect(
       await links
-        .recordView({ type: "doc", id: "d1" }, "user", owner.id)
+        .recordView({
+          subject: { type: "doc", id: "d1" },
+          viewerKind: "user",
+          viewer: owner.id,
+        })
         .orThrow(),
     ).toBe(true);
   });

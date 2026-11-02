@@ -7,11 +7,9 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { EventSink } from "../../events/index.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { ImageTransform, TransformOptions } from "../../storage/bucket.ts";
 import type { TtlPreset } from "../../storage/ttl.ts";
-import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
 import type { DocumentField, DocumentType } from "./document-types.ts";
@@ -29,13 +27,11 @@ import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
-import { eventTypeOf } from "../../events/cloud-event.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import { ttlSeconds } from "../../storage/ttl.ts";
 import { transformFor } from "../../storage/variants.ts";
 import {
   blockCall,
-  errorText,
   isRecord,
   optionalInstant,
   optionalText,
@@ -72,6 +68,13 @@ export interface AttachmentBucket {
     options?: { download?: string | boolean; transform?: TransformOptions },
   ): { readonly data: { readonly publicUrl: string } };
   remove(paths: string[]): PromiseLike<StorageReply<unknown>>;
+  /** Used by `uploadFile` to send the bytes to the signed URL. */
+  uploadToSignedUrl?(
+    path: string,
+    token: string,
+    body: Blob | ArrayBuffer | Uint8Array,
+    options?: { readonly contentType?: string; readonly upsert?: boolean },
+  ): PromiseLike<StorageReply<unknown>>;
   /** Used by `put`, which uploads from the server. */
   upload?(
     path: string,
@@ -196,6 +199,16 @@ export interface Attachment {
 /** Where a file's bytes are. */
 export type AttachmentStorageStatus = "stored" | "pending_upload" | "missing";
 
+/**
+ * What `uploadFile` reports. supabase-js gives no byte progress, so it is
+ * called twice: `loaded: 0` before the bytes go out and `loaded: total` once
+ * Storage has them.
+ */
+export interface UploadProgress {
+  readonly loaded: number;
+  readonly total: number;
+}
+
 export interface NewAttachment {
   readonly name: string;
   readonly mimeType: string;
@@ -315,10 +328,10 @@ export interface Attachments<F extends object = Record<never, never>> {
    * a signed upload URL for its path. When Storage refuses the URL, the record
    * is deleted again.
    */
-  upload(
-    subject: RecordRef | null,
-    attachment: NewAttachment & Partial<F>,
-  ): AsyncResult<AttachmentUpload<F>>;
+  upload(input: {
+    subject: RecordRef | null;
+    attachment: NewAttachment & Partial<F>;
+  }): AsyncResult<AttachmentUpload<F>>;
   /**
    * Marks the upload done after the file is stored; emits
    * `attachment.uploaded`.
@@ -331,23 +344,25 @@ export interface Attachments<F extends object = Record<never, never>> {
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
    */
-  download(
-    id: string,
-    options?: {
-      readonly as?: string | boolean;
-      /** An earlier version from `versions(id)`; default the current one. */
-      readonly version?: number;
-    },
-  ): AsyncResult<AttachmentDownload<F>>;
+  download(input: {
+    id: string;
+    options?:
+      | {
+          readonly as?: string | boolean;
+          /** An earlier version from `versions(id)`; default the current one. */
+          readonly version?: number;
+        }
+      | undefined;
+  }): AsyncResult<AttachmentDownload<F>>;
   /**
    * The public URL of a file in one of `options.publicBuckets`, which Storage
    * serves without a signed URL. A file in a private bucket is an
    * `invalid_request` error with hint `ATTACHMENT_PRIVATE`.
    */
-  publicUrl(
-    attachment: Attachment,
-    options?: { readonly as?: string | boolean },
-  ): Result<string>;
+  publicUrl(input: {
+    attachment: Attachment;
+    options?: { readonly as?: string | boolean } | undefined;
+  }): Result<string>;
   /**
    * Deletes every version's file, then the record (the uploader, or
    * `attachments.manage`). With `offline`, the record goes first and queues the
@@ -360,17 +375,17 @@ export interface Attachments<F extends object = Record<never, never>> {
    * the new one waits for its upload to the signed URL, `confirm` and the scan.
    * Emits `attachment.replaced`.
    */
-  replace(
-    id: string,
-    file: AttachmentReplacement,
-  ): AsyncResult<AttachmentUpload<F>>;
+  replace(input: {
+    id: string;
+    file: AttachmentReplacement;
+  }): AsyncResult<AttachmentUpload<F>>;
   /** The file's earlier versions, newest first. */
   versions(id: string): AsyncResult<readonly AttachmentVersion[]>;
   /**
    * Makes an earlier version current again; the current one becomes an earlier
    * version. Emits `attachment.restored`.
    */
-  restore(id: string, version: number): AsyncResult<Attachment & F>;
+  restore(input: { id: string; version: number }): AsyncResult<Attachment & F>;
   /**
    * Image previews for `useImage`, with the app's named variants (`{ thumb: {
    * width: 160, height: 160, resize: "cover" } }`).
@@ -385,11 +400,24 @@ export interface Attachments<F extends object = Record<never, never>> {
    * waits for the scan when the module requires one. When Storage refuses the
    * upload, the record is deleted again, so no pending record is left behind.
    */
-  put(
-    subject: RecordRef | null,
-    attachment: NewAttachment & Partial<F>,
-    file: Blob | ArrayBuffer | Uint8Array,
-  ): AsyncResult<Attachment & F>;
+  put(input: {
+    subject: RecordRef | null;
+    attachment: NewAttachment & Partial<F>;
+    file: Blob | ArrayBuffer | Uint8Array;
+  }): AsyncResult<Attachment & F>;
+  /**
+   * Creates the record on `subject`, sends `file` to its signed upload URL and
+   * confirms it, for a browser or app that holds a `File`. The name, type and
+   * size come from `file` unless `attachment` sets them. When Storage refuses
+   * the file, the record is deleted again. `onProgress` reports the start and
+   * the end only, because supabase-js has no byte progress.
+   */
+  uploadFile(input: {
+    subject: RecordRef | null;
+    file: Blob & { readonly name?: string };
+    attachment?: (Partial<NewAttachment> & Partial<F>) | undefined;
+    onProgress?: ((progress: UploadProgress) => void) | undefined;
+  }): AsyncResult<Attachment & F>;
   /**
    * The file's bytes, for server-side processing, behind the same scan gate as
    * `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
@@ -521,7 +549,7 @@ const CLAIM_HINTS = {
   forbidden: "ATTACHMENT_FORBIDDEN",
 } as const;
 
-const notFound = (): DbError =>
+export const notFound = (): DbError =>
   dbError("not_found", "No attachment you can see has this id", {
     hint: "ATTACHMENT_NOT_FOUND",
   });
@@ -549,31 +577,7 @@ export function stored<T>(
   });
 }
 
-/**
- * Waits for a scan from a job or an event. A scan whose target is gone (the
- * attachment row, or for an object the stored object) is done, not a failure,
- * so the job or event is not retried; every other error throws.
- */
-async function settle(
-  scanned: AsyncResult<unknown>,
-  gone: (error: DbError) => boolean,
-): Promise<void> {
-  const result = await scanned;
-
-  if (result.ok || gone(result.error)) {
-    return;
-  }
-
-  await scanned.orThrow();
-}
-
-const attachmentGone = (error: DbError): boolean =>
-  error.kind === "not_found" && error.hint === "ATTACHMENT_NOT_FOUND";
-
-const objectGone = (error: DbError): boolean =>
-  error.kind === "not_found" && error.code === "NoSuchKey";
-
-function lookup(
+export function lookup(
   call: ReturnType<typeof blockCall>,
   id: string,
 ): AsyncResult<Attachment> {
@@ -783,10 +787,13 @@ export function createAttachments<
       )
       .andThen(typed);
 
-  const upload = (
-    subject: RecordRef | null,
-    attachment: NewAttachment,
-  ): AsyncResult<AttachmentUpload<F>> =>
+  const upload = ({
+    subject,
+    attachment,
+  }: {
+    subject: RecordRef | null;
+    attachment: NewAttachment;
+  }): AsyncResult<AttachmentUpload<F>> =>
     create(subject, attachment).andThen(async (created) => {
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
@@ -822,7 +829,7 @@ export function createAttachments<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
-    download: (id, download = {}) =>
+    download: ({ id, options: download = {} }) =>
       find(id).andThen((attachment) => {
         const { version } = download;
 
@@ -851,7 +858,7 @@ export function createAttachments<
           ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
         });
       }),
-    replace: (id, file) =>
+    replace: ({ id, file }) =>
       call(
         "replace_attachment",
         {
@@ -876,9 +883,9 @@ export function createAttachments<
           ),
         ),
     versions: listVersions,
-    publicUrl: (attachment, url = {}) =>
+    publicUrl: ({ attachment, options: url = {} }) =>
       publicUrl(attachment, url.as === undefined ? {} : { download: url.as }),
-    restore: (id, version) =>
+    restore: ({ id, version }) =>
       call(
         "restore_attachment_version",
         { id, version },
@@ -942,7 +949,7 @@ export function createAttachments<
           ).map((signed) => signed.signedUrl);
         }),
     }),
-    put: (subject, attachment, file) =>
+    put: ({ subject, attachment, file }) =>
       create(subject, attachment).andThen(async (created) => {
         const target = bucket(created);
 
@@ -968,6 +975,53 @@ export function createAttachments<
 
         return confirmed(created.id);
       }),
+    uploadFile: ({ subject, file, attachment, onProgress }) =>
+      hooked
+        .upload({
+          subject,
+          // SAFETY: the file's own name, type and size fill the required fields.
+          attachment: {
+            name: file.name ?? "file",
+            mimeType: file.type === "" ? "application/octet-stream" : file.type,
+            size: file.size,
+            ...attachment,
+          } as NewAttachment & Partial<F>,
+        })
+        .andThen(async (created) => {
+          const target = bucket(created.attachment);
+          const total = file.size;
+          const contentType = created.attachment.mimeType;
+
+          if (!target.uploadToSignedUrl) {
+            return discard(
+              created.attachment,
+              dbError(
+                "invalid_request",
+                "The storage client has no uploadToSignedUrl",
+                { hint: "ATTACHMENT_STORAGE_CLIENT" },
+              ),
+            );
+          }
+
+          onProgress?.({ loaded: 0, total });
+
+          const sent = await stored(
+            target.uploadToSignedUrl(
+              created.attachment.path,
+              created.token,
+              file,
+              { contentType },
+            ),
+          );
+
+          if (!sent.ok) {
+            return discard(created.attachment, sent.error);
+          }
+
+          onProgress?.({ loaded: total, total });
+
+          return hooked.confirm(created.attachment.id);
+        }),
     read: (id) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
@@ -1037,310 +1091,11 @@ export function createAttachments<
             ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Attachments<F> = withBlockHooks(client, options.hooks, {
     block: "attachments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
 
-/** A scanner's verdict on one file. */
-export interface ScanVerdict {
-  readonly status: "clean" | "infected";
-  /** Stored as `scan_detail`, such as the matched signature. */
-  readonly detail?: string;
-}
-
-export interface AttachmentScannerOptions extends BlockTemporalOptions {
-  /**
-   * A service-role transport: `set_attachment_status()` is granted to
-   * `service_role` only.
-   */
-  readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read pending files. */
-  readonly storage: AttachmentStorage;
-  readonly schema?: string;
-  /**
-   * Scans the file (ClamAV, a scanning API). A throw records `failed` and
-   * rethrows.
-   */
-  readonly scan: (
-    file: Blob,
-    attachment: Attachment,
-    signal?: AbortSignal,
-  ) => ScanVerdict | Promise<ScanVerdict>;
-  /** The outbox `typePrefix`. Default `dev.better-supabase`. */
-  readonly typePrefix?: string;
-}
-
-/** The payload `job` expects. */
-export interface AttachmentScanJob {
-  readonly attachmentId: string;
-}
-
-export interface AttachmentScanner {
-  /** Scans one uploaded file and records the verdict. */
-  scan(id: string, signal?: AbortSignal): AsyncResult<Attachment>;
-  /**
-   * A jobs handler: `queue.work('attachment-scans', scanner.job)`. A deleted
-   * attachment completes the job; other errors throw so the queue retries.
-   */
-  readonly job: JobHandler<AttachmentScanJob>;
-  /**
-   * An outbox sink that scans each `attachment.uploaded` event's file. An event
-   * for a deleted attachment is skipped, so it never holds up the events behind
-   * it; other errors throw so the relay retries the batch.
-   */
-  sink(): EventSink;
-}
-
-/**
- * Scans uploaded files with the app's `scan` function and records `clean`,
- * `infected` or `failed`. A file already clean or infected is not scanned
- * again, so replayed events and retried jobs are safe.
- */
-export function createAttachmentScanner(
-  options: AttachmentScannerOptions,
-): AttachmentScanner {
-  applyTemporal(options);
-  const call = blockCall(options.transport, options.schema);
-  const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
-
-  const record = (
-    id: string,
-    status: "clean" | "infected" | "failed",
-    detail: string | undefined,
-  ): AsyncResult<Attachment> =>
-    call(
-      "set_attachment_status",
-      { id, status, detail },
-      (value) => value,
-    ).andThen((value) =>
-      Promise.resolve(
-        isRecord(value) ? ok(attachmentOf(value)) : err(notFound()),
-      ),
-    );
-
-  const scan = (id: string, signal?: AbortSignal): AsyncResult<Attachment> =>
-    lookup(call, id).andThen((attachment) => {
-      if (attachment.status === "clean" || attachment.status === "infected") {
-        return Promise.resolve(ok(attachment));
-      }
-
-      if (attachment.uploadedAt === undefined) {
-        return Promise.resolve(
-          err(
-            dbError("invalid_request", "The file was not uploaded yet", {
-              hint: "ATTACHMENT_NOT_UPLOADED",
-            }),
-          ),
-        );
-      }
-
-      return stored(
-        options.storage.from(attachment.bucket).download(attachment.path),
-      ).andThen(async (file) => {
-        let verdict: ScanVerdict;
-
-        try {
-          verdict = await options.scan(file, attachment, signal);
-        } catch (cause) {
-          const failed = await record(id, "failed", errorText(cause));
-
-          return failed.ok
-            ? err(
-                dbError("raised", `The scan failed: ${errorText(cause)}`, {
-                  hint: "ATTACHMENT_SCAN_FAILED",
-                }),
-              )
-            : failed;
-        }
-
-        return record(id, verdict.status, verdict.detail);
-      });
-    });
-
-  return {
-    scan,
-    job: async (payload, _job, signal) => {
-      await settle(scan(payload.attachmentId, signal), attachmentGone);
-    },
-    sink: () => ({
-      async send(events) {
-        for (const event of events) {
-          const type = eventTypeOf(event, prefix);
-
-          if (type !== "attachment.uploaded" || !isRecord(event.data)) {
-            continue;
-          }
-
-          const id = optionalText(event.data["attachmentId"]);
-
-          if (id !== undefined) {
-            await settle(scan(id), attachmentGone);
-          }
-        }
-      },
-    }),
-  };
-}
-
-/** A scanned object in any bucket (`scanned_objects`). */
-export interface ScannedObject {
-  readonly bucket: string;
-  readonly path: string;
-  readonly status: AttachmentStatus;
-  readonly detail: string | undefined;
-  readonly scannedAt: Temporal.Instant | undefined;
-}
-
-export interface ObjectScannerOptions extends BlockTemporalOptions {
-  /**
-   * A service-role transport: `set_object_scan()` is granted to `service_role`
-   * only.
-   */
-  readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read the objects. */
-  readonly storage: AttachmentStorage;
-  readonly schema?: string;
-  /** Scans the file. A throw records `failed` and rethrows. */
-  readonly scan: (
-    file: Blob,
-    object: { readonly bucket: string; readonly path: string },
-    signal?: AbortSignal,
-  ) => ScanVerdict | Promise<ScanVerdict>;
-  /** The outbox `typePrefix`. Default `dev.better-supabase`. */
-  readonly typePrefix?: string;
-}
-
-/** The payload `ObjectScanner.job` expects. */
-export interface ObjectScanJob {
-  readonly bucket: string;
-  readonly path: string;
-}
-
-export interface ObjectScanner {
-  /**
-   * Scans one object and records the verdict; a clean or infected object is not
-   * scanned again.
-   */
-  scan(
-    bucket: string,
-    path: string,
-    signal?: AbortSignal,
-  ): AsyncResult<ScannedObject>;
-  /**
-   * A jobs handler: `queue.work('object-scans', scanner.job)`. An object
-   * deleted from storage completes the job; other errors throw.
-   */
-  readonly job: JobHandler<ObjectScanJob>;
-  /**
-   * An outbox sink that scans each `object.uploaded` event's object. An event
-   * for an object deleted from storage is skipped; other errors throw so the
-   * relay retries the batch.
-   */
-  sink(): EventSink;
-}
-
-function scannedOf(value: unknown): ScannedObject {
-  const row = recordOf(value, "scanned_objects");
-  const status = textOf(row["status"]);
-
-  return {
-    bucket: textOf(row["bucket"]),
-    path: textOf(row["object_path"]),
-    status:
-      status === "clean" || status === "infected" || status === "failed"
-        ? status
-        : "pending",
-    detail: optionalText(row["scan_detail"]),
-    scannedAt: optionalInstant(row["scanned_at"]),
-  };
-}
-
-/**
- * The scan gate for objects outside the attachments table, such as a file drive
- * or avatars: scans an object with the app's `scan` function and records the
- * verdict in `scanned_objects`, which storage policies read with
- * `object_clean(bucket_id, name)`. With `options.scanBuckets`, new objects in
- * those buckets get a pending row and an `object.uploaded` event.
- */
-export function createObjectScanner(
-  options: ObjectScannerOptions,
-): ObjectScanner {
-  applyTemporal(options);
-  const call = blockCall(options.transport, options.schema);
-  const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
-
-  const record = (
-    bucket: string,
-    path: string,
-    status: AttachmentStatus,
-    detail: string | undefined,
-  ): AsyncResult<ScannedObject> =>
-    call("set_object_scan", { bucket, path, status, detail }, scannedOf);
-
-  const scan = (
-    bucket: string,
-    path: string,
-    signal?: AbortSignal,
-  ): AsyncResult<ScannedObject> =>
-    call("object_scan", { bucket, path }, (value) =>
-      isRecord(value) ? scannedOf(value) : undefined,
-    ).andThen((current) => {
-      if (current?.status === "clean" || current?.status === "infected") {
-        return Promise.resolve(ok(current));
-      }
-
-      return stored(options.storage.from(bucket).download(path)).andThen(
-        async (file) => {
-          let verdict: ScanVerdict;
-
-          try {
-            verdict = await options.scan(file, { bucket, path }, signal);
-          } catch (cause) {
-            const failed = await record(
-              bucket,
-              path,
-              "failed",
-              errorText(cause),
-            );
-
-            return failed.ok
-              ? err(
-                  dbError("raised", `The scan failed: ${errorText(cause)}`, {
-                    hint: "ATTACHMENT_SCAN_FAILED",
-                  }),
-                )
-              : failed;
-          }
-
-          return record(bucket, path, verdict.status, verdict.detail);
-        },
-      );
-    });
-
-  return {
-    scan,
-    job: async (payload, _job, signal) => {
-      await settle(scan(payload.bucket, payload.path, signal), objectGone);
-    },
-    sink: () => ({
-      async send(events) {
-        for (const event of events) {
-          const type = eventTypeOf(event, prefix);
-
-          if (type !== "object.uploaded" || !isRecord(event.data)) {
-            continue;
-          }
-
-          const bucket = optionalText(event.data["bucket"]);
-          const path = optionalText(event.data["path"]);
-
-          if (bucket !== undefined && path !== undefined) {
-            await settle(scan(bucket, path), objectGone);
-          }
-        }
-      },
-    }),
-  };
+  return hooked;
 }

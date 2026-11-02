@@ -53,8 +53,10 @@ describe("createRetention", () => {
     const retention = createRetention({ transport });
 
     const set = await retention
-      .setPolicy("audit", Temporal.Duration.from({ years: 7 }), {
-        organizationId: "org-1",
+      .setPolicy({
+        kind: "audit",
+        keep: Temporal.Duration.from({ years: 7 }),
+        scope: { organizationId: "org-1" },
       })
       .orThrow();
 
@@ -69,7 +71,9 @@ describe("createRetention", () => {
     ).toBe(true);
     expect(await retention.policies().orThrow()).toHaveLength(1);
     expect(
-      await retention.removePolicy("audit", { plan: "pro" }).orThrow(),
+      await retention
+        .removePolicy({ kind: "audit", scope: { plan: "pro" } })
+        .orThrow(),
     ).toBe(true);
     expect(calls).toEqual([
       [

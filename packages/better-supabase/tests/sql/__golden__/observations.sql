@@ -1105,7 +1105,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:85941e302bab2b2b5ce18d0f37b1055929615ab9ca0abe9e19ca6b6bb5e6efb1
+-- @bsb-hash sha256:34955dd01324912eb9a72d66a1be0d0b0248ffc2c2f3485a2a9dfaeec4a3f2ff
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2410,6 +2410,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations
 create policy bsb_tenant_scope_delete on "better_supabase"."observations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.observations', target_type => 'observation', event_prefix => 'observation', deferred => true);
+  perform better_supabase.audit('better_supabase.observation_definitions', target_type => 'observation_definition', event_prefix => 'observation_definition', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

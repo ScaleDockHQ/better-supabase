@@ -40,18 +40,21 @@ describe("promotions block", () => {
     const promotions = createPromotions({ transport });
     expect(
       await promotions
-        .savePromotion("org", {
-          name: "Ten off",
-          discount: { kind: "fixed", amount: money(1000n, "EUR") },
-          minSubtotal: money(5000n, "EUR"),
-          scope: "categories",
-          targets: ["c1"],
-          startsAt: Temporal.Instant.from("2026-11-27T00:00:00Z"),
-          endsAt: Temporal.Instant.from("2026-12-01T00:00:00Z"),
-          usageLimit: 100,
-          perCustomerLimit: 1,
-          stackable: true,
-          priority: 5,
+        .savePromotion({
+          organizationId: "org",
+          input: {
+            name: "Ten off",
+            discount: { kind: "fixed", amount: money(1000n, "EUR") },
+            minSubtotal: money(5000n, "EUR"),
+            scope: "categories",
+            targets: ["c1"],
+            startsAt: Temporal.Instant.from("2026-11-27T00:00:00Z"),
+            endsAt: Temporal.Instant.from("2026-12-01T00:00:00Z"),
+            usageLimit: 100,
+            perCustomerLimit: 1,
+            stackable: true,
+            priority: 5,
+          },
         })
         .orThrow(),
     ).toEqual({ id: "p1", fields: {} });
@@ -89,20 +92,26 @@ describe("promotions block", () => {
     const { calls, transport } = recorder({ id: "p2" });
     const promotions = createPromotions({ transport });
     await promotions
-      .savePromotion("org", {
-        id: "p2",
-        name: "Autumn",
-        description: "Ten percent",
-        discount: { kind: "percentage", percent: "10" },
-        automatic: true,
-        active: false,
+      .savePromotion({
+        organizationId: "org",
+        input: {
+          id: "p2",
+          name: "Autumn",
+          description: "Ten percent",
+          discount: { kind: "percentage", percent: "10" },
+          automatic: true,
+          active: false,
+        },
       })
       .orThrow();
     await promotions
-      .savePromotion("org", {
-        name: "Ship free",
-        discount: { kind: "free_shipping" },
-        minSubtotal: money(4000n, "USD"),
+      .savePromotion({
+        organizationId: "org",
+        input: {
+          name: "Ship free",
+          discount: { kind: "free_shipping" },
+          minSubtotal: money(4000n, "USD"),
+        },
       })
       .orThrow();
     expect(calls.map((entry) => entry.args)).toMatchObject([
@@ -136,10 +145,13 @@ describe("promotions block", () => {
   it("refuses a minimum in another currency than the discount", async () => {
     const { calls, transport } = recorder({ id: "p1" });
 
-    const result = await createPromotions({ transport }).savePromotion("org", {
-      name: "Mixed",
-      discount: { kind: "fixed", amount: money(100n, "EUR") },
-      minSubtotal: money(5000n, "USD"),
+    const result = await createPromotions({ transport }).savePromotion({
+      organizationId: "org",
+      input: {
+        name: "Mixed",
+        discount: { kind: "fixed", amount: money(100n, "EUR") },
+        minSubtotal: money(5000n, "USD"),
+      },
     });
 
     expect(result).toMatchObject({
@@ -152,9 +164,11 @@ describe("promotions block", () => {
   it("activates and deletes promotions and codes", async () => {
     const { calls, transport } = recorder(true, false, true);
     const promotions = createPromotions({ transport });
-    expect(await promotions.setPromotionActive("p1", false).orThrow()).toBe(
-      true,
-    );
+    expect(
+      await promotions
+        .setPromotionActive({ promotionId: "p1", active: false })
+        .orThrow(),
+    ).toBe(true);
     expect(await promotions.deletePromotion("p1").orThrow()).toBe(false);
     expect(await promotions.deleteCode("k1").orThrow()).toBe(true);
     expect(calls).toEqual([
@@ -176,16 +190,23 @@ describe("promotions block", () => {
 
     const promotions = createPromotions({ transport });
     expect(
-      await promotions.createCodes("p1", { codes: ["save10"] }).orThrow(),
+      await promotions
+        .createCodes({ promotionId: "p1", input: { codes: ["save10"] } })
+        .orThrow(),
     ).toEqual([{ id: "k1", code: "SAVE10" }]);
     expect(
       await promotions
-        .createCodes("p1", { count: 2, prefix: "BF-", usageLimit: 1 })
+        .createCodes({
+          promotionId: "p1",
+          input: { count: 2, prefix: "BF-", usageLimit: 1 },
+        })
         .orThrow(),
     ).toHaveLength(2);
-    expect(await promotions.createCodes("p1", { count: 1 }).orThrow()).toEqual(
-      [],
-    );
+    expect(
+      await promotions
+        .createCodes({ promotionId: "p1", input: { count: 1 } })
+        .orThrow(),
+    ).toEqual([]);
     expect(calls.map((entry) => entry.args)).toEqual([
       {
         promotion: "p1",
@@ -212,12 +233,12 @@ describe("promotions block", () => {
     );
 
     const promotions = createPromotions({ transport });
-    expect(await promotions.applyCode("c1", "save10").orThrow()).toEqual({
-      codeId: "k1",
-      code: "SAVE10",
-      promotionId: "p1",
-    });
-    expect(await promotions.removeCode("c1", "SAVE10").orThrow()).toBe(true);
+    expect(
+      await promotions.applyCode({ cartId: "c1", code: "save10" }).orThrow(),
+    ).toEqual({ codeId: "k1", code: "SAVE10", promotionId: "p1" });
+    expect(
+      await promotions.removeCode({ cartId: "c1", code: "SAVE10" }).orThrow(),
+    ).toBe(true);
     expect(calls).toEqual([
       { fn: "apply_promotion_code", args: { cart: "c1", code: "save10" } },
       { fn: "remove_promotion_code", args: { cart: "c1", code: "SAVE10" } },
@@ -232,16 +253,18 @@ describe("promotions block", () => {
       transport,
       hooks: {
         setPromotionActive: {
-          before: ([promotionId, active]) => {
+          before: ([{ promotionId, active }]) => {
             seen.push(`before ${promotionId}`);
 
-            return [promotionId, active];
+            return [{ promotionId, active }];
           },
         },
       },
     });
 
-    await promotions.setPromotionActive("p1", true).orThrow();
+    await promotions
+      .setPromotionActive({ promotionId: "p1", active: true })
+      .orThrow();
     expect(seen).toEqual(["before p1"]);
   });
 });

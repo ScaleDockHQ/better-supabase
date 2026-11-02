@@ -42,8 +42,14 @@ export const createContact = bsb.action(
 
     const saved =
       kind === "company"
-        ? await parties.saveCompany(tenant, { name, domain: domain ?? null })
-        : await parties.savePerson(tenant, { name, email: email ?? null });
+        ? await parties.saveCompany({
+            organizationId: tenant,
+            input: { name, domain: domain ?? null },
+          })
+        : await parties.savePerson({
+            organizationId: tenant,
+            input: { name, email: email ?? null },
+          });
 
     if (!saved.ok) {
       return saved;
@@ -63,11 +69,11 @@ export const linkPerson = bsb.action(
     permission: "contacts.write",
   },
   async ({ companyId, personId, role }, { db, auth }) => {
-    const linked = await db.$blocks.contacts.linkPerson(
+    const linked = await db.$blocks.contacts.linkPerson({
       companyId,
       personId,
-      role ? { role } : {},
-    );
+      link: role ? { role } : {},
+    });
 
     if (!linked.ok) {
       return linked;
@@ -96,17 +102,17 @@ export const logActivity = bsb.action(
     { subjectType, subjectId, type, title, body },
     { tenant, db, auth },
   ) => {
-    const logged = await db.activities.log(
-      tenant,
-      {
+    const logged = await db.activities.log({
+      organizationId: tenant,
+      input: {
         type,
         title,
         body: body ?? null,
         // Logged after it happened, so it is done rather than an open task.
         doneAt: type === "note" ? null : Temporal.Now.instant(),
       },
-      [{ type: subjectType, id: subjectId }],
-    );
+      subjects: [{ type: subjectType, id: subjectId }],
+    });
 
     if (!logged.ok) {
       return logged;
@@ -137,7 +143,11 @@ export const createDefaultPipeline = bsb.action(
   { requireTenant: true, permission: "pipelines.manage" },
   async (_input, { tenant, db, auth }) => {
     const { pipelines } = db;
-    const existing = await pipelines.list(tenant, "deal");
+
+    const existing = await pipelines.list({
+      organizationId: tenant,
+      subjectType: "deal",
+    });
 
     if (!existing.ok) {
       return existing;
@@ -149,11 +159,14 @@ export const createDefaultPipeline = bsb.action(
       return ok({ id: found.id });
     }
 
-    const pipeline = await pipelines.upsert(tenant, {
-      subjectType: "deal",
-      key: "sales",
-      name: "Sales",
-      isDefault: true,
+    const pipeline = await pipelines.upsert({
+      organizationId: tenant,
+      input: {
+        subjectType: "deal",
+        key: "sales",
+        name: "Sales",
+        isDefault: true,
+      },
     });
 
     if (!pipeline.ok) {
@@ -162,7 +175,10 @@ export const createDefaultPipeline = bsb.action(
 
     // In order: each stage is added at the end of the board.
     for (const stage of DEFAULT_STAGES) {
-      const saved = await pipelines.saveStage(pipeline.data.id, stage);
+      const saved = await pipelines.saveStage({
+        pipelineId: pipeline.data.id,
+        input: stage,
+      });
 
       if (!saved.ok) {
         return saved;
@@ -193,13 +209,16 @@ export const createDeal = bsb.action(
     { name, amount, currency, closeOn, pipelineId, stageId },
     { tenant, db, auth },
   ) => {
-    const created = await db.deals.create(tenant, {
-      name,
-      closeOn: Temporal.PlainDate.from(closeOn),
-      amount: parseMoney(amount, currency),
-      currency,
-      pipelineId,
-      stageId,
+    const created = await db.deals.create({
+      organizationId: tenant,
+      input: {
+        name,
+        closeOn: Temporal.PlainDate.from(closeOn),
+        amount: parseMoney(amount, currency),
+        currency,
+        pipelineId,
+        stageId,
+      },
     });
 
     if (!created.ok) {
@@ -220,18 +239,13 @@ export const moveDeal = bsb.action(
     permission: "deals.write",
   },
   async ({ dealId, stageId }, { db, auth }) => {
-    const moved = await db.deals.update([
-      { dealId, field: "stageId", value: stageId },
-    ]);
+    const moved = await db.deals.update({
+      changes: [{ dealId, field: "stageId", value: stageId }],
+      strict: true,
+    });
 
     if (!moved.ok) {
       return moved;
-    }
-
-    const [rejected] = moved.data.rejected;
-
-    if (rejected) {
-      return err(dbError("raised", rejected.reason));
     }
 
     await refreshCaller(auth);
@@ -271,12 +285,12 @@ export const createTarget = bsb.action(
       periodEnd: Temporal.PlainDate.from(periodEnd),
     };
 
-    const saved = await db.goals.upsert(
-      tenant,
-      amount
+    const saved = await db.goals.upsert({
+      organizationId: tenant,
+      target: amount
         ? { ...target, goal: parseMoney(goal, currency).amount, currency }
         : { ...target, goal: BigInt(goal) },
-    );
+    });
 
     if (!saved.ok) {
       return saved;
@@ -296,7 +310,10 @@ export const createQuote = bsb.action(
     permission: "quotes.write",
   },
   async ({ title, currency }, { tenant, db, auth }) => {
-    const created = await db.quotes.create(tenant, { title, currency });
+    const created = await db.quotes.create({
+      organizationId: tenant,
+      input: { title, currency },
+    });
 
     if (!created.ok) {
       return created;
@@ -328,16 +345,16 @@ export const saveQuoteLines = bsb.action(
     permission: "quotes.write",
   },
   async ({ quoteId, currency, lines }, { db, auth }) => {
-    const saved = await db.quotes.setLines(
+    const saved = await db.quotes.setLines({
       quoteId,
-      lines.map((line) => ({
+      lines: lines.map((line) => ({
         description: line.description,
         quantity: line.quantity,
         unitAmount: parseMoney(line.unitAmount, currency),
         discountBps: Math.round(line.discountPercent * 100),
         taxRateBps: Math.round(line.taxPercent * 100),
       })),
-    );
+    });
 
     if (!saved.ok) {
       return saved;
@@ -357,7 +374,7 @@ export const sendQuote = bsb.action(
     permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
-    const sent = await db.quotes.send(quoteId);
+    const sent = await db.quotes.send({ quoteId });
 
     if (!sent.ok) {
       return sent;
@@ -380,7 +397,7 @@ export const decideQuote = bsb.action(
     permission: "quotes.write",
   },
   async ({ quoteId, decision }, { db, auth }) => {
-    const decided = await db.quotes.decide(quoteId, decision);
+    const decided = await db.quotes.decide({ quoteId, decision });
 
     if (!decided.ok) {
       return decided;
@@ -400,7 +417,7 @@ export const reviseQuote = bsb.action(
     permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
-    const revised = await db.quotes.revise(quoteId);
+    const revised = await db.quotes.revise({ quoteId });
 
     if (!revised.ok) {
       return revised;

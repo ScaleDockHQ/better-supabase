@@ -560,7 +560,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:8d4be6dea574e8a466be295e966b98220b92dc39f9d42af774a6bd580bfb5e1d
+-- @bsb-hash sha256:d4a3382026ddb0413737edf29486c21f70721d656c56e21ebf07101215517666
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1138,6 +1138,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.signature_requests', target_type => 'signature_request', event_prefix => 'signature_request', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

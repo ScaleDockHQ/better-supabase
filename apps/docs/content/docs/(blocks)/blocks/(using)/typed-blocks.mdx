@@ -80,7 +80,9 @@ export const blockSet = defineBlocks(blockConfig, { tasks: tasksBlock });
 
 const { tasks } = blockSet.create({ transport: rpcTransport(supabase) });
 const task = (await tasks.create(workspaceId, { title: "Ship it" })).orThrow();
-await tasks.update([{ taskId: task.id, field: "title", value: "Shipped" }]);
+await tasks.update({
+  changes: [{ workItemId: task.id, field: "title", value: "Shipped" }],
+});
 ```
 
 Method names that contain the noun (`saveWorkItem` to `saveTask`), argument

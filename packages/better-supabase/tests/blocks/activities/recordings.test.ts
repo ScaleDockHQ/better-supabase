@@ -177,10 +177,12 @@ describe("engagement recordings", () => {
     const engagements = createActivities({ transport: t });
 
     const recording = await engagements
-      .attachRecording("e1", "f1", { language: "en" })
+      .attachRecording({ engagementId: "e1", fileId: "f1", language: "en" })
       .orThrow();
 
-    await engagements.attachRecording("e1", "f2").orThrow();
+    await engagements
+      .attachRecording({ engagementId: "e1", fileId: "f2" })
+      .orThrow();
     const all = await engagements.recordings("e1").orThrow();
 
     expect(t.calls[0]).toEqual([
@@ -207,16 +209,19 @@ describe("engagement recordings", () => {
     const engagements = createActivities({ transport: t });
 
     const segments = await engagements
-      .transcript("r1", { after: 0, limit: 10 })
+      .transcript({ recordingId: "r1", after: 0, limit: 10 })
       .orThrow();
 
-    await engagements.transcript("r1").orThrow();
+    await engagements.transcript({ recordingId: "r1" }).orThrow();
     await engagements
-      .saveTranscript("r1", {
-        segments: [
-          { speaker: "Ann", startMs: 0, endMs: 1, text: "Hi" },
-          { startMs: 1, endMs: 2, text: "Yo", confidence: 0.5 },
-        ],
+      .saveTranscript({
+        recordingId: "r1",
+        transcript: {
+          segments: [
+            { speaker: "Ann", startMs: 0, endMs: 1, text: "Hi" },
+            { startMs: 1, endMs: 2, text: "Yo", confidence: 0.5 },
+          ],
+        },
       })
       .orThrow();
 
@@ -260,10 +265,10 @@ describe("engagement recordings", () => {
     });
 
     const recording = await engagements
-      .transcribe("r1", { signal: new AbortController().signal })
+      .transcribe({ recordingId: "r1", signal: new AbortController().signal })
       .orThrow();
 
-    await engagements.transcribe("r1").orThrow();
+    await engagements.transcribe({ recordingId: "r1" }).orThrow();
 
     expect(recording.status).toBe("transcribed");
     expect(store.reads).toEqual(["f1", "f1"]);
@@ -311,7 +316,7 @@ describe("engagement recordings", () => {
       },
     });
 
-    await engagements.transcribe("r1").orThrow();
+    await engagements.transcribe({ recordingId: "r1" }).orThrow();
 
     expect(seen).toEqual([undefined]);
   });
@@ -319,26 +324,26 @@ describe("engagement recordings", () => {
   it("refuses to transcribe without a transcriber, files or recording", async () => {
     const service = transport({ get_activity_recording: () => null });
 
-    const none = await createActivities({ transport: service }).transcribe(
-      "r1",
-    );
+    const none = await createActivities({ transport: service }).transcribe({
+      recordingId: "r1",
+    });
 
     const noFiles = await createActivities({
       transport: service,
       transcriber: transcriber(),
-    }).transcribe("r1");
+    }).transcribe({ recordingId: "r1" });
 
     const gone = await createActivities({
       transport: service,
       files: files().files,
       transcriber: transcriber(),
-    }).transcribe("r1");
+    }).transcribe({ recordingId: "r1" });
 
     const unsigned = await createActivities({
       transport: transport({ get_activity_recording: () => RECORDING }),
       files: files(true).files,
       transcriber: transcriber(),
-    }).transcribe("r1");
+    }).transcribe({ recordingId: "r1" });
 
     expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_TRANSCRIBER");
     expect(noFiles.ok || noFiles.error.hint).toBe("ENGAGEMENT_NO_FILES");
@@ -351,7 +356,7 @@ describe("engagement recordings", () => {
       transport: transport({ get_activity_recording: () => RECORDING }),
       files: files().files,
       transcriber: transcriber(new Error("quota")),
-    }).transcribe("r1");
+    }).transcribe({ recordingId: "r1" });
 
     expect(result.ok).toBe(false);
     expect(result.ok || [result.error.kind, result.error.message]).toEqual([
@@ -480,13 +485,18 @@ describe("engagement notes", () => {
     const none = await engagements.notes("e2").orThrow();
 
     const saved = await engagements
-      .saveNotes("e1", {
-        summary: "Short",
-        actionItems: [{ text: "Call back", ownerId: "u1", dueAt: due }],
+      .saveNotes({
+        engagementId: "e1",
+        notes: {
+          summary: "Short",
+          actionItems: [{ text: "Call back", ownerId: "u1", dueAt: due }],
+        },
       })
       .orThrow();
 
-    await engagements.saveNotes("e1", { summary: "Only" }).orThrow();
+    await engagements
+      .saveNotes({ engagementId: "e1", notes: { summary: "Only" } })
+      .orThrow();
 
     expect(notes.actionItems[0]?.dueAt?.equals(due)).toBe(true);
     expect(notes.actionItems[1]).toEqual({ text: "Book a demo" });
@@ -537,10 +547,10 @@ describe("engagement notes", () => {
     const engagements = createActivities({ transport: t, noteTaker });
 
     const notes = await engagements
-      .summarize("e1", { signal: new AbortController().signal })
+      .summarize({ engagementId: "e1", signal: new AbortController().signal })
       .orThrow();
 
-    await engagements.summarize("e1").orThrow();
+    await engagements.summarize({ engagementId: "e1" }).orThrow();
 
     expect(notes.summary).toBe("Proposal by Friday");
     expect(inputs[0]).toMatchObject([
@@ -571,12 +581,14 @@ describe("engagement notes", () => {
   it("refuses to summarize without a note taker or engagement", async () => {
     const t = transport({ activity_with_transcripts: () => null });
 
-    const none = await createActivities({ transport: t }).summarize("e1");
+    const none = await createActivities({ transport: t }).summarize({
+      engagementId: "e1",
+    });
 
     const gone = await createActivities({
       transport: t,
       noteTaker: { model: "m", summarize: async () => ({ summary: "x" }) },
-    }).summarize("e1");
+    }).summarize({ engagementId: "e1" });
 
     const broken = await createActivities({
       transport: transport({
@@ -589,7 +601,7 @@ describe("engagement notes", () => {
         model: "m",
         summarize: () => Promise.reject(new Error("model down")),
       },
-    }).summarize("e1");
+    }).summarize({ engagementId: "e1" });
 
     expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_NOTE_TAKER");
     expect(gone.ok || gone.error.hint).toBe("ACTIVITY_NOT_FOUND");

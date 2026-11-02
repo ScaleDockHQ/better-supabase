@@ -101,6 +101,8 @@ a daylight saving change. `addException` closes a range (a holiday, a
 dentist appointment) or, with `available: true`, opens one outside the weekly
 hours. Durations take a `Temporal.Duration` or an ISO 8601 string.
 
+`resources({ organizationId })` and `services({ organizationId })` list them by name, so a booking page can offer a choice without reading the tables. Inactive ones come back only with `includeInactive: true`. A service carries its `duration`, buffers and `resourceKinds`.
+
 ## Slots
 
 `available_slots(service, range_start, range_end, tz)` is a SQL function, and
@@ -458,6 +460,10 @@ placed and can raise to refuse it. `after_booking_reserve(booking)`,
 `after_booking_confirm(booking)` and `after_booking_cancel(booking)` run after
 the change. Every occurrence of a series runs the same hooks. See [block hooks](/docs/extending/blocks#hooks).
 
+## A booking page in one read
+
+`bookings.page({ organizationId, serviceId, range })` returns the active services, the active resources and the open slots of one service. Without `serviceId` and `range` it skips the slot read and `slots` is empty. `tz` and `resourceId` narrow the slots as in `availableSlots`.
+
 ## Errors
 
 | Hint                         | When                                                                                                             |
@@ -539,3 +545,7 @@ const { id: serviceId } = await bookings
   })
   .orThrow();
 ```
+
+## Book in one call
+
+`book({ serviceId, startsAt, customer })` holds and confirms. Without `resourceId` it picks the resource that has a free slot at `startsAt`, and fails with `not_found` when none has. `public.book({ token, resourceId, startsAt, customer })` does the same for a guest, using the access token the hold returns.

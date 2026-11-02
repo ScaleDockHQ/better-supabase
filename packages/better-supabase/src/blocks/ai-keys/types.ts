@@ -158,10 +158,10 @@ export interface AiKeys {
      * Adds or replaces a key (`ai_keys.manage`), and revokes the credential it
      * replaced.
      */
-    upsert(
-      organizationId: string,
-      key: AiProviderKeyInput,
-    ): AsyncResult<AiProviderKey>;
+    upsert(input: {
+      organizationId: string;
+      key: AiProviderKeyInput;
+    }): AsyncResult<AiProviderKey>;
     /** Deletes a key and revokes its credential. `false` when there was none. */
     remove(keyId: string): AsyncResult<boolean>;
     /**
@@ -174,33 +174,39 @@ export interface AiKeys {
      * role).
      */
     resolve(
-      organizationId: string,
-      options?: {
+      input: { organizationId: string } & {
         readonly providers?: readonly string[];
         readonly signal?: AbortSignal;
       },
     ): AsyncResult<readonly ResolvedProviderKey[]>;
   };
   readonly batches: {
-    record(organizationId: string, batch: NewAiBatch): AsyncResult<AiBatch>;
+    record(input: {
+      organizationId: string;
+      batch: NewAiBatch;
+    }): AsyncResult<AiBatch>;
     get(batchId: string): AsyncResult<AiBatch | undefined>;
     list(
-      organizationId: string,
-      options?: { readonly status?: AiBatchStatus; readonly limit?: number },
+      input: { organizationId: string } & {
+        readonly status?: AiBatchStatus;
+        readonly limit?: number;
+      },
     ): AsyncResult<readonly AiBatch[]>;
     items(
-      batchId: string,
-      options?: CursorPageOptions<string>,
+      input: { batchId: string } & CursorPageOptions<string>,
     ): AsyncResult<readonly AiBatchItem[]>;
     /** Claims batches to poll for `leaseSeconds` (service role). */
     due(options?: {
       readonly batch?: number;
       readonly leaseSeconds?: number;
     }): AsyncResult<readonly AiBatch[]>;
-    update(batchId: string, patch: AiBatchPatch): AsyncResult<AiBatch>;
-    saveItems(
-      batchId: string,
-      items: readonly AiBatchItemInput[],
-    ): AsyncResult<number>;
+    update(input: {
+      batchId: string;
+      patch: AiBatchPatch;
+    }): AsyncResult<AiBatch>;
+    saveItems(input: {
+      batchId: string;
+      items: readonly AiBatchItemInput[];
+    }): AsyncResult<number>;
   };
 }

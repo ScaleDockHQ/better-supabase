@@ -55,7 +55,10 @@ function row(over: Partial<AiSandbox> = {}): AiSandbox {
 
 function fakeRegistry(): {
   sandboxes: {
-    register: (org: string, input: NewAiSandbox) => AsyncResult<AiSandbox>;
+    register: (input: {
+      organizationId: string;
+      sandbox: NewAiSandbox;
+    }) => AsyncResult<AiSandbox>;
     touch: (id: string) => AsyncResult<boolean>;
   };
   registered: [string, NewAiSandbox][];
@@ -68,7 +71,7 @@ function fakeRegistry(): {
     registered,
     touched,
     sandboxes: {
-      register: (org, input) => {
+      register: ({ organizationId: org, sandbox: input }) => {
         registered.push([org, input]);
 
         return AsyncResult.ok(row({ sandboxId: input.sandboxId }));

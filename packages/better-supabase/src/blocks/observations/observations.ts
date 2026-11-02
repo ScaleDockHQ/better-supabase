@@ -259,73 +259,75 @@ export interface Observations<F extends object = Record<never, never>> {
    * restores it if archived. A key a system definition uses overrides it for
    * the organization.
    */
-  saveDefinition(
-    organizationId: string,
-    key: string,
-    input: ObservationDefinitionInput,
-  ): AsyncResult<ObservationDefinition>;
+  saveDefinition(input: {
+    organizationId: string;
+    key: string;
+    input: ObservationDefinitionInput;
+  }): AsyncResult<ObservationDefinition>;
   /** Needs `observations.manage`. Its observations stay. */
   archiveDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
   /** The organization's definitions and the system ones, by title. */
   definitions(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly ObservationDefinition[]>;
   /** Needs `observations.record` and access to the record. */
-  record(
-    organizationId: string,
-    input: ObservationInput<F>,
-  ): AsyncResult<Observation<F>>;
+  record(input: {
+    organizationId: string;
+    input: ObservationInput<F>;
+  }): AsyncResult<Observation<F>>;
   /** Up to 500 observations, all or none. */
-  recordMany(
-    organizationId: string,
-    inputs: readonly ObservationInput<F>[],
-  ): AsyncResult<readonly Observation<F>[]>;
+  recordMany(input: {
+    organizationId: string;
+    inputs: readonly ObservationInput<F>[];
+  }): AsyncResult<readonly Observation<F>[]>;
   /**
    * Service role only. Records device or import readings, skipping the ones
    * whose `externalId` was ingested before.
    */
-  ingest(
-    organizationId: string,
-    items: readonly ObservationIngestItem<F>[],
-  ): AsyncResult<ObservationIngestResult>;
+  ingest(input: {
+    organizationId: string;
+    items: readonly ObservationIngestItem<F>[];
+  }): AsyncResult<ObservationIngestResult>;
   /**
    * Needs `observations.record`. Records the corrected observation and marks
    * this one `amended`.
    */
-  amend(
-    observationId: string,
-    changes: ObservationChanges<F>,
-    reason: string,
-  ): AsyncResult<Observation<F>>;
+  amend(input: {
+    observationId: string;
+    changes: ObservationChanges<F>;
+    reason: string;
+  }): AsyncResult<Observation<F>>;
   /** Needs `observations.record`. Marking twice keeps the first reason. */
-  markError(observationId: string, reason: string): AsyncResult<Observation<F>>;
+  markError(input: {
+    observationId: string;
+    reason: string;
+  }): AsyncResult<Observation<F>>;
   /** A record's observations, the latest first. */
   list(
-    subjectType: string,
-    subjectId: string,
-    options?: ObservationListOptions,
+    input: { subjectType: string; subjectId: string } & ObservationListOptions,
   ): AsyncResult<readonly Observation<F>[]>;
   /** The final values of one definition for a record, oldest first. */
   series(
-    subjectType: string,
-    subjectId: string,
-    definitionKey: string,
-    options?: ObservationRangeOptions,
+    input: {
+      subjectType: string;
+      subjectId: string;
+      definitionKey: string;
+    } & ObservationRangeOptions,
   ): AsyncResult<readonly ObservationPoint[]>;
   /** The same values counted and summarized per UTC hour, day, week or month. */
   buckets(
-    subjectType: string,
-    subjectId: string,
-    definitionKey: string,
-    bucket: ObservationBucket,
-    options?: ObservationRangeOptions,
+    input: {
+      subjectType: string;
+      subjectId: string;
+      definitionKey: string;
+      bucket: ObservationBucket;
+    } & ObservationRangeOptions,
   ): AsyncResult<readonly ObservationBucketStats[]>;
   /** A record's latest final observation per definition key. */
-  latest(
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<Readonly<Record<string, Observation<F>>>>;
+  latest(input: {
+    subjectType: string;
+    subjectId: string;
+  }): AsyncResult<Readonly<Record<string, Observation<F>>>>;
   /**
    * Needs the forms block. Records the observations a submitted form maps to
    * through `meta.observation`; a submission is recorded only once.
@@ -620,7 +622,7 @@ export function createObservations<
     );
 
   const client: Observations<F> = {
-    saveDefinition: (organizationId, key, input) =>
+    saveDefinition: ({ organizationId, key, input }) =>
       call(
         "save_observation_definition",
         { tenant: organizationId, key, definition: definitionArgs(input) },
@@ -632,7 +634,7 @@ export function createObservations<
         { definition_id: definitionId },
         (value) => definitionOf(value, "archive_observation_definition"),
       ),
-    definitions: (organizationId, list = {}) =>
+    definitions: ({ organizationId, ...list }) =>
       call(
         "list_observation_definitions",
         {
@@ -643,7 +645,7 @@ export function createObservations<
       ),
     // One item of `record_observations`: a jsonb array goes as JSON over
     // every transport, where a lone text value for a jsonb argument doesn't.
-    record: (organizationId, input) =>
+    record: ({ organizationId, input }) =>
       items([input]).andThen((checked) =>
         call(
           "record_observations",
@@ -655,7 +657,7 @@ export function createObservations<
           },
         ).andThen(fields.row),
       ),
-    recordMany: (organizationId, inputs) =>
+    recordMany: ({ organizationId, inputs }) =>
       items(inputs).andThen((checked) =>
         call(
           "record_observations",
@@ -663,7 +665,7 @@ export function createObservations<
           many("record_observations", observationOf),
         ).andThen(fields.rows),
       ),
-    ingest: (organizationId, list) =>
+    ingest: ({ organizationId, items: list }) =>
       items(list).andThen((checked) =>
         call(
           "ingest_observations",
@@ -671,7 +673,7 @@ export function createObservations<
           ingestOf,
         ),
       ),
-    amend: (observationId, changes, reason) =>
+    amend: ({ observationId, changes, reason }) =>
       fields
         .args(changes.fields)
         .andThen((checked) =>
@@ -690,13 +692,13 @@ export function createObservations<
             one("amend_observation"),
           ).andThen(fields.row),
         ),
-    markError: (observationId, reason) =>
+    markError: ({ observationId, reason }) =>
       call(
         "mark_observation_error",
         { observation_id: observationId, reason },
         one("mark_observation_error"),
       ).andThen(fields.row),
-    list: (subjectType, subjectId, list = {}) =>
+    list: ({ subjectType, subjectId, ...list }) =>
       call(
         "list_observations",
         {
@@ -708,7 +710,7 @@ export function createObservations<
         },
         many("list_observations", observationOf),
       ).andThen(fields.rows),
-    series: (subjectType, subjectId, definitionKey, range = {}) =>
+    series: ({ subjectType, subjectId, definitionKey, ...range }) =>
       call(
         "observation_series",
         {
@@ -721,7 +723,7 @@ export function createObservations<
         },
         (value) => recordsOf(value, "observation_series").map(pointOf),
       ),
-    buckets: (subjectType, subjectId, definitionKey, bucket, range = {}) =>
+    buckets: ({ subjectType, subjectId, definitionKey, bucket, ...range }) =>
       call(
         "observation_series",
         {
@@ -734,7 +736,7 @@ export function createObservations<
         },
         (value) => recordsOf(value, "observation_series").map(bucketOf),
       ),
-    latest: (subjectType, subjectId) =>
+    latest: ({ subjectType, subjectId }) =>
       call(
         "latest_observations",
         { subject_type: subjectType, subject_id: subjectId },

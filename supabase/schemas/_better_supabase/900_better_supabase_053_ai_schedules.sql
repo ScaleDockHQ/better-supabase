@@ -1,6 +1,6 @@
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:da6dcb5e16d92161a1c0e855c0781abe63531fc6a0e99e1fc44da0a3760ad8ed
+-- @bsb-hash sha256:7f9ff14e0ccfa32cd5bd6b65feb7648f344bb63c059f2aabe69db02d84780c8b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -427,6 +427,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_scheduled_tasks', target_type => 'ai_scheduled_task', event_prefix => 'ai_scheduled_task', deferred => true);
+end;
+$$;
 
 -- blocks.ai-schedules.api: entry points for the Data API.
 create schema if not exists "api";

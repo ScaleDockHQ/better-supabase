@@ -145,8 +145,7 @@ export interface AiEvals {
   readonly datasets: {
     /** Creates a dataset, or returns the one with that name. */
     create(
-      name: string,
-      options?: {
+      input: { name: string } & {
         readonly organizationId?: string;
         readonly description?: string;
       },
@@ -154,10 +153,10 @@ export interface AiEvals {
   };
   readonly items: {
     /** Adds items and returns how many. */
-    add(
-      datasetId: string,
-      items: readonly EvalItemInput[],
-    ): AsyncResult<number>;
+    add(input: {
+      datasetId: string;
+      items: readonly EvalItemInput[];
+    }): AsyncResult<number>;
     /**
      * Copies rated ai-chat replies into the dataset (needs the `ai-chat`
      * block): the user message is the input, and a thumbs up keeps the reply as
@@ -165,8 +164,7 @@ export interface AiEvals {
      * how many were added.
      */
     addFromFeedback(
-      datasetId: string,
-      options?: {
+      input: { datasetId: string } & {
         /** Default `-1`: the replies users rated down. */
         readonly rating?: -1 | 1;
         readonly since?: Temporal.Instant;
@@ -175,8 +173,7 @@ export interface AiEvals {
     ): AsyncResult<number>;
     /** Items in id order. `pendingRun` leaves out the items a run already has. */
     list(
-      datasetId: string,
-      options?: {
+      input: { datasetId: string } & {
         readonly pendingRun?: string;
         readonly after?: string;
         readonly limit?: number;
@@ -186,8 +183,7 @@ export interface AiEvals {
   readonly runs: {
     /** Starts a run against a prompt version and model. */
     create(
-      datasetId: string,
-      options: {
+      input: { datasetId: string } & {
         readonly promptName: string;
         readonly promptVersion: number;
         readonly model: string;
@@ -197,44 +193,42 @@ export interface AiEvals {
     get(runId: string): AsyncResult<EvalRun | undefined>;
     /** The runs of a dataset, newest first. */
     list(
-      datasetId: string,
-      options?: { readonly limit?: number },
+      input: { datasetId: string } & { readonly limit?: number },
     ): AsyncResult<readonly EvalRun[]>;
     /**
      * Stores one item's output and scores; a repeat replaces the earlier
      * result.
      */
-    record(
-      runId: string,
-      itemId: string,
+    record(input: {
+      runId: string;
+      itemId: string;
       result: {
         readonly output?: string;
         readonly scores?: Readonly<Record<string, EvalScore>>;
         readonly error?: string;
         readonly latencyMs?: number;
-      },
-    ): AsyncResult<EvalResult>;
+      };
+    }): AsyncResult<EvalResult>;
     results(
-      runId: string,
-      options?: {
+      input: { runId: string } & {
         readonly onlyFailed?: boolean;
         readonly after?: string;
         readonly limit?: number;
       },
     ): AsyncResult<readonly EvalResult[]>;
     /** Closes the run and stores its summary. */
-    finish(
-      runId: string,
-      status?: Exclude<EvalRunStatus, "running">,
-    ): AsyncResult<EvalRun>;
+    finish(input: {
+      runId: string;
+      status?: Exclude<EvalRunStatus, "running"> | undefined;
+    }): AsyncResult<EvalRun>;
     /**
      * Compares two runs of one dataset. `scoreDrop` also counts an item as
      * regressed when its average score fell by more than that.
      */
     compare(
-      baseRunId: string,
-      candidateRunId: string,
-      options?: { readonly scoreDrop?: number },
+      input: { baseRunId: string; candidateRunId: string } & {
+        readonly scoreDrop?: number;
+      },
     ): AsyncResult<EvalComparison>;
   };
   /**
@@ -242,8 +236,7 @@ export interface AiEvals {
    * same dataset runs in `promptfoo eval`.
    */
   exportPromptfoo(
-    datasetId: string,
-    options: EvalExportOptions,
+    input: { datasetId: string } & EvalExportOptions,
   ): AsyncResult<PromptfooConfig>;
 }
 
@@ -465,7 +458,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
 
   const client: AiEvals = {
     datasets: {
-      create: (name, createOptions = {}) =>
+      create: ({ name, ...createOptions }) =>
         call(
           "create_eval_dataset",
           {
@@ -477,7 +470,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         ),
     },
     items: {
-      add: (datasetId, items) =>
+      add: ({ datasetId, items }) =>
         call(
           "add_eval_items",
           {
@@ -490,7 +483,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           Number,
         ),
-      addFromFeedback: (datasetId, feedbackOptions = {}) =>
+      addFromFeedback: ({ datasetId, ...feedbackOptions }) =>
         call(
           "add_eval_items_from_feedback",
           {
@@ -501,7 +494,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           Number,
         ),
-      list: (datasetId, listOptions = {}) =>
+      list: ({ datasetId, ...listOptions }) =>
         call(
           "list_eval_items",
           {
@@ -514,7 +507,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         ),
     },
     runs: {
-      create: (datasetId, runOptions) =>
+      create: ({ datasetId, ...runOptions }) =>
         call(
           "create_eval_run",
           {
@@ -530,13 +523,13 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         call("get_eval_run", { run: runId }, (value) =>
           value === null || value === undefined ? undefined : runOf(value),
         ),
-      list: (datasetId, listOptions = {}) =>
+      list: ({ datasetId, ...listOptions }) =>
         call(
           "list_eval_runs",
           { dataset: datasetId, max_rows: listOptions.limit },
           (value) => recordsOf(value, "list_eval_runs").map(runOf),
         ),
-      record: (runId, itemId, result) =>
+      record: ({ runId, itemId, result }) =>
         call(
           "record_eval_result",
           {
@@ -549,7 +542,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           resultOf,
         ),
-      results: (runId, resultOptions = {}) =>
+      results: ({ runId, ...resultOptions }) =>
         call(
           "list_eval_results",
           {
@@ -560,9 +553,9 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           (value) => recordsOf(value, "list_eval_results").map(resultOf),
         ),
-      finish: (runId, status = "completed") =>
+      finish: ({ runId, status = "completed" }) =>
         call("finish_eval_run", { run: runId, status }, runOf),
-      compare: (baseRunId, candidateRunId, compareOptions = {}) =>
+      compare: ({ baseRunId, candidateRunId, ...compareOptions }) =>
         call(
           "compare_eval_runs",
           {
@@ -573,13 +566,14 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           comparisonOf,
         ),
     },
-    exportPromptfoo: (datasetId, exportOptions) =>
+    exportPromptfoo: ({ datasetId, ...exportOptions }) =>
       AsyncResult.from(async () => {
         const all: EvalItem[] = [];
         let after: string | undefined;
 
         for (;;) {
-          const page = await client.items.list(datasetId, {
+          const page = await client.items.list({
+            datasetId,
             limit: EXPORT_PAGE,
             ...(after ? { after } : {}),
           });

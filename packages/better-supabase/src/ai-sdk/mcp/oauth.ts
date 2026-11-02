@@ -208,17 +208,15 @@ async function recordGrant(
 ): Promise<Result<void>> {
   const expiresIn = (await provider.tokens())?.expires_in;
 
-  const recorded = await options.connectors.grants.record(
-    options.server.id,
-    options.userId,
-    mcpOAuthRef(options.server.id),
-    {
-      scopes: options.server.scopes,
-      ...(expiresIn === undefined
-        ? {}
-        : { expiresAt: nowInstant().add({ seconds: Math.floor(expiresIn) }) }),
-    },
-  );
+  const recorded = await options.connectors.grants.record({
+    serverId: options.server.id,
+    userId: options.userId,
+    credentialRef: mcpOAuthRef(options.server.id),
+    scopes: options.server.scopes,
+    ...(expiresIn === undefined
+      ? {}
+      : { expiresAt: nowInstant().add({ seconds: Math.floor(expiresIn) }) }),
+  });
 
   return recorded.ok ? ok(undefined) : recorded;
 }

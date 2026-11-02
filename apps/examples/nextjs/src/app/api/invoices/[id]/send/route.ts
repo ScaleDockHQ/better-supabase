@@ -41,13 +41,14 @@ const format = peppolBis3Format({
  */
 export const POST = bsb.route<{ id: string }, true>(
   async (_request, { db, params }) => {
-    const invoice = await db.invoices.issue(params.id);
+    const invoice = await db.invoices.issue({ invoiceId: params.id });
 
     if (!invoice.ok) {
       return invoice;
     }
 
-    const sent = await db.invoices.sendEInvoice(invoice.data, {
+    const sent = await db.invoices.sendEInvoice({
+      invoice: invoice.data,
       format,
       channel: accessPoint,
     });

@@ -5,19 +5,23 @@ import { defineBlock } from "../define-block.ts";
 import { createDrive } from "./drive.ts";
 import { driveEvents } from "./events.ts";
 import { driveSqlOptions } from "./options.ts";
+import { driveBinding } from "./record-binding.ts";
 
 /** The `drive` block's manifest (ADR 0029). */
 export const driveBlock: BlockOf<
   "drive",
   typeof createDrive,
   DriveEvents,
-  { readonly attachments: "optional"; readonly recordAccess: "optional" }
+  { readonly attachments: "optional"; readonly recordAccess: "optional" },
+  never,
+  typeof driveBinding
 > = defineBlock({
   name: "drive",
   sql: ["drive", "drive-files"],
   options: { drive: driveSqlOptions },
   events: driveEvents,
   consumes: { attachments: "optional", recordAccess: "optional" },
+  record: driveBinding,
   create: createDrive,
   category: "content",
   recipes: [

@@ -239,11 +239,11 @@ export async function ingestTelemetry(
   const failures: TelemetryFailure[] = [];
 
   for (const [meterId, point] of best) {
-    const result = await options.maintenance.recordReading(
+    const result = await options.maintenance.recordReading({
       meterId,
-      decimal(point.value),
-      temporal().Instant.fromEpochMilliseconds(point.at.getTime()),
-    );
+      value: decimal(point.value),
+      readAt: temporal().Instant.fromEpochMilliseconds(point.at.getTime()),
+    });
 
     if (result.ok) {
       updated.push(meterId);

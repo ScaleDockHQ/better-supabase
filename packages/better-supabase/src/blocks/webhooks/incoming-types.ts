@@ -173,34 +173,33 @@ export interface IncomingWebhooks {
    * when its body does (`hmac-sha256`, whose signature covers only the body),
    * or when its `webhook-id` header does (`none`). Needs a service connection.
    */
-  receive(request: Request, token: string): Promise<Response>;
+  receive(input: { request: Request; token: string }): Promise<Response>;
   /** Creates an endpoint for a tenant; the caller needs `webhooks.manage`. */
   create(
     input: CreateIncomingWebhookInput,
   ): AsyncResult<CreatedIncomingWebhook>;
   /** A new token, and with `rotateSecret` a new secret. */
   rotate(
-    id: string,
-    options?: { readonly rotateSecret?: boolean },
+    input: { id: string } & { readonly rotateSecret?: boolean },
   ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
-  rotateSecret(
-    id: string,
-    options?: { readonly grace?: Temporal.Duration | string },
-  ): AsyncResult<RotatedIncomingSecret>;
-  update(
-    id: string,
-    input: UpdateIncomingWebhookInput,
-  ): AsyncResult<UpdatedIncomingWebhook>;
-  setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
+  rotateSecret(input: {
+    id: string;
+    options?: { readonly grace?: Temporal.Duration | string } | undefined;
+  }): AsyncResult<RotatedIncomingSecret>;
+  update(input: {
+    id: string;
+    input: UpdateIncomingWebhookInput;
+  }): AsyncResult<UpdatedIncomingWebhook>;
+  setEnabled(input: { id: string; enabled: boolean }): AsyncResult<boolean>;
   remove(id: string): AsyncResult<boolean>;
   /**
    * A tenant's endpoints, or one subject's, as the caller sees them (the read
    * policy hides endpoints whose subject they can't read).
    */
-  list(
-    tenant: string,
-    subject?: { readonly type: string; readonly id?: string },
-  ): AsyncResult<readonly IncomingWebhook[]>;
+  list(input: {
+    tenant: string;
+    subject?: { readonly type: string; readonly id?: string } | undefined;
+  }): AsyncResult<readonly IncomingWebhook[]>;
 }
 
 export interface EndpointRow {

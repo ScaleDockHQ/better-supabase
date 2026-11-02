@@ -47,7 +47,7 @@ async function loadAwards(): Promise<readonly AwardRow[] | null> {
     return null;
   }
 
-  const awards = await db.funding.awards(tenant).orThrow();
+  const awards = await db.funding.awards({ organizationId: tenant }).orThrow();
 
   return Promise.all(
     awards.slice(0, 20).map(async (award) => {

@@ -8,7 +8,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -134,12 +135,13 @@ export interface ApplicationDetail extends Application {
 
 /** `F` types the jobs' extra columns, from the `fields` schema. */
 export interface Hiring<F extends object = Record<never, never>> {
-  saveJob(organizationId: string, job: JobInput<F>): AsyncResult<Job<F>>;
+  saveJob(input: {
+    organizationId: string;
+    job: JobInput<F>;
+  }): AsyncResult<Job<F>>;
   /** Adds a candidate to an open job; applying again returns the same one. */
   apply(
-    jobId: string,
-    candidate: Candidate | { readonly id: string },
-    options?: {
+    input: { jobId: string; candidate: Candidate | { readonly id: string } } & {
       readonly source?: string;
       readonly ownerId?: string;
       /** With `options.applicationExtraColumns`: values for those columns. */
@@ -148,29 +150,76 @@ export interface Hiring<F extends object = Record<never, never>> {
   ): AsyncResult<Application>;
   /** Moves it to the job pipeline's Hired stage; `application.hired` follows. */
   hire(applicationId: string): AsyncResult<Application>;
-  reject(applicationId: string, reason?: string): AsyncResult<Application>;
+  reject(input: {
+    applicationId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Application>;
   withdraw(applicationId: string): AsyncResult<Application>;
   /** The caller's scorecard at the application's current stage. */
-  score(
-    applicationId: string,
+  score(input: {
+    applicationId: string;
     card: {
       readonly rating: number;
       readonly recommendation?: Recommendation;
       readonly notes?: string;
       readonly scores?: readonly ScorecardScore[];
-    },
-  ): AsyncResult<Scorecard>;
-  scheduleInterview(
-    applicationId: string,
+    };
+  }): AsyncResult<Scorecard>;
+  scheduleInterview(input: {
+    applicationId: string;
     interview: {
       readonly startsAt: Temporal.Instant;
       readonly endsAt: Temporal.Instant;
       readonly interviewerIds?: readonly string[];
       readonly kind?: string;
       readonly location?: string;
-    },
-  ): AsyncResult<Interview>;
+    };
+  }): AsyncResult<Interview>;
   detail(applicationId: string): AsyncResult<ApplicationDetail>;
+  /** The organization's jobs, newest first; `status` keeps one status. */
+  jobs(input: {
+    organizationId: string;
+    status?: JobStatus | undefined;
+  }): AsyncResult<Job<F>[]>;
+  /** A job's applications in board order; `state` keeps one state. */
+  applications(input: {
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<Application[]>;
+  /**
+   * A job's applications grouped by stage, in board order. A stage's name and
+   * order come from the pipelines block; this groups by `stageId` only.
+   */
+  pipeline(input: {
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<JobPipelineStage[]>;
+  /**
+   * One job and its applications grouped by stage, read together. A job the
+   * caller can't see is `not_found`.
+   */
+  board(input: {
+    organizationId: string;
+    jobId: string;
+    state?: ApplicationState | undefined;
+  }): AsyncResult<JobBoard<F>>;
+  /**
+   * Closes the job: `saveJob` with `status: "closed"`, which stamps `closedAt`
+   * and emits `job_opening.closed`. Closing a closed job changes nothing.
+   */
+  close(input: { organizationId: string; jobId: string }): AsyncResult<Job<F>>;
+}
+
+/** One stage's applications in `Hiring.pipeline`. */
+export interface JobBoard<F extends object = Record<never, never>> {
+  readonly job: Job<F>;
+  readonly stages: readonly JobPipelineStage[];
+}
+
+export interface JobPipelineStage {
+  /** `undefined` for applications that have no stage yet. */
+  readonly stageId: string | undefined;
+  readonly applications: readonly Application[];
 }
 
 export interface HiringOptions<
@@ -297,8 +346,14 @@ export function createHiring<
       applicationOf,
     );
 
+  const readJob = (saved: Job): AsyncResult<Job<F>> =>
+    AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
+      ...saved,
+      fields: value,
+    }));
+
   const client: Hiring<F> = {
-    saveJob: (organizationId, job) => {
+    saveJob: ({ organizationId, job }) => {
       const { id, fields: extra, ...attrs } = job;
 
       return AsyncResult.from(() => fields.write({ ...extra }))
@@ -313,14 +368,9 @@ export function createHiring<
             jobOf,
           ),
         )
-        .andThen((saved) =>
-          AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
-            ...saved,
-            fields: value,
-          })),
-        );
+        .andThen(readJob);
     },
-    apply: (jobId, candidate, apply = {}) =>
+    apply: ({ jobId, candidate, ...apply }) =>
       call(
         "apply_to_job",
         {
@@ -333,9 +383,10 @@ export function createHiring<
         applicationOf,
       ),
     hire: (applicationId) => close(applicationId, "hired"),
-    reject: (applicationId, reason) => close(applicationId, "rejected", reason),
+    reject: ({ applicationId, reason }) =>
+      close(applicationId, "rejected", reason),
     withdraw: (applicationId) => close(applicationId, "withdrawn"),
-    score: (applicationId, card) =>
+    score: ({ applicationId, card }) =>
       call(
         "submit_scorecard",
         {
@@ -349,7 +400,7 @@ export function createHiring<
         },
         scorecardOf,
       ),
-    scheduleInterview: (applicationId, interview) =>
+    scheduleInterview: ({ applicationId, interview }) =>
       call(
         "schedule_interview",
         {
@@ -380,10 +431,76 @@ export function createHiring<
               : Number(row["averageRating"]),
         });
       }),
+    jobs: ({ organizationId, status }) =>
+      call(
+        "list_jobs",
+        { tenant: organizationId, status: status ?? null },
+        (value) => recordsOf(value, "jobs").map(jobOf),
+      ).andThen(async (jobs) => {
+        const read: Job<F>[] = [];
+
+        for (const job of jobs) {
+          const result = await readJob(job);
+
+          if (!result.ok) {
+            return result;
+          }
+
+          read.push(result.data);
+        }
+
+        return ok(read);
+      }),
+    applications: ({ jobId, state }) =>
+      call("list_applications", { job: jobId, state: state ?? null }, (value) =>
+        recordsOf(value, "applications").map(applicationOf),
+      ),
+    pipeline: ({ jobId, state }) =>
+      hooked.applications({ jobId, state }).map((applications) => {
+        const stages = new Map<string | undefined, Application[]>();
+
+        for (const application of applications) {
+          const group = stages.get(application.stageId) ?? [];
+
+          group.push(application);
+          stages.set(application.stageId, group);
+        }
+
+        return [...stages].map(([stageId, grouped]) => ({
+          stageId,
+          applications: grouped,
+        }));
+      }),
+    board: ({ organizationId, jobId, state }) =>
+      AsyncResult.from<JobBoard<F>>(async () => {
+        const [jobs, stages] = await Promise.all([
+          hooked.jobs({ organizationId }),
+          hooked.pipeline({ jobId, state }),
+        ]);
+
+        if (!jobs.ok) {
+          return err(jobs.error);
+        }
+
+        if (!stages.ok) {
+          return err(stages.error);
+        }
+
+        const found = jobs.data.find((job) => job.id === jobId);
+
+        return found
+          ? ok({ job: found, stages: stages.data })
+          : err(dbError("not_found", "The job does not exist."));
+      }),
+    close: ({ organizationId, jobId }) =>
+      hooked.saveJob({ organizationId, job: { id: jobId, status: "closed" } }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Hiring<F> = withBlockHooks(client, options.hooks, {
     block: "hiring",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

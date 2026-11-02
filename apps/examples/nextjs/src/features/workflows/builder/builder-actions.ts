@@ -72,16 +72,19 @@ export const createDefinition = bsb.action(
       return saved;
     }
 
-    const draft = await builder.versions.upsert(saved.data.id, {
-      nodes: [
-        {
-          id: "trigger",
-          kind: "trigger",
-          label: "Start",
-          position: { x: 0, y: 0 },
-        },
-      ],
-      edges: [],
+    const draft = await builder.versions.upsert({
+      definition: saved.data.id,
+      graph: {
+        nodes: [
+          {
+            id: "trigger",
+            kind: "trigger",
+            label: "Start",
+            position: { x: 0, y: 0 },
+          },
+        ],
+        edges: [],
+      },
     });
 
     if (!draft.ok) {
@@ -101,7 +104,10 @@ export const saveDraft = bsb.action(
     permission: "workflow_editor.write",
   },
   async ({ definition, graph }, { supabase }) => {
-    const saved = await builderFor(supabase).versions.upsert(definition, graph);
+    const saved = await builderFor(supabase).versions.upsert({
+      definition,
+      graph,
+    });
 
     if (!saved.ok) {
       return saved;
@@ -120,13 +126,15 @@ export const publishGraph = bsb.action(
   },
   async ({ definition, graph }, { supabase }) => {
     const builder = builderFor(supabase);
-    const draft = await builder.versions.upsert(definition, graph);
+    const draft = await builder.versions.upsert({ definition, graph });
 
     if (!draft.ok) {
       return draft;
     }
 
-    const published = await builder.versions.publish(draft.data.id);
+    const published = await builder.versions.publish({
+      version: draft.data.id,
+    });
 
     if (!published.ok) {
       return published;
@@ -184,7 +192,10 @@ export const saveTrigger = bsb.action(
     }
 
     if (kind === "schedule") {
-      const synced = await builder.triggers.syncSchedule(saved.data, tenant);
+      const synced = await builder.triggers.syncSchedule({
+        trigger: saved.data,
+        tenant,
+      });
 
       if (!synced.ok) {
         return synced;
@@ -328,8 +339,8 @@ export const decideNode = bsb.action(
     }
 
     const decided = approved
-      ? await db.approvals.approve(request.id)
-      : await db.approvals.reject(request.id);
+      ? await db.approvals.approve({ id: request.id })
+      : await db.approvals.reject({ id: request.id });
 
     if (!decided.ok) {
       return decided;

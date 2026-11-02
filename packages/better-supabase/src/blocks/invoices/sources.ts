@@ -67,10 +67,11 @@ export interface InvoiceSources {
    * and writes nothing. Not available in import mode.
    */
   invoiceFromSources(
-    organizationId: string,
-    party: { readonly type: string; readonly id: string },
-    sources: readonly InvoiceSource[],
-    options?: {
+    input: {
+      organizationId: string;
+      party: { readonly type: string; readonly id: string };
+      sources: readonly InvoiceSource[];
+    } & {
       readonly title?: string;
       /**
        * Passed to `create` (`termsDays`, `note`, `legalEntityId`, extra
@@ -80,10 +81,10 @@ export interface InvoiceSources {
     },
   ): AsyncResult<InvoicedSources>;
   /** The sources that can be invoiced now, for one party or every party. */
-  sourcesReadyToInvoice(
-    organizationId: string,
-    party?: { readonly type: string; readonly id: string },
-  ): AsyncResult<readonly ReadySource[]>;
+  sourcesReadyToInvoice(input: {
+    organizationId: string;
+    party?: { readonly type: string; readonly id: string } | undefined;
+  }): AsyncResult<readonly ReadySource[]>;
 }
 
 function sourceType(value: unknown): ReadySource["type"] {
@@ -99,7 +100,7 @@ function sourceType(value: unknown): ReadySource["type"] {
 /** The collective invoicing methods of the invoices client. */
 export function invoiceSources(call: BlockCall): InvoiceSources {
   return {
-    invoiceFromSources: (organizationId, party, sources, options = {}) =>
+    invoiceFromSources: ({ organizationId, party, sources, ...options }) =>
       call(
         "invoice_from_sources",
         {
@@ -132,7 +133,7 @@ export function invoiceSources(call: BlockCall): InvoiceSources {
           };
         },
       ),
-    sourcesReadyToInvoice: (organizationId, party) =>
+    sourcesReadyToInvoice: ({ organizationId, party }) =>
       call(
         "sources_ready_to_invoice",
         { tenant: organizationId, party: party ?? null },

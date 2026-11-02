@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:59809accd6bccb1f44c5e48ec09f45df9a0317457aa20e93b82803b89cf06695
+-- @bsb-hash sha256:a6bcdc35a8955f6d9e4bb3f63886dd622496f6826df630460e4b62896066b5d4
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1562,6 +1562,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_clai
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.funding_products', target_type => 'funding_product', event_prefix => 'funding_product', deferred => true);
+  perform better_supabase.audit('better_supabase.funding_awards', target_type => 'funding_award', event_prefix => 'funding_award', deferred => true);
+  perform better_supabase.audit('better_supabase.funding_deliveries', target_type => 'funding_delivery', event_prefix => 'funding_delivery', deferred => true);
+  perform better_supabase.audit('better_supabase.funding_claims', target_type => 'funding_claim', event_prefix => 'funding_claim', deferred => true);
+  perform better_supabase.audit('better_supabase.funding_claim_lines', target_type => 'funding_claim_line', event_prefix => 'funding_claim_line', deferred => true);
+end;
+$$;
 
 -- blocks.funding.api: entry points for the Data API.
 create schema if not exists "api";

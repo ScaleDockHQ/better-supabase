@@ -635,7 +635,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@3 managed
--- @bsb-hash sha256:f109ee4ef9889030d4df015844d4141e8b01029ecee0157ed0eecc8fb538acf1
+-- @bsb-hash sha256:fc8ad82ce78e52525dff666f7996dc6cc052d834daf1719e9d4b2b7248f61e05
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1308,6 +1308,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_s
 create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.activities', target_type => 'activity', event_prefix => 'activity', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

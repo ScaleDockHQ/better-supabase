@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:12c6086ee4b093a16a96699dbd14cd69a2817756628c1450b2bd47de7986c3cd
+-- @bsb-hash sha256:8907a0373fb4c047d4138e799d504c7cb605f2b8c4534793d34e7452ee0d3434
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2640,6 +2640,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_chats', target_type => 'ai_chat', event_prefix => 'ai_chat', deferred => true);
+  perform better_supabase.audit('better_supabase.ai_projects', target_type => 'ai_project', event_prefix => 'ai_project', deferred => true);
+end;
+$$;
 
 -- blocks.ai-chat.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:9442e3f7f9f85614b454d00e7428a71cfbc4e77b41cc9a5f3e69449b6351742d
+-- @bsb-hash sha256:be9a2e5553214d44833014019bdc6841586f514aeb3bcf8ba8c2c0856834ec3c
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,6 +489,13 @@ grant execute on function "better_supabase"."revoke_invite_code"(uuid) to authen
 grant execute on function "better_supabase"."waitlist_admit"(text, text) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."redeem_for"(text, uuid) to service_role;
 grant execute on function "better_supabase"."redeem_invite_code"(text) to authenticated, service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.waitlist_entries', target_type => 'waitlist_entry', event_prefix => 'waitlist_entry', deferred => true);
+end;
+$$;
 
 -- blocks.waitlist.api: entry points for the Data API.
 create schema if not exists "api";

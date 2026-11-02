@@ -46,7 +46,10 @@ export const createOrganization = bsb.action(
   { input: v.object({ name: Name }) },
   async ({ name }, { db }) => {
     const { organizations } = db.$blocks;
-    const created = await organizations.create({ name, slug: slugify(name) });
+
+    const created = await organizations.create({
+      attributes: { name, slug: slugify(name) },
+    });
 
     if (!created.ok) {
       return created;
@@ -74,9 +77,9 @@ export const updateOrganization = bsb.action(
     permission: "organization.update",
   },
   async ({ name, slug }, { tenant: organizationId, db }) => {
-    const updated = await db.$blocks.organizations.update(organizationId, {
-      name,
-      slug,
+    const updated = await db.$blocks.organizations.update({
+      organizationId,
+      attributes: { name, slug },
     });
 
     if (!updated.ok) {
@@ -107,7 +110,11 @@ export const updateOrganization = bsb.action(
 export const invitationSent = bsb.action(
   { requireTenant: true, permission: "members.invite" },
   async (_input, { tenant: organizationId, db }) => {
-    await db.onboarding.complete(gettingStarted, "invite", organizationId);
+    await db.onboarding.complete({
+      checklist: gettingStarted,
+      step: "invite",
+      organizationId,
+    });
     refresh();
 
     return ok(true);

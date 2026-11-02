@@ -44,7 +44,10 @@ export interface QuestionnaireSnapshot {
 
 export interface QuestionnaireActions {
   /** `undefined` removes the answer. */
-  readonly setAnswer: (key: string, value: FormJson | undefined) => void;
+  readonly setAnswer: (input: {
+    key: string;
+    value: FormJson | undefined;
+  }) => void;
   /** Checks the step and moves to the next visible one. */
   readonly next: () => void;
   readonly back: () => void;
@@ -120,7 +123,7 @@ export function createQuestionnaireController(
 
       return {
         actions: {
-          setAnswer: (key, value) => {
+          setAnswer: ({ key, value }) => {
             finalIssues = finalIssues.filter(
               (issue) => issue.path?.[0] !== key,
             );

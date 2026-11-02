@@ -107,7 +107,7 @@ describe("summarizeWith", () => {
       gateway: { order: ["anthropic"] },
     }).summarize({ ...input, previous: "Ada asked.", signal });
 
-    expect(resolve).toHaveBeenCalledWith("org", { signal });
+    expect(resolve).toHaveBeenCalledWith({ organizationId: "org", signal });
     expect(promptText(calls[0])).toContain("Be brief.");
     expect(promptText(calls[0])).toContain("Previous summary:\\nAda asked.");
     expect(calls[0]?.providerOptions?.["gateway"]).toMatchObject({

@@ -38,6 +38,10 @@ export { blockSqlVersion } from "./module-types.ts";
 
 export { resolveBlocks, SQL_MODULES } from "./registry.ts";
 
+export { seedDefaultsFunctions } from "./seed-functions.ts";
+
+export type { SeedDefaultsFunction } from "./seed-functions.ts";
+
 export {
   blockTables,
   type BlockTable,
@@ -239,6 +243,7 @@ export type { BsbComment, BsbTag } from "./bsb-tags.ts";
 export {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   TABLE_FEATURES,
   tableFeatures,
@@ -246,3 +251,11 @@ export {
 } from "./table-features.ts";
 
 export type { TableFeature } from "./table-features.ts";
+
+export { declareRead, readArgSource, readArgSqlType } from "./reads.ts";
+
+export type {
+  BlockSqlRead,
+  BlockSqlReadArg,
+  BlockSqlReadArgType,
+} from "./reads.ts";

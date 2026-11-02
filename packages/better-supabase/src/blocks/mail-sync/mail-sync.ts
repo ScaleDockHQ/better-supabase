@@ -173,34 +173,32 @@ export interface MailSync {
    * Connects the caller's mailbox. `credentialRef` names the OAuth grant the
    * app stored for them, with the organization as its `tenant`.
    */
-  connect(
-    organizationId: string,
+  connect(input: {
+    organizationId: string;
     input: {
       readonly provider: string;
       readonly address: string;
       readonly credentialRef: CredentialRef;
       readonly share?: "records" | "private";
-    },
-  ): AsyncResult<MailAccount>;
+    };
+  }): AsyncResult<MailAccount>;
   /** Changes who sees the mailbox's threads, or pauses its sync. */
-  update(
-    accountId: string,
+  update(input: {
+    accountId: string;
     input: {
       readonly share?: "records" | "private";
       readonly paused?: boolean;
-    },
-  ): AsyncResult<MailAccount>;
+    };
+  }): AsyncResult<MailAccount>;
   /** Stops syncing; `purge` deletes its threads and messages too. */
   disconnect(
-    accountId: string,
-    options?: { readonly purge?: boolean },
+    input: { accountId: string } & { readonly purge?: boolean },
   ): AsyncResult<boolean>;
   /** The caller's mailboxes; every member's with `mail_sync.manage`. */
   accounts(organizationId: string): AsyncResult<MailAccount[]>;
   /** The threads the caller can see, the latest first (25, at most 100). */
   threads(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly accountId?: string;
       readonly before?: Temporal.Instant;
       readonly limit?: number;
@@ -208,29 +206,39 @@ export interface MailSync {
   ): AsyncResult<MailThread[]>;
   /** A record's threads the caller can see, the latest first. */
   threadsOf(
-    subject: MailSubject,
-    options?: { readonly before?: Temporal.Instant; readonly limit?: number },
+    input: { subject: MailSubject } & {
+      readonly before?: Temporal.Instant;
+      readonly limit?: number;
+    },
   ): AsyncResult<MailThread[]>;
   /** A thread with its messages, or `undefined` when the caller can't see it. */
   thread(id: string): AsyncResult<MailThreadDetail | undefined>;
   /** Links a thread of the caller's mailbox to records by hand. */
-  link(
-    threadId: string,
-    subjects: readonly MailSubject[],
-  ): AsyncResult<MailThread>;
-  unlink(threadId: string, subject: MailSubject): AsyncResult<boolean>;
+  link(input: {
+    threadId: string;
+    subjects: readonly MailSubject[];
+  }): AsyncResult<MailThread>;
+  unlink(input: {
+    threadId: string;
+    subject: MailSubject;
+  }): AsyncResult<boolean>;
   /**
    * Sends from the caller's mailbox through its provider and stores the message
    * on its thread. Needs `credentials` and the provider.
    */
-  send(accountId: string, draft: MailSendDraft): AsyncResult<MailMessage>;
+  send(input: {
+    accountId: string;
+    draft: MailSendDraft;
+  }): AsyncResult<MailMessage>;
   /**
    * Pulls one mailbox's new mail into the database, page by page. Runs as the
    * service role (a job or a cron route).
    */
   sync(
-    account: MailAccount,
-    options?: { readonly pages?: number; readonly limit?: number },
+    input: { account: MailAccount } & {
+      readonly pages?: number;
+      readonly limit?: number;
+    },
   ): AsyncResult<number>;
   /**
    * Answers a request to the tracking route: records the open or click and
@@ -240,8 +248,7 @@ export interface MailSync {
   track(request: Request): AsyncResult<Response>;
   /** Opens, clicks and replies per template version, since a time. */
   templateStats(
-    organizationId: string,
-    options?: { readonly since?: Temporal.Instant },
+    input: { organizationId: string } & { readonly since?: Temporal.Instant },
   ): AsyncResult<MailTemplateStats[]>;
   /** Syncs the mailboxes not synced within `staleAfter`. Service role. */
   syncDue(options?: {
@@ -521,7 +528,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
           });
         });
 
-  const sync: MailSync["sync"] = (account, run = {}) =>
+  const sync: MailSync["sync"] = ({ account, ...run }) =>
     AsyncResult.from(async () => {
       const provider = providerOf(account);
 
@@ -662,7 +669,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
     });
 
   const client: MailSync = {
-    connect: (organizationId, input) =>
+    connect: ({ organizationId, input }) =>
       call(
         "connect_mail_account",
         {
@@ -674,7 +681,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         accountOf,
       ),
-    update: (accountId, input) =>
+    update: ({ accountId, input }) =>
       call(
         "update_mail_account",
         {
@@ -684,7 +691,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         accountOf,
       ),
-    disconnect: (accountId, disconnect = {}) =>
+    disconnect: ({ accountId, ...disconnect }) =>
       call(
         "disconnect_mail_account",
         { account: accountId, purge: disconnect.purge ?? false },
@@ -694,7 +701,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
       call("mail_accounts_of", { tenant: organizationId }, (value) =>
         recordsOf(value, "mail_accounts_of").map(accountOf),
       ),
-    threads: (organizationId, list = {}) =>
+    threads: ({ organizationId, ...list }) =>
       call(
         "list_mail_threads",
         {
@@ -705,7 +712,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         (value) => recordsOf(value, "list_mail_threads").map(threadOf),
       ),
-    threadsOf: (subject, list = {}) =>
+    threadsOf: ({ subject, ...list }) =>
       call(
         "mail_threads_of",
         {
@@ -717,7 +724,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         (value) => recordsOf(value, "mail_threads_of").map(threadOf),
       ),
     thread,
-    link: (threadId, subjects) =>
+    link: ({ threadId, subjects }) =>
       call(
         "link_mail_thread",
         {
@@ -729,7 +736,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         threadOf,
       ),
-    unlink: (threadId, subject) =>
+    unlink: ({ threadId, subject }) =>
       call(
         "unlink_mail_thread",
         {
@@ -739,7 +746,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         (value) => value === true,
       ),
-    send: (accountId, draft) =>
+    send: ({ accountId, draft }) =>
       draft.track === true && options.tracking === undefined
         ? AsyncResult.err(
             missing(
@@ -786,7 +793,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
             : Response.redirect(tracked.data, 302),
         );
       }),
-    templateStats: (organizationId, stats = {}) =>
+    templateStats: ({ organizationId, ...stats }) =>
       call(
         "mail_template_stats",
         { tenant: organizationId, since: instantArg(stats.since) ?? null },
@@ -817,7 +824,8 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         }[] = [];
 
         for (const account of accounts) {
-          const result = await sync(account, {
+          const result = await sync({
+            account,
             ...(run.pages === undefined ? {} : { pages: run.pages }),
             ...(run.limit === undefined ? {} : { limit: run.limit }),
           });

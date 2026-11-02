@@ -28,6 +28,7 @@ import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
 import type { OwnIndex } from "./schema-scan.ts";
+import type { BlockSeeds } from "./seeds.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
 /** The step from one module version to the next, for `upgrade`. */
@@ -148,6 +149,12 @@ export interface BlockSql {
    * data`) instead of the schema file.
    */
   readonly data?: (ctx: BlockSqlContext, layout: BlockSqlLayout) => string;
+  /**
+   * Declared seeds (ADR 0196): the rows every organization starts with. They
+   * render into `seed_<module>_defaults`, which the `seed_tenant_defaults`
+   * umbrella and `db seed --defaults` call.
+   */
+  readonly seeds?: BlockSeeds;
   /**
    * PgTAP files for this layout, written to the tests folder next to the
    * `pgtap` module's.

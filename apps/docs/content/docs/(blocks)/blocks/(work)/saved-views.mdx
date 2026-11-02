@@ -101,6 +101,10 @@ own rows, and deleting a view deletes its preferences. A setup over your own tab
 leave the table out with `tables: { preferences: null }`; `preference` is
 then always false.
 
+## Reorder
+
+`move({ id, organizationId, list, toIndex })` puts a view at position `toIndex` (0 is first) among the views of the list the caller sees, and returns its new rank key.
+
 ## Duplicate a view
 
 `duplicate(id, { name, scope, teamId })` copies the state, kind and list of

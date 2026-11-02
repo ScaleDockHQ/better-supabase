@@ -69,6 +69,8 @@ HR reports join time to employees without matching users by hand.
 
 `list` returns the caller's entries, newest first. `from` and `to` select the entries that overlap that range, `subject` selects one record's time, and `userId` or `everyone: true` read other members' entries with `time_tracking.read`.
 
+Three helpers cover common flows. `logOn({ subject, startedAt, endedAt })` is `log` with a required record, so a form on a record cannot forget it. `switchTo({ subject })` stops every timer you have running (also with `timers: "many"`, where `start` leaves them running) and starts one on the record, returning `{ stopped, started }`; when a stop fails nothing is started.
+
 ## Timesheets and approvals
 
 A week starts on Monday in the module's `timeZone`. `timesheet(week)` returns the caller's week (or another member's with `userId` and `time_tracking.read`) with the entries that start in it and its totals: `seconds` counts every entry and running ones up to now, `billableSeconds` the billable ones, and `amounts` adds billable hours times their rate, rounded to minor units, with one `Money` per currency ordered by code. A week passed as any day is read as the week that contains it.
@@ -90,6 +92,8 @@ await approvals.approve(sheet.approvalId!).orThrow();
 ```
 
 A week is locked while its request is pending and once it is approved: adding or deleting an entry that starts in it, or changing the columns that make up its logged time, fails with `TIME_PERIOD_LOCKED`, also for direct table writes. Those columns are the start, the end or duration, the subject, the owner and the rate, so the billable flag, the note and columns of your own (a timesheet or invoice line link) stay writable. `options.lockedColumns` lists them instead, as logical names such as `startedAt` or your table's own column names; `[]` locks no column. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIMESHEET_NOT_APPROVED` otherwise) and needs `time_tracking.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
+
+`submitAndRequest({ week })` submits the week and reads it again, so one call returns the locked week with its entries, totals and `approvalId`. With approvals on, the submission itself opens the approval request.
 
 ## Configure
 

@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d08842cdee5551c52541c8275c352a238a9436d9897cbcb2e4e321aadfcf76d7
+-- @bsb-hash sha256:7eff138c62789906e5b7a48ccd9159ab3b0236e19b2d87b4754edcfb5f5dbccc
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1322,6 +1322,40 @@ $$;
 revoke execute on function "better_supabase"."list_template_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_template_schedule"() to service_role;
 
+-- The occurrences of every enabled schedule that start in [range_start,
+-- range_end) and haven't applied yet, expanded by rrule_occurrences:
+-- [{ schedule, tenant, occurrenceAt }], oldest first, at most 5000.
+create or replace function "better_supabase"."due_template_occurrences"(range_start timestamptz, range_end timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  select coalesce(jsonb_agg(jsonb_build_object('schedule', d.schedule, 'tenant', d.tenant, 'occurrenceAt', d.at) order by d.at, d.schedule), '[]'::jsonb)
+  from (
+    select x."id" as schedule, x."tenant_id" as tenant, o.at
+    from "better_supabase"."template_schedules" x
+    join "better_supabase"."recurrence_rules" u on u."tenant_id" = x."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = x."id"::text
+    cross join lateral better_supabase.rrule_occurrences(u."rrule", u."dtstart", u."tzid", tstzrange(due_template_occurrences.range_start, due_template_occurrences.range_end, '[)')) o (at)
+    where x."enabled" and u."rrule" is not null
+      and not exists (
+        select 1 from "better_supabase"."template_schedule_runs" y
+        where y."schedule_id" = x."id" and y."occurrence_at" = o.at and y."application_id" is not null
+      )
+    order by o.at, x."id"
+    limit 5000
+  ) d
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."due_template_occurrences"(timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."due_template_occurrences"(timestamptz, timestamptz) to service_role;
+
 -- Claims one occurrence of an enabled schedule: the schedule when the
 -- occurrence is new or hasn't recorded an application yet, else null.
 create or replace function "better_supabase"."claim_template_occurrence"(schedule_id uuid, occurrence_at timestamptz)
@@ -1488,6 +1522,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_sch
 create policy bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.templates', target_type => 'template', event_prefix => 'template', deferred => true);
+end;
+$$;
 
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1704,6 +1745,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_template_schedule"() $$;
 revoke execute on function "api"."list_template_schedule"() from public, anon, authenticated;
 grant execute on function "api"."list_template_schedule"() to service_role;
+
+create or replace function "api"."due_template_occurrences"(range_start timestamptz, range_end timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."due_template_occurrences"($1, $2) $$;
+revoke execute on function "api"."due_template_occurrences"(timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function "api"."due_template_occurrences"(timestamptz, timestamptz) to service_role;
 
 create or replace function "api"."claim_template_occurrence"(schedule_id uuid, occurrence_at timestamptz)
 returns jsonb

@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:017edd1ef2bdbd0d068b6e6a8ffaefca55a04440168308ce31fa1b61bb2b8489
+-- @bsb-hash sha256:88bd781a6544e2df4396ef3b79a707f75e29e70c42f7fd500c086ac3a62c2747
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1337,6 +1337,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submiss
 create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.forms', target_type => 'form', event_prefix => 'form', deferred => true);
+end;
+$$;
 
 -- blocks.forms.api: entry points for the Data API.
 create schema if not exists "api";

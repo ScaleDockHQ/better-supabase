@@ -73,13 +73,21 @@ describe("createChannels", () => {
 
     await channels.create({ name: "plain" }).orThrow();
     expect(
-      (await channels.update("c1", { topic: null }).orThrow()).topic,
+      (
+        await channels
+          .update({ channelId: "c1", change: { topic: null } })
+          .orThrow()
+      ).topic,
     ).toBeUndefined();
-    expect(await channels.archive("c1").orThrow()).toBe(true);
-    await channels.archive("c1", false).orThrow();
+    expect(await channels.archive({ channelId: "c1" }).orThrow()).toBe(true);
+    await channels.archive({ channelId: "c1", archived: false }).orThrow();
     expect(await channels.join("c1").orThrow()).toBe(true);
     expect(await channels.leave("c1").orThrow()).toBe(false);
-    expect(await channels.invite("c1", ["u2", "u3"]).orThrow()).toBe(2);
+    expect(
+      await channels
+        .invite({ channelId: "c1", userIds: ["u2", "u3"] })
+        .orThrow(),
+    ).toBe(2);
     expect(await channels.list().orThrow()).toHaveLength(1);
     await channels.list({ browse: true, includeArchived: true }).orThrow();
     expect((await channels.get("c1").orThrow())?.name).toBe("general");

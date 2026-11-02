@@ -386,81 +386,79 @@ export interface FundingOptions<
 
 export interface Funding<F extends object = Record<never, never>> {
   /** Adds a product, or updates `input.productId`. */
-  saveProduct(
-    organizationId: string,
-    input: FundingProductInput,
-  ): AsyncResult<FundingProduct>;
+  saveProduct(input: {
+    organizationId: string;
+    input: FundingProductInput;
+  }): AsyncResult<FundingProduct>;
   /** The organization's products by code; expired ones only when asked. */
   products(
-    organizationId: string,
-    options?: { readonly includeExpired?: boolean },
+    input: { organizationId: string } & { readonly includeExpired?: boolean },
   ): AsyncResult<readonly FundingProduct[]>;
   /** Records an award for a record registered in `config.subjects`. */
-  createAward(
-    organizationId: string,
-    subject: RecordRef,
-    input: FundingAwardInput<F>,
-  ): AsyncResult<FundingAward<F>>;
+  createAward(input: {
+    organizationId: string;
+    subject: RecordRef;
+    input: FundingAwardInput<F>;
+  }): AsyncResult<FundingAward<F>>;
   /** Changes a running or requested award. */
-  updateAward(
-    organizationId: string,
-    subject: RecordRef,
-    awardId: string,
-    patch: FundingAwardPatch<F>,
-  ): AsyncResult<FundingAward<F>>;
+  updateAward(input: {
+    organizationId: string;
+    subject: RecordRef;
+    awardId: string;
+    patch: FundingAwardPatch<F>;
+  }): AsyncResult<FundingAward<F>>;
   /** Ends an award on `endsOn` (today by default), or cancels it. */
   endAward(
-    awardId: string,
-    options?: {
+    input: { awardId: string } & {
       readonly endsOn?: Temporal.PlainDate;
       readonly canceled?: boolean;
     },
   ): AsyncResult<FundingAward<F>>;
   /** The organization's awards, or a record's; ended ones only when asked. */
   awards(
-    organizationId: string,
-    options?: { readonly subject?: RecordRef; readonly includeEnded?: boolean },
+    input: { organizationId: string } & {
+      readonly subject?: RecordRef;
+      readonly includeEnded?: boolean;
+    },
   ): AsyncResult<readonly FundingAwardWithProduct<F>[]>;
   /** The units used against the units awarded, per period. */
   usage(awardId: string): AsyncResult<FundingAwardUsage>;
   /** Registers care delivered on an active award. */
-  registerDelivery(
-    awardId: string,
-    input: FundingDeliveryInput,
-  ): AsyncResult<FundingDelivery>;
+  registerDelivery(input: {
+    awardId: string;
+    input: FundingDeliveryInput;
+  }): AsyncResult<FundingDelivery>;
   /**
    * Registers the approved time entries between `since` and `until` on the one
    * active award of their record, and returns the ones it couldn't match.
    * Service role only; needs the time-tracking block.
    */
-  registerFromTime(
-    organizationId: string,
-    since: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-  ): AsyncResult<FundingTimeRegistration>;
+  registerFromTime(input: {
+    organizationId: string;
+    since: Temporal.PlainDate;
+    until: Temporal.PlainDate;
+  }): AsyncResult<FundingTimeRegistration>;
   /** Approves registered deliveries, or rejects them. Returns how many changed. */
   approveDeliveries(
-    deliveryIds: readonly string[],
-    options?: { readonly approved?: boolean },
+    input: { deliveryIds: readonly string[] } & { readonly approved?: boolean },
   ): AsyncResult<number>;
-  deliveries(
-    organizationId: string,
-    filter?: FundingDeliveryFilter,
-  ): AsyncResult<readonly FundingDelivery[]>;
+  deliveries(input: {
+    organizationId: string;
+    filter?: FundingDeliveryFilter | undefined;
+  }): AsyncResult<readonly FundingDelivery[]>;
   /** Claims a funder's approved deliveries in a period as one draft claim. */
-  buildClaim(
-    organizationId: string,
+  buildClaim(input: {
+    organizationId: string;
     input: {
       readonly funderId: string;
       readonly periodStart: Temporal.PlainDate;
       readonly periodEnd: Temporal.PlainDate;
       readonly format: string;
-    },
-  ): AsyncResult<FundingClaimWithLines>;
+    };
+  }): AsyncResult<FundingClaimWithLines>;
   claim(claimId: string): AsyncResult<FundingClaimWithLines>;
   claims(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly status?: FundingClaimStatus;
       readonly funderId?: string;
     },
@@ -470,26 +468,26 @@ export interface Funding<F extends object = Record<never, never>> {
    * marks it sent with the channel's reference and the body's SHA-256.
    */
   send(
-    claimId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { claimId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<FundingClaim>;
   /** Marks a claim sent outside the client, such as by an upload. */
-  markSent(
-    claimId: string,
-    sent?: { readonly externalRef?: string; readonly payloadSha256?: string },
-  ): AsyncResult<FundingClaim>;
+  markSent(input: {
+    claimId: string;
+    sent?:
+      | { readonly externalRef?: string; readonly payloadSha256?: string }
+      | undefined;
+  }): AsyncResult<FundingClaim>;
   /** Records the funder's answer to a sent claim. */
-  recordResponse(
-    claimId: string,
-    response: FundingClaimResponse,
-  ): AsyncResult<FundingClaimWithLines>;
+  recordResponse(input: {
+    claimId: string;
+    response: FundingClaimResponse;
+  }): AsyncResult<FundingClaimWithLines>;
   /**
    * Asks the channel for the funder's answer and records it. `undefined` while
    * the funder hasn't answered.
    */
   poll(
-    claimId: string,
-    options?: { readonly signal?: AbortSignal },
+    input: { claimId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<FundingClaimWithLines | undefined>;
   /** Deletes a draft claim; its deliveries can be claimed again. */
   deleteClaim(claimId: string): AsyncResult<boolean>;
@@ -497,13 +495,25 @@ export interface Funding<F extends object = Record<never, never>> {
    * Creates an invoice to the funder for an accepted claim's accepted lines.
    * Needs the invoices block; `attrs` goes to `create_invoice`.
    */
-  invoiceClaim(
-    claimId: string,
-    attrs?: Readonly<Record<string, unknown>>,
-  ): AsyncResult<{
+  invoiceClaim(input: {
+    claimId: string;
+    attrs?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<{
     readonly claim: FundingClaim;
     readonly invoice: Readonly<Record<string, unknown>>;
   }>;
+  /** The awards with their usage, read one award at a time. */
+  awardsWithUsage(
+    input: { organizationId: string } & {
+      readonly subject?: RecordRef;
+      readonly includeEnded?: boolean;
+    },
+  ): AsyncResult<
+    readonly {
+      readonly award: FundingAwardWithProduct<F>;
+      readonly usage: FundingAwardUsage;
+    }[]
+  >;
 }
 
 const UNITS = ["minute", "hour", "day_part", "day", "visit", "piece"] as const;
@@ -832,7 +842,7 @@ export function createFunding<
       one("get_funding_claim", claimWithLinesOf),
     );
 
-  const markSent: Funding<F>["markSent"] = (claimId, sent = {}) =>
+  const markSent: Funding<F>["markSent"] = ({ claimId, sent = {} }) =>
     call(
       "mark_funding_claim_sent",
       {
@@ -843,7 +853,10 @@ export function createFunding<
       one("mark_funding_claim_sent", claimOf),
     );
 
-  const recordResponse: Funding<F>["recordResponse"] = (claimId, response) =>
+  const recordResponse: Funding<F>["recordResponse"] = ({
+    claimId,
+    response,
+  }) =>
     call(
       "record_funding_claim_response",
       {
@@ -885,7 +898,7 @@ export function createFunding<
       );
 
   const client: Funding<F> = {
-    saveProduct: (organizationId, input) =>
+    saveProduct: ({ organizationId, input }) =>
       call(
         "save_funding_product",
         {
@@ -901,7 +914,7 @@ export function createFunding<
         },
         one("save_funding_product", productOf),
       ),
-    products: (organizationId, list = {}) =>
+    products: ({ organizationId, ...list }) =>
       call(
         "list_funding_products",
         {
@@ -910,11 +923,11 @@ export function createFunding<
         },
         many("list_funding_products", productOf),
       ),
-    createAward: (organizationId, subject, input) =>
+    createAward: ({ organizationId, subject, input }) =>
       saveAward(organizationId, subject, input, null),
-    updateAward: (organizationId, subject, awardId, patch) =>
+    updateAward: ({ organizationId, subject, awardId, patch }) =>
       saveAward(organizationId, subject, patch, awardId),
-    endAward: (awardId, end = {}) =>
+    endAward: ({ awardId, ...end }) =>
       call(
         "end_funding_award",
         {
@@ -924,7 +937,7 @@ export function createFunding<
         },
         one("end_funding_award", awardOf),
       ).andThen(fields.row),
-    awards: (organizationId, list = {}) =>
+    awards: ({ organizationId, ...list }) =>
       call(
         "list_funding_awards",
         {
@@ -949,7 +962,7 @@ export function createFunding<
             )
           : AsyncResult.ok(usageOf(value, "funding_award_usage")),
       ),
-    registerDelivery: (awardId, input) =>
+    registerDelivery: ({ awardId, input }) =>
       call(
         "register_funding_delivery",
         {
@@ -963,7 +976,7 @@ export function createFunding<
         },
         one("register_funding_delivery", deliveryOf),
       ),
-    registerFromTime: (organizationId, since, until) =>
+    registerFromTime: ({ organizationId, since, until }) =>
       service(
         "register_funding_deliveries_from_time",
         {
@@ -973,13 +986,13 @@ export function createFunding<
         },
         one("register_funding_deliveries_from_time", registrationOf),
       ),
-    approveDeliveries: (deliveryIds, approve = {}) =>
+    approveDeliveries: ({ deliveryIds, ...approve }) =>
       call(
         "approve_funding_deliveries",
         { ids: [...deliveryIds], approved: approve.approved ?? true },
         numberOf,
       ),
-    deliveries: (organizationId, filter = {}) =>
+    deliveries: ({ organizationId, filter = {} }) =>
       call(
         "list_funding_deliveries",
         {
@@ -994,7 +1007,7 @@ export function createFunding<
         },
         many("list_funding_deliveries", deliveryOf),
       ),
-    buildClaim: (organizationId, input) =>
+    buildClaim: ({ organizationId, input }) =>
       call(
         "build_funding_claim",
         {
@@ -1007,7 +1020,7 @@ export function createFunding<
         one("build_funding_claim", claimWithLinesOf),
       ),
     claim,
-    claims: (organizationId, list = {}) =>
+    claims: ({ organizationId, ...list }) =>
       call(
         "list_funding_claims",
         {
@@ -1017,7 +1030,7 @@ export function createFunding<
         },
         many("list_funding_claims", claimOf),
       ),
-    send: (claimId, sendOptions = {}) =>
+    send: ({ claimId, ...sendOptions }) =>
       claim(claimId).andThen((found) =>
         formatOf(found.format).andThen((format) =>
           channelOf().andThen((target) => {
@@ -1039,13 +1052,13 @@ export function createFunding<
                 externalRef: sent.externalRef,
                 payloadSha256: await sha256Hex(rendered.body),
               };
-            }).andThen((sent) => markSent(claimId, sent));
+            }).andThen((sent) => markSent({ claimId, sent }));
           }),
         ),
       ),
     markSent,
     recordResponse,
-    poll: (claimId, pollOptions = {}) =>
+    poll: ({ claimId, ...pollOptions }) =>
       claim(claimId).andThen((found) =>
         formatOf(found.format).andThen((format) =>
           channelOf().andThen((target) => {
@@ -1071,7 +1084,7 @@ export function createFunding<
             }).andThen((response) =>
               response === undefined
                 ? AsyncResult.ok<FundingClaimWithLines | undefined>(undefined)
-                : recordResponse(claimId, response),
+                : recordResponse({ claimId, response }),
             );
           }),
         ),
@@ -1082,7 +1095,7 @@ export function createFunding<
         { claim_id: claimId },
         (value) => value === true,
       ),
-    invoiceClaim: (claimId, attrs) =>
+    invoiceClaim: ({ claimId, attrs }) =>
       call(
         "invoice_funding_claim",
         { claim_id: claimId, attrs: attrs ?? null },
@@ -1095,10 +1108,32 @@ export function createFunding<
           };
         },
       ),
+    awardsWithUsage: (input) =>
+      hooked.awards(input).andThen(async (awards) => {
+        const rows: {
+          award: FundingAwardWithProduct<F>;
+          usage: FundingAwardUsage;
+        }[] = [];
+
+        for (const award of awards) {
+          const usage = await hooked.usage(award.id);
+
+          if (!usage.ok) {
+            return usage;
+          }
+
+          rows.push({ award, usage: usage.data });
+        }
+
+        return ok(rows);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Funding<F> = withBlockHooks(client, options.hooks, {
     block: "funding",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

@@ -36,7 +36,7 @@ describe.skipIf(!live)("accounting", () => {
       await s.as(owner);
 
       const settings = await books
-        .setup(org, { functionalCurrency: "EUR" })
+        .setup({ organizationId: org, input: { functionalCurrency: "EUR" } })
         .orThrow();
 
       expect(settings).toMatchObject({
@@ -44,7 +44,7 @@ describe.skipIf(!live)("accounting", () => {
         fiscalYearStartMonth: 1,
       });
 
-      const accounts = await books.accounts(org).orThrow();
+      const accounts = await books.accounts({ organizationId: org }).orThrow();
       const byCode = new Map(accounts.map((item) => [item.code, item]));
 
       expect(byCode.get("1200")?.roles).toEqual(["receivable"]);
@@ -61,18 +61,23 @@ describe.skipIf(!live)("accounting", () => {
         "SAL",
       ]);
 
-      const periods = await books.openFiscalYear(org, 2026).orThrow();
+      const periods = await books
+        .openFiscalYear({ organizationId: org, fiscalYear: 2026 })
+        .orThrow();
 
       expect(periods).toHaveLength(12);
       expect(periods[0]?.startsOn.toString()).toBe("2026-01-01");
       expect(periods[11]?.endsOn.toString()).toBe("2026-12-31");
 
       const project = await books
-        .saveDimension(org, "project", "Project")
+        .saveDimension({ organizationId: org, key: "project", name: "Project" })
         .orThrow();
 
       await books
-        .saveDimensionValue(project.id, { code: "apollo", name: "Apollo" })
+        .saveDimensionValue({
+          dimensionId: project.id,
+          input: { code: "apollo", name: "Apollo" },
+        })
         .orThrow();
 
       const draft = await books
@@ -190,7 +195,7 @@ describe.skipIf(!live)("accounting", () => {
       await books.postEntry(cost.id).orThrow();
 
       const reversal = await books
-        .reverseEntry(cost.id, day("2026-02-11"))
+        .reverseEntry({ entryId: cost.id, entryDate: day("2026-02-11") })
         .orThrow();
 
       expect(reversal).toMatchObject({
@@ -201,12 +206,12 @@ describe.skipIf(!live)("accounting", () => {
       expect((await books.getEntry(cost.id).orThrow())?.status).toBe(
         "reversed",
       );
-      expect(await books.reverseEntry(cost.id).then(hint)).toBe(
+      expect(await books.reverseEntry({ entryId: cost.id }).then(hint)).toBe(
         "ACCOUNTING_ENTRY_REVERSED",
       );
 
       const trial = await books
-        .trialBalance(org, { until: day("2026-12-31") })
+        .trialBalance({ organizationId: org, until: day("2026-12-31") })
         .orThrow();
 
       expect(trial.totals.debit).toBe(trial.totals.credit);
@@ -215,7 +220,7 @@ describe.skipIf(!live)("accounting", () => {
       );
 
       const pnl = await books
-        .profitAndLoss(org, { since: day("2026-01-01") })
+        .profitAndLoss({ organizationId: org, since: day("2026-01-01") })
         .orThrow();
 
       expect(pnl).toMatchObject({
@@ -225,13 +230,16 @@ describe.skipIf(!live)("accounting", () => {
       });
 
       const filtered = await books
-        .profitAndLoss(org, { dimensions: { project: "apollo" } })
+        .profitAndLoss({
+          organizationId: org,
+          dimensions: { project: "apollo" },
+        })
         .orThrow();
 
       expect(filtered.totalIncome).toBe(12_100n);
 
       const sheet = await books
-        .balanceSheet(org, { asOf: day("2026-12-31") })
+        .balanceSheet({ organizationId: org, asOf: day("2026-12-31") })
         .orThrow();
 
       expect(sheet).toMatchObject({
@@ -241,7 +249,7 @@ describe.skipIf(!live)("accounting", () => {
       });
 
       const ledger = await books
-        .generalLedger(byCode.get("1200")!.id)
+        .generalLedger({ accountId: byCode.get("1200")!.id })
         .orThrow();
 
       expect(ledger.lines.map((line) => line.number)).toEqual([
@@ -250,15 +258,22 @@ describe.skipIf(!live)("accounting", () => {
       expect(ledger.closing).toBe(12_100n);
 
       await s.asRole(clerk);
-      expect(await books.accounts(org).orThrow()).toEqual([]);
+      expect(await books.accounts({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
       expect(
         await books
-          .saveAccount(org, { code: "9999", name: "Sneaky", type: "expense" })
+          .saveAccount({
+            organizationId: org,
+            input: { code: "9999", name: "Sneaky", type: "expense" },
+          })
           .then(hint),
       ).toBe("ACCOUNTING_ACCOUNT_FORBIDDEN");
 
       await s.asRole(outsider);
-      expect((await books.trialBalance(org).orThrow()).accounts).toEqual([]);
+      expect(
+        (await books.trialBalance({ organizationId: org }).orThrow()).accounts,
+      ).toEqual([]);
 
       await s.as(owner);
 
@@ -284,13 +299,16 @@ describe.skipIf(!live)("accounting", () => {
       const books = createAccounting({ transport: sqlTransport(s.sql) });
 
       await s.as(owner);
-      await books.setup(org).orThrow();
+      await books.setup({ organizationId: org }).orThrow();
 
       const general = (await books.journals(org).orThrow()).find(
         (item) => item.code === "GEN",
       )!;
 
-      const periods = await books.openFiscalYear(org, 2026).orThrow();
+      const periods = await books
+        .openFiscalYear({ organizationId: org, fiscalYear: 2026 })
+        .orThrow();
+
       const january = periods[0]!;
 
       const sale = await books
@@ -347,25 +365,31 @@ describe.skipIf(!live)("accounting", () => {
       );
 
       const reopened = await books
-        .reopenPeriod(january.id, "Late supplier invoice")
+        .reopenPeriod({ periodId: january.id, reason: "Late supplier invoice" })
         .orThrow();
 
       expect(reopened.status).toBe("open");
       await books.postEntry(tooLate.id).orThrow();
 
-      const year = await books.closeFiscalYear(org, 2026).orThrow();
+      const year = await books
+        .closeFiscalYear({ organizationId: org, fiscalYear: 2026 })
+        .orThrow();
 
       expect(year.closingEntryId).toBeDefined();
-      expect(await books.closeFiscalYear(org, 2026).then(hint)).toBe(
-        "FISCAL_YEAR_CLOSED",
-      );
+      expect(
+        await books
+          .closeFiscalYear({ organizationId: org, fiscalYear: 2026 })
+          .then(hint),
+      ).toBe("FISCAL_YEAR_CLOSED");
 
-      const after = await books.periods(org, 2026).orThrow();
+      const after = await books
+        .periods({ organizationId: org, fiscalYear: 2026 })
+        .orThrow();
 
       expect(after.every((period) => period.status === "closed")).toBe(true);
 
       const sheet = await books
-        .balanceSheet(org, { asOf: day("2026-12-31") })
+        .balanceSheet({ organizationId: org, asOf: day("2026-12-31") })
         .orThrow();
 
       const retained = sheet.equity.find((line) => line.code === "3900");
@@ -374,7 +398,8 @@ describe.skipIf(!live)("accounting", () => {
       expect(sheet).toMatchObject({ currentEarnings: 0n, balanced: true });
 
       const pnl = await books
-        .profitAndLoss(org, {
+        .profitAndLoss({
+          organizationId: org,
           since: day("2026-01-01"),
           until: day("2026-12-31"),
         })

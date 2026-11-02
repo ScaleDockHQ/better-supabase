@@ -190,14 +190,13 @@ export interface AccessRequests<F extends object = Record<never, never>> {
     input: EmergencyAccessInput,
   ): AsyncResult<RecordAccessRequest & F>;
   /** Records a verdict on an emergency access. Needs `access_requests.review`. */
-  reviewEmergency(
-    id: string,
-    input: EmergencyReviewInput,
-  ): AsyncResult<RecordAccessRequest & F>;
+  reviewEmergency(input: {
+    id: string;
+    input: EmergencyReviewInput;
+  }): AsyncResult<RecordAccessRequest & F>;
   /** Emergency accesses in an organization, newest first. */
   emergencies(
-    organizationId: string,
-    options?: EmergencyListOptions,
+    input: { organizationId: string } & EmergencyListOptions,
   ): AsyncResult<readonly (RecordAccessRequest & F)[]>;
   /**
    * The requests on one record, newest first: all of them for readers of the
@@ -205,17 +204,17 @@ export interface AccessRequests<F extends object = Record<never, never>> {
    * anyone else.
    */
   records(
-    subjectType: string,
-    subjectId: string,
-    options?: RecordRequestListOptions,
+    input: {
+      subjectType: string;
+      subjectId: string;
+    } & RecordRequestListOptions,
   ): AsyncResult<readonly (RecordAccessRequest & F)[]>;
   /** Ends granted access early: a manager, or the holder giving it up. */
   end(id: string): AsyncResult<AccessRequest & F>;
   get(id: string): AsyncResult<AccessRequest & F>;
   /** Newest first. */
   list(
-    organizationId: string,
-    options?: AccessRequestListOptions,
+    input: { organizationId: string } & AccessRequestListOptions,
   ): AsyncResult<readonly (AccessRequest & F)[]>;
 }
 
@@ -397,13 +396,13 @@ export function createAccessRequests<
         subject_id: subjectId,
         reason,
       }),
-    reviewEmergency: (id, { verdict, note }) =>
+    reviewEmergency: ({ id, input: { verdict, note } }) =>
       oneRecord("review_emergency_access", {
         request_id: id,
         verdict,
         note: note ?? null,
       }),
-    emergencies: (organizationId, list = {}) =>
+    emergencies: ({ organizationId, ...list }) =>
       call(
         "list_emergency_access",
         {
@@ -418,7 +417,7 @@ export function createAccessRequests<
               [raw, recordRequestOf(raw, "list_emergency_access")] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
-    records: (subjectType, subjectId, list = {}) =>
+    records: ({ subjectType, subjectId, ...list }) =>
       call(
         "list_record_access_requests",
         {
@@ -438,7 +437,7 @@ export function createAccessRequests<
       ).andThen((rows) => allWithFields(fields, rows)),
     end: (id) => one("end_access", { request_id: id }),
     get: (id) => one("get_access_request", { request_id: id }),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "list_access_requests",
         {

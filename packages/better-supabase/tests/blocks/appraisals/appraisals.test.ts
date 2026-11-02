@@ -90,10 +90,13 @@ describe("createAppraisals", () => {
       .orThrow();
 
     const opened = await appraisals
-      .openCycle("c1", [
-        { subjectUserId: "u1", managerId: "u2", peerIds: ["u4"] },
-        { subjectUserId: "u5" },
-      ])
+      .openCycle({
+        cycleId: "c1",
+        assignments: [
+          { subjectUserId: "u1", managerId: "u2", peerIds: ["u4"] },
+          { subjectUserId: "u5" },
+        ],
+      })
       .orThrow();
 
     const closed = await appraisals.closeCycle("c1").orThrow();
@@ -132,11 +135,16 @@ describe("createAppraisals", () => {
     const appraisals = createAppraisals({ transport: t, tenant: "org-1" });
 
     const submitted = await appraisals
-      .submitReview("v1", { rating: 3, comments: "Fine", submissionId: "s1" })
+      .submitReview({
+        reviewId: "v1",
+        input: { rating: 3, comments: "Fine", submissionId: "s1" },
+      })
       .orThrow();
 
-    await appraisals.calibrate("a1", 4, "Cross-team impact").orThrow();
-    await appraisals.setGoals("a1", ["g1"]).orThrow();
+    await appraisals
+      .calibrate({ appraisalId: "a1", rating: 4, reason: "Cross-team impact" })
+      .orThrow();
+    await appraisals.setGoals({ appraisalId: "a1", goalIds: ["g1"] }).orThrow();
     const signed = await appraisals.signOff("a1").orThrow();
     const one = await appraisals.getAppraisal("a1").orThrow();
 
@@ -221,16 +229,26 @@ describe("createAppraisals", () => {
     });
 
     const appraisals = createAppraisals({ transport: t, tenant: "org-1" });
-    const cycle = await appraisals.setCompetencies("c1", rubric).orThrow();
+
+    const cycle = await appraisals
+      .setCompetencies({ cycleId: "c1", competencies: rubric })
+      .orThrow();
 
     await appraisals
-      .submitReview("v1", {
-        ratings: [{ competency: "craft", rating: 4, comment: "Solid" }],
+      .submitReview({
+        reviewId: "v1",
+        input: {
+          ratings: [{ competency: "craft", rating: 4, comment: "Solid" }],
+        },
       })
       .orThrow();
 
     const calibrated = await appraisals
-      .calibrateCompetencies("a1", { craft: 5 }, "Raised")
+      .calibrateCompetencies({
+        appraisalId: "a1",
+        competencies: { craft: 5 },
+        reason: "Raised",
+      })
       .orThrow();
 
     expect(cycle).toMatchObject({ anonymity: "all", shareFeedback: true });

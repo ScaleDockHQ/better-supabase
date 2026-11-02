@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:769bb40d651d0034ab0f907c4e12f123e3adfbea29e4611e65622a2997efb7dd
+-- @bsb-hash sha256:8432eb69a43e6e729cd9a932cf7d1bf4dd105c54398d051a5640e36e3a7168f2
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2077,6 +2077,20 @@ drop trigger if exists "bsb_search_production_order_index" on "better_supabase".
 create trigger "bsb_search_production_order_index"
   after insert or delete or update of "id", "tenant_id", "number", "note" on "better_supabase"."production_orders"
   for each row execute function "better_supabase"."search_index_row"('production_order', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.production_orders', target_type => 'production_order', event_prefix => 'production_order', deferred => true);
+  perform better_supabase.audit('better_supabase.boms', target_type => 'bom', event_prefix => 'bom', deferred => true);
+  perform better_supabase.audit('better_supabase.bom_components', target_type => 'bom_component', event_prefix => 'bom_component', deferred => true);
+  perform better_supabase.audit('better_supabase.bom_operations', target_type => 'bom_operation', event_prefix => 'bom_operation', deferred => true);
+  perform better_supabase.audit('better_supabase.work_centers', target_type => 'work_center', event_prefix => 'work_center', deferred => true);
+  perform better_supabase.audit('better_supabase.production_order_operations', target_type => 'production_order_operation', event_prefix => 'production_order_operation', deferred => true);
+  perform better_supabase.audit('better_supabase.production_consumptions', target_type => 'production_consumption', event_prefix => 'production_consumption', deferred => true);
+  perform better_supabase.audit('better_supabase.stock_lot_links', target_type => 'stock_lot_link', event_prefix => 'stock_lot_link', deferred => true);
+end;
+$$;
 
 -- blocks.manufacturing.api: entry points for the Data API.
 create schema if not exists "api";

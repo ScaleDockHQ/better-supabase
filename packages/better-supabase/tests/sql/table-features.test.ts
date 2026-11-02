@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createsTable,
   isTableFeature,
+  setFeatureStatement,
   setTableFeature,
   tableFeatures,
 } from "../../src/sql/table-features.ts";
@@ -65,5 +66,38 @@ describe("helpers", () => {
     expect(createsTable(TABLE, "public", "orders")).toBe(false);
     expect(isTableFeature("realtime")).toBe(true);
     expect(isTableFeature("nope")).toBe(false);
+  });
+});
+
+describe("setFeatureStatement", () => {
+  const file = "create table public.t (id uuid);\n";
+
+  it("adds the audit call once and removes it again", () => {
+    const on = setFeatureStatement(file, "public", "t", "audit", true);
+
+    expect(on).toContain("select better_supabase.audit('public.t');");
+    expect(setFeatureStatement(on, "public", "t", "audit", true)).toBe(on);
+    expect(setFeatureStatement(on, "public", "t", "audit", false).trim()).toBe(
+      file.trim(),
+    );
+  });
+
+  it.each([
+    ["events", "better_supabase.track_events('public.t')"],
+    ["audit-reads", "better_supabase.record_subject_read('t', p_id"],
+  ] as const)("adds and removes the %s statement", (feature, text) => {
+    const on = setFeatureStatement(file, "public", "t", feature, true);
+
+    expect(on).toContain(text);
+    expect(setFeatureStatement(on, "public", "t", feature, true)).toBe(on);
+    expect(setFeatureStatement(on, "public", "t", feature, false).trim()).toBe(
+      file.trim(),
+    );
+  });
+
+  it("leaves features without a statement alone", () => {
+    expect(setFeatureStatement(file, "public", "t", "realtime", true)).toBe(
+      file,
+    );
   });
 });

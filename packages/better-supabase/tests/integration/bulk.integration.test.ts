@@ -222,7 +222,7 @@ from generate_series(1, 9) n;`);
 
     const transport = sqlTransport(db.sql);
     const bulk = createBulk({ transport, schema: "bulk_it" });
-    const finished = await bulk.drain(started.id, { size: 2 }).orThrow();
+    const finished = await bulk.drain({ id: started.id, size: 2 }).orThrow();
     expect(finished).toMatchObject({
       status: "completed",
       total: 5,

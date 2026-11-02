@@ -8,6 +8,7 @@ export const ledgerBinding: RecordBinding<Ledger, readonly LedgerAccount[]> =
   defineRecordBinding({
     permissions: { read: "read", write: "post" },
     module: "ledger",
-    load: (client: Ledger, subject) => client.holderAccounts(subject),
+    load: (client: Ledger, subject) =>
+      client.holderAccounts({ holder: subject }),
     events: ["ledger_transaction.*", "ledger_account.*", "ledger_hold.*"],
   });

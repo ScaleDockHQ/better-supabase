@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { announcementsBlock } from "better-supabase/blocks/announcements";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
@@ -25,6 +26,7 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
@@ -37,6 +39,7 @@ import { blockConfig } from "./intranet.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   announcements: announcementsBlock,
   apiKeys: apiKeysBlock,
@@ -59,6 +62,7 @@ export const blockSet = defineBlocks(blockConfig, {
   outbox: outboxBlock,
   profiles: profilesBlock,
   reactions: reactionsBlock,
+  reminders: remindersBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
   settings: settingsBlock,

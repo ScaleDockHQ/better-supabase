@@ -276,3 +276,7 @@ await relations.unlink(
   { kind: "blocked_by" },
 );
 ```
+
+## Walk a tree
+
+`walk({ subject, kind, direction })` returns the ancestors for `"up"` and the descendants for `"down"`.

@@ -60,24 +60,35 @@ describe.skipIf(!live)("medications", () => {
       await s.as(owner);
 
       const warfarin = await medications
-        .saveMedication(org, {
-          name: "Warfarin",
-          unit: "mg",
-          codeSystem: "atc",
-          code: "B01AA03",
-          highRisk: true,
+        .saveMedication({
+          organizationId: org,
+          input: {
+            name: "Warfarin",
+            unit: "mg",
+            codeSystem: "atc",
+            code: "B01AA03",
+            highRisk: true,
+          },
         })
         .orThrow();
 
       const paracetamol = await medications
-        .saveMedication(org, { name: "Paracetamol", unit: "mg" })
+        .saveMedication({
+          organizationId: org,
+          input: { name: "Paracetamol", unit: "mg" },
+        })
         .orThrow();
 
       const order = await medications
-        .prescribe(org, subject, warfarin.id, {
-          dose: 2,
-          schedule: { times: ["08:00", "20:00"] },
-          startsOn: Temporal.Now.plainDateISO("UTC").add({ days: 1 }),
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: warfarin.id,
+          input: {
+            dose: 2,
+            schedule: { times: ["08:00", "20:00"] },
+            startsOn: Temporal.Now.plainDateISO("UTC").add({ days: 1 }),
+          },
         })
         .orThrow();
 
@@ -89,7 +100,10 @@ describe.skipIf(!live)("medications", () => {
       });
 
       const planned = await medications
-        .planAdministrations(org, Temporal.Now.instant().add({ hours: 72 }))
+        .planAdministrations({
+          organizationId: org,
+          until: Temporal.Now.instant().add({ hours: 72 }),
+        })
         .orThrow();
 
       expect(planned).toBeGreaterThanOrEqual(4);
@@ -103,17 +117,26 @@ describe.skipIf(!live)("medications", () => {
 
       expect(
         await medications
-          .recordAdministration(doseId, { status: "given" })
+          .recordAdministration({
+            administrationId: doseId,
+            input: { status: "given" },
+          })
           .then(hint),
       ).toBe("MEDICATION_DOUBLE_CHECK_REQUIRED");
       expect(
         await medications
-          .recordAdministration(doseId, { status: "given", checkedBy: aide.id })
+          .recordAdministration({
+            administrationId: doseId,
+            input: { status: "given", checkedBy: aide.id },
+          })
           .then(hint),
       ).toBe("MEDICATION_DOUBLE_CHECK_REQUIRED");
 
       const given = await medications
-        .recordAdministration(doseId, { status: "given", checkedBy: nurse.id })
+        .recordAdministration({
+          administrationId: doseId,
+          input: { status: "given", checkedBy: nurse.id },
+        })
         .orThrow();
 
       expect(given).toMatchObject({
@@ -124,51 +147,67 @@ describe.skipIf(!live)("medications", () => {
       });
 
       const asNeeded = await medications
-        .prescribe(org, subject, paracetamol.id, {
-          dose: 500,
-          asNeeded: true,
-          asNeededReason: "pain",
-          maxPerDay: 1000,
+        .prescribe({
+          organizationId: org,
+          subject,
+          medicationId: paracetamol.id,
+          input: {
+            dose: 500,
+            asNeeded: true,
+            asNeededReason: "pain",
+            maxPerDay: 1000,
+          },
         })
         .orThrow();
 
       await medications
-        .recordAsNeeded(asNeeded.id, { reason: "headache" })
+        .recordAsNeeded({ orderId: asNeeded.id, input: { reason: "headache" } })
         .orThrow();
       await medications
-        .recordAsNeeded(asNeeded.id, { reason: "headache" })
+        .recordAsNeeded({ orderId: asNeeded.id, input: { reason: "headache" } })
         .orThrow();
       expect(
         await medications
-          .recordAsNeeded(asNeeded.id, { reason: "headache" })
+          .recordAsNeeded({
+            orderId: asNeeded.id,
+            input: { reason: "headache" },
+          })
           .then(hint),
       ).toBe("MEDICATION_MAX_DOSE_EXCEEDED");
 
       await s.as(aide);
       expect(
         await medications
-          .prescribe(org, subject, paracetamol.id, { dose: 1, asNeeded: true })
+          .prescribe({
+            organizationId: org,
+            subject,
+            medicationId: paracetamol.id,
+            input: { dose: 1, asNeeded: true },
+          })
           .then(hint),
       ).toBe("MEDICATION_FORBIDDEN");
 
       await s.service();
 
       const imported = await medications
-        .importOrders(org, [
-          {
-            subject,
-            externalId: "rx-1",
-            source: "pharmacy",
-            medication: {
-              name: "Metformin",
-              unit: "mg",
-              codeSystem: "atc",
-              code: "A10BA02",
+        .importOrders({
+          organizationId: org,
+          orders: [
+            {
+              subject,
+              externalId: "rx-1",
+              source: "pharmacy",
+              medication: {
+                name: "Metformin",
+                unit: "mg",
+                codeSystem: "atc",
+                code: "A10BA02",
+              },
+              dose: 500,
+              schedule: { times: ["08:00"] },
             },
-            dose: 500,
-            schedule: { times: ["08:00"] },
-          },
-        ])
+          ],
+        })
         .orThrow();
 
       expect(imported.created).toHaveLength(1);
@@ -179,15 +218,18 @@ describe.skipIf(!live)("medications", () => {
       expect(
         (
           await medications
-            .importOrders(org, [
-              {
-                subject,
-                externalId: "rx-1",
-                medicationId: paracetamol.id,
-                dose: 500,
-                asNeeded: true,
-              },
-            ])
+            .importOrders({
+              organizationId: org,
+              orders: [
+                {
+                  subject,
+                  externalId: "rx-1",
+                  medicationId: paracetamol.id,
+                  dose: 500,
+                  asNeeded: true,
+                },
+              ],
+            })
             .orThrow()
         ).skipped,
       ).toBe(1);
@@ -203,7 +245,8 @@ describe.skipIf(!live)("medications", () => {
       await s.as(nurse);
 
       const chart = await medications
-        .chart(subject, {
+        .chart({
+          subject,
           since: Temporal.Now.instant().subtract({ hours: 24 }),
           until: Temporal.Now.instant().add({ hours: 72 }),
         })
@@ -218,17 +261,17 @@ describe.skipIf(!live)("medications", () => {
       );
 
       const stopped = await medications
-        .stopOrder(order.id, "INR too high")
+        .stopOrder({ orderId: order.id, reason: "INR too high" })
         .orThrow();
 
       expect(stopped).toMatchObject({
         status: "stopped",
         stoppedReason: "INR too high",
       });
-      expect(await medications.ordersOf(subject).orThrow()).toHaveLength(2);
+      expect(await medications.ordersOf({ subject }).orThrow()).toHaveLength(2);
 
       await s.asRole(outsider);
-      expect(await medications.ordersOf(subject).orThrow()).toEqual([]);
+      expect(await medications.ordersOf({ subject }).orThrow()).toEqual([]);
 
       await s.service();
 

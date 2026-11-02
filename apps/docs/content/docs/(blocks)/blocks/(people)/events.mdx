@@ -1,0 +1,51 @@
+---
+title: Events
+description: Bookings and admission passes for events with a limited number of places.
+---
+
+Covers events: bookable sessions and signed passes that the door scans. The database decides every scan.
+
+```bash
+better-supabase add events
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { events: {} } });
+```
+
+`add` lists `events` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/events` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { eventsBlock } from "better-supabase/blocks/events";
+```
+
+## Parts
+
+Installing `events` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`bookings`](/docs/blocks/bookings)
+- [`passes`](/docs/blocks/passes)
+
+## Helpers
+
+`sellTicket`: Hold and confirm a booking for the slot, then issue a pass for it. No pass is issued when the booking is refused.
+
+```ts
+await blocks.events.sellTicket({
+  serviceId,
+  resourceId,
+  startsAt,
+  customer: { name: "Ann", email: "ann@example.com" },
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove events
+better-supabase remove events --with-parts
+```
+
+The first command replaces `events` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

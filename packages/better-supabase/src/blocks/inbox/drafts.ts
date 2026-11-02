@@ -56,17 +56,17 @@ export interface InboxDrafts {
    * Saves the caller's draft on a conversation: their one open draft is
    * replaced, else a new one starts.
    */
-  upsert(
-    conversationId: string,
-    input: InboxDraftInput,
-    metadata?: Readonly<Record<string, unknown>>,
-  ): AsyncResult<InboxDraft>;
+  upsert(input: {
+    conversationId: string;
+    input: InboxDraftInput;
+    metadata?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<InboxDraft>;
   /** Service only: an ai draft that staff who can reply review. */
-  suggest(
-    conversationId: string,
-    input: InboxDraftInput,
-    metadata?: Readonly<Record<string, unknown>>,
-  ): AsyncResult<InboxDraft>;
+  suggest(input: {
+    conversationId: string;
+    input: InboxDraftInput;
+    metadata?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<InboxDraft>;
   /**
    * The open drafts the caller sees, newest first: their own and the ai drafts,
    * on one conversation or all.
@@ -76,10 +76,10 @@ export interface InboxDrafts {
    * Sends a draft as the caller, with `edits` over its fields, and marks it
    * sent.
    */
-  send(
-    draftId: string,
-    edits?: Partial<InboxDraftInput>,
-  ): AsyncResult<InboxMessage>;
+  send(input: {
+    draftId: string;
+    edits?: Partial<InboxDraftInput> | undefined;
+  }): AsyncResult<InboxMessage>;
   discard(draftId: string): AsyncResult<void>;
 }
 
@@ -119,11 +119,15 @@ export function inboxDrafts(
 ): InboxDrafts {
   const write =
     (fn: string) =>
-    (
-      conversationId: string,
-      input: InboxDraftInput,
-      metadata?: Readonly<Record<string, unknown>>,
-    ): AsyncResult<InboxDraft> =>
+    ({
+      conversationId,
+      input,
+      metadata,
+    }: {
+      conversationId: string;
+      input: InboxDraftInput;
+      metadata?: Readonly<Record<string, unknown>> | undefined;
+    }): AsyncResult<InboxDraft> =>
       call(
         fn,
         {
@@ -143,7 +147,7 @@ export function inboxDrafts(
         { conversation: conversationId ?? null },
         (value) => recordsOf(value, "list_inbox_drafts").map(draftOf),
       ),
-    send: (draftId, edits) =>
+    send: ({ draftId, edits }) =>
       call(
         "send_inbox_draft",
         { draft: draftId, input: edits ? inputArg(edits) : null },

@@ -8,13 +8,11 @@ export {
   type AttachmentBucket,
   type AttachmentDownload,
   type Attachments,
-  type AttachmentScanJob,
-  type AttachmentScanner,
-  type AttachmentScannerOptions,
   type AttachmentsOptions,
   type AttachmentStatus,
   type AttachmentStorage,
   type AttachmentStorageStatus,
+  type UploadProgress,
   type AttachmentUpload,
   type AttachmentImages,
   type AttachmentImageUrlOptions,
@@ -22,15 +20,21 @@ export {
   type AttachmentVersion,
   attachmentVersionOf,
   createAttachments,
+  type NewAttachment,
+} from "./attachments.ts";
+
+export {
+  type AttachmentScanJob,
+  type AttachmentScanner,
+  type AttachmentScannerOptions,
   createAttachmentScanner,
   createObjectScanner,
-  type NewAttachment,
   type ObjectScanJob,
   type ObjectScanner,
   type ObjectScannerOptions,
   type ScannedObject,
   type ScanVerdict,
-} from "./attachments.ts";
+} from "./scanners.ts";
 
 export {
   type DocumentField,

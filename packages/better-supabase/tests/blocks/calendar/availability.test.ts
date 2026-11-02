@@ -226,12 +226,15 @@ describe("calendar availability client", () => {
 
     expect(
       await calendar
-        .setWorkingHours("org", {
-          tz: "Europe/Amsterdam",
-          hours: [
-            { weekday: 1, start: "09:00", end: "12:00" },
-            { weekday: 1, start: "13:00", end: "17:00" },
-          ],
+        .setWorkingHours({
+          organizationId: "org",
+          input: {
+            tz: "Europe/Amsterdam",
+            hours: [
+              { weekday: 1, start: "09:00", end: "12:00" },
+              { weekday: 1, start: "13:00", end: "17:00" },
+            ],
+          },
         })
         .orThrow(),
     ).toBe(2);
@@ -248,8 +251,10 @@ describe("calendar availability client", () => {
       },
     });
 
-    await calendar.workingHours("org").orThrow();
-    await calendar.workingHours("org", ["ada"]).orThrow();
+    await calendar.workingHours({ organizationId: "org" }).orThrow();
+    await calendar
+      .workingHours({ organizationId: "org", userIds: ["ada"] })
+      .orThrow();
     expect(calls[1]?.args).toEqual({ tenant: "org", user_ids: null });
     expect(calls[2]?.args).toEqual({ tenant: "org", user_ids: ["ada"] });
   });
@@ -257,7 +262,11 @@ describe("calendar availability client", () => {
   it("asks for free/busy over a range", async () => {
     const { calls, calendar } = recorder({ calendar_free_busy: [] });
 
-    expect(await calendar.freeBusy("org", ["ada"], day).orThrow()).toEqual([]);
+    expect(
+      await calendar
+        .freeBusy({ organizationId: "org", userIds: ["ada"], range: day })
+        .orThrow(),
+    ).toEqual([]);
     expect(calls[0]).toEqual({
       fn: "calendar_free_busy",
       args: {
@@ -295,7 +304,9 @@ describe("calendar availability client", () => {
       save_calendar_event: { id: "e3", uid: "e3", created: true },
     });
 
-    const [focus, plain] = await calendar.events(["c1"], day).orThrow();
+    const [focus, plain] = await calendar
+      .events({ calendarIds: ["c1"], range: day })
+      .orThrow();
 
     expect(focus).toMatchObject({
       kind: "focus_time",
@@ -305,13 +316,16 @@ describe("calendar availability client", () => {
     expect(plain).not.toHaveProperty("kind");
 
     await calendar
-      .upsert("c1", {
-        title: "Away",
-        startsAt: at("2030-03-07T00:00:00Z"),
-        endsAt: at("2030-03-08T00:00:00Z"),
-        kind: "out_of_office",
-        transparency: "opaque",
-        autoDecline: true,
+      .upsert({
+        calendarId: "c1",
+        input: {
+          title: "Away",
+          startsAt: at("2030-03-07T00:00:00Z"),
+          endsAt: at("2030-03-08T00:00:00Z"),
+          kind: "out_of_office",
+          transparency: "opaque",
+          autoDecline: true,
+        },
       })
       .orThrow();
     expect(calls[1]?.args["item"]).toMatchObject({
@@ -326,7 +340,10 @@ describe("calendar availability client", () => {
 
     expect(
       await calendar
-        .setWorkingHours("org", { tz: "UTC", hours: [], userId: "bob" })
+        .setWorkingHours({
+          organizationId: "org",
+          input: { tz: "UTC", hours: [], userId: "bob" },
+        })
         .orThrow(),
     ).toBe(0);
   });

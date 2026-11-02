@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { saasBlock } from "better-supabase/blocks/saas";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -17,6 +18,7 @@ import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { templatesBlock } from "better-supabase/blocks/templates";
@@ -25,6 +27,7 @@ import { blockConfig } from "./forms.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  saas: saasBlock,
   permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
@@ -39,6 +42,7 @@ export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
   outbox: outboxBlock,
   profiles: profilesBlock,
+  reminders: remindersBlock,
   settings: settingsBlock,
   teams: teamsBlock,
   templates: templatesBlock,

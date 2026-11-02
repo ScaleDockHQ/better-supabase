@@ -139,9 +139,19 @@ describe("createMessaging", () => {
     await messaging.openDirect(["u2"]).orThrow();
     await messaging.openDirect(["u2", "u3"]).orThrow();
     await messaging.openSubject({ type: "customer", id: "cu1" }).orThrow();
-    expect(await messaging.addMembers("c1", ["u2", "u3"]).orThrow()).toBe(2);
-    expect(await messaging.removeMember("c1", "u2").orThrow()).toBe(true);
-    expect(await messaging.archive("c1").orThrow()).toBe(true);
+    expect(
+      await messaging
+        .addMembers({ conversationId: "c1", userIds: ["u2", "u3"] })
+        .orThrow(),
+    ).toBe(2);
+    expect(
+      await messaging
+        .removeMember({ conversationId: "c1", userId: "u2" })
+        .orThrow(),
+    ).toBe(true);
+    expect(await messaging.archive({ conversationId: "c1" }).orThrow()).toBe(
+      true,
+    );
 
     const [summary] = await messaging
       .conversations({ kinds: ["subject"], limit: 5 })
@@ -160,25 +170,36 @@ describe("createMessaging", () => {
     });
     expect(
       (
-        await messaging.markRead("c1", { threadId: "m1", readAt: at }).orThrow()
+        await messaging
+          .markRead({ conversationId: "c1", threadId: "m1", readAt: at })
+          .orThrow()
       ).equals(at),
     ).toBe(true);
-    await messaging.markRead("c1").orThrow();
-    await messaging.setNotify("c1", "none").orThrow();
-    await messaging.typing("c1").orThrow();
-    await messaging.follow({ conversationId: "c1" }).orThrow();
-    await messaging.follow({ threadId: "m1" }, false).orThrow();
-    expect(await messaging.can("c1", "send").orThrow()).toBe(true);
+    await messaging.markRead({ conversationId: "c1" }).orThrow();
+    await messaging
+      .setNotify({ conversationId: "c1", level: "none" })
+      .orThrow();
+    await messaging.typing({ conversationId: "c1" }).orThrow();
+    await messaging.follow({ target: { conversationId: "c1" } }).orThrow();
+    await messaging
+      .follow({ target: { threadId: "m1" }, following: false })
+      .orThrow();
+    expect(
+      await messaging.can({ conversationId: "c1", action: "send" }).orThrow(),
+    ).toBe(true);
 
     const sent = await messaging
-      .send("c1", {
-        body: "Ship it @channel",
-        document: { type: "doc" },
-        mentionIds: ["u2"],
-        parentId: "m0",
-        broadcast: true,
-        scheduledFor: at,
-        attachmentIds: ["f1"],
+      .send({
+        conversationId: "c1",
+        message: {
+          body: "Ship it @channel",
+          document: { type: "doc" },
+          mentionIds: ["u2"],
+          parentId: "m0",
+          broadcast: true,
+          scheduledFor: at,
+          attachmentIds: ["f1"],
+        },
       })
       .orThrow();
 
@@ -192,23 +213,38 @@ describe("createMessaging", () => {
       reactions: [{ emoji: "👍", count: 1, reacted: true }],
       fields: { priority: "high" },
     });
-    await messaging.send("c1", { body: "plain" }).orThrow();
     await messaging
-      .edit("m1", { body: "edited", document: null, mentionIds: [] })
+      .send({ conversationId: "c1", message: { body: "plain" } })
       .orThrow();
-    await messaging.edit("m1", { body: "edited" }).orThrow();
+    await messaging
+      .edit({
+        messageId: "m1",
+        edition: { body: "edited", document: null, mentionIds: [] },
+      })
+      .orThrow();
+    await messaging
+      .edit({ messageId: "m1", edition: { body: "edited" } })
+      .orThrow();
     expect(await messaging.remove("m1").orThrow()).toBe(true);
-    expect((await messaging.pin("m1").orThrow()).pinnedBy).toBe("u1");
-    expect((await messaging.resolve("m1", false).orThrow()).resolvedBy).toBe(
+    expect((await messaging.pin({ messageId: "m1" }).orThrow()).pinnedBy).toBe(
       "u1",
     );
     expect(
-      await messaging.list("c1", { before: cursor, limit: 20 }).orThrow(),
-    ).toHaveLength(1);
-    await messaging.list("c1", { after: cursor }).orThrow();
+      (await messaging.resolve({ messageId: "m1", resolved: false }).orThrow())
+        .resolvedBy,
+    ).toBe("u1");
     expect(
-      (await messaging.replies("m1", { after: cursor, limit: 5 }).orThrow())[0]
-        ?.threadId,
+      await messaging
+        .list({ conversationId: "c1", before: cursor, limit: 20 })
+        .orThrow(),
+    ).toHaveLength(1);
+    await messaging.list({ conversationId: "c1", after: cursor }).orThrow();
+    expect(
+      (
+        await messaging
+          .replies({ messageId: "m1", after: cursor, limit: 5 })
+          .orThrow()
+      )[0]?.threadId,
     ).toBe("m1");
     expect((await messaging.get("m1").orThrow())?.id).toBe("m1");
     expect(await messaging.get("nope").orThrow()).toBeUndefined();
@@ -253,7 +289,9 @@ describe("createMessaging", () => {
     const messaging = createMessaging({ transport, tenant: "org" });
     const deal = { type: "deal", id: "d9" };
 
-    const mentions = await messaging.recordMentions(deal).orThrow();
+    const mentions = await messaging
+      .recordMentions({ subject: deal })
+      .orThrow();
 
     expect(mentions.map((mention) => mention.message.id)).toEqual(["m1", "m2"]);
     expect(mentions[0]?.conversation).toEqual({
@@ -271,7 +309,8 @@ describe("createMessaging", () => {
     expect(mentions[0]?.message.fields).toEqual({ priority: "high" });
 
     await messaging
-      .recordMentions(deal, {
+      .recordMentions({
+        subject: deal,
         before: { sentAt: Temporal.Instant.from(AT), id: "m2" },
         limit: 5,
       })
@@ -306,7 +345,9 @@ describe("createMessaging", () => {
     const messaging = createMessaging({ transport });
 
     expect((await messaging.conversations()).ok).toBe(false);
-    expect(await messaging.can("c1", "read").orThrow()).toBe(true);
+    expect(
+      await messaging.can({ conversationId: "c1", action: "read" }).orThrow(),
+    ).toBe(true);
   });
 
   it("reads sparse rows and runs hooks", async () => {
@@ -347,7 +388,7 @@ describe("createMessaging", () => {
     });
 
     const [summary] = await messaging.conversations().orThrow();
-    const [message] = await messaging.list("c1").orThrow();
+    const [message] = await messaging.list({ conversationId: "c1" }).orThrow();
 
     expect(summary?.notify).toBe("all");
     expect(summary?.lastReadAt).toBeUndefined();

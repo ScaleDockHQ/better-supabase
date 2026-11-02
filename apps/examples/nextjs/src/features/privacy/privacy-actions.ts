@@ -27,7 +27,7 @@ async function runExport(exportId: string): Promise<void> {
     transport: rpcTransport(service, { schema: SCHEMA }),
     storage: service.storage,
     schema: SCHEMA,
-  }).run(exportId);
+  }).run({ exportId });
 }
 
 /** Exports the caller's own data. */
@@ -84,8 +84,9 @@ export const downloadExport = bsb.action(
 export const requestOrganizationDeletion = bsb.action(
   { requireTenant: true, permission: "organization.delete" },
   async (_input, { tenant, db, auth }) => {
-    const requested =
-      await db.dataLifecycle.requestOrganizationDeletion(tenant);
+    const requested = await db.dataLifecycle.requestOrganizationDeletion({
+      organizationId: tenant,
+    });
 
     if (!requested.ok) {
       return requested;

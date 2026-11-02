@@ -26,21 +26,37 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
 
       await s.asRole(member);
       await memory.core
-        .write(tenant, "/memories/notes.md", "my view of the org", mine)
+        .write({
+          organizationId: tenant,
+          path: "/memories/notes.md",
+          content: "my view of the org",
+          ns: mine,
+        })
         .orThrow();
       await memory.core
-        .write(tenant, "/memories/notes.md", "my edited view", mine)
+        .write({
+          organizationId: tenant,
+          path: "/memories/notes.md",
+          content: "my edited view",
+          ns: mine,
+        })
         .orThrow();
       expect(
-        await memory.core.view(tenant, "/memories/notes.md", mine).orThrow(),
+        await memory.core
+          .view({
+            organizationId: tenant,
+            path: "/memories/notes.md",
+            ns: mine,
+          })
+          .orThrow(),
       ).toMatchObject({ content: "my edited view" });
 
-      const shared = await memory.core.write(
-        tenant,
-        "/memories/notes.md",
-        "x",
-        { scope: "organization" },
-      );
+      const shared = await memory.core.write({
+        organizationId: tenant,
+        path: "/memories/notes.md",
+        content: "x",
+        ns: { scope: "organization" },
+      });
 
       expect(shared.ok ? undefined : shared.error.hint).toBe(
         "MEMORY_FORBIDDEN",
@@ -48,7 +64,13 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
 
       await s.asRole(other);
       expect(
-        await memory.core.view(tenant, "/memories/notes.md", mine).orThrow(),
+        await memory.core
+          .view({
+            organizationId: tenant,
+            path: "/memories/notes.md",
+            ns: mine,
+          })
+          .orThrow(),
       ).toBeUndefined();
       expect(
         await s.value<number>(
@@ -59,7 +81,11 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
       await s.asRole(owner);
       expect(
         await memory.core
-          .view(tenant, "/memories/notes.md", { scope: "organization" })
+          .view({
+            organizationId: tenant,
+            path: "/memories/notes.md",
+            ns: { scope: "organization" },
+          })
           .orThrow(),
       ).toBeUndefined();
 
@@ -73,13 +99,22 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
       } as const;
 
       await memory.core
-        .write(tenant, "/memories/deal.md", "call back friday", record)
+        .write({
+          organizationId: tenant,
+          path: "/memories/deal.md",
+          content: "call back friday",
+          ns: record,
+        })
         .orThrow();
 
-      const unnamed = await memory.core.view(tenant, "/memories", {
-        scope: "record",
-        private: true,
-        subject: { type: "deal", id: "d1" },
+      const unnamed = await memory.core.view({
+        organizationId: tenant,
+        path: "/memories",
+        ns: {
+          scope: "record",
+          private: true,
+          subject: { type: "deal", id: "d1" },
+        },
       });
 
       expect(unnamed.ok ? undefined : unnamed.error.hint).toBe(
@@ -89,10 +124,14 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
       await s.asRole(member);
       expect(
         await memory.core
-          .view(tenant, "/memories/deal.md", {
-            scope: "record",
-            private: true,
-            subject: { type: "deal", id: "d1" },
+          .view({
+            organizationId: tenant,
+            path: "/memories/deal.md",
+            ns: {
+              scope: "record",
+              private: true,
+              subject: { type: "deal", id: "d1" },
+            },
           })
           .orThrow(),
       ).toMatchObject({ content: "call back friday" });
@@ -113,18 +152,26 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
 
       await s.asRole(user);
       await memory.core
-        .write(null, "/memories/me.md", "prefers short answers")
+        .write({
+          organizationId: null,
+          path: "/memories/me.md",
+          content: "prefers short answers",
+        })
         .orThrow();
       expect(
-        await memory.core.view(null, "/memories/me.md").orThrow(),
+        await memory.core
+          .view({ organizationId: null, path: "/memories/me.md" })
+          .orThrow(),
       ).toMatchObject({ content: "prefers short answers" });
 
-      const [file] = await memory.core.list(null).orThrow();
+      const [file] = await memory.core.list({ organizationId: null }).orThrow();
 
       expect(file).toMatchObject({ organizationId: null, ownerId: user.id });
 
-      const shared = await memory.core.view(null, "/memories", {
-        scope: "organization",
+      const shared = await memory.core.view({
+        organizationId: null,
+        path: "/memories",
+        ns: { scope: "organization" },
       });
 
       expect(shared.ok ? undefined : shared.error.hint).toBe(
@@ -161,7 +208,7 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
         await s.asRole(owner);
 
         const saved = await memory.archival
-          .upsert(first, `The user ${fact}.`)
+          .upsert({ organizationId: first, content: `The user ${fact}.` })
           .orThrow();
 
         await s.service();
@@ -174,12 +221,14 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
       await s.asRole(owner);
 
       const chess = await memory.archival
-        .upsert(second, "The user plays chess.")
+        .upsert({ organizationId: second, content: "The user plays chess." })
         .orThrow();
 
-      await memory.archival.forget(chess.id).orThrow();
+      await memory.archival.forget({ memoryId: chess.id }).orThrow();
 
-      const kept = await memory.archival.list(first).orThrow();
+      const kept = await memory.archival
+        .list({ organizationId: first })
+        .orThrow();
 
       expect(kept.map((fact) => fact.content).toSorted()).toEqual([
         "The user drinks coffee.",

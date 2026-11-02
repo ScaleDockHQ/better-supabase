@@ -769,7 +769,10 @@ describe("useReactions", () => {
       subject_ids: ["c1", "c2"],
     });
 
-    await view.result.toggle({ type: "comment", id: "c1" }, "👍");
+    await view.result.toggle({
+      subject: { type: "comment", id: "c1" },
+      emoji: "👍",
+    });
     expect(rpc).toHaveBeenLastCalledWith("react", {
       tenant: "org-1",
       subject_type: "comment",
@@ -782,7 +785,10 @@ describe("useReactions", () => {
       count: 2,
       reacted: true,
     });
-    await view.result.toggle({ type: "comment", id: "c1" }, "👍");
+    await view.result.toggle({
+      subject: { type: "comment", id: "c1" },
+      emoji: "👍",
+    });
     expect(rpc).toHaveBeenLastCalledWith(
       "react",
       expect.objectContaining({ present: false }),
@@ -882,7 +888,7 @@ describe("useComments", () => {
       expect.objectContaining({ tenant: "org-1", subject_id: "cu1" }),
     );
 
-    expect((await view.result.add("Second")).ok).toBe(true);
+    expect((await view.result.add({ body: "Second" })).ok).toBe(true);
     expect(rpc).toHaveBeenLastCalledWith(
       "create_comment",
       expect.objectContaining({ body: "Second", subject_type: "customer" }),
@@ -921,7 +927,7 @@ describe("useComments", () => {
 
     await flush();
     expect(view.result.comments).toBeUndefined();
-    expect((await view.result.add("Hi")).ok).toBe(false);
+    expect((await view.result.add({ body: "Hi" })).ok).toBe(false);
     expect(rpc).not.toHaveBeenCalled();
     view.unmount();
   });
@@ -1249,7 +1255,9 @@ describe("useMembers", () => {
       "owner",
       "member",
     ]);
-    expect((await view.result.setRole(OTHER, "admin")).ok).toBe(true);
+    expect(
+      (await view.result.setRole({ userId: OTHER, role: "admin" })).ok,
+    ).toBe(true);
     expect(rpc).toHaveBeenCalledWith("update_member_role", {
       organization: "org-1",
       member: OTHER,
@@ -1984,9 +1992,10 @@ describe("ai-chat hooks", () => {
 
     first = [chat("a"), chat("b")];
     await view.result.refresh();
-    expect((await view.result.update("a", { title: "Renamed" }))?.title).toBe(
-      "Renamed",
-    );
+    expect(
+      (await view.result.update({ chatId: "a", patch: { title: "Renamed" } }))
+        ?.title,
+    ).toBe("Renamed");
     expect(view.result.items?.[0]?.title).toBe("Renamed");
     await view.result.remove("a");
     expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
@@ -1994,7 +2003,9 @@ describe("ai-chat hooks", () => {
     fail = true;
     await view.result.remove("b");
     expect(view.result.error?.message).toBe("denied");
-    expect(await view.result.update("b", {})).toBeUndefined();
+    expect(
+      await view.result.update({ chatId: "b", patch: {} }),
+    ).toBeUndefined();
     await view.result.refresh();
     expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
     fail = false;
@@ -2297,7 +2308,7 @@ describe("ai-chat hooks", () => {
     await flush();
     expect(view.result.path?.[1]?.id).toBe("a2");
 
-    await view.result.step("a1", 1);
+    await view.result.step({ messageId: "a1", offset: 1 });
     expect(rpc).toHaveBeenCalledWith("switch_ai_branch", {
       chat: "c1",
       message_id: "a2",
@@ -2307,21 +2318,21 @@ describe("ai-chat hooks", () => {
       leaf: "a2",
     });
     const calls = rpc.mock.calls.length;
-    await view.result.step("a1", -1);
-    await view.result.step("zz", 1);
+    await view.result.step({ messageId: "a1", offset: -1 });
+    await view.result.step({ messageId: "zz", offset: 1 });
     expect(rpc).toHaveBeenCalledTimes(calls + 2);
     await view.result.refresh();
 
     siblings = [];
     fail = true;
-    await view.result.step("a1", 1);
+    await view.result.step({ messageId: "a1", offset: 1 });
     await view.result.switchBranch("a1");
     expect(view.result.error?.message).toBe("gone");
 
     view.rerender(null);
     await view.result.refresh();
     await view.result.switchBranch("a1");
-    await view.result.step("a1", 1);
+    await view.result.step({ messageId: "a1", offset: 1 });
     view.unmount();
   });
 
@@ -2479,7 +2490,7 @@ describe("useSavedViews", () => {
     view.rerender(undefined);
     expect(view.result.active).toBeUndefined();
     expect(view.result.isDirty).toBe(true);
-    await view.result.saveCurrent("Bugs");
+    await view.result.saveCurrent({ name: "Bugs" });
     const bugs = { q: "bug", sort: "name", facets: { status: ["open"] } };
     expect(save).toHaveBeenCalledWith({
       name: "Bugs",
@@ -2520,14 +2531,16 @@ describe("useSavedViews", () => {
     expect(setUrlState).not.toHaveBeenCalled();
     await view.result.refresh();
     expect(view.result.error).toEqual(new Error("down"));
-    await expect(view.result.saveCurrent("x")).rejects.toThrow("pass `save`");
+    await expect(view.result.saveCurrent({ name: "x" })).rejects.toThrow(
+      "pass `save`",
+    );
     await expect(view.result.remove("x")).rejects.toThrow("pass `remove`");
-    await expect(view.result.duplicate("x", "y")).rejects.toThrow(
+    await expect(view.result.duplicate({ id: "x", name: "y" })).rejects.toThrow(
       "pass `duplicate`",
     );
-    await expect(view.result.setPreference("x", {})).rejects.toThrow(
-      "pass `setPreference`",
-    );
+    await expect(
+      view.result.setPreference({ id: "x", preference: {} }),
+    ).rejects.toThrow("pass `setPreference`");
   });
 
   it("saves and applies the state outside the URL", async () => {
@@ -2588,7 +2601,7 @@ describe("useSavedViews", () => {
       columns: { visible: ["title"] },
       density: "comfortable",
     });
-    await view.result.saveCurrent("Roomy", "board");
+    await view.result.saveCurrent({ name: "Roomy", id: "board" });
     expect(save).toHaveBeenCalledWith({
       name: "Roomy",
       id: "board",
@@ -2632,13 +2645,16 @@ describe("useSavedViews", () => {
 
     await flush();
     expect(setUrlState).toHaveBeenCalledWith({ q: "mine" });
-    await view.result.duplicate("shared", "Copy", "user");
+    await view.result.duplicate({ id: "shared", name: "Copy", scope: "user" });
     expect(duplicate).toHaveBeenCalledWith({
       id: "shared",
       name: "Copy",
       scope: "user",
     });
-    await view.result.setPreference("shared", { pinned: true });
+    await view.result.setPreference({
+      id: "shared",
+      preference: { pinned: true },
+    });
     expect(setPreference).toHaveBeenCalledWith("shared", { pinned: true });
     expect(load).toHaveBeenCalledTimes(3);
   });
@@ -2658,10 +2674,10 @@ describe("useUndoStack", () => {
     );
 
     const { push } = view.result;
-    push(token("1"), "first");
-    push(null, "no inverse");
-    push(token("2"), "second");
-    push(token("3"), "third");
+    push({ token: token("1"), label: "first" });
+    push({ token: null, label: "no inverse" });
+    push({ token: token("2"), label: "second" });
+    push({ token: token("3"), label: "third" });
     view.rerender(undefined);
     expect(view.result.entries.map((entry) => entry.label)).toEqual([
       "second",
@@ -2685,7 +2701,7 @@ describe("useUndoStack", () => {
     });
 
     const view = renderHook(() => useUndoStack({ apply }), undefined, null);
-    view.result.push(token("1"), "moved");
+    view.result.push({ token: token("1"), label: "moved" });
     expect(await view.result.undo()).toBe(false);
     view.rerender(undefined);
     expect(view.result.entries).toEqual([]);

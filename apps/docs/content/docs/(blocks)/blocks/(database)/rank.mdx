@@ -141,3 +141,7 @@ const key = await rank
   .move("deal", dealId, { previous: aboveId, next: belowId, group: "won" })
   .orThrow();
 ```
+
+## A key between two neighbors
+
+`rank.between({ previous, next })` returns a key between two neighbors without a database call, for a client that sorts before it writes.

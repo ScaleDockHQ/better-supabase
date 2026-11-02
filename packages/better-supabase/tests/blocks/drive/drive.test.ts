@@ -149,7 +149,10 @@ describe("drive client", () => {
     const drive = createDrive({ transport: fake, schema: "app" });
 
     const folder = await drive
-      .createFolder("o", { name: "Projects", conflict: "rename" })
+      .createFolder({
+        organizationId: "o",
+        folder: { name: "Projects", conflict: "rename" },
+      })
       .orThrow();
 
     expect(folder).toMatchObject({
@@ -168,23 +171,40 @@ describe("drive client", () => {
     expect(file.fields).toEqual({ drive_id: "d1" });
     expect(file.createdBy).toBeUndefined();
     expect(
-      await drive.list("o", { parentId: "f1", pageSize: 5, skip: 5 }).orThrow(),
+      await drive
+        .list({
+          organizationId: "o",
+          options: { parentId: "f1", pageSize: 5, skip: 5 },
+        })
+        .orThrow(),
     ).toHaveLength(2);
-    expect(await drive.shared("o").orThrow()).toHaveLength(1);
+    expect(await drive.shared({ organizationId: "o" }).orThrow()).toHaveLength(
+      1,
+    );
     expect(await drive.path("n1").orThrow()).toEqual([
       { id: "f1", name: "Projects", kind: "folder" },
     ]);
-    expect((await drive.rename("n1", "plan.pdf").orThrow()).name).toBe(
-      "plan (2).pdf",
-    );
     expect(
-      (await drive.move("n1", null, { rank: "a1", conflict: "fail" }).orThrow())
-        .parentId,
+      (await drive.rename({ id: "n1", name: "plan.pdf" }).orThrow()).name,
+    ).toBe("plan (2).pdf");
+    expect(
+      (
+        await drive
+          .move({
+            id: "n1",
+            parentId: null,
+            options: { rank: "a1", conflict: "fail" },
+          })
+          .orThrow()
+      ).parentId,
     ).toBeNull();
     expect(await drive.delete("n1").orThrow()).toBe(true);
 
     const shared = await drive
-      .share("f1", { type: "team", id: "t1" }, "editor", {
+      .share({
+        id: "f1",
+        principal: { type: "team", id: "t1" },
+        role: "editor",
         expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
       })
       .orThrow();
@@ -195,7 +215,9 @@ describe("drive client", () => {
       expiresAt: undefined,
     });
     expect(
-      await drive.unshare("f1", { type: "team", id: "t1" }).orThrow(),
+      await drive
+        .unshare({ id: "f1", principal: { type: "team", id: "t1" } })
+        .orThrow(),
     ).toBe(true);
     const [grant] = await drive.grants("n1").orThrow();
     expect(grant?.inherited).toBe(true);
@@ -245,11 +267,14 @@ describe("drive client", () => {
     });
 
     const upload = await drive
-      .upload("o", {
-        parentId: "f1",
-        name: "plan.pdf",
-        mimeType: "application/pdf",
-        size: 12,
+      .upload({
+        organizationId: "o",
+        file: {
+          parentId: "f1",
+          name: "plan.pdf",
+          mimeType: "application/pdf",
+          size: 12,
+        },
       })
       .orThrow();
 
@@ -258,12 +283,22 @@ describe("drive client", () => {
     expect(upload.attachment.path).toBe("o/attachments/a2");
 
     const revision = await drive
-      .uploadRevision("n1", { mimeType: "application/pdf", size: 12 })
+      .uploadRevision({
+        id: "n1",
+        file: { mimeType: "application/pdf", size: 12 },
+      })
       .orThrow();
 
     expect(revision.node.id).toBe("n1");
-    expect((await drive.commit("n1", "a2").orThrow()).attachmentId).toBe("a2");
-    const download = await drive.download("n1", { as: "plan.pdf" }).orThrow();
+    expect(
+      (await drive.commit({ id: "n1", attachmentId: "a2" }).orThrow())
+        .attachmentId,
+    ).toBe("a2");
+
+    const download = await drive
+      .download({ id: "n1", options: { as: "plan.pdf" } })
+      .orThrow();
+
     expect(download.signedUrl).toBe("https://down/o/attachments/a2");
     expect(fake.calls[0]?.[0]).toBe("better_supabase");
   });
@@ -300,9 +335,10 @@ describe("drive client", () => {
     };
 
     const fresh = claiming(ATTACHMENT);
-    expect((await fresh.drive.commit("n1", "a2").orThrow()).attachmentId).toBe(
-      "a2",
-    );
+    expect(
+      (await fresh.drive.commit({ id: "n1", attachmentId: "a2" }).orThrow())
+        .attachmentId,
+    ).toBe("a2");
     expect(claimed).toEqual(["attachments/o/attachments/a2"]);
     expect(fresh.calls.map(([, fn]) => fn)).toEqual([
       "get_attachment",
@@ -312,8 +348,8 @@ describe("drive client", () => {
     await claiming({
       ...ATTACHMENT,
       uploaded_at: "2026-10-02T00:00:01Z",
-    }).drive.commit("n1", "a2");
-    await claiming(null).drive.commit("n1", "a2");
+    }).drive.commit({ id: "n1", attachmentId: "a2" });
+    await claiming(null).drive.commit({ id: "n1", attachmentId: "a2" });
     expect(claimed).toHaveLength(1);
 
     const refused = claiming(ATTACHMENT, {
@@ -324,7 +360,9 @@ describe("drive client", () => {
       code: "AccessDenied",
     });
 
-    expect(await refused.drive.commit("n1", "a2")).toMatchObject({
+    expect(
+      await refused.drive.commit({ id: "n1", attachmentId: "a2" }),
+    ).toMatchObject({
       ok: false,
       error: { kind: "forbidden", hint: "DRIVE_FORBIDDEN" },
     });
@@ -335,15 +373,14 @@ describe("drive client", () => {
     const fake = transport({ drive_get: () => FOLDER });
     const drive = createDrive({ transport: fake });
 
-    const upload = await drive.upload("o", {
-      name: "a.txt",
-      mimeType: "text/plain",
-      size: 1,
+    const upload = await drive.upload({
+      organizationId: "o",
+      file: { name: "a.txt", mimeType: "text/plain", size: 1 },
     });
 
     expect(!upload.ok && upload.error.hint).toBe("DRIVE_STORAGE_CLIENT");
     expect(fake.calls).toEqual([]);
-    const download = await drive.download("f1");
+    const download = await drive.download({ id: "f1" });
     expect(!download.ok && download.error.hint).toBe(
       "DRIVE_ATTACHMENTS_CLIENT",
     );
@@ -363,7 +400,7 @@ describe("drive client", () => {
       mappers: [],
     });
 
-    const folder = await withStorage.download("f1");
+    const folder = await withStorage.download({ id: "f1" });
     expect(!folder.ok && folder.error.hint).toBe("DRIVE_NOT_A_FILE");
   });
 
@@ -374,10 +411,9 @@ describe("drive client", () => {
 
     const drive = createDrive({ transport: fake, storage: storage("url") });
 
-    const upload = await drive.upload("o", {
-      name: "plan.pdf",
-      mimeType: "application/pdf",
-      size: 12,
+    const upload = await drive.upload({
+      organizationId: "o",
+      file: { name: "plan.pdf", mimeType: "application/pdf", size: 12 },
     });
 
     expect(upload.ok).toBe(false);
@@ -452,38 +488,51 @@ describe("drive client", () => {
     const [revision] = await drive.revisions("n1").orThrow();
     expect(revision).toMatchObject({ number: 2, size: 12, current: true });
     expect(revision?.label).toBeUndefined();
-    expect((await drive.restoreRevision("n1", "v1").orThrow()).id).toBe("n1");
+    expect(
+      (await drive.restoreRevision({ id: "n1", revisionId: "v1" }).orThrow())
+        .id,
+    ).toBe("n1");
     expect(await drive.trash("f1").orThrow()).toEqual({
       id: "t1",
       batchId: "b1",
       count: 2,
     });
     expect(
-      (await drive.restore("t1", { conflict: "rename" }).orThrow()).node.id,
+      (await drive.restore({ binId: "t1", conflict: "rename" }).orThrow()).node
+        .id,
     ).toBe("f1");
 
     const [entry] = await drive
-      .bin("o", {
-        pageSize: 10,
-        before: Temporal.Instant.from("2026-10-04T00:00:00Z"),
+      .bin({
+        organizationId: "o",
+        options: {
+          pageSize: 10,
+          before: Temporal.Instant.from("2026-10-04T00:00:00Z"),
+        },
       })
       .orThrow();
 
     expect(entry?.node.deletedAt?.toString()).toBe("2026-10-03T00:00:00Z");
     expect(entry?.purgeAfter).toBeUndefined();
     expect(await drive.purge("t1").orThrow()).toBe(2);
-    expect(await drive.star("n1").orThrow()).toBe(true);
-    expect(await drive.star("n1", false).orThrow()).toBe(false);
+    expect(await drive.star({ id: "n1" }).orThrow()).toBe(true);
+    expect(await drive.star({ id: "n1", starred: false }).orThrow()).toBe(
+      false,
+    );
     expect((await drive.open("n1").orThrow()).id).toBe("n1");
-    const [starred] = await drive.starred("o").orThrow();
+    const [starred] = await drive.starred({ organizationId: "o" }).orThrow();
     expect(starred?.starredAt?.toString()).toBe("2026-10-04T00:00:00Z");
-    const [recent] = await drive.recent("o", { pageSize: 3 }).orThrow();
+
+    const [recent] = await drive
+      .recent({ organizationId: "o", pageSize: 3 })
+      .orThrow();
+
     expect(recent?.starredAt).toBeUndefined();
     expect(recent?.openedAt?.toString()).toBe("2026-10-05T00:00:00Z");
-    const folder = await drive.link("token").orThrow();
+    const folder = await drive.link({ token: "token" }).orThrow();
     expect(folder.children?.map((node: DriveNode) => node.id)).toEqual(["n1"]);
     expect(folder.object).toBeUndefined();
-    const file = await drive.link("token", { nodeId: "n1" }).orThrow();
+    const file = await drive.link({ token: "token", nodeId: "n1" }).orThrow();
     expect(file.children).toBeUndefined();
     expect(file.object?.path).toBe("o/attachments/a1");
   });
@@ -565,13 +614,21 @@ describe("drive client", () => {
       },
     });
 
-    await drive.createFolder("o", { name: "Root" }).orThrow();
-    await drive.list("o").orThrow();
-    await drive.move("f1", null).orThrow();
-    await drive.share("f1", { type: "user", id: "u1" }, "viewer").orThrow();
-    await drive.restore("t1").orThrow();
-    await drive.bin("o").orThrow();
-    await drive.recent("o").orThrow();
+    await drive
+      .createFolder({ organizationId: "o", folder: { name: "Root" } })
+      .orThrow();
+    await drive.list({ organizationId: "o" }).orThrow();
+    await drive.move({ id: "f1", parentId: null }).orThrow();
+    await drive
+      .share({
+        id: "f1",
+        principal: { type: "user", id: "u1" },
+        role: "viewer",
+      })
+      .orThrow();
+    await drive.restore({ binId: "t1" }).orThrow();
+    await drive.bin({ organizationId: "o" }).orThrow();
+    await drive.recent({ organizationId: "o" }).orThrow();
     expect(events).toEqual(["created"]);
     expect(fake.calls.map(([, fn, args]) => [fn, args])).toEqual([
       [
@@ -647,16 +704,18 @@ describe("drive client", () => {
     });
 
     const drive = createDrive({ transport: fake });
-    const node = await drive.label("n1", "t1").orThrow();
+    const node = await drive.label({ id: "n1", tagId: "t1" }).orThrow();
     expect(node.labels?.map((label) => label.name)).toEqual(["Final", "Draft"]);
     expect(node.labels?.[1]?.color).toBeUndefined();
     expect(node.approval?.status).toBe("approved");
     expect(node.approval?.decidedAt?.toString()).toBe("2026-10-03T00:00:00Z");
-    await drive.label("n1", "t1", false).orThrow();
-    expect(await drive.labeled("o", "t1").orThrow()).toHaveLength(1);
+    await drive.label({ id: "n1", tagId: "t1", applied: false }).orThrow();
+    expect(
+      await drive.labeled({ organizationId: "o", tagId: "t1" }).orThrow(),
+    ).toHaveLength(1);
 
     const requested = await drive
-      .requestApproval("n1", { attachmentId: "a1", reason: "Sign off" })
+      .requestApproval({ id: "n1", attachmentId: "a1", reason: "Sign off" })
       .orThrow();
 
     expect(requested).toMatchObject({
@@ -665,7 +724,7 @@ describe("drive client", () => {
       current: false,
       step: 0,
     });
-    await drive.requestApproval("n1").orThrow();
+    await drive.requestApproval({ id: "n1" }).orThrow();
 
     const [latest, first] = await drive.approvals("n1").orThrow();
     expect(latest?.revision).toBeUndefined();

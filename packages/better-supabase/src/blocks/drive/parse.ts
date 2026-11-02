@@ -469,12 +469,16 @@ export function withFields<F extends object>(
     ) => AsyncResult<unknown>;
 
     const wrapped = (...args: unknown[]): AsyncResult<unknown> => {
-      const input = args[1];
+      const input = args[0];
 
-      const extra =
-        (method === "createFolder" || method === "upload") && isRecord(input)
-          ? input["fields"]
-          : undefined;
+      const subject =
+        isRecord(input) && method === "createFolder"
+          ? input["folder"]
+          : isRecord(input) && method === "upload"
+            ? input["file"]
+            : undefined;
+
+      const extra = isRecord(subject) ? subject["fields"] : undefined;
 
       const checked = isRecord(extra)
         ? AsyncResult.from(() => fields.write({ ...extra })).map(() => true)

@@ -6,6 +6,11 @@ import type { SqlDeps } from "../commands/sql.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
+import {
+  DEFAULT_CONVENTIONS,
+  PRESET_CATALOG,
+  resolvePreset,
+} from "../../preset/index.ts";
 import { resolveBlocks, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
@@ -18,12 +23,44 @@ import {
 } from "./providers.ts";
 import { nextStep, unlistedModuleFiles, write } from "./write.ts";
 
+/**
+ * True for a block made of other blocks, which `add` lists in `blocks` by its
+ * own name.
+ */
+export function isComposite(name: string): boolean {
+  return PRESET_CATALOG.manifests.some(
+    (manifest) =>
+      manifest.name === name && Object.keys(manifest.composes ?? {}).length > 0,
+  );
+}
+
+/**
+ * Writes the modules behind `requested`. A composite stands for the modules of
+ * its parts; the config lists the composite, not each part.
+ */
 export async function addModules(
   config: ResolvedConfig,
   args: SqlFlags,
-  names: readonly string[],
+  requested: readonly string[],
   deps: SqlDeps,
 ): Promise<CommandResult> {
+  const composites = requested.filter(isComposite);
+
+  const expanded =
+    composites.length === 0
+      ? []
+      : resolvePreset({
+          ...DEFAULT_CONVENTIONS,
+          blocks: composites,
+        }).blocks.map((block) => block.name);
+
+  const names = [
+    ...new Set([
+      ...requested.filter((name) => !composites.includes(name)),
+      ...expanded,
+    ]),
+  ];
+
   if (names.length === 0) {
     throw new CliError("input_required", "Name at least one module.", {
       missing: ["<module>"],
@@ -105,9 +142,15 @@ export async function addModules(
     );
   }
 
-  const untracked = resolveBlocks(names, sqlLayout)
-    .map((module) => module.name)
-    .filter((name) => !config.blockNames.includes(name));
+  const untracked = [
+    ...composites,
+    ...resolveBlocks(names, sqlLayout)
+      .map((module) => module.name)
+      .filter((name) => !expanded.includes(name)),
+  ].filter(
+    (name, index, all) =>
+      !config.blockNames.includes(name) && all.indexOf(name) === index,
+  );
 
   if (untracked.length > 0) {
     lines.push("", ...(await listInConfig(args, untracked, deps)));

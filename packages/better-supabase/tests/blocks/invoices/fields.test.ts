@@ -40,7 +40,10 @@ describe("invoices fields", () => {
     const invoices = createInvoices({ transport: t, fields: Fields });
 
     const created = await invoices
-      .create("o", { title: "October", fields: { po_number: "PO-7" } })
+      .create({
+        organizationId: "o",
+        input: { title: "October", fields: { po_number: "PO-7" } },
+      })
       .orThrow();
 
     expect(created.fields.po_number).toBe("PO-7");
@@ -48,7 +51,9 @@ describe("invoices fields", () => {
       title: "October",
       po_number: "PO-7",
     });
-    expect((await invoices.void("i1").orThrow()).fields.po_number).toBe("PO-7");
+    expect(
+      (await invoices.void({ invoiceId: "i1" }).orThrow()).fields.po_number,
+    ).toBe("PO-7");
   });
 
   it("refuses a bad field before the call", async () => {
@@ -57,7 +62,10 @@ describe("invoices fields", () => {
     const created = await createInvoices({
       transport: t,
       fields: Fields,
-    }).create("o", { title: "October", fields: { po_number: "7" } });
+    }).create({
+      organizationId: "o",
+      input: { title: "October", fields: { po_number: "7" } },
+    });
 
     expect(created.ok ? undefined : created.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);

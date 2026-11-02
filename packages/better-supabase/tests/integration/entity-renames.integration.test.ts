@@ -235,13 +235,15 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
 
   it("creates, lists and updates through the renamed client", async () => {
     const created = await built.tasks
-      .create(TENANT, { title: "Ship" })
+      .create({ organizationId: TENANT, input: { title: "Ship" } })
       .orThrow();
 
-    const listed = await built.tasks.list(TENANT).orThrow();
+    const listed = await built.tasks.list({ organizationId: TENANT }).orThrow();
 
     const changed = await built.tasks
-      .update([{ taskId: created.id, field: "title", value: "Shipped" }])
+      .update({
+        changes: [{ taskId: created.id, field: "title", value: "Shipped" }],
+      })
       .orThrow();
 
     expect({
@@ -272,8 +274,8 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
       { tasks: blocks.blocks.tasks },
     );
 
-    await queryClient.query(queries.tasks.list(TENANT));
-    const key = queries.tasks.list(TENANT).queryKey;
+    await queryClient.query(queries.tasks.list({ organizationId: TENANT }));
+    const key = queries.tasks.list({ organizationId: TENANT }).queryKey;
     const before = queryClient.getQueryState(key)?.isInvalidated;
 
     if (created !== undefined) {
@@ -324,14 +326,20 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     });
 
     const file = { name: "brief.pdf", mimeType: "application/pdf", size: 10 };
-    const loose = await attachments.upload(null, file).orThrow();
+
+    const loose = await attachments
+      .upload({ subject: null, attachment: file })
+      .orThrow();
 
     const task = await built.tasks
-      .create(TENANT, { title: "Brief", attachmentIds: [loose.attachment.id] })
+      .create({
+        organizationId: TENANT,
+        input: { title: "Brief", attachmentIds: [loose.attachment.id] },
+      })
       .orThrow();
 
     const direct = await attachments
-      .upload({ type: "task", id: task.id }, file)
+      .upload({ subject: { type: "task", id: task.id }, attachment: file })
       .orThrow();
 
     const listed = await attachments
@@ -339,7 +347,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
       .orThrow();
 
     const step = await built.tasks
-      .saveChecklistItem(task.id, { title: "Read it" })
+      .saveChecklistItem({ taskId: task.id, input: { title: "Read it" } })
       .orThrow();
 
     const read = await built.tasks.get(task.id).orThrow();
@@ -376,7 +384,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
 
     const createTask = next.blockAction(() => built.tasks, "create", {
       input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
-      args: ({ title }) => [TENANT, { title }],
+      args: ({ title }) => [{ organizationId: TENANT, input: { title } }],
     });
 
     const created = await createTask({ title: "Review" });

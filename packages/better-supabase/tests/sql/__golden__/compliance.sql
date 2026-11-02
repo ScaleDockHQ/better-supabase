@@ -1194,7 +1194,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:453ae234580fd70eb6f52f4c26f2c9b55b76415735450883a3ea59ac3449302f
+-- @bsb-hash sha256:99be5fc2d49b95a0ffca27d3588f630af5dfda15ecfa3dabab0806fabbb42bec
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2419,6 +2419,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_p
 create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.controls', target_type => 'control', event_prefix => 'control', deferred => true);
+  perform better_supabase.audit('better_supabase.control_frameworks', target_type => 'control_framework', event_prefix => 'control_framework', deferred => true);
+  perform better_supabase.audit('better_supabase.evidence_tasks', target_type => 'evidence_task', event_prefix => 'evidence_task', deferred => true);
+  perform better_supabase.audit('better_supabase.compliance_policies', target_type => 'compliance_policy', event_prefix => 'compliance_policy', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

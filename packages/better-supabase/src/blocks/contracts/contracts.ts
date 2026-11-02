@@ -195,39 +195,40 @@ export interface ContractRenewals {
 
 export interface Contracts<F extends object = Record<never, never>> {
   /** Creates a draft. Needs `contracts.write`. */
-  create(
-    organizationId: string,
-    input: ContractInput<F>,
-  ): AsyncResult<Contract<F>>;
+  create(input: {
+    organizationId: string;
+    input: ContractInput<F>;
+  }): AsyncResult<Contract<F>>;
   /** Needs `contracts.write`; fails with `CONTRACT_LOCKED` past review. */
-  update(
-    contractId: string,
-    changes: ContractChanges<F>,
-  ): AsyncResult<Contract<F>>;
+  update(input: {
+    contractId: string;
+    changes: ContractChanges<F>;
+  }): AsyncResult<Contract<F>>;
   /** Moves the contract one step through its lifecycle. */
-  transition(
-    contractId: string,
-    action: ContractAction,
-    reason?: string,
-  ): AsyncResult<Contract<F>>;
+  transition(input: {
+    contractId: string;
+    action: ContractAction;
+    reason?: string | undefined;
+  }): AsyncResult<Contract<F>>;
   /**
    * Freezes the contract as a version and opens a signature request on it.
    * Signing completes it to `active`; a decline returns it to review.
    */
-  sendForSignature(
-    contractId: string,
-    input: ContractSignatureInput,
-  ): AsyncResult<Contract<F>>;
+  sendForSignature(input: {
+    contractId: string;
+    input: ContractSignatureInput;
+  }): AsyncResult<Contract<F>>;
   get(contractId: string): AsyncResult<Contract<F>>;
   /** Newest first. */
   list(
-    organizationId: string,
-    options?: ContractListOptions,
+    input: { organizationId: string } & ContractListOptions,
   ): AsyncResult<readonly Contract<F>[]>;
   /** The contracts with a counterparty, in every organization the caller reads. */
   forCounterparty(
-    counterparty: RecordRef,
-    options?: Omit<ContractListOptions, "counterparty">,
+    input: { counterparty: RecordRef } & Omit<
+      ContractListOptions,
+      "counterparty"
+    >,
   ): AsyncResult<readonly Contract<F>[]>;
   /**
    * Renews the auto-renewing active contracts past their end date and expires
@@ -235,20 +236,19 @@ export interface Contracts<F extends object = Record<never, never>> {
    */
   runRenewals(asOf?: Temporal.PlainDate): AsyncResult<ContractRenewals>;
   /** Needs `contracts.write`. */
-  saveObligation(
-    contractId: string,
-    input: ObligationInput,
-  ): AsyncResult<ContractObligation>;
+  saveObligation(input: {
+    contractId: string;
+    input: ObligationInput;
+  }): AsyncResult<ContractObligation>;
   /** Needs `contracts.write`, or being the obligation's owner. */
-  setObligationStatus(
-    obligationId: string,
-    status: ObligationStatus,
-  ): AsyncResult<ContractObligation>;
+  setObligationStatus(input: {
+    obligationId: string;
+    status: ObligationStatus;
+  }): AsyncResult<ContractObligation>;
   deleteObligation(obligationId: string): AsyncResult<ContractObligation>;
   /** The earliest due first. */
   obligations(
-    organizationId: string,
-    options?: ObligationListOptions,
+    input: { organizationId: string } & ObligationListOptions,
   ): AsyncResult<readonly ContractObligation[]>;
 }
 
@@ -410,7 +410,7 @@ export function createContracts<
     ).andThen(fields.rows);
 
   const client: Contracts<F> = {
-    create: (organizationId, input) =>
+    create: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -424,7 +424,7 @@ export function createContracts<
             one("create_contract"),
           ).andThen(fields.row),
         ),
-    update: (contractId, changes) =>
+    update: ({ contractId, changes }) =>
       fields
         .args(changes.fields)
         .andThen((checked) =>
@@ -438,13 +438,13 @@ export function createContracts<
             one("update_contract"),
           ).andThen(fields.row),
         ),
-    transition: (contractId, action, reason) =>
+    transition: ({ contractId, action, reason }) =>
       call(
         "transition_contract",
         { contract_id: contractId, action, reason: reason ?? null },
         one("transition_contract"),
       ).andThen(fields.row),
-    sendForSignature: (contractId, input) =>
+    sendForSignature: ({ contractId, input }) =>
       call(
         "send_contract_for_signature",
         {
@@ -461,8 +461,8 @@ export function createContracts<
         { contract_id: contractId },
         one("get_contract"),
       ).andThen(fields.row),
-    list: (organizationId, list = {}) => listContracts(organizationId, list),
-    forCounterparty: (counterparty, list = {}) =>
+    list: ({ organizationId, ...list }) => listContracts(organizationId, list),
+    forCounterparty: ({ counterparty, ...list }) =>
       listContracts(null, { ...list, counterparty }),
     runRenewals: (asOf) =>
       call(
@@ -477,7 +477,7 @@ export function createContracts<
           };
         },
       ),
-    saveObligation: (contractId, input) =>
+    saveObligation: ({ contractId, input }) =>
       call(
         "save_contract_obligation",
         {
@@ -490,7 +490,7 @@ export function createContracts<
         },
         obligation("save_contract_obligation"),
       ),
-    setObligationStatus: (obligationId, status) =>
+    setObligationStatus: ({ obligationId, status }) =>
       call(
         "set_contract_obligation_status",
         { obligation_id: obligationId, status },
@@ -502,7 +502,7 @@ export function createContracts<
         { obligation_id: obligationId },
         obligation("delete_contract_obligation"),
       ),
-    obligations: (organizationId, list = {}) =>
+    obligations: ({ organizationId, ...list }) =>
       call(
         "list_contract_obligations",
         {

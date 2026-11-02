@@ -19,13 +19,13 @@ import {
   extraFieldsArg,
   withFields,
 } from "../../core/block-fields.ts";
-import { sha256Hex } from "../../core/block-helpers.ts";
+import { sha256Hex, sleep } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
-import { AsyncResult, err } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -306,36 +306,51 @@ export interface ApprovalListOptions {
  * `F` is the extra request fields `options.fields` describes. `request` and
  * `list` act in the block's `tenant`.
  */
+/** What `guarded` answers: the value `run` returned, or the filed request. */
+export type ApprovalGuarded<T, F extends object = Record<never, never>> =
+  | { readonly ran: true; readonly value: T }
+  | { readonly ran: false; readonly request: ApprovalRequest & F };
+
 export interface Approvals<F extends object = Record<never, never>> {
   /**
    * Files a request on `subject` under its type's policy for the action. Keys
    * besides the input's own are the request's extra columns.
    */
-  request(
-    subject: RecordRef,
-    input: ApprovalRequestInput & Partial<F>,
-  ): AsyncResult<ApprovalRequest & F>;
+  request(input: {
+    subject: RecordRef;
+    input: ApprovalRequestInput & Partial<F>;
+  }): AsyncResult<ApprovalRequest & F>;
   /**
    * Approves the current step; the last step runs the policy's action. The
    * service role passes `decidedBy` to decide for a user.
    */
   approve(
-    id: string,
-    comment?: string,
-    options?: ApprovalDecideOptions,
+    input: { id: string; comment?: string | undefined } & ApprovalDecideOptions,
   ): AsyncResult<ApprovalRequest & F>;
   /** Rejects the request. */
   reject(
-    id: string,
-    comment?: string,
-    options?: ApprovalDecideOptions,
+    input: { id: string; comment?: string | undefined } & ApprovalDecideOptions,
   ): AsyncResult<ApprovalRequest & F>;
   /** Hands the caller's place on the current step to another member. */
-  delegate(
-    id: string,
-    userId: string,
-    comment?: string,
-  ): AsyncResult<ApprovalRequest & F>;
+  delegate(input: {
+    id: string;
+    userId: string;
+    comment?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Files a request, then polls it every `intervalMs` (default 1000) until it
+   * leaves `pending` and resolves with its detail: approved, rejected,
+   * cancelled or expired. Fails with a `timeout` error (hint
+   * `APPROVAL_WAIT_TIMEOUT`) after `timeoutMs` (default 30000), leaving the
+   * request pending, and stops early when `signal` aborts.
+   */
+  requestAndWait(input: {
+    subject: RecordRef;
+    input: ApprovalRequestInput & Partial<F>;
+    timeoutMs?: number | undefined;
+    intervalMs?: number | undefined;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<ApprovalRequestDetail & F>;
   /** The requester or a manager closes a pending request. */
   cancel(id: string): AsyncResult<ApprovalRequest & F>;
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
@@ -344,24 +359,31 @@ export interface Approvals<F extends object = Record<never, never>> {
     options?: ApprovalListOptions,
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
-  isApproved(subject: RecordRef, action: string): AsyncResult<boolean>;
+  isApproved(input: {
+    subject: RecordRef;
+    action: string;
+  }): AsyncResult<boolean>;
   /**
    * What a request would need for the subject type and action, with `payload`
    * as the request payload tenant conditions read; `null` when nothing is
    * required, so the action can run without a request.
    */
   requirement(
-    subjectType: string,
-    action: string,
-    payload?: Readonly<Record<string, unknown>>,
-    options?: { readonly tenantless?: boolean },
+    input: {
+      subjectType: string;
+      action: string;
+      payload?: Readonly<Record<string, unknown>> | undefined;
+    } & { readonly tenantless?: boolean },
   ): AsyncResult<ApprovalRequirement | null>;
   /**
    * Uses an approved request once, before its action runs. A second call fails
    * with `APPROVAL_CONSUMED`, and a fingerprint other than the request's with
    * `APPROVAL_FINGERPRINT_MISMATCH`.
    */
-  consume(id: string, fingerprint?: string): AsyncResult<ApprovalRequest & F>;
+  consume(input: {
+    id: string;
+    fingerprint?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
   /**
    * The tenant's policies (`options.tenantPolicies`), or with `platform` the
    * platform policies.
@@ -376,11 +398,32 @@ export interface Approvals<F extends object = Record<never, never>> {
    * policy (`platform: true`) needs it as platform staff.
    */
   savePolicy(
-    input: ApprovalPolicyInput,
-    options?: { readonly platform?: boolean },
+    input: { input: ApprovalPolicyInput } & { readonly platform?: boolean },
   ): AsyncResult<ApprovalTenantPolicy>;
   /** Deletes a tenant policy; `false` when it did not exist. */
   removePolicy(id: string): AsyncResult<boolean>;
+  /**
+   * Approves or rejects the pending request for `action` on `subject`, the one
+   * `list` finds, so a caller does not need the request id. Fails with
+   * `not_found` when nothing is pending.
+   */
+  decideForSubject(input: {
+    subject: RecordRef;
+    action: string;
+    decision: "approve" | "reject";
+    comment?: string | undefined;
+  }): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Runs `run` when `action` on `subject` is approved. Otherwise it files a
+   * request and returns it, so a route answers once and the retry after the
+   * decision runs.
+   */
+  guarded<T>(input: {
+    subject: RecordRef;
+    action: string;
+    request?: ApprovalRequestInput | undefined;
+    run: () => PromiseLike<T> | T;
+  }): AsyncResult<ApprovalGuarded<T, F>>;
 }
 
 /**
@@ -725,9 +768,9 @@ export function createApprovals<
     tenantless === true ? AsyncResult.ok(null) : tenant();
 
   const client: Approvals<F> = {
-    request: (
+    request: ({
       subject,
-      {
+      input: {
         action,
         reason,
         payload,
@@ -737,7 +780,7 @@ export function createApprovals<
         requestedBy,
         ...extra
       },
-    ) =>
+    }) =>
       tenantOr(tenantless).andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
           one("request_approval", {
@@ -754,11 +797,11 @@ export function createApprovals<
           }),
         ),
       ),
-    approve: (id, comment, decideOptions) =>
+    approve: ({ id, comment, ...decideOptions }) =>
       decide(id, "approved", comment, decideOptions),
-    reject: (id, comment, decideOptions) =>
+    reject: ({ id, comment, ...decideOptions }) =>
       decide(id, "rejected", comment, decideOptions),
-    delegate: (id, userId, comment) =>
+    delegate: ({ id, userId, comment }) =>
       asApprover(id, () =>
         one("delegate_approval", {
           request_id: id,
@@ -787,14 +830,14 @@ export function createApprovals<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
-    isApproved: (subject, action) =>
+    isApproved: ({ subject, action }) =>
       call(
         "is_approved",
         { subject_type: subject.type, subject_id: subject.id, action },
         (value) => value === true,
       ),
-    requirement: (subjectType, action, payload, requirementOptions) =>
-      tenantOr(requirementOptions?.tenantless).andThen((organizationId) =>
+    requirement: ({ subjectType, action, payload, ...requirementOptions }) =>
+      tenantOr(requirementOptions.tenantless).andThen((organizationId) =>
         call(
           "approval_requirement",
           {
@@ -806,7 +849,7 @@ export function createApprovals<
           requirementOf,
         ),
       ),
-    consume: (id, fingerprint) =>
+    consume: ({ id, fingerprint }) =>
       one("consume_approval", {
         request_id: id,
         fingerprint: fingerprint ?? null,
@@ -826,8 +869,8 @@ export function createApprovals<
             ),
         ),
       ),
-    savePolicy: (input, saveOptions) =>
-      tenantOr(saveOptions?.platform).andThen((organizationId) =>
+    savePolicy: ({ input, ...saveOptions }) =>
+      tenantOr(saveOptions.platform).andThen((organizationId) =>
         call(
           "save_approval_policy",
           { tenant: organizationId, policy: input },
@@ -840,10 +883,81 @@ export function createApprovals<
         { policy_id: id },
         (value) => value === true,
       ),
+    requestAndWait: ({
+      subject,
+      input,
+      timeoutMs = 30_000,
+      intervalMs = 1000,
+      signal,
+    }) =>
+      hooked.request({ subject, input }).andThen(async (filed) => {
+        const deadline = Date.now() + timeoutMs;
+
+        for (;;) {
+          const current = await hooked.get(filed.id);
+
+          if (!current.ok || current.data.status !== "pending") {
+            return current;
+          }
+
+          if (signal?.aborted || Date.now() + intervalMs > deadline) {
+            return err(
+              dbError("timeout", `Request ${filed.id} is still pending`, {
+                hint: "APPROVAL_WAIT_TIMEOUT",
+              }),
+            );
+          }
+
+          await sleep(intervalMs, signal);
+        }
+      }),
+    decideForSubject: ({ subject, action, decision, comment }) =>
+      hooked.list({ subject, status: "pending" }).andThen(async (requests) => {
+        const found = requests.find((each) => each.action === action);
+
+        if (found === undefined) {
+          return err(
+            dbError("not_found", `No pending ${action} request for the record`),
+          );
+        }
+
+        return decision === "approve"
+          ? hooked.approve({ id: found.id, comment })
+          : hooked.reject({ id: found.id, comment });
+      }),
+    guarded: <T>({
+      subject,
+      action,
+      request,
+      run,
+    }: {
+      subject: RecordRef;
+      action: string;
+      request?: ApprovalRequestInput | undefined;
+      run: () => PromiseLike<T> | T;
+    }) =>
+      hooked
+        .isApproved({ subject, action })
+        .andThen<ApprovalGuarded<T, F>>(async (approved) => {
+          if (approved) {
+            return ok({ ran: true as const, value: await run() });
+          }
+
+          // SAFETY: the request carries no extra columns, so Partial<F> is empty.
+          const input = { ...request, action } as ApprovalRequestInput &
+            Partial<F>;
+
+          return hooked
+            .request({ subject, input })
+            .map((filed) => ({ ran: false as const, request: filed }));
+        }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Approvals<F> = withBlockHooks(client, options.hooks, {
     block: "approvals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

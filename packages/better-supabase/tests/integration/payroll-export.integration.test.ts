@@ -76,21 +76,24 @@ describe.skipIf(!live)("payroll-export module in Postgres", () => {
     ]);
 
     const exported = await payroll()
-      .exportRun(run.id, csvPayrollFormat())
+      .exportRun({ runId: run.id, format: csvPayrollFormat() })
       .orThrow();
 
     expect(exported.run).toMatchObject({ status: "exported", format: "csv" });
     expect(exported.run.checksum).toMatch(/^[0-9a-f]{64}$/);
 
     const again = await payroll()
-      .exportRun(run.id, csvPayrollFormat())
+      .exportRun({ runId: run.id, format: csvPayrollFormat() })
       .orThrow();
 
     expect(again.run.exportedAt).toEqual(exported.run.exportedAt);
 
     expect(
       hint(
-        await payroll().exportRun(run.id, csvPayrollFormat({ delimiter: "," })),
+        await payroll().exportRun({
+          runId: run.id,
+          format: csvPayrollFormat({ delimiter: "," }),
+        }),
       ),
     ).toBe("PAYROLL_RUN_EXPORTED");
     expect(hint(await payroll().refresh(run.id))).toBe("PAYROLL_RUN_EXPORTED");

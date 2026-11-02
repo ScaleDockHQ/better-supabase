@@ -93,10 +93,13 @@ slug, and `limit` runs from 1 to 200 (default 50).
 await content.publish(about.id).orThrow();
 
 await content
-  .schedule(post.id, Temporal.Instant.from("2026-03-01T09:00:00Z"))
+  .schedule({
+    entryId: post.id,
+    at: Temporal.Instant.from("2026-03-01T09:00:00Z"),
+  })
   .orThrow();
 
-await content.schedule(post.id, null).orThrow(); // back to draft
+await content.schedule({ entryId: post.id, at: null }).orThrow(); // back to draft
 ```
 
 `publish(id)` sets an entry live now. `schedule(id, at)` sets it live at a

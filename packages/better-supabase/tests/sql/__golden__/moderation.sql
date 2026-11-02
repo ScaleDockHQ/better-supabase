@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:0d9e4d19c8e42d00386fcc1e004feba90aed20c7e85cd27681cdc130d0ef4e16
+-- @bsb-hash sha256:eb108612408f99106204df7eaaf4fdd107c658ccfb3d7c6b9778d32f882235dc
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -248,8 +248,8 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
@@ -1375,7 +1375,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:00934ba72d43321ab72f1bbadb715b7aefe8a50dc5911ef9d8bf76968ec59e31
+-- @bsb-hash sha256:353fc1314cebc657828ccfdfd2ce4481a1a5ce8db8bfe7d71bc14acf15891623
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1622,8 +1622,8 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
@@ -2816,6 +2816,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.moderation_items', target_type => 'moderation_item', event_prefix => 'moderation_item', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2846,7 +2853,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:4a6e45620f1e736a0e7d99b6c3a1baecc439f870992683f1d38665d1618f20eb
+-- @bsb-hash sha256:d5c58e17d55d589a845185cc77609d2663805f96790ddca9907df4b0942dba55
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3098,8 +3105,8 @@ create table if not exists "app_private"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "app_private"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "app_private"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "app_private"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "app_private"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "app_private"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "app_private"."moderation_items" enable row level security;
 revoke all on "app_private"."moderation_items" from public, anon, authenticated;
@@ -4225,7 +4232,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:79adf85b794b2b75e6da72567a3bd0f99380b7aadfaa059a4c5d84791f202e52
+-- @bsb-hash sha256:650f7b75feb71579e10ec76de37ff23b5265d0e70584cfbf2f173f9ef530f15b
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4472,8 +4479,8 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
@@ -5774,7 +5781,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:f9946bfb24a3f8bc5202b8597ec601d6430fff592c1f436eda453a4a20675b23
+-- @bsb-hash sha256:471f281af2fc2bcdca60c1b66cd4e1f0f0c5e0da5197022dc58709c93b7c1c62
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6027,8 +6034,8 @@ alter table "better_supabase"."moderation_appeals" add column if not exists "dec
 alter table "better_supabase"."moderation_appeals" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 grant select on "better_supabase"."moderation_items" to authenticated;
@@ -7146,7 +7153,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:da6f8631dfc4c38982a0dfea649263949dfc4000a5e119adb31d5da8f0e4fb5b
+-- @bsb-hash sha256:ac3ec89ffb020d8f028f467d175cff9b9dfe590bd88a09cf565cd88492e5df07
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7393,8 +7400,8 @@ create table if not exists "better_supabase"."moderation_appeals" (
 );
 create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("org_id", "created_at" desc);
 create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("org_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;

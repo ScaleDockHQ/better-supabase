@@ -1,0 +1,50 @@
+---
+title: Learning
+description: Courses and the enrollments that track learners through them.
+---
+
+Covers a learning product: courses with modules and lessons, learner progress and enrollment programs.
+
+```bash
+better-supabase add learning
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { learning: {} } });
+```
+
+`add` lists `learning` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/learning` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { learningBlock } from "better-supabase/blocks/learning";
+```
+
+## Parts
+
+Installing `learning` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`courses`](/docs/blocks/courses)
+- [`enrollments`](/docs/blocks/enrollments)
+
+## Helpers
+
+`assign`: Enroll a learner in a course and, when you pass a program and subject, in the program that tracks it.
+
+```ts
+await blocks.learning.assign({
+  courseId,
+  program: "certification",
+  subject: { type: "user", id: userId },
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove learning
+better-supabase remove learning --with-parts
+```
+
+The first command replaces `learning` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

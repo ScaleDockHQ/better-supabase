@@ -122,45 +122,50 @@ export interface AgentsOptions<
 /** `F` is the extra fields `options.fields` describes. */
 export interface Agents<F extends object = Record<never, never>> {
   /** Keys besides the agent's own are its extra columns. */
-  create(
-    organizationId: string,
-    agent: NewAgent & Partial<F>,
-  ): AsyncResult<Agent & F>;
-  update(
-    organizationId: string,
-    agentId: string,
-    fields: AgentFields & Partial<F>,
-  ): AsyncResult<Agent & F>;
+  create(input: {
+    organizationId: string;
+    agent: NewAgent & Partial<F>;
+  }): AsyncResult<Agent & F>;
+  update(input: {
+    organizationId: string;
+    agentId: string;
+    fields: AgentFields & Partial<F>;
+  }): AsyncResult<Agent & F>;
   get(agentId: string): AsyncResult<Agent & F>;
-  bySlug(organizationId: string, slug: string): AsyncResult<Agent & F>;
+  bySlug(input: {
+    organizationId: string;
+    slug: string;
+  }): AsyncResult<Agent & F>;
   /**
    * The store (published to the tenant or public), the caller's own, or the
    * installed ones.
    */
   list(
-    organizationId: string,
-    options?: {
+    input: { organizationId: string } & {
       readonly filter?: AgentFilter;
       readonly search?: string;
       readonly limit?: number;
     },
   ): AsyncResult<readonly (Agent & F)[]>;
-  publish(agentId: string, visibility: AgentVisibility): AsyncResult<Agent & F>;
-  install(
-    organizationId: string,
-    agentId: string,
-    installed?: boolean,
-  ): AsyncResult<boolean>;
+  publish(input: {
+    agentId: string;
+    visibility: AgentVisibility;
+  }): AsyncResult<Agent & F>;
+  install(input: {
+    organizationId: string;
+    agentId: string;
+    installed?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** Rates 1 to 5; `null` removes the caller's rating. */
-  rate(
-    agentId: string,
-    rating: number | null,
-    comment?: string,
-  ): AsyncResult<Agent & F>;
-  setSkills(
-    agentId: string,
-    skills: readonly Omit<AgentSkill, "id">[],
-  ): AsyncResult<number>;
+  rate(input: {
+    agentId: string;
+    rating: number | null;
+    comment?: string | undefined;
+  }): AsyncResult<Agent & F>;
+  setSkills(input: {
+    agentId: string;
+    skills: readonly Omit<AgentSkill, "id">[];
+  }): AsyncResult<number>;
   remove(agentId: string): AsyncResult<boolean>;
 }
 
@@ -333,18 +338,19 @@ export function createAgents<
     );
 
   const client: Agents<F> = {
-    create: (organizationId, agent) => save(organizationId, undefined, agent),
-    update: (organizationId, agentId, fields) =>
+    create: ({ organizationId, agent }) =>
+      save(organizationId, undefined, agent),
+    update: ({ organizationId, agentId, fields }) =>
       save(organizationId, agentId, fields),
     get: (agentId) =>
       call("get_agent", { id: agentId }, (value) => value).andThen(found),
-    bySlug: (organizationId, slug) =>
+    bySlug: ({ organizationId, slug }) =>
       call(
         "get_agent",
         { tenant: organizationId, slug },
         (value) => value,
       ).andThen(found),
-    list: (organizationId, listOptions = {}) =>
+    list: ({ organizationId, ...listOptions }) =>
       call(
         "list_agents",
         {
@@ -358,17 +364,17 @@ export function createAgents<
             (raw) => [raw, agentOf(raw)] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
-    publish: (agentId, visibility) =>
+    publish: ({ agentId, visibility }) =>
       one("publish_agent", { id: agentId, visibility }),
-    install: (organizationId, agentId, installed = true) =>
+    install: ({ organizationId, agentId, installed = true }) =>
       call(
         "install_agent",
         { tenant: organizationId, agent_id: agentId, installed },
         (value) => value === true,
       ),
-    rate: (agentId, rating, comment) =>
+    rate: ({ agentId, rating, comment }) =>
       one("rate_agent", { agent_id: agentId, rating, comment }),
-    setSkills: (agentId, skills) =>
+    setSkills: ({ agentId, skills }) =>
       call(
         "set_agent_skills",
         { agent_id: agentId, skills: { items: skills } },

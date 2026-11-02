@@ -74,16 +74,22 @@ describe.skipIf(!live)("reactions", () => {
 
       await s.asRole(member);
       expect(
-        await reactions.react({ type: "doc", id: doc }, "👍").orThrow(),
+        await reactions
+          .react({ subject: { type: "doc", id: doc }, emoji: "👍" })
+          .orThrow(),
       ).toEqual([
         { emoji: "👍", count: 1, reacted: true, actors: [member.id] },
       ]);
       await s.asRole(owner);
-      await reactions.react({ type: "doc", id: doc }, "👍").orThrow();
-      await reactions.react({ type: "doc", id: doc }, "👍").orThrow();
+      await reactions
+        .react({ subject: { type: "doc", id: doc }, emoji: "👍" })
+        .orThrow();
+      await reactions
+        .react({ subject: { type: "doc", id: doc }, emoji: "👍" })
+        .orThrow();
 
       const after = await reactions
-        .react({ type: "doc", id: doc }, "🎉")
+        .react({ subject: { type: "doc", id: doc }, emoji: "🎉" })
         .orThrow();
 
       expect(after.map((row) => [row.emoji, row.count])).toEqual([
@@ -92,7 +98,7 @@ describe.skipIf(!live)("reactions", () => {
       ]);
       expect(
         await reactions
-          .react({ type: "doc", id: doc }, ":ship-it:")
+          .react({ subject: { type: "doc", id: doc }, emoji: ":ship-it:" })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_INVALID");
       await reactions
@@ -101,7 +107,9 @@ describe.skipIf(!live)("reactions", () => {
           url: "https://cdn.test/ship.png",
         })
         .orThrow();
-      await reactions.react({ type: "doc", id: doc }, ":ship-it:").orThrow();
+      await reactions
+        .react({ subject: { type: "doc", id: doc }, emoji: ":ship-it:" })
+        .orThrow();
 
       await s.asRole(member);
       expect(
@@ -114,7 +122,11 @@ describe.skipIf(!live)("reactions", () => {
       ).toBe("REACTION_FORBIDDEN");
 
       const removed = await reactions
-        .react({ type: "doc", id: doc }, "👍", { present: false })
+        .react({
+          subject: { type: "doc", id: doc },
+          emoji: "👍",
+          present: false,
+        })
         .orThrow();
 
       expect(removed.find((row) => row.emoji === "👍")).toMatchObject({
@@ -123,16 +135,19 @@ describe.skipIf(!live)("reactions", () => {
       });
       expect(
         await reactions
-          .react({ type: "missing", id: doc }, "👍")
+          .react({ subject: { type: "missing", id: doc }, emoji: "👍" })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
 
       const comment = await comments
-        .create({ type: "doc", id: doc }, { body: "Looks good" })
+        .create({
+          subject: { type: "doc", id: doc },
+          comment: { body: "Looks good" },
+        })
         .orThrow();
 
       await reactions
-        .react({ type: "message", id: comment.id }, "👀")
+        .react({ subject: { type: "message", id: comment.id }, emoji: "👀" })
         .orThrow();
 
       const summary = await reactions
@@ -152,7 +167,7 @@ describe.skipIf(!live)("reactions", () => {
       await s.asRole(stranger);
       expect(
         await reactions
-          .react({ type: "doc", id: doc }, "👍")
+          .react({ subject: { type: "doc", id: doc }, emoji: "👍" })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
       expect(
@@ -216,25 +231,19 @@ describe.skipIf(!live)("reactions", () => {
       const other = { type: "doc", id: second!.id };
 
       await s.asRole(member);
-      expect(await reactions.vote(doc, 1).orThrow()).toEqual({
-        score: 1,
-        up: 1,
-        down: 0,
-        vote: 1,
-      });
-      expect(await reactions.vote(doc, 1).orThrow()).toMatchObject({
-        score: 1,
-      });
-      await reactions.react(doc, "👍").orThrow();
+      expect(
+        await reactions.vote({ subject: doc, value: 1 }).orThrow(),
+      ).toEqual({ score: 1, up: 1, down: 0, vote: 1 });
+      expect(
+        await reactions.vote({ subject: doc, value: 1 }).orThrow(),
+      ).toMatchObject({ score: 1 });
+      await reactions.react({ subject: doc, emoji: "👍" }).orThrow();
 
       await s.asRole(owner);
-      expect(await reactions.vote(doc, -1).orThrow()).toEqual({
-        score: 0,
-        up: 1,
-        down: 1,
-        vote: -1,
-      });
-      await reactions.vote(other, 1).orThrow();
+      expect(
+        await reactions.vote({ subject: doc, value: -1 }).orThrow(),
+      ).toEqual({ score: 0, up: 1, down: 1, vote: -1 });
+      await reactions.vote({ subject: other, value: 1 }).orThrow();
       expect(
         (await reactions.summary([doc]).orThrow())[`doc:${doc.id}`]?.map(
           (row) => row.emoji,
@@ -242,29 +251,27 @@ describe.skipIf(!live)("reactions", () => {
       ).toEqual(["👍"]);
 
       await s.asRole(member);
-      expect(await reactions.vote(doc, -1).orThrow()).toEqual({
-        score: -2,
-        up: 0,
-        down: 2,
-        vote: -1,
-      });
+      expect(
+        await reactions.vote({ subject: doc, value: -1 }).orThrow(),
+      ).toEqual({ score: -2, up: 0, down: 2, vote: -1 });
       expect(await reactions.votes([doc, other]).orThrow()).toEqual({
         [`doc:${doc.id}`]: { score: -2, up: 0, down: 2, vote: -1 },
         [`doc:${other.id}`]: { score: 1, up: 1, down: 0, vote: 0 },
       });
       expect(
-        await reactions.vote(doc, 2 as 1).then((r) => !r.ok && r.error.hint),
+        await reactions
+          .vote({ subject: doc, value: 2 as 1 })
+          .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_INVALID");
-      expect(await reactions.vote(doc, 0).orThrow()).toEqual({
-        score: -1,
-        up: 0,
-        down: 1,
-        vote: 0,
-      });
+      expect(
+        await reactions.vote({ subject: doc, value: 0 }).orThrow(),
+      ).toEqual({ score: -1, up: 0, down: 1, vote: 0 });
 
       await s.asRole(stranger);
       expect(
-        await reactions.vote(doc, 1).then((r) => !r.ok && r.error.hint),
+        await reactions
+          .vote({ subject: doc, value: 1 })
+          .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
       expect(
         await s.value<number>(
@@ -274,10 +281,12 @@ describe.skipIf(!live)("reactions", () => {
 
       await s.service();
       expect(
-        await reactions.vote(other, -1, { actor: "importer" }).orThrow(),
+        await reactions
+          .vote({ subject: other, value: -1, actor: "importer" })
+          .orThrow(),
       ).toMatchObject({ score: 0, up: 1, down: 1 });
       await s.asRole(owner);
-      await reactions.vote(other, 0).orThrow();
+      await reactions.vote({ subject: other, value: 0 }).orThrow();
 
       await s.service();
 
@@ -394,23 +403,29 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
       await s.asRole(visitor);
 
       const opened = await inbox.conversations
-        .open(widget.id, { message: "Hello" })
+        .open({ inboxId: widget.id, input: { message: "Hello" } })
         .orThrow();
 
       await s.asRole(owner);
 
       const reply = await inbox.messages
-        .send(opened.id, { body: "Hi there" })
+        .send({ conversationId: opened.id, input: { body: "Hi there" } })
         .orThrow();
 
-      const missing = await inbox.messages.react(reply.id, "👍");
+      const missing = await inbox.messages.react({
+        messageId: reply.id,
+        emoji: "👍",
+      });
+
       expect(missing.ok ? undefined : missing.error).toMatchObject({
         hint: "INBOX_REACTIONS_MISSING",
       });
       await s.service();
       await s.install([...modules, "reactions"]);
       await s.asRole(owner);
-      await inbox.messages.react(reply.id, "👍").orThrow();
+      await inbox.messages
+        .react({ messageId: reply.id, emoji: "👍" })
+        .orThrow();
       expect(
         await s.rows<{ subject_type: string; actor: string; emoji: string }>(
           "select subject_type, actor, emoji from better_supabase.reactions where subject_id = $1",
@@ -419,14 +434,14 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
       ).toEqual([{ subject_type: "message", actor: owner.id, emoji: "👍" }]);
 
       const counts = await reactions
-        .react({ type: "message", id: reply.id }, "🎉")
+        .react({ subject: { type: "message", id: reply.id }, emoji: "🎉" })
         .orThrow();
 
       expect(counts.map((row) => row.emoji).toSorted()).toEqual(["🎉", "👍"]);
       await s.service();
 
       const byBot = await inbox.messages
-        .react(reply.id, "👍", { actor: "bot" })
+        .react({ messageId: reply.id, emoji: "👍", actor: "bot" })
         .orThrow();
 
       expect(
@@ -436,7 +451,7 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
       expect(
         (
           await inbox.messages
-            .react(reply.id, "👍", { present: false })
+            .react({ messageId: reply.id, emoji: "👍", present: false })
             .orThrow()
         ).map((row) => [row.emoji, row.actors]),
       ).toEqual([
@@ -455,9 +470,11 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
       ]);
       await s.asRole(visitor);
       expect(
-        (await inbox.messages.react(reply.id, "❤️").orThrow()).map(
-          (row) => row.emoji,
-        ),
+        (
+          await inbox.messages
+            .react({ messageId: reply.id, emoji: "❤️" })
+            .orThrow()
+        ).map((row) => row.emoji),
       ).toContain("❤️");
     } finally {
       await s.close();

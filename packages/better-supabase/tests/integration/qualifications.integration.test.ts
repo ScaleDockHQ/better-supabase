@@ -38,30 +38,42 @@ describe.skipIf(!live)("qualifications", () => {
       await s.as(owner);
 
       const forklift = await qualifications
-        .saveType(org, {
-          key: "forklift",
-          name: "Forklift licence",
-          holderTypes: ["member"],
-          validForMonths: 12,
+        .saveType({
+          organizationId: org,
+          input: {
+            key: "forklift",
+            name: "Forklift licence",
+            holderTypes: ["member"],
+            validForMonths: 12,
+          },
         })
         .orThrow();
 
       expect(
         await qualifications
-          .saveType(org, {
-            key: "bad",
-            name: "Bad",
-            holderTypes: ["member"],
-            validForMonths: 300,
+          .saveType({
+            organizationId: org,
+            input: {
+              key: "bad",
+              name: "Bad",
+              holderTypes: ["member"],
+              validForMonths: 300,
+            },
           })
           .then(hint),
       ).toBe("QUALIFICATION_TYPE_INVALID");
 
       await qualifications
-        .addRequirement(forklift.id, "role", "member")
+        .addRequirement({
+          typeId: forklift.id,
+          targetType: "role",
+          targetValue: "member",
+        })
         .orThrow();
 
-      expect(await qualifications.gaps(org).orThrow()).toEqual([
+      expect(
+        await qualifications.gaps({ organizationId: org }).orThrow(),
+      ).toEqual([
         expect.objectContaining({
           holderId: driver.id,
           typeKey: "forklift",
@@ -72,27 +84,33 @@ describe.skipIf(!live)("qualifications", () => {
       await s.as(driver);
       expect(
         await qualifications
-          .grant(org, {
-            typeKey: "forklift",
-            holderType: "member",
-            holderId: driver.id,
+          .grant({
+            organizationId: org,
+            input: {
+              typeKey: "forklift",
+              holderType: "member",
+              holderId: driver.id,
+            },
           })
           .then(hint),
       ).toBe("QUALIFICATION_FORBIDDEN");
-      expect(await qualifications.gaps(org).then(hint)).toBe(
-        "QUALIFICATION_FORBIDDEN",
-      );
+      expect(
+        await qualifications.gaps({ organizationId: org }).then(hint),
+      ).toBe("QUALIFICATION_FORBIDDEN");
 
       await s.as(owner);
 
       const grantedOn = today().subtract({ days: 350 });
 
       const holding = await qualifications
-        .grant(org, {
-          typeKey: "forklift",
-          holderType: "member",
-          holderId: driver.id,
-          grantedOn,
+        .grant({
+          organizationId: org,
+          input: {
+            typeKey: "forklift",
+            holderType: "member",
+            holderId: driver.id,
+            grantedOn,
+          },
         })
         .orThrow();
 
@@ -101,21 +119,31 @@ describe.skipIf(!live)("qualifications", () => {
         grantedOn.add({ months: 12 }).toString(),
       );
       expect(
-        await qualifications.qualifiedHolders(org, "forklift").orThrow(),
+        await qualifications
+          .qualifiedHolders({ organizationId: org, typeKey: "forklift" })
+          .orThrow(),
       ).toEqual([driver.id]);
       expect(
         await qualifications
-          .qualifiedHolders(org, "forklift", { on: today().add({ days: 60 }) })
+          .qualifiedHolders({
+            organizationId: org,
+            typeKey: "forklift",
+            on: today().add({ days: 60 }),
+          })
           .orThrow(),
       ).toEqual([]);
 
       await s.as(driver);
       expect(
-        await qualifications.gaps(org, { holderId: driver.id }).orThrow(),
+        await qualifications
+          .gaps({ organizationId: org, holderId: driver.id })
+          .orThrow(),
       ).toEqual([expect.objectContaining({ status: "expiring" })]);
-      expect(await qualifications.of("member", driver.id).orThrow()).toEqual([
-        expect.objectContaining({ id: holding.id }),
-      ]);
+      expect(
+        await qualifications
+          .of({ holderType: "member", holderId: driver.id })
+          .orThrow(),
+      ).toEqual([expect.objectContaining({ id: holding.id })]);
 
       await s.service();
       expect(await qualifications.notifyExpiring().orThrow()).toBe(1);
@@ -124,7 +152,7 @@ describe.skipIf(!live)("qualifications", () => {
       await s.as(owner);
 
       const revoked = await qualifications
-        .revoke(holding.id, "Failed the check")
+        .revoke({ qualificationId: holding.id, reason: "Failed the check" })
         .orThrow();
 
       expect(revoked).toMatchObject({
@@ -132,11 +160,15 @@ describe.skipIf(!live)("qualifications", () => {
         revokeReason: "Failed the check",
       });
       expect(
-        await qualifications.gaps(org, { status: "missing" }).orThrow(),
+        await qualifications
+          .gaps({ organizationId: org, status: "missing" })
+          .orThrow(),
       ).toHaveLength(1);
 
       await s.asRole(outsider);
-      expect(await qualifications.types(org).orThrow()).toEqual([]);
+      expect(
+        await qualifications.types({ organizationId: org }).orThrow(),
+      ).toEqual([]);
 
       await s.service();
 

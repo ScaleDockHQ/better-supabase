@@ -6,6 +6,11 @@ import {
   PLUGIN_SUBPATH_RENAMES,
   SPEC_SUBPATH_RENAMES,
 } from "../codemod-block-renames.ts";
+import { findObjectInputCalls } from "../codemod-object-inputs.ts";
+
+// A vendored UI component can have an `addRule` of its own; only files that reach a block
+// client (through the package, `$blocks` or the generated `lib/supabase` files) count.
+const BLOCK_CLIENT_FILE = /better-supabase|\$blocks|lib\/supabase/;
 
 const SPECIFIER = /from\s+["']better-supabase\/([\w./-]+)["']/g;
 
@@ -180,6 +185,24 @@ function removedApis(context: DoctorContext): FindingInput[] {
   return findings;
 }
 
+/**
+ * App code that still passes positional arguments to a block client method that
+ * takes one object since 0.47 (BS509).
+ */
+function positionalBlockCalls(context: DoctorContext): FindingInput[] {
+  return context.sources
+    .filter((file) => BLOCK_CLIENT_FILE.test(file.text))
+    .flatMap((file) =>
+      findObjectInputCalls(file.text)
+        .filter((call) => call.input !== undefined)
+        .map((call) => ({
+          message: `${file.path} calls \`.${call.method}(...)\` with positional arguments; the block client takes one object (\`.${call.method}(${call.input ?? ""})\`). Run \`bsb codemod 0.47\`.`,
+          target: `${file.path}:${String(call.line)}`,
+          location: { file: file.path, line: call.line },
+        })),
+    );
+}
+
 export const REMOVED_API_RULES: readonly Rule[] = [
   {
     code: "BS418",
@@ -188,5 +211,13 @@ export const REMOVED_API_RULES: readonly Rule[] = [
     description:
       "0.15 renamed blocks and their subpaths, turned the built-in plugins into block extensions, moved the OpenAPI, AsyncAPI, Arazzo and Overlay subpaths into `better-supabase/spec`, replaced record features with record types and flows with default automations. `better-supabase codemod 0.15` rewrites the renames; the removed APIs need the replacement the finding names.",
     check: removedApis,
+  },
+  {
+    code: "BS509",
+    severity: "warning",
+    title: "A block client call passes positional arguments",
+    description:
+      "Since 0.47 every block client method takes one object (`drive.list({ organizationId, options })`). A call that still passes several positional arguments fails to type-check and, in plain JavaScript, reads the wrong values. `better-supabase codemod 0.47` rewrites the calls it can place and lists the rest.",
+    check: positionalBlockCalls,
   },
 ];

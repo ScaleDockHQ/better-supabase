@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_170_e_prescribing.sql
+-- ==== schema supabase/schemas/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:ee7b6dd79ff48d2a4a12b1f5caf7abe7a0c07b686474962c378c7de29ffba379
@@ -483,7 +483,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_170_e_prescribing.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_173_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe

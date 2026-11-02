@@ -79,12 +79,19 @@ describe("orders kitchen", () => {
     });
 
     const saved = await kitchen
-      .saveStation("o1", { key: "grill", name: "Grill", productIds: ["p1"] })
+      .saveStation({
+        organizationId: "o1",
+        input: { key: "grill", name: "Grill", productIds: ["p1"] },
+      })
       .orThrow();
 
     expect(saved.createdAt.toString()).toBe(AT);
     expect(saved.productIds).toEqual(["p1"]);
-    await kitchen.saveStation("o1", { default: true, active: false }, "s1");
+    await kitchen.saveStation({
+      organizationId: "o1",
+      input: { default: true, active: false },
+      stationId: "s1",
+    });
     expect(
       (await kitchen.stations("o1").orThrow()).map((item) => item.active),
     ).toEqual([true, false]);
@@ -118,14 +125,24 @@ describe("orders kitchen", () => {
       bump_kitchen_ticket: "2",
     });
 
-    expect(await kitchen.send("r1", { l1: "no onions" }).orThrow()).toBe(3);
-    await kitchen.send("r1");
-    const moved = await kitchen.setState("l1", "ready").orThrow();
+    expect(
+      await kitchen
+        .send({ orderId: "r1", notes: { l1: "no onions" } })
+        .orThrow(),
+    ).toBe(3);
+    await kitchen.send({ orderId: "r1" });
+
+    const moved = await kitchen
+      .setState({ lineId: "l1", state: "ready" })
+      .orThrow();
+
     expect(moved).toMatchObject({ state: "ready", note: "no onions" });
     expect(moved.readyAt?.toString()).toBe(AT);
     expect(moved).not.toHaveProperty("servedAt");
-    expect(await kitchen.bump("r1", "served").orThrow()).toBe(2);
-    await kitchen.bump("r1", "ready", "s1");
+    expect(
+      await kitchen.bump({ orderId: "r1", state: "served" }).orThrow(),
+    ).toBe(2);
+    await kitchen.bump({ orderId: "r1", state: "ready", stationId: "s1" });
     expect(calls.map((item) => item.args)).toEqual([
       { order_id: "r1", notes: { l1: "no onions" } },
       { order_id: "r1", notes: null },
@@ -171,16 +188,15 @@ describe("orders kitchen", () => {
       ],
     });
 
-    const [ticket] = await kitchen.queue("o1").orThrow();
+    const [ticket] = await kitchen.queue({ organizationId: "o1" }).orThrow();
     expect(ticket!.lines[0]).not.toHaveProperty("stationId");
     expect(ticket!.lines[0]).not.toHaveProperty("note");
-    await kitchen.queue("o1", {
-      stationId: "s1",
-      states: ["ready"],
-      pageSize: 10,
+    await kitchen.queue({
+      organizationId: "o1",
+      query: { stationId: "s1", states: ["ready"], pageSize: 10 },
     });
 
-    const cards = await kitchen.board("o1").orThrow();
+    const cards = await kitchen.board({ organizationId: "o1" }).orThrow();
     expect(cards[0]).toMatchObject({
       state: "preparing",
       counts: { queued: 1, preparing: 2, ready: 0, served: 0 },
@@ -191,9 +207,9 @@ describe("orders kitchen", () => {
       counts: { queued: 0, preparing: 0, ready: 0, served: 0 },
     });
     expect(cards[1]!.servedAt?.toString()).toBe(AT);
-    await kitchen.board("o1", {
-      since: Temporal.Instant.from(AT),
-      pageSize: 5,
+    await kitchen.board({
+      organizationId: "o1",
+      query: { since: Temporal.Instant.from(AT), pageSize: 5 },
     });
 
     expect(calls.map((item) => item.args)).toEqual([
@@ -209,6 +225,8 @@ describe("orders kitchen", () => {
       set_line_preparation: { ...line, state: "burnt" },
     });
 
-    expect((await kitchen.setState("l1", "ready")).ok).toBe(false);
+    expect((await kitchen.setState({ lineId: "l1", state: "ready" })).ok).toBe(
+      false,
+    );
   });
 });

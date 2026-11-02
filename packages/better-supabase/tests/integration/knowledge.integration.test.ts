@@ -41,7 +41,10 @@ describe.skipIf(!live)("knowledge module", () => {
         "Penguins live in the southern hemisphere.\n\nKoalas sleep most of the day in eucalyptus trees.";
 
       const doc = await knowledge.ingest
-        .text(tenant, { title: "Animals", text, metadata: { topic: "zoo" } })
+        .text({
+          organizationId: tenant,
+          document: { title: "Animals", text, metadata: { topic: "zoo" } },
+        })
         .orThrow();
 
       expect(doc).toMatchObject({
@@ -53,20 +56,24 @@ describe.skipIf(!live)("knowledge module", () => {
       });
 
       const textOnly = await knowledge
-        .search(tenant, { text: "koalas" })
+        .search({ organizationId: tenant, query: { text: "koalas" } })
         .orThrow();
 
       expect(textOnly.map((hit) => hit.index)).toEqual([1]);
 
       await s.service();
-      expect(await knowledge.process(doc.id).orThrow()).toBe(0);
+      expect(await knowledge.process({ documentId: doc.id }).orThrow()).toBe(0);
       await s.asRole(member);
       expect((await knowledge.documents.get(doc.id).orThrow()).status).toBe(
         "ready",
       );
 
       const hits = await knowledge
-        .search(tenant, "where do penguins live", { k: 1 })
+        .search({
+          organizationId: tenant,
+          query: "where do penguins live",
+          k: 1,
+        })
         .orThrow();
 
       expect(hits[0]).toMatchObject({
@@ -77,17 +84,24 @@ describe.skipIf(!live)("knowledge module", () => {
       expect(hits[0]!.content).toContain("Penguins");
       expect(
         await knowledge
-          .search(tenant, "penguins", { filter: { topic: "x" } })
+          .search({
+            organizationId: tenant,
+            query: "penguins",
+            filter: { topic: "x" },
+          })
           .orThrow(),
       ).toEqual([]);
 
       const calls = embedder.calls;
 
       const edited = await knowledge.documents
-        .write(doc.id, [
-          { content: "Penguins live in the southern hemisphere." },
-          { content: "Koalas eat eucalyptus leaves." },
-        ])
+        .write({
+          documentId: doc.id,
+          chunks: [
+            { content: "Penguins live in the southern hemisphere." },
+            { content: "Koalas eat eucalyptus leaves." },
+          ],
+        })
         .orThrow();
 
       expect(edited.status).toBe("pending");
@@ -98,18 +112,23 @@ describe.skipIf(!live)("knowledge module", () => {
           [doc.id],
         ),
       ).toBe(1);
-      await knowledge.process(doc.id).orThrow();
+      await knowledge.process({ documentId: doc.id }).orThrow();
       expect(embedder.calls).toBe(calls + 1);
 
       await s.asRole(outsider);
-      expect(await knowledge.search(tenant, "penguins").orThrow()).toEqual([]);
+      expect(
+        await knowledge
+          .search({ organizationId: tenant, query: "penguins" })
+          .orThrow(),
+      ).toEqual([]);
       const foreign = await knowledge.documents.get(doc.id);
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
         "KNOWLEDGE_NOT_FOUND",
       );
 
-      const forbidden = await knowledge.documents.create(tenant, {
-        title: "x",
+      const forbidden = await knowledge.documents.create({
+        organizationId: tenant,
+        document: { title: "x" },
       });
 
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
@@ -119,25 +138,32 @@ describe.skipIf(!live)("knowledge module", () => {
       await s.asRole(owner);
 
       const shared = await knowledge.ingest
-        .text(tenant, {
-          title: "Handbook",
-          text: "Expenses are reimbursed monthly.",
-          scope: "organization",
+        .text({
+          organizationId: tenant,
+          document: {
+            title: "Handbook",
+            text: "Expenses are reimbursed monthly.",
+            scope: "organization",
+          },
         })
         .orThrow();
 
       await s.asRole(member);
 
       const visible = await knowledge
-        .search(tenant, "expenses", { scopes: [{ scope: "organization" }] })
+        .search({
+          organizationId: tenant,
+          query: "expenses",
+          scopes: [{ scope: "organization" }],
+        })
         .orThrow();
 
       expect(visible.map((hit) => hit.documentId)).toEqual([shared.id]);
       expect(await knowledge.documents.remove(shared.id).orThrow()).toBe(false);
 
-      const badScope = await knowledge.documents.create(tenant, {
-        title: "x",
-        scope: "agent",
+      const badScope = await knowledge.documents.create({
+        organizationId: tenant,
+        document: { title: "x", scope: "agent" },
       });
 
       expect(badScope.ok ? undefined : badScope.error.hint).toBe(
@@ -145,9 +171,9 @@ describe.skipIf(!live)("knowledge module", () => {
       );
       await s.asRole(owner);
 
-      const noAgent = await knowledge.documents.create(tenant, {
-        title: "x",
-        scope: "agent",
+      const noAgent = await knowledge.documents.create({
+        organizationId: tenant,
+        document: { title: "x", scope: "agent" },
       });
 
       expect(noAgent.ok ? undefined : noAgent.error.hint).toBe(
@@ -166,7 +192,11 @@ describe.skipIf(!live)("knowledge module", () => {
       ).toBe(0);
 
       await s.asRole(member);
-      const listed = await knowledge.documents.list(tenant).orThrow();
+
+      const listed = await knowledge.documents
+        .list({ organizationId: tenant })
+        .orThrow();
+
       expect(listed.map((d) => d.id).toSorted()).toEqual(
         [doc.id, shared.id].toSorted(),
       );
@@ -213,33 +243,39 @@ describe.skipIf(!live)("knowledge module", () => {
       const subject = { type: "drive_node", id: folder.id };
 
       const doc = await knowledge.ingest
-        .text(tenant, {
-          title: "Lease",
-          text: "The lease renews every March.",
-          scope: "subject",
-          subject,
+        .text({
+          organizationId: tenant,
+          document: {
+            title: "Lease",
+            text: "The lease renews every March.",
+            scope: "subject",
+            subject,
+          },
         })
         .orThrow();
 
       expect(doc).toMatchObject({ scope: "subject", subject });
 
-      const missing = await knowledge.documents.create(tenant, {
-        title: "x",
-        scope: "subject",
+      const missing = await knowledge.documents.create({
+        organizationId: tenant,
+        document: { title: "x", scope: "subject" },
       });
 
       expect(missing.ok ? undefined : missing.error.hint).toBe(
         "KNOWLEDGE_DOCUMENT_INVALID",
       );
 
-      const search = () => knowledge.search(tenant, "lease").orThrow();
+      const search = () =>
+        knowledge.search({ organizationId: tenant, query: "lease" }).orThrow();
 
       expect((await search()).map((hit) => hit.documentId)).toEqual([doc.id]);
 
       await s.asRole(member);
       expect(await search()).toEqual([]);
       expect(
-        await knowledge.documents.list(tenant, { subject }).orThrow(),
+        await knowledge.documents
+          .list({ organizationId: tenant, subject })
+          .orThrow(),
       ).toEqual([]);
 
       const hidden = await knowledge.documents.get(doc.id);
@@ -248,10 +284,9 @@ describe.skipIf(!live)("knowledge module", () => {
         "KNOWLEDGE_NOT_FOUND",
       );
 
-      const foreign = await knowledge.documents.create(tenant, {
-        title: "x",
-        scope: "subject",
-        subject,
+      const foreign = await knowledge.documents.create({
+        organizationId: tenant,
+        document: { title: "x", scope: "subject", subject },
       });
 
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
@@ -302,11 +337,14 @@ describe.skipIf(!live)("knowledge module", () => {
       await s.asRole(owner);
 
       const doc = await knowledge.ingest
-        .text(tenant, { title: "Race", text: "Penguins swim" })
+        .text({
+          organizationId: tenant,
+          document: { title: "Race", text: "Penguins swim" },
+        })
         .orThrow();
 
       await s.service();
-      expect(await knowledge.process(doc.id).orThrow()).toBe(0);
+      expect(await knowledge.process({ documentId: doc.id }).orThrow()).toBe(0);
 
       const [row] = await s.rows<{ fresh: boolean }>(
         "select embedding_hash = md5(content) as fresh from better_supabase.knowledge_chunks where document_id = $1",
@@ -341,7 +379,10 @@ describe.skipIf(!live)("knowledge module", () => {
       await s.asRole(owner);
 
       const doc = await knowledge.ingest
-        .text(tenant, { title: "Notes", text: "Some notes." })
+        .text({
+          organizationId: tenant,
+          document: { title: "Notes", text: "Some notes." },
+        })
         .orThrow();
 
       await s.service();

@@ -74,18 +74,27 @@ export interface RuleBuilderActions {
   /** Loads the fields and the rule again, dropping unsaved edits. */
   readonly refresh: () => Promise<void>;
   /** Adds a condition to `group` (the root by default) and returns its id. */
-  readonly addRule: (group?: string, field?: string) => string;
+  readonly addRule: (input?: {
+    group?: string | undefined;
+    field?: string | undefined;
+  }) => string;
   /** Adds an empty group to `group` (the root by default) and returns its id. */
-  readonly addGroup: (group?: string, combinator?: FilterCombinator) => string;
+  readonly addGroup: (input?: {
+    group?: string | undefined;
+    combinator?: FilterCombinator | undefined;
+  }) => string;
   readonly remove: (id: string) => void;
   /** Moves a node into `group`, where it ends up at `index`. */
-  readonly move: (id: string, group: string, index: number) => void;
-  readonly setField: (id: string, field: string) => void;
+  readonly move: (input: { id: string; group: string; index: number }) => void;
+  readonly setField: (input: { id: string; field: string }) => void;
   /** Keeps the value when the operator takes the same kind of value. */
-  readonly setOperator: (id: string, operator: string) => void;
-  readonly setValue: (id: string, value: unknown) => void;
-  readonly setNegated: (id: string, negated: boolean) => void;
-  readonly setCombinator: (group: string, combinator: FilterCombinator) => void;
+  readonly setOperator: (input: { id: string; operator: string }) => void;
+  readonly setValue: (input: { id: string; value: unknown }) => void;
+  readonly setNegated: (input: { id: string; negated: boolean }) => void;
+  readonly setCombinator: (input: {
+    group: string;
+    combinator: FilterCombinator;
+  }) => void;
   readonly setName: (name: string) => void;
   readonly setActions: (actions: readonly RuleAction[]) => void;
   readonly setStopProcessing: (stop: boolean) => void;
@@ -267,7 +276,13 @@ export function createRuleBuilderController(
         }
       };
 
-      const addRule = (group?: string, field?: string): string => {
+      const addRule = ({
+        group,
+        field,
+      }: {
+        group?: string | undefined;
+        field?: string | undefined;
+      } = {}): string => {
         const id = newId();
         const target = group ?? state.get().conditions.id;
 
@@ -291,10 +306,13 @@ export function createRuleBuilderController(
         return id;
       };
 
-      const addGroup = (
-        group?: string,
-        combinator: FilterCombinator = "and",
-      ): string => {
+      const addGroup = ({
+        group,
+        combinator = "and",
+      }: {
+        group?: string | undefined;
+        combinator?: FilterCombinator | undefined;
+      } = {}): string => {
         const id = newId();
         const target = group ?? state.get().conditions.id;
 
@@ -317,22 +335,25 @@ export function createRuleBuilderController(
         const run = state.run();
         state.set({ saving: true, error: undefined });
 
-        const saved = await client.upsert(organizationId, {
-          ...(current.rule === undefined
-            ? {
-                subjectType: options.subjectType,
-                ...(options.trigger === undefined
-                  ? {}
-                  : { trigger: options.trigger }),
-              }
-            : { id: current.rule.id, version: current.rule.version }),
-          name: current.name,
-          conditions: current.conditions,
-          actions: current.actions,
-          stopProcessing: current.stopProcessing,
-          ...(saveOptions.enabled === undefined
-            ? {}
-            : { enabled: saveOptions.enabled }),
+        const saved = await client.upsert({
+          organizationId,
+          input: {
+            ...(current.rule === undefined
+              ? {
+                  subjectType: options.subjectType,
+                  ...(options.trigger === undefined
+                    ? {}
+                    : { trigger: options.trigger }),
+                }
+              : { id: current.rule.id, version: current.rule.version }),
+            name: current.name,
+            conditions: current.conditions,
+            actions: current.actions,
+            stopProcessing: current.stopProcessing,
+            ...(saveOptions.enabled === undefined
+              ? {}
+              : { enabled: saveOptions.enabled }),
+          },
         });
 
         if (run !== state.run()) {
@@ -362,14 +383,14 @@ export function createRuleBuilderController(
               edit({ conditions: removeNode(state.get().conditions, id) });
             }
           },
-          move: (id, group, index) => {
+          move: ({ id, group, index }) => {
             if (!holdsLocked(id)) {
               edit({
                 conditions: moveNode(state.get().conditions, id, group, index),
               });
             }
           },
-          setField: (id, field) => {
+          setField: ({ id, field }) => {
             editRule(id, (rule, fields) => {
               const next = fieldById(fields, field);
 
@@ -382,7 +403,7 @@ export function createRuleBuilderController(
                   );
             });
           },
-          setOperator: (id, operator) => {
+          setOperator: ({ id, operator }) => {
             editRule(id, (rule, fields) =>
               setRuleOperator(
                 rule,
@@ -391,13 +412,13 @@ export function createRuleBuilderController(
               ),
             );
           },
-          setValue: (id, value) => {
+          setValue: ({ id, value }) => {
             editRule(id, (rule) => ({ ...rule, value }));
           },
-          setNegated: (id, negated) => {
+          setNegated: ({ id, negated }) => {
             editRule(id, (rule) => ({ ...rule, negated }));
           },
-          setCombinator: (group, combinator) => {
+          setCombinator: ({ group, combinator }) => {
             editTree(group, (tree) => setCombinator(tree, group, combinator));
           },
           setName: (name) => {

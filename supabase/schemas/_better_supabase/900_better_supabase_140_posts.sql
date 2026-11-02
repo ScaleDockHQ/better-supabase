@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:63a5996513655624f83a39a2073374e1cefd5c6db47c607ca86bde0463990c9e
+-- @bsb-hash sha256:e7e0f3753f5242df36266812ad5719f438c905f4510f9f78c893700b99364c77
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -773,6 +773,14 @@ drop trigger if exists "bsb_search_post_index" on "better_supabase"."posts";
 create trigger "bsb_search_post_index"
   after insert or delete or update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.post_boards', target_type => 'post_board', event_prefix => 'post_board', deferred => true);
+  perform better_supabase.audit('better_supabase.posts', target_type => 'post', event_prefix => 'post', deferred => true);
+end;
+$$;
 
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";

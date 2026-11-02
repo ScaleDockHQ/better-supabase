@@ -16,6 +16,7 @@ import {
   optionalText,
   recordOf,
   recordsOf,
+  sleep,
   stringsOf,
   textOf,
   toInstant,
@@ -189,23 +190,36 @@ export interface DataLifecycle {
    * in the record's tenant or the record's `manage` action.
    */
   requestSubjectExport(
-    subjectType: string,
-    subjectId: string,
-    options?: { readonly format?: DataExportFormat },
+    input: { subjectType: string; subjectId: string } & {
+      readonly format?: DataExportFormat;
+    },
   ): AsyncResult<DataExport>;
   /** The caller's exports, or a tenant's, newest first. */
   exports(organizationId?: string): AsyncResult<readonly DataExport[]>;
   /** Signed URLs for a ready export's files. */
   download(exportId: string): AsyncResult<DataExportDownload>;
   /**
+   * Requests an export, waits until it is ready and returns its signed URLs: a
+   * "download my data" button in one call. It polls `exports` every
+   * `intervalMs` (default 1000) for at most `timeoutMs` (default 30000), and
+   * fails with `invalid_request` and the hint `DATA_EXPORT_FAILED` or
+   * `DATA_EXPORT_NOT_READY`. The export keeps running after a timeout; fetch it
+   * later with `exports` and `download`.
+   */
+  exportNow(options?: {
+    readonly organizationId?: string;
+    readonly timeoutMs?: number;
+    readonly intervalMs?: number;
+  }): AsyncResult<DataExportDownload>;
+  /**
    * Disables the tenant and schedules its purge after `grace` (an interval such
    * as `30 days` or a `Temporal.Duration`; default the module's `grace`
    * option). Needs `organization.delete`.
    */
-  requestOrganizationDeletion(
-    organizationId: string,
-    options?: { readonly grace?: Temporal.Duration | string },
-  ): AsyncResult<OrganizationDeletion>;
+  requestOrganizationDeletion(input: {
+    organizationId: string;
+    options?: { readonly grace?: Temporal.Duration | string } | undefined;
+  }): AsyncResult<OrganizationDeletion>;
   /** The requester or an owner cancels; `undefined` when nothing is pending. */
   cancelOrganizationDeletion(
     organizationId: string,
@@ -227,37 +241,35 @@ export interface DataLifecycle {
     readonly details?: string;
   }): AsyncResult<DataSubjectRequest>;
   /** Records how the requester's identity was checked. */
-  verifyDataSubjectRequest(
-    requestId: string,
-    method: string,
-  ): AsyncResult<DataSubjectRequest>;
+  verifyDataSubjectRequest(input: {
+    requestId: string;
+    method: string;
+  }): AsyncResult<DataSubjectRequest>;
   /** Extends the due date to three months after receipt; once per request. */
-  extendDataSubjectRequest(
-    requestId: string,
-    reason: string,
-  ): AsyncResult<DataSubjectRequest>;
+  extendDataSubjectRequest(input: {
+    requestId: string;
+    reason: string;
+  }): AsyncResult<DataSubjectRequest>;
   /**
    * Fulfils a verified request. Access and portability start the NDJSON export
    * of the named record. Erasure and rectification need a `resolution`, and an
    * erasure fails while a legal hold covers every kind of record.
    */
-  fulfilDataSubjectRequest(
-    requestId: string,
-    resolution?: string,
-  ): AsyncResult<DataSubjectRequest>;
+  fulfilDataSubjectRequest(input: {
+    requestId: string;
+    resolution?: string | undefined;
+  }): AsyncResult<DataSubjectRequest>;
   /** Refuses a request with the reason the requester receives. */
-  refuseDataSubjectRequest(
-    requestId: string,
-    reason: string,
-  ): AsyncResult<DataSubjectRequest>;
+  refuseDataSubjectRequest(input: {
+    requestId: string;
+    reason: string;
+  }): AsyncResult<DataSubjectRequest>;
   /** The organization's requests, the nearest due date first. */
-  dataSubjectRequests(
-    organizationId: string,
-    options?: {
-      readonly status?: DataSubjectRequestStatus;
-      readonly openOnly?: boolean;
-    },
-  ): AsyncResult<readonly DataSubjectRequest[]>;
+  dataSubjectRequests(input: {
+    readonly organizationId: string;
+    readonly status?: DataSubjectRequestStatus | undefined;
+    readonly openOnly?: boolean | undefined;
+  }): AsyncResult<readonly DataSubjectRequest[]>;
 }
 
 const EXPORT_SUBJECTS: readonly DataExport["subject"][] = [
@@ -411,7 +423,7 @@ export function createDataLifecycle(
           : { subject: "organization", tenant: request.organizationId },
         exportOf,
       ),
-    requestSubjectExport: (subjectType, subjectId, request = {}) =>
+    requestSubjectExport: ({ subjectType, subjectId, ...request }) =>
       call(
         "request_subject_export",
         {
@@ -473,7 +485,7 @@ export function createDataLifecycle(
           return ok({ export: found, files });
         },
       ),
-    requestOrganizationDeletion: (organizationId, request = {}) =>
+    requestOrganizationDeletion: ({ organizationId, options: request = {} }) =>
       call(
         "request_organization_deletion",
         {
@@ -495,6 +507,50 @@ export function createDataLifecycle(
         { tenant: organizationId },
         optionalDeletion,
       ),
+    exportNow: ({ timeoutMs = 30_000, intervalMs = 1000, ...target } = {}) =>
+      AsyncResult.from(async () => {
+        const requested = await hooked.requestExport(target);
+
+        if (!requested.ok) {
+          return requested;
+        }
+
+        const deadline = Date.now() + timeoutMs;
+
+        for (;;) {
+          const listed = await hooked.exports(target.organizationId);
+
+          if (!listed.ok) {
+            return listed;
+          }
+
+          const current = listed.data.find(
+            (each) => each.id === requested.data.id,
+          );
+
+          if (current?.status === "ready") {
+            return hooked.download(current.id);
+          }
+
+          if (current?.status === "failed") {
+            return err(
+              dbError("invalid_request", "The export failed", {
+                hint: "DATA_EXPORT_FAILED",
+              }),
+            );
+          }
+
+          if (Date.now() + intervalMs > deadline) {
+            return err(
+              dbError("invalid_request", "The export is not ready yet", {
+                hint: "DATA_EXPORT_NOT_READY",
+              }),
+            );
+          }
+
+          await sleep(intervalMs);
+        }
+      }),
     openDataSubjectRequest: (request) =>
       call(
         "open_data_subject_request",
@@ -508,19 +564,19 @@ export function createDataLifecycle(
         },
         requestOf,
       ),
-    verifyDataSubjectRequest: (requestId, method) =>
+    verifyDataSubjectRequest: ({ requestId, method }) =>
       call("verify_data_subject_request", { id: requestId, method }, requestOf),
-    extendDataSubjectRequest: (requestId, reason) =>
+    extendDataSubjectRequest: ({ requestId, reason }) =>
       call("extend_data_subject_request", { id: requestId, reason }, requestOf),
-    fulfilDataSubjectRequest: (requestId, resolution) =>
+    fulfilDataSubjectRequest: ({ requestId, resolution }) =>
       call(
         "fulfil_data_subject_request",
         { id: requestId, resolution: resolution ?? null },
         requestOf,
       ),
-    refuseDataSubjectRequest: (requestId, reason) =>
+    refuseDataSubjectRequest: ({ requestId, reason }) =>
       call("refuse_data_subject_request", { id: requestId, reason }, requestOf),
-    dataSubjectRequests: (organizationId, filter = {}) =>
+    dataSubjectRequests: ({ organizationId, ...filter }) =>
       call(
         "list_data_subject_requests",
         {
@@ -533,8 +589,11 @@ export function createDataLifecycle(
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: DataLifecycle = withBlockHooks(client, options.hooks, {
     block: "data-lifecycle",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

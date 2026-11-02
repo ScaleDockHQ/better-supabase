@@ -191,25 +191,35 @@ status and decides appeals.
 
 ```ts
 const notice = await db.moderation
-  .submitNotice(
-    { type: "post", id: post.id },
-    { explanation: "This post offers counterfeit goods.", url: post.url },
-  )
+  .submitNotice({
+    subject: { type: "post", id: post.id },
+    notice: {
+      explanation: "This post offers counterfeit goods.",
+      url: post.url,
+    },
+  })
   .orThrow();
 
 const { id: itemId } = (await db.moderation
   .item({ type: "post", id: post.id })
   .orThrow())!;
 await db.moderation
-  .decideNotice(notice.id, "remove", { outcome: "Counterfeit" })
+  .decideNotice({
+    noticeId: notice.id,
+    decision: "remove",
+    outcome: "Counterfeit",
+  })
   .orThrow();
 
 await db.moderation
-  .issueStatement(itemId, {
-    restriction: "removal",
-    facts: "The post offered branded goods that are not genuine.",
-    legalGround: "Trade mark infringement",
-    automatedDetection: false,
+  .issueStatement({
+    itemId,
+    statement: {
+      restriction: "removal",
+      facts: "The post offered branded goods that are not genuine.",
+      legalGround: "Trade mark infringement",
+      automatedDetection: false,
+    },
   })
   .orThrow();
 ```
@@ -217,7 +227,7 @@ await db.moderation
 `submitNotice` (Article 16) stores the explanation, the URL and the notifier,
 and gives the subject a moderation item when it has none. A notice from an
 active trusted flagger (Article 22) is marked `trusted` and comes first in
-`notices()`. `setTrustedFlagger(userId, { name, awardedBy })` awards the status
+`notices()`. `setTrustedFlagger({ userId, name, awardedBy })` awards the status
 and `revokeTrustedFlagger(userId)` ends it.
 
 `decideNotice(noticeId, decision)` takes `hide`, `remove` or `reject`. Hiding

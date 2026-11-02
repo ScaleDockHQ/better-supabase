@@ -113,16 +113,22 @@ describe.skipIf(!live)("mail-sync", () => {
       await s.as(rep);
 
       const ada = await parties
-        .savePerson(org, { name: "Ada", email: "ada@client.test" })
+        .savePerson({
+          organizationId: org,
+          input: { name: "Ada", email: "ada@client.test" },
+        })
         .orThrow();
 
       const person = { type: "person", id: ada.id };
 
       const account = await mail
-        .connect(org, {
-          provider: "gmail",
-          address: "Rep@Acme.test",
-          credentialRef: { provider: "vault", tenant: org, key: "gmail" },
+        .connect({
+          organizationId: org,
+          input: {
+            provider: "gmail",
+            address: "Rep@Acme.test",
+            credentialRef: { provider: "vault", tenant: org, key: "gmail" },
+          },
         })
         .orThrow();
 
@@ -132,10 +138,13 @@ describe.skipIf(!live)("mail-sync", () => {
         status: "active",
       });
       expect(
-        await mail.connect(org, {
-          provider: "gmail",
-          address: "rep@acme.test",
-          credentialRef: { provider: "vault", tenant: "elsewhere" },
+        await mail.connect({
+          organizationId: org,
+          input: {
+            provider: "gmail",
+            address: "rep@acme.test",
+            credentialRef: { provider: "vault", tenant: "elsewhere" },
+          },
         }),
       ).toMatchObject({ ok: false });
 
@@ -149,7 +158,7 @@ describe.skipIf(!live)("mail-sync", () => {
       // The owner reads Ada, so they see the thread logged on her.
       await s.asRole(owner);
 
-      const [thread] = await mail.threadsOf(person).orThrow();
+      const [thread] = await mail.threadsOf({ subject: person }).orThrow();
 
       expect(thread).toMatchObject({
         subject: "Pricing",
@@ -157,18 +166,21 @@ describe.skipIf(!live)("mail-sync", () => {
         subjects: [person],
       });
       expect(thread?.engagementId).toBeDefined();
-      expect(await mail.link(thread!.id, [person])).toMatchObject({
-        ok: false,
-      });
+      expect(
+        await mail.link({ threadId: thread!.id, subjects: [person] }),
+      ).toMatchObject({ ok: false });
 
       await s.asRole(rep);
 
       const reply = await mail
-        .send(account.id, {
-          threadId: thread!.id,
-          to: [{ address: "ada@client.test" }],
-          subject: "Re: Pricing",
-          text: "Here is our offer",
+        .send({
+          accountId: account.id,
+          draft: {
+            threadId: thread!.id,
+            to: [{ address: "ada@client.test" }],
+            subject: "Re: Pricing",
+            text: "Here is our offer",
+          },
         })
         .orThrow();
 
@@ -185,12 +197,15 @@ describe.skipIf(!live)("mail-sync", () => {
 
       // A tracked send: the provider gets the rewritten HTML, the route counts.
       const offer = await mail
-        .send(account.id, {
-          threadId: thread!.id,
-          to: [{ address: "ada@client.test" }],
-          subject: "Offer",
-          html: '<p><a href="https://acme.test/offer">Offer</a></p>',
-          templateVersionId: "00000000-0000-4000-8000-0000000000f1",
+        .send({
+          accountId: account.id,
+          draft: {
+            threadId: thread!.id,
+            to: [{ address: "ada@client.test" }],
+            subject: "Offer",
+            html: '<p><a href="https://acme.test/offer">Offer</a></p>',
+            templateVersionId: "00000000-0000-4000-8000-0000000000f1",
+          },
         })
         .orThrow();
 
@@ -223,7 +238,9 @@ describe.skipIf(!live)("mail-sync", () => {
       expect(
         (await mail.thread(thread!.id).orThrow())?.messages.at(-1),
       ).toMatchObject({ openCount: 1, clickCount: 1 });
-      expect(await mail.templateStats(org).orThrow()).toEqual([
+      expect(
+        await mail.templateStats({ organizationId: org }).orThrow(),
+      ).toEqual([
         {
           templateVersionId: "00000000-0000-4000-8000-0000000000f1",
           sent: 1,
@@ -238,9 +255,11 @@ describe.skipIf(!live)("mail-sync", () => {
 
       // A private mailbox keeps its threads to its owner.
       await s.asRole(rep);
-      await mail.update(account.id, { share: "private" }).orThrow();
+      await mail
+        .update({ accountId: account.id, input: { share: "private" } })
+        .orThrow();
       await s.asRole(owner);
-      expect(await mail.threadsOf(person).orThrow()).toEqual([]);
+      expect(await mail.threadsOf({ subject: person }).orThrow()).toEqual([]);
 
       await s.service();
 

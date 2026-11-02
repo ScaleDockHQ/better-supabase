@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:46f5c5ba7182267dd88e7cf3cc9bb0fb514b014c21447c3d51b48e4032737a24
+-- @bsb-hash sha256:d26979db9a72524374409f0150ed73820e2973ee1bcf70560df76209a8bccf3f
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1431,6 +1431,16 @@ drop trigger if exists "bsb_search_course_index" on "better_supabase"."courses";
 create trigger "bsb_search_course_index"
   after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"
   for each row execute function "better_supabase"."search_index_row"('course', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.courses', target_type => 'course', event_prefix => 'course', deferred => true);
+  perform better_supabase.audit('better_supabase.course_modules', target_type => 'course_module', event_prefix => 'course_module', deferred => true);
+  perform better_supabase.audit('better_supabase.course_lessons', target_type => 'course_lesson', event_prefix => 'course_lesson', deferred => true);
+  perform better_supabase.audit('better_supabase.course_certificates', target_type => 'course_certificate', event_prefix => 'course_certificate', deferred => true);
+end;
+$$;
 
 -- blocks.courses.api: entry points for the Data API.
 create schema if not exists "api";

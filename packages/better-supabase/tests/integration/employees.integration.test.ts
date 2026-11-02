@@ -67,11 +67,14 @@ describe.skipIf(!live)("employees", () => {
       await s.as(owner);
 
       const ceo = await employees
-        .create(org, {
-          name: "Grace",
-          userId: owner.id,
-          jobTitle: "CEO",
-          startDate: date("2020-01-01"),
+        .create({
+          organizationId: org,
+          input: {
+            name: "Grace",
+            userId: owner.id,
+            jobTitle: "CEO",
+            startDate: date("2020-01-01"),
+          },
         })
         .orThrow();
 
@@ -82,38 +85,61 @@ describe.skipIf(!live)("employees", () => {
       });
 
       const mia = await employees
-        .create(org, { name: "Mia", userId: lead.id, managerId: ceo.id })
+        .create({
+          organizationId: org,
+          input: { name: "Mia", userId: lead.id, managerId: ceo.id },
+        })
         .orThrow();
 
       const sam = await employees
-        .create(org, {
-          name: "Sam",
-          managerId: mia.id,
-          employmentType: "contractor",
-          startDate: Temporal.Now.plainDateISO().add({ days: 30 }),
+        .create({
+          organizationId: org,
+          input: {
+            name: "Sam",
+            managerId: mia.id,
+            employmentType: "contractor",
+            startDate: Temporal.Now.plainDateISO().add({ days: 30 }),
+          },
         })
         .orThrow();
 
       expect(sam.status).toBe("preboarding");
       expect(sam.userId).toBeUndefined();
       expect(
-        hint(await employees.create(org, { name: "Ann", userId: outsider.id })),
+        hint(
+          await employees.create({
+            organizationId: org,
+            input: { name: "Ann", userId: outsider.id },
+          }),
+        ),
       ).toBe("EMPLOYEE_USER_NOT_MEMBER");
       expect(
-        hint(await employees.create(org, { name: "Bo", userId: owner.id })),
+        hint(
+          await employees.create({
+            organizationId: org,
+            input: { name: "Bo", userId: owner.id },
+          }),
+        ),
       ).toBe("EMPLOYEE_USER_TAKEN");
       expect(
-        hint(await employees.create(org, { name: "Cy", employmentType: "x" })),
+        hint(
+          await employees.create({
+            organizationId: org,
+            input: { name: "Cy", employmentType: "x" },
+          }),
+        ),
       ).toBe("EMPLOYEE_TYPE_INVALID");
 
       const changes = await employees
-        .update([
-          { employeeId: ceo.id, field: "managerId", value: sam.id },
-          { employeeId: sam.id, field: "jobTitle", value: "Designer" },
-          { employeeId: sam.id, field: "status", value: "offboarded" },
-          { employeeId: sam.id, field: "nickname", value: "S" },
-          { employeeId: mia.id, field: "endDate", value: date("2019-01-01") },
-        ])
+        .update({
+          changes: [
+            { employeeId: ceo.id, field: "managerId", value: sam.id },
+            { employeeId: sam.id, field: "jobTitle", value: "Designer" },
+            { employeeId: sam.id, field: "status", value: "offboarded" },
+            { employeeId: sam.id, field: "nickname", value: "S" },
+            { employeeId: mia.id, field: "endDate", value: date("2019-01-01") },
+          ],
+        })
         .orThrow();
 
       expect(changes.accepted).toEqual([
@@ -126,7 +152,7 @@ describe.skipIf(!live)("employees", () => {
         "EMPLOYEE_FIELD_UNKNOWN",
       ]);
 
-      const chart = await employees.orgChart(org).orThrow();
+      const chart = await employees.orgChart({ organizationId: org }).orThrow();
       expect(chart.map((entry) => [entry.name, entry.depth])).toEqual([
         ["Grace", 0],
         ["Mia", 1],
@@ -137,31 +163,44 @@ describe.skipIf(!live)("employees", () => {
       // The lead is a viewer: no employees.read, but they see their own reports.
       await s.as(lead);
       expect(
-        (await employees.reportsOf(mia.id).orThrow()).map((r) => r.name),
+        (await employees.reportsOf({ managerId: mia.id }).orThrow()).map(
+          (r) => r.name,
+        ),
       ).toEqual(["Sam"]);
       expect(
-        (await employees.orgChart(org, mia.id).orThrow()).map((r) => r.name),
+        (
+          await employees
+            .orgChart({ organizationId: org, rootId: mia.id })
+            .orThrow()
+        ).map((r) => r.name),
       ).toEqual(["Mia", "Sam"]);
-      expect(hint(await employees.orgChart(org))).toBe("EMPLOYEE_FORBIDDEN");
-      expect(hint(await employees.reportsOf(ceo.id))).toBe(
+      expect(hint(await employees.orgChart({ organizationId: org }))).toBe(
+        "EMPLOYEE_FORBIDDEN",
+      );
+      expect(hint(await employees.reportsOf({ managerId: ceo.id }))).toBe(
         "EMPLOYEE_NOT_FOUND",
       );
 
       await s.as(owner);
       expect(
-        (await employees.reportsOf(ceo.id, { indirect: true }).orThrow()).map(
-          (r) => [r.name, r.depth],
-        ),
+        (
+          await employees
+            .reportsOf({ managerId: ceo.id, indirect: true })
+            .orThrow()
+        ).map((r) => [r.name, r.depth]),
       ).toEqual([
         ["Mia", 1],
         ["Sam", 2],
       ]);
 
       const details = await employees
-        .savePrivateDetails(mia.id, {
-          iban: "nl91 abna 0417 1643 00",
-          birthDate: date("1990-04-01"),
-          emergencyContacts: [{ name: "Tom", relation: "partner" }],
+        .savePrivateDetails({
+          employeeId: mia.id,
+          input: {
+            iban: "nl91 abna 0417 1643 00",
+            birthDate: date("1990-04-01"),
+            emergencyContacts: [{ name: "Tom", relation: "partner" }],
+          },
         })
         .orThrow();
 
@@ -170,30 +209,44 @@ describe.skipIf(!live)("employees", () => {
         emergencyContacts: [{ name: "Tom", relation: "partner" }],
       });
       expect(
-        hint(await employees.savePrivateDetails(mia.id, { iban: "nope" })),
+        hint(
+          await employees.savePrivateDetails({
+            employeeId: mia.id,
+            input: { iban: "nope" },
+          }),
+        ),
       ).toBe("EMPLOYEE_PRIVATE_INVALID");
       expect(await employees.privateDetails(sam.id).orThrow()).toBeUndefined();
 
       const first = await employees
-        .addContract(mia.id, {
-          startsOn: date("2024-01-01"),
-          hoursPerWeek: 32,
-          salary: money(5_400_000n, "EUR"),
-          salaryPeriod: "year",
+        .addContract({
+          employeeId: mia.id,
+          input: {
+            startsOn: date("2024-01-01"),
+            hoursPerWeek: 32,
+            salary: money(5_400_000n, "EUR"),
+            salaryPeriod: "year",
+          },
         })
         .orThrow();
 
       expect(first).toMatchObject({ salary: money(5_400_000n, "EUR") });
       await employees
-        .addContract(mia.id, {
-          startsOn: date("2025-07-01"),
-          hoursPerWeek: 40,
-          salary: money(9_007_199_254_740_993n, "EUR"),
+        .addContract({
+          employeeId: mia.id,
+          input: {
+            startsOn: date("2025-07-01"),
+            hoursPerWeek: 40,
+            salary: money(9_007_199_254_740_993n, "EUR"),
+          },
         })
         .orThrow();
       expect(
         hint(
-          await employees.addContract(mia.id, { startsOn: date("2025-01-01") }),
+          await employees.addContract({
+            employeeId: mia.id,
+            input: { startsOn: date("2025-01-01") },
+          }),
         ),
       ).toBe("EMPLOYEE_CONTRACT_OVERLAP");
       const contracts = await employees.contracts(mia.id).orThrow();
@@ -240,7 +293,11 @@ describe.skipIf(!live)("employees", () => {
       await s.as(owner);
 
       const gone = await employees
-        .offboard(mia.id, { endDate: date("2026-12-31"), reason: "Moved" })
+        .offboard({
+          employeeId: mia.id,
+          endDate: date("2026-12-31"),
+          reason: "Moved",
+        })
         .orThrow();
 
       expect(gone).toMatchObject({
@@ -248,22 +305,30 @@ describe.skipIf(!live)("employees", () => {
         offboardReason: "Moved",
       });
       expect(gone.endDate?.toString()).toBe("2026-12-31");
-      expect((await employees.offboard(mia.id).orThrow()).endDate).toEqual(
-        gone.endDate,
-      );
       expect(
-        (await employees.reportsOf(ceo.id).orThrow()).map((r) => r.name),
+        (await employees.offboard({ employeeId: mia.id }).orThrow()).endDate,
+      ).toEqual(gone.endDate);
+      expect(
+        (await employees.reportsOf({ managerId: ceo.id }).orThrow()).map(
+          (r) => r.name,
+        ),
       ).toEqual(["Sam"]);
       expect(
         (await employees.privateDetails(mia.id).orThrow())?.offboardedAt,
       ).toBeDefined();
 
       const rehired = await employees
-        .update([{ employeeId: mia.id, field: "status", value: "active" }])
+        .update({
+          changes: [{ employeeId: mia.id, field: "status", value: "active" }],
+        })
         .orThrow();
 
       expect(rehired.accepted).toHaveLength(1);
-      const back = await employees.orgChart(org, mia.id).orThrow();
+
+      const back = await employees
+        .orgChart({ organizationId: org, rootId: mia.id })
+        .orThrow();
+
       expect(back[0]).toMatchObject({ status: "active", depth: 0 });
       expect(back[0]?.endDate).toBeUndefined();
 
@@ -317,23 +382,34 @@ describe.skipIf(!live)("employees", () => {
       await s.as(owner);
 
       const sam = await employees
-        .create(org, { name: "Sam", fields: { tier: "gold" } })
+        .create({
+          organizationId: org,
+          input: { name: "Sam", fields: { tier: "gold" } },
+        })
         .orThrow();
 
       expect(sam.userId).toBeUndefined();
       expect(sam.fields).toEqual({ show_birthday: false, tier: "gold" });
       await employees
-        .savePrivateDetails(sam.id, { iban: "NL91ABNA0417164300" })
-        .orThrow();
-
-      const contract = await employees
-        .addContract(sam.id, {
-          startsOn: date("2024-01-01"),
-          salary: money(5_400_000n, "EUR"),
+        .savePrivateDetails({
+          employeeId: sam.id,
+          input: { iban: "NL91ABNA0417164300" },
         })
         .orThrow();
 
-      await employees.updateContract(contract.id, { salary: null }).orThrow();
+      const contract = await employees
+        .addContract({
+          employeeId: sam.id,
+          input: {
+            startsOn: date("2024-01-01"),
+            salary: money(5_400_000n, "EUR"),
+          },
+        })
+        .orThrow();
+
+      await employees
+        .updateContract({ contractId: contract.id, patch: { salary: null } })
+        .orThrow();
       expect(
         await s.value<string>(
           "(select currency from better_supabase.employee_contracts where id = $1)",
@@ -350,8 +426,9 @@ describe.skipIf(!live)("employees", () => {
       );
       expect(
         hint(
-          await employees.savePrivateDetails(sam.id, {
-            iban: "NL02ABNA0123456789",
+          await employees.savePrivateDetails({
+            employeeId: sam.id,
+            input: { iban: "NL02ABNA0123456789" },
           }),
         ),
       ).toBe("EMPLOYEE_NOT_FOUND");
@@ -386,10 +463,15 @@ describe.skipIf(!live)("employees", () => {
 
       await s.as(owner);
 
-      const lead = await employees.create(org, { name: "Lead" }).orThrow();
+      const lead = await employees
+        .create({ organizationId: org, input: { name: "Lead" } })
+        .orThrow();
 
       const sam = await employees
-        .create(org, { name: "Sam", managerId: lead.id })
+        .create({
+          organizationId: org,
+          input: { name: "Sam", managerId: lead.id },
+        })
         .orThrow();
 
       const read = sam.updatedAt;
@@ -399,14 +481,16 @@ describe.skipIf(!live)("employees", () => {
       }
 
       const fresh = await employees
-        .update([
-          {
-            employeeId: sam.id,
-            field: "jobTitle",
-            value: "Designer",
-            expectedUpdatedAt: read,
-          },
-        ])
+        .update({
+          changes: [
+            {
+              employeeId: sam.id,
+              field: "jobTitle",
+              value: "Designer",
+              expectedUpdatedAt: read,
+            },
+          ],
+        })
         .orThrow();
 
       expect(fresh.accepted).toHaveLength(1);
@@ -414,14 +498,16 @@ describe.skipIf(!live)("employees", () => {
       // The session is one transaction, so updated_at stays put; an older
       // read stands in for an edit made in another one.
       const stale = await employees
-        .update([
-          {
-            employeeId: sam.id,
-            field: "jobTitle",
-            value: "Writer",
-            expectedUpdatedAt: read.subtract({ seconds: 1 }),
-          },
-        ])
+        .update({
+          changes: [
+            {
+              employeeId: sam.id,
+              field: "jobTitle",
+              value: "Writer",
+              expectedUpdatedAt: read.subtract({ seconds: 1 }),
+            },
+          ],
+        })
         .orThrow();
 
       expect(stale.rejected.map((change) => change.hint)).toEqual([
@@ -430,13 +516,13 @@ describe.skipIf(!live)("employees", () => {
 
       expect(
         hint(
-          await employees.update(
-            [
+          await employees.update({
+            changes: [
               { employeeId: sam.id, field: "jobTitle", value: "Writer" },
               { employeeId: sam.id, field: "status", value: "offboarded" },
             ],
-            { atomic: true },
-          ),
+            atomic: true,
+          }),
         ),
       ).toBe("EMPLOYEE_STATUS_INVALID");
       expect(
@@ -447,17 +533,25 @@ describe.skipIf(!live)("employees", () => {
       ).toBe("Designer");
 
       await employees
-        .addContract(sam.id, { startsOn: date("2024-01-01") })
+        .addContract({
+          employeeId: sam.id,
+          input: { startsOn: date("2024-01-01") },
+        })
         .orThrow();
       expect(
         hint(
-          await employees.addContract(sam.id, { startsOn: date("2025-01-01") }),
+          await employees.addContract({
+            employeeId: sam.id,
+            input: { startsOn: date("2025-01-01") },
+          }),
         ),
       ).toBe("EMPLOYEE_CONTRACT_OVERLAP");
 
-      await employees.offboard(lead.id).orThrow();
+      await employees.offboard({ employeeId: lead.id }).orThrow();
       expect(
-        (await employees.reportsOf(lead.id).orThrow()).map((r) => r.name),
+        (await employees.reportsOf({ managerId: lead.id }).orThrow()).map(
+          (r) => r.name,
+        ),
       ).toEqual(["Sam"]);
 
       const deleted = await employees.delete(lead.id).orThrow();
@@ -476,15 +570,22 @@ describe.skipIf(!live)("employees", () => {
       ).toBe(1);
 
       const job = await hiring
-        .saveJob(org, { title: "Writer", status: "open" })
+        .saveJob({
+          organizationId: org,
+          job: { title: "Writer", status: "open" },
+        })
         .orThrow();
 
       const ada = await createContacts({ transport })
-        .savePerson(org, { name: "Ada" })
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
         .orThrow();
 
       const application = await hiring
-        .apply(job.id, { id: ada.id }, { fields: { referral: "Sam" } })
+        .apply({
+          jobId: job.id,
+          candidate: { id: ada.id },
+          fields: { referral: "Sam" },
+        })
         .orThrow();
 
       expect(application.fields).toEqual({ referral: "Sam" });
@@ -507,25 +608,36 @@ describe.skipIf(!live)("employees", () => {
       await s.as(owner);
 
       const job = await hiring
-        .saveJob(org, {
-          title: "Backend engineer",
-          employmentType: "employee",
-          status: "open",
+        .saveJob({
+          organizationId: org,
+          job: {
+            title: "Backend engineer",
+            employmentType: "employee",
+            status: "open",
+          },
         })
         .orThrow();
 
       const ada = await createContacts({ transport })
-        .savePerson(org, { name: "Ada" })
+        .savePerson({ organizationId: org, input: { name: "Ada" } })
         .orThrow();
 
-      const application = await hiring.apply(job.id, { id: ada.id }).orThrow();
-      expect(hint(await employees.fromApplication(application.id))).toBe(
-        "EMPLOYEE_APPLICATION_NOT_HIRED",
-      );
+      const application = await hiring
+        .apply({ jobId: job.id, candidate: { id: ada.id } })
+        .orThrow();
+
+      expect(
+        hint(
+          await employees.fromApplication({ applicationId: application.id }),
+        ),
+      ).toBe("EMPLOYEE_APPLICATION_NOT_HIRED");
       await hiring.hire(application.id).orThrow();
 
       const hired = await employees
-        .fromApplication(application.id, { startDate: date("2026-11-01") })
+        .fromApplication({
+          applicationId: application.id,
+          overrides: { startDate: date("2026-11-01") },
+        })
         .orThrow();
 
       expect(hired).toMatchObject({
@@ -536,7 +648,11 @@ describe.skipIf(!live)("employees", () => {
         origin: { type: "application", id: application.id },
       });
       expect(
-        (await employees.fromApplication(application.id).orThrow()).id,
+        (
+          await employees
+            .fromApplication({ applicationId: application.id })
+            .orThrow()
+        ).id,
       ).toBe(hired.id);
       expect(
         await s.value<number>(
@@ -544,9 +660,13 @@ describe.skipIf(!live)("employees", () => {
           [hired.id, application.id],
         ),
       ).toBe(1);
-      expect(hint(await employees.fromApplication(crypto.randomUUID()))).toBe(
-        "EMPLOYEE_ORIGIN_NOT_FOUND",
-      );
+      expect(
+        hint(
+          await employees.fromApplication({
+            applicationId: crypto.randomUUID(),
+          }),
+        ),
+      ).toBe("EMPLOYEE_ORIGIN_NOT_FOUND");
     } finally {
       await s.close();
     }

@@ -18,6 +18,8 @@ export {
   type SwitchResult,
 } from "./organizations.ts";
 
+export type { OrganizationOverview } from "./overview.ts";
+
 export {
   extendBlock,
   withBlockHooks,

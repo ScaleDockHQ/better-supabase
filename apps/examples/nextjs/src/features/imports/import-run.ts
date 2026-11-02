@@ -49,7 +49,11 @@ export function importRunHooks(
   return {
     organizationId,
     start: async () => {
-      const run = await db.imports.start(organizationId, kind, mapping);
+      const run = await db.imports.start({
+        organizationId,
+        source: kind,
+        mapping,
+      });
 
       if (!run.ok) {
         throw new DbException(run.error);

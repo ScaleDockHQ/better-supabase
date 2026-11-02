@@ -186,6 +186,11 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
         return error.kind;
       };
 
+      // One executor serves one request's connection, so these count its round
+      // trips: a call that starts while none is in flight begins a new one.
+      let inFlight = 0;
+      let roundTrips = 0;
+
       /** Runs `run` in a client span; `settle` returns the error type, if any. */
       const traced = <T>(
         summary: string,
@@ -196,11 +201,24 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
       ): Promise<T> => {
         const started = performance.now();
 
+        if (inFlight === 0) {
+          roundTrips += 1;
+        }
+
+        inFlight += 1;
+
         return tracer.startActiveSpan(
           summary,
-          { kind: SpanKind.CLIENT, attributes },
+          {
+            kind: SpanKind.CLIENT,
+            attributes: {
+              ...attributes,
+              "better_supabase.db.round_trips": roundTrips,
+            },
+          },
           async (span) => {
             const finish = (errorType?: string) => {
+              inFlight -= 1;
               histogram?.record(
                 (performance.now() - started) / 1000,
                 errorType ? { ...metric, "error.type": errorType } : metric,

@@ -64,25 +64,39 @@ describe.skipIf(!live)("block fields", () => {
       await s.asRole(owner);
       expect(
         await agents
-          .create(tenant, { slug: "bad", name: "Bad", priority: 0 })
+          .create({
+            organizationId: tenant,
+            agent: { slug: "bad", name: "Bad", priority: 0 },
+          })
           .then(kind),
       ).toBe("validation");
 
       const created = await agents
-        .create(tenant, { slug: "writer", name: "Writer", label: "blog" })
+        .create({
+          organizationId: tenant,
+          agent: { slug: "writer", name: "Writer", label: "blog" },
+        })
         .orThrow();
 
       expect(created).toMatchObject({ label: "blog", priority: null });
 
       const updated = await agents
-        .update(tenant, created.id, { priority: 2 })
+        .update({
+          organizationId: tenant,
+          agentId: created.id,
+          fields: { priority: 2 },
+        })
         .orThrow();
 
       expect(updated).toMatchObject({ label: "blog", priority: 2 });
       expect(await agents.get(created.id).orThrow()).toMatchObject({
         priority: 2,
       });
-      const [listed] = await agents.list(tenant, { filter: "mine" }).orThrow();
+
+      const [listed] = await agents
+        .list({ organizationId: tenant, filter: "mine" })
+        .orThrow();
+
       expect(listed).toMatchObject({ label: "blog", priority: 2 });
     } finally {
       await s.close();
@@ -103,18 +117,23 @@ describe.skipIf(!live)("block fields", () => {
       });
 
       await s.asRole(owner);
-      expect(await chat.chats.create(tenant, { priority: 0 }).then(kind)).toBe(
-        "validation",
-      );
+      expect(
+        await chat.chats
+          .create({ organizationId: tenant, input: { priority: 0 } })
+          .then(kind),
+      ).toBe("validation");
 
       const created = await chat.chats
-        .create(tenant, { title: "Plan", label: "work" })
+        .create({
+          organizationId: tenant,
+          input: { title: "Plan", label: "work" },
+        })
         .orThrow();
 
       expect(created).toMatchObject({ title: "Plan", label: "work" });
 
       const updated = await chat.chats
-        .update(created.id, { priority: 3 })
+        .update({ chatId: created.id, patch: { priority: 3 } })
         .orThrow();
 
       expect(updated).toMatchObject({ label: "work", priority: 3 });
@@ -171,21 +190,27 @@ describe.skipIf(!live)("block fields", () => {
       await s.asRole(owner);
       expect(
         await files.files
-          .upload(tenant, {
-            filename: "a.png",
-            mediaType: "image/png",
-            size: 3,
-            priority: 0,
+          .upload({
+            organizationId: tenant,
+            file: {
+              filename: "a.png",
+              mediaType: "image/png",
+              size: 3,
+              priority: 0,
+            },
           })
           .then(kind),
       ).toBe("validation");
 
       const { file } = await files.files
-        .upload(tenant, {
-          filename: "a.png",
-          mediaType: "image/png",
-          size: 3,
-          label: "logo",
+        .upload({
+          organizationId: tenant,
+          file: {
+            filename: "a.png",
+            mediaType: "image/png",
+            size: 3,
+            label: "logo",
+          },
         })
         .orThrow();
 
@@ -218,18 +243,30 @@ describe.skipIf(!live)("block fields", () => {
       await s.asRole(owner);
       const task = { title: "Digest", prompt: "Sum up", cron: "0 9 * * *" };
       expect(
-        await tasks.create(tenant, { ...task, priority: 0 }).then(kind),
+        await tasks
+          .create({ organizationId: tenant, task: { ...task, priority: 0 } })
+          .then(kind),
       ).toBe("validation");
 
       const created = await tasks
-        .create(tenant, { ...task, label: "daily" })
+        .create({ organizationId: tenant, task: { ...task, label: "daily" } })
         .orThrow();
 
       expect(created).toMatchObject({ title: "Digest", label: "daily" });
-      const paused = await tasks.pause(tenant, created.id).orThrow();
+
+      const paused = await tasks
+        .pause({ organizationId: tenant, taskId: created.id })
+        .orThrow();
+
       expect(paused).toMatchObject({ enabled: false, label: "daily" });
-      await tasks.update(tenant, created.id, { priority: 4 }).orThrow();
-      const [listed] = await tasks.list(tenant).orThrow();
+      await tasks
+        .update({
+          organizationId: tenant,
+          taskId: created.id,
+          fields: { priority: 4 },
+        })
+        .orThrow();
+      const [listed] = await tasks.list({ organizationId: tenant }).orThrow();
       expect(listed).toMatchObject({ label: "daily", priority: 4 });
     } finally {
       await s.close();
@@ -264,7 +301,7 @@ describe.skipIf(!live)("block fields", () => {
       expect(published).toMatchObject({ title: "Release", label: "product" });
 
       const updated = await announcements
-        .update(published.id, { priority: 2 })
+        .update({ announcementId: published.id, input: { priority: 2 } })
         .orThrow();
 
       expect(updated).toMatchObject({ label: "product", priority: 2 });
@@ -304,7 +341,7 @@ describe.skipIf(!live)("block fields", () => {
         .orThrow();
 
       expect(key).toMatchObject({ name: "CI", label: "deploys" });
-      const rotated = await keys.rotate(key.id).orThrow();
+      const rotated = await keys.rotate({ id: key.id }).orThrow();
       expect(rotated.key).toMatchObject({ label: "deploys" });
       const listed = await keys.list(tenant).orThrow();
       expect(listed.map((row) => row.label)).toEqual(["deploys", "deploys"]);
@@ -348,18 +385,18 @@ describe.skipIf(!live)("block fields", () => {
       await s.asRole(member);
       expect(
         await approvals
-          .request(
-            { type: "doc", id: "d0" },
-            { action: "publish", priority: 0 },
-          )
+          .request({
+            subject: { type: "doc", id: "d0" },
+            input: { action: "publish", priority: 0 },
+          })
           .then(kind),
       ).toBe("validation");
 
       const request = await approvals
-        .request(
-          { type: "doc", id: "d1" },
-          { action: "publish", label: "launch" },
-        )
+        .request({
+          subject: { type: "doc", id: "d1" },
+          input: { action: "publish", label: "launch" },
+        })
         .orThrow();
 
       expect(request).toMatchObject({ status: "pending", label: "launch" });
@@ -368,7 +405,7 @@ describe.skipIf(!live)("block fields", () => {
         priority: null,
       });
       await s.asRole(owner);
-      const approved = await approvals.approve(request.id).orThrow();
+      const approved = await approvals.approve({ id: request.id }).orThrow();
       expect(approved).toMatchObject({ status: "approved", label: "launch" });
       const [listed] = await approvals.list({ status: null }).orThrow();
       expect(listed).toMatchObject({ label: "launch" });
@@ -428,11 +465,13 @@ describe.skipIf(!live)("block fields", () => {
 
       await s.asRole(owner);
       expect(
-        await attachments.upload(null, { ...file, priority: 0 }).then(kind),
+        await attachments
+          .upload({ subject: null, attachment: { ...file, priority: 0 } })
+          .then(kind),
       ).toBe("validation");
 
       const { attachment } = await attachments
-        .upload(null, { ...file, label: "contract" })
+        .upload({ subject: null, attachment: { ...file, label: "contract" } })
         .orThrow();
 
       expect(attachment).toMatchObject({ label: "contract", priority: 1 });
@@ -462,28 +501,45 @@ describe.skipIf(!live)("block fields", () => {
       await s.as(owner);
 
       const { id: resource } = await bookings
-        .saveResource(tenant, { name: "Ann", kind: "staff", tz: "UTC" })
+        .saveResource({
+          organizationId: tenant,
+          input: { name: "Ann", kind: "staff", tz: "UTC" },
+        })
         .orThrow();
 
       await bookings
-        .setAvailability(resource, [
-          { weekday: 1, start: "09:00", end: "12:00" },
-        ])
+        .setAvailability({
+          resourceId: resource,
+          hours: [{ weekday: 1, start: "09:00", end: "12:00" }],
+        })
         .orThrow();
 
       const { id: service } = await bookings
-        .saveService(tenant, { name: "Call", duration: "PT30M" })
+        .saveService({
+          organizationId: tenant,
+          input: { name: "Call", duration: "PT30M" },
+        })
         .orThrow();
 
       const startsAt = Temporal.Instant.from("2030-03-04T09:00:00Z");
       expect(
         await bookings
-          .hold(service, resource, startsAt, { name: "Ada", priority: 0 })
+          .hold({
+            serviceId: service,
+            resourceId: resource,
+            startsAt,
+            customer: { name: "Ada", priority: 0 },
+          })
           .then(kind),
       ).toBe("validation");
 
       const held = await bookings
-        .hold(service, resource, startsAt, { name: "Ada", label: "vip" })
+        .hold({
+          serviceId: service,
+          resourceId: resource,
+          startsAt,
+          customer: { name: "Ada", label: "vip" },
+        })
         .orThrow();
 
       expect(held).toMatchObject({ customerName: "Ada", label: "vip" });
@@ -491,9 +547,12 @@ describe.skipIf(!live)("block fields", () => {
       expect(confirmed).toMatchObject({ status: "confirmed", label: "vip" });
 
       const [listed] = await bookings
-        .list(tenant, {
-          from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
-          until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
+        .list({
+          organizationId: tenant,
+          range: {
+            from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
+            until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
+          },
         })
         .orThrow();
 
@@ -519,7 +578,7 @@ describe.skipIf(!live)("block fields", () => {
       await s.as(owner);
 
       const { id: calendarId } = await calendar
-        .createCalendar(tenant, "Team")
+        .createCalendar({ organizationId: tenant, name: "Team" })
         .orThrow();
 
       const event = {
@@ -529,19 +588,26 @@ describe.skipIf(!live)("block fields", () => {
       };
 
       expect(
-        await calendar.upsert(calendarId, { ...event, priority: 0 }).then(kind),
+        await calendar
+          .upsert({ calendarId, input: { ...event, priority: 0 } })
+          .then(kind),
       ).toBe("validation");
 
       const { id } = await calendar
-        .upsert(calendarId, { ...event, label: "daily" })
+        .upsert({ calendarId, input: { ...event, label: "daily" } })
         .orThrow();
 
-      await calendar.upsert(calendarId, { id, priority: 2 }).orThrow();
+      await calendar
+        .upsert({ calendarId, input: { id, priority: 2 } })
+        .orThrow();
 
       const [listed] = await calendar
-        .events([calendarId], {
-          from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
-          until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
+        .events({
+          calendarIds: [calendarId],
+          range: {
+            from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
+            until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
+          },
         })
         .orThrow();
 
@@ -571,18 +637,28 @@ describe.skipIf(!live)("block fields", () => {
       await s.as(owner);
       expect(
         await catalog
-          .createProduct(tenant, { title: "Mug", priority: 0 })
+          .createProduct({
+            organizationId: tenant,
+            input: { title: "Mug", priority: 0 },
+          })
           .then(kind),
       ).toBe("validation");
 
       const created = await catalog
-        .createProduct(tenant, { title: "Mug", label: "kitchen" })
+        .createProduct({
+          organizationId: tenant,
+          input: { title: "Mug", label: "kitchen" },
+        })
         .orThrow();
 
       expect(created).toMatchObject({ slug: "mug", label: "kitchen" });
 
       const updated = await catalog
-        .updateProduct(tenant, created.id, { title: "Mug", priority: 5 })
+        .updateProduct({
+          organizationId: tenant,
+          productId: created.id,
+          input: { title: "Mug", priority: 5 },
+        })
         .orThrow();
 
       expect(updated).toMatchObject({ label: "kitchen", priority: 5 });
@@ -615,21 +691,27 @@ describe.skipIf(!live)("block fields", () => {
       await s.as(owner);
       const input = { name: "Reading", subjectType: "memo" };
       expect(
-        await collections.create(tenant, { ...input, priority: 0 }).then(kind),
+        await collections
+          .create({ organizationId: tenant, input: { ...input, priority: 0 } })
+          .then(kind),
       ).toBe("validation");
 
       const created = await collections
-        .create(tenant, { ...input, label: "later" })
+        .create({ organizationId: tenant, input: { ...input, label: "later" } })
         .orThrow();
 
       expect(created).toMatchObject({ name: "Reading", label: "later" });
 
       const renamed = await collections
-        .rename(created.id, { priority: 3 })
+        .rename({ id: created.id, input: { priority: 3 } })
         .orThrow();
 
       expect(renamed).toMatchObject({ label: "later", priority: 3 });
-      const [listed] = await collections.list(tenant).orThrow();
+
+      const [listed] = await collections
+        .list({ organizationId: tenant })
+        .orThrow();
+
       expect(listed).toMatchObject({ label: "later", priority: 3 });
     } finally {
       await s.close();
@@ -673,26 +755,35 @@ describe.skipIf(!live)("block fields", () => {
 
       expect(
         await comments
-          .create(project, { ...input, fields: { priority: 0 } })
+          .create({
+            subject: project,
+            comment: { ...input, fields: { priority: 0 } },
+          })
           .then(kind),
       ).toBe("validation");
 
       const created = await comments
-        .create(project, { ...input, fields: { label: "review" } })
+        .create({
+          subject: project,
+          comment: { ...input, fields: { label: "review" } },
+        })
         .orThrow();
 
       expect(created.fields).toMatchObject({ label: "review", priority: null });
       expect(created.editedAt).toBeUndefined();
 
       const edited = await comments
-        .edit(created.id, { body: "Looks great", fields: { priority: 2 } })
+        .edit({
+          id: created.id,
+          edit: { body: "Looks great", fields: { priority: 2 } },
+        })
         .orThrow();
 
       expect(edited).toMatchObject({
         body: "Looks great",
         fields: { label: "review", priority: 2 },
       });
-      const [listed] = await comments.list(project).orThrow();
+      const [listed] = await comments.list({ subject: project }).orThrow();
       expect(listed?.fields).toMatchObject({ label: "review", priority: 2 });
     } finally {
       await s.close();
@@ -719,18 +810,28 @@ describe.skipIf(!live)("block fields", () => {
       const input = { name: "GitHub", url: "https://mcp.example.com/mcp" };
       expect(
         await connectors.servers
-          .create(tenant, { ...input, fields: { priority: 0 } })
+          .create({
+            organizationId: tenant,
+            server: { ...input, fields: { priority: 0 } },
+          })
           .then(kind),
       ).toBe("validation");
 
       const created = await connectors.servers
-        .create(tenant, { ...input, fields: { label: "code" } })
+        .create({
+          organizationId: tenant,
+          server: { ...input, fields: { label: "code" } },
+        })
         .orThrow();
 
       expect(created.fields).toMatchObject({ label: "code", priority: null });
 
       const updated = await connectors.servers
-        .update(tenant, created.id, { enabled: false, fields: { priority: 4 } })
+        .update({
+          organizationId: tenant,
+          serverId: created.id,
+          fields: { enabled: false, fields: { priority: 4 } },
+        })
         .orThrow();
 
       expect(updated).toMatchObject({
@@ -740,7 +841,8 @@ describe.skipIf(!live)("block fields", () => {
       const [listed] = await connectors.servers.list(tenant).orThrow();
       expect(listed?.fields).toMatchObject({ label: "code", priority: 4 });
       expect(
-        (await connectors.servers.get(created.id).orThrow()).fields,
+        (await connectors.servers.get({ serverId: created.id }).orThrow())
+          .fields,
       ).toMatchObject({ label: "code", priority: 4 });
     } finally {
       await s.close();

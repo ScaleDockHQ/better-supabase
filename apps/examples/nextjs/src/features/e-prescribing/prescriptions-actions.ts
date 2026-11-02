@@ -27,7 +27,7 @@ export const cancelPrescription = bsb.action(
     permission: "e_prescribing.write",
   },
   async ({ prescriptionId }, { db }) => {
-    const prescription = await db.ePrescribing.cancel(prescriptionId);
+    const prescription = await db.ePrescribing.cancel({ prescriptionId });
 
     return prescription.ok ? ok({ id: prescription.data.id }) : prescription;
   },

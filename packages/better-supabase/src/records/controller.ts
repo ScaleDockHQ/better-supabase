@@ -96,11 +96,11 @@ export function createRecordController<
         const ticket = (tickets.get("") ?? 0) + 1;
         tickets.set("", ticket);
 
-        const result = await options.summary.summary(
+        const result = await options.summary.summary({
           subject,
-          bindings,
-          options.summaryOptions,
-        );
+          sections: bindings,
+          ...options.summaryOptions,
+        });
 
         if (tickets.get("") !== ticket) {
           return;

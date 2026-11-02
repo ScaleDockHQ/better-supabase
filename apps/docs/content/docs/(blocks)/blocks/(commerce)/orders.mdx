@@ -491,3 +491,16 @@ The SQL functions are `set_order_variant`, `select_order_variant` and `list_orde
 | `ORDER_NOT_FOUND`              | no such order, or no order to group with                          |
 | `ORDER_VARIANT_INVALID`        | different currencies, or the target isn't the group's first order |
 | `ORDER_VARIANT_NOT_SELECTABLE` | a cancelled or refunded order can't be selected                   |
+
+## Order helpers
+
+`markPaid({ orderId, reference })` records a manual payment for the full total and runs the after-payment step. `returnAndRefund({ orderId, lines, reason, restock, locationId, amount })` requests the return, receives it and refunds, and returns `{ returnId, refund }`. `fulfilAll({ orderId, locationId, tracking })` creates a fulfilment for every open line and ships it when you pass `tracking`. Each helper stops at the first failing step and returns that error.
+
+## Orders by status
+
+`board({ organizationId, perStatus })` returns the orders page in one call from the SQL function `order_status_board`. Each column holds a status, its `count`, its `totals` per currency (`total` and `paid`, as text) and the latest `perStatus` orders (default 20). Columns follow the order lifecycle, from `pending_payment` to `refunded`. The function runs as the caller, so row security decides which orders appear.
+
+```ts
+const { columns } = await db.orders.board({ organizationId }).orThrow();
+const open = columns.find((column) => column.status === "paid");
+```

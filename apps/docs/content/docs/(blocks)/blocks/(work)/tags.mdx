@@ -203,6 +203,8 @@ Your `kind` and `subjectType` columns may be enums or domains, such as `kind pub
 
 Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). `create` appends a tag after the last one of its kind, and `reorder(id, { previous, next })` moves it between the tags with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. On a table of your own `rank` is optional: map it to `null` when you don't want the column, and the module otherwise adds it.
 
+`move({ id, toIndex, kind? })` puts a tag at position `toIndex` (0 is first) among the tags of `kind`, or all tags without it, and returns its new rank key. It reads the list and calls `reorder` with the neighbours.
+
 ## Your own columns
 
 Add columns to the tag table with `blocks.tags.options.extraColumns`
@@ -235,4 +237,12 @@ const vip = await tags
   .orThrow();
 await tags.attach(customer, vip.id).orThrow();
 const onCustomer = await tags.list({ on: customer }).orThrow();
+```
+
+## Replace a record's tags
+
+`replace({ record, tagIds })` reads the tags on the record, attaches the ones that are missing and detaches the others, and returns `{ attached, detached }`. It stops at the first failure.
+
+```ts
+await db.tags.replace({ record, tagIds: [vip.id, lead.id] }).orThrow();
 ```

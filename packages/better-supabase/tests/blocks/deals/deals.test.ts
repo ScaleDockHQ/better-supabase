@@ -82,16 +82,16 @@ describe("deals block", () => {
     const t = transport({ create_deal: () => ROW });
 
     const deal = await createDeals({ transport: t })
-      .create(
-        "o",
-        {
+      .create({
+        organizationId: "o",
+        input: {
           name: "Growth",
           closeOn: Temporal.PlainDate.from("2026-11-30"),
           amount: eur(4_800_000n),
           nextAt: Temporal.Instant.from("2026-10-15T09:00:00Z"),
         },
-        [{ type: "person", id: "p1", primary: true }],
-      )
+        contacts: [{ type: "person", id: "p1", primary: true }],
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -146,7 +146,7 @@ describe("deals block", () => {
     const deal = await createDeals({
       transport: transport({ reopen_deal: () => sparse }),
     })
-      .reopen("d1")
+      .reopen({ dealId: "d1" })
       .orThrow();
 
     expect(deal.company).toBeUndefined();
@@ -171,15 +171,17 @@ describe("deals block", () => {
       }),
     });
 
+    const changes = [
+      {
+        dealId: "d1",
+        field: "closeOn",
+        value: Temporal.PlainDate.from("2026-12-01"),
+      },
+      { dealId: "d1", field: "amount", value: eur(5n) },
+    ];
+
     const result = await createDeals({ transport: t })
-      .update([
-        {
-          dealId: "d1",
-          field: "closeOn",
-          value: Temporal.PlainDate.from("2026-12-01"),
-        },
-        { dealId: "d1", field: "amount", value: eur(5n) },
-      ])
+      .update({ changes })
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
@@ -196,6 +198,17 @@ describe("deals block", () => {
       { dealId: "d1", field: "amount", hint: "DEAL_LOCKED", reason: "locked" },
       { dealId: "d1", field: "x", reason: "bad" },
     ]);
+
+    const strict = await createDeals({ transport: t }).update({
+      changes,
+      strict: true,
+    });
+
+    expect(strict.ok ? undefined : strict.error).toMatchObject({
+      kind: "raised",
+      hint: "DEAL_LOCKED",
+      message: "amount: locked",
+    });
   });
 
   it("closes, sets contacts, members and lines, archives and removes", async () => {
@@ -216,18 +229,27 @@ describe("deals block", () => {
     });
 
     const deals = createDeals({ transport: t });
-    await deals.win("d1").orThrow();
-    await deals.lose("d1", "Budget").orThrow();
-    expect(await deals.setContacts("d1", []).orThrow()).toBe(1);
-    expect(await deals.setMembers("d1", [{ userId: "u2" }]).orThrow()).toBe(2);
+    await deals.win({ dealId: "d1" }).orThrow();
+    await deals.lose({ dealId: "d1", reason: "Budget" }).orThrow();
+    expect(
+      await deals.setContacts({ dealId: "d1", contacts: [] }).orThrow(),
+    ).toBe(1);
+    expect(
+      await deals
+        .setMembers({ dealId: "d1", members: [{ userId: "u2" }] })
+        .orThrow(),
+    ).toBe(2);
     expect(
       (
         await deals
-          .setLines("d1", [{ description: "x", unitAmount: eur(100n) }])
+          .setLines({
+            dealId: "d1",
+            lines: [{ description: "x", unitAmount: eur(100n) }],
+          })
           .orThrow()
       ).total,
     ).toEqual(eur(121n));
-    expect(await deals.archive("d1").orThrow()).toBe(true);
+    expect(await deals.archive({ dealId: "d1" }).orThrow()).toBe(true);
     expect(await deals.remove("d1").orThrow()).toBe(true);
     expect(t.calls.slice(0, 2).map(([, args]) => args)).toEqual([
       { deal: "d1", outcome: "won", reason: null },
@@ -279,11 +301,14 @@ describe("deals block", () => {
     const deals = createDeals({ transport: t });
 
     const forecast = await deals
-      .forecast("o", {
-        since: Temporal.PlainDate.from("2026-10-01"),
-        until: Temporal.PlainDate.from("2026-12-31"),
-        currency: "EUR",
-        target: eur(10n),
+      .forecast({
+        organizationId: "o",
+        period: {
+          since: Temporal.PlainDate.from("2026-10-01"),
+          until: Temporal.PlainDate.from("2026-12-31"),
+          currency: "EUR",
+          target: eur(10n),
+        },
       })
       .orThrow();
 
@@ -321,10 +346,13 @@ describe("deals block", () => {
     expect(
       (
         await empty
-          .forecast("o", {
-            since: Temporal.PlainDate.from("2026-10-01"),
-            until: Temporal.PlainDate.from("2026-12-31"),
-            currency: "EUR",
+          .forecast({
+            organizationId: "o",
+            period: {
+              since: Temporal.PlainDate.from("2026-10-01"),
+              until: Temporal.PlainDate.from("2026-12-31"),
+              currency: "EUR",
+            },
           })
           .orThrow()
       ).target,
@@ -343,7 +371,7 @@ describe("deals block", () => {
         reopen_deal: () => ({ ...ROW, amount: big.toString() }),
       }),
     })
-      .reopen("d1")
+      .reopen({ dealId: "d1" })
       .orThrow();
 
     expect(deal.amount).toEqual(eur(big));
@@ -355,7 +383,7 @@ describe("deals block", () => {
         transport: transport({ reopen_deal: () => ({ ...ROW, amount }) }),
       });
 
-      await expect(deals.reopen("d1").orThrow()).rejects.toThrow(
+      await expect(deals.reopen({ dealId: "d1" }).orThrow()).rejects.toThrow(
         /deal amount/u,
       );
     }
@@ -366,41 +394,47 @@ describe("deals block", () => {
     const deals = createDeals({ transport: t });
     const closeOn = Temporal.PlainDate.from("2026-11-30");
 
-    const mixed = await deals.create("o", {
-      name: "x",
-      closeOn,
-      amount: eur(1n),
-      existingAmount: money(1n, "USD"),
+    const mixed = await deals.create({
+      organizationId: "o",
+      input: {
+        name: "x",
+        closeOn,
+        amount: eur(1n),
+        existingAmount: money(1n, "USD"),
+      },
     });
 
-    const other = await deals.create("o", {
-      name: "x",
-      closeOn,
-      currency: "USD",
-      amount: eur(1n),
+    const other = await deals.create({
+      organizationId: "o",
+      input: { name: "x", closeOn, currency: "USD", amount: eur(1n) },
     });
 
-    const unknown = await deals.create("o", {
-      name: "x",
-      closeOn,
-      currency: "XXQ",
+    const unknown = await deals.create({
+      organizationId: "o",
+      input: { name: "x", closeOn, currency: "XXQ" },
     });
 
-    const lines = await deals.setLines("d1", [
-      { description: "a", unitAmount: eur(1n) },
-      { description: "b", unitAmount: money(1n, "USD") },
-    ]);
-
-    const forecast = await deals.forecast("o", {
-      since: closeOn,
-      until: closeOn,
-      currency: "USD",
-      target: eur(1n),
+    const lines = await deals.setLines({
+      dealId: "d1",
+      lines: [
+        { description: "a", unitAmount: eur(1n) },
+        { description: "b", unitAmount: money(1n, "USD") },
+      ],
     });
 
-    const change = await deals.update([
-      { dealId: "d1", field: "currency", value: "XXQ" },
-    ]);
+    const forecast = await deals.forecast({
+      organizationId: "o",
+      period: {
+        since: closeOn,
+        until: closeOn,
+        currency: "USD",
+        target: eur(1n),
+      },
+    });
+
+    const change = await deals.update({
+      changes: [{ dealId: "d1", field: "currency", value: "XXQ" }],
+    });
 
     expect(
       [mixed, other, lines, forecast].map((result) =>
@@ -464,9 +498,9 @@ describe("deals block, options and sparse reads", () => {
     });
 
     const deal = await deals
-      .create("o", {
-        name: "x",
-        closeOn: Temporal.PlainDate.from("2026-12-01"),
+      .create({
+        organizationId: "o",
+        input: { name: "x", closeOn: Temporal.PlainDate.from("2026-12-01") },
       })
       .orThrow();
 

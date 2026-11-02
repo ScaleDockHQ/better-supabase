@@ -92,6 +92,16 @@ export interface ActionInfo {
 export type ActionDescriptor = ActionInfo;
 
 /**
+ * Builds a block's runnable action for the registry. `clients` returns the
+ * block clients for one organization over a service connection; the factory
+ * checks it has the clients the action calls and fails the call with a
+ * `ACTION_CLIENTS_MISSING` error when it has not.
+ */
+export type ActionFactory = (options: {
+  readonly clients: (tenant: string) => unknown;
+}) => Action;
+
+/**
  * Declares an action the action registry runs for automations, workflow steps
  * and sequence steps.
  */
@@ -210,8 +220,9 @@ export function createActionRegistry(
 
 /**
  * An automation a block ships (`defineBlock({ automations })`). Its SQL module
- * writes the row to `rule_defaults`, and every organization gets its own copy
- * the first time its rules run or are listed, which it may turn off or edit.
+ * writes the row to `automation_defaults`, and every organization gets its own
+ * copy the first time its rules run or are listed, which it may turn off or
+ * edit.
  */
 export interface DefaultAutomation {
   /** Unique across blocks, such as `inbox.conversation_to_task`. */

@@ -162,11 +162,14 @@ describe("createAssets", () => {
     const updated = await assets
       // SAFETY: an explicit `undefined` exercises the skip branch that
       // `exactOptionalPropertyTypes` rules out for typed callers.
-      .updateLocation("l0", {
-        name: "Head office",
-        point: null,
-        code: undefined,
-      } as unknown as AssetLocationPatch)
+      .updateLocation({
+        locationId: "l0",
+        patch: {
+          name: "Head office",
+          point: null,
+          code: undefined,
+        } as unknown as AssetLocationPatch,
+      })
       .orThrow();
 
     expect(updated).toMatchObject({ address: {}, metadata: {} });
@@ -176,7 +179,10 @@ describe("createAssets", () => {
     expect(updated.archivedAt?.toString()).toBe(AT);
 
     await assets
-      .updateLocation("l0", { point: { latitude: 1, longitude: 2 } })
+      .updateLocation({
+        locationId: "l0",
+        patch: { point: { latitude: 1, longitude: 2 } },
+      })
       .orThrow();
     await assets.archiveLocation("l0").orThrow();
 
@@ -311,7 +317,7 @@ describe("createAssets", () => {
     await assets.createAsset({ kind: "van", name: "Van" }).orThrow();
 
     const retired = await assets
-      .updateAsset("a2", { status: "retired" })
+      .updateAsset({ assetId: "a2", patch: { status: "retired" } })
       .orThrow();
 
     expect(retired.assignee).toBeUndefined();
@@ -439,16 +445,24 @@ describe("createAssets", () => {
     const assets = createAssets({ transport: fake.transport });
 
     await assets
-      .assign("a1", { type: "member", id: "u2" }, { note: "for travel" })
+      .assign({
+        assetId: "a1",
+        assignee: { type: "member", id: "u2" },
+        note: "for travel",
+      })
       .orThrow();
-    await assets.assign("a1", { type: "party", id: "p1" }).orThrow();
-    await assets.release("a1").orThrow();
-    await assets.assignedTo({ type: "parties", id: "p1" }).orThrow();
     await assets
-      .assignedTo({ type: "member", id: "u2" }, { pageSize: 5 })
+      .assign({ assetId: "a1", assignee: { type: "party", id: "p1" } })
+      .orThrow();
+    await assets.release("a1").orThrow();
+    await assets
+      .assignedTo({ assignee: { type: "parties", id: "p1" } })
+      .orThrow();
+    await assets
+      .assignedTo({ assignee: { type: "member", id: "u2" }, pageSize: 5 })
       .orThrow();
 
-    const history = await assets.assignments("a1").orThrow();
+    const history = await assets.assignments({ assetId: "a1" }).orThrow();
     expect(history[0]).toMatchObject({
       assignee: { type: "member", id: "u2" },
       note: "for travel",
@@ -456,7 +470,7 @@ describe("createAssets", () => {
     });
     expect(history[1]?.note).toBeUndefined();
     expect(history[1]?.releasedAt).toBeUndefined();
-    await assets.assignments("a1", { pageSize: 3 }).orThrow();
+    await assets.assignments({ assetId: "a1", pageSize: 3 }).orThrow();
 
     expect(fake.calls.map(([fn, args]) => [fn, args])).toEqual([
       [
@@ -535,9 +549,13 @@ describe("createAssets", () => {
     ).toHaveLength(1);
 
     expect(
-      await assets.link({ type: "work_item", id: "w1" }, "a1").orThrow(),
+      await assets
+        .link({ target: { type: "work_item", id: "w1" }, assetId: "a1" })
+        .orThrow(),
     ).toEqual({ type: "work_item", id: "w1", assetId: "a1" });
-    await assets.link({ type: "booking_resource", id: "r1" }, null).orThrow();
+    await assets
+      .link({ target: { type: "booking_resource", id: "r1" }, assetId: null })
+      .orThrow();
 
     expect(fake.calls).toEqual([
       [
@@ -643,12 +661,15 @@ describe("asset book values", () => {
     const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
 
     const asset = await assets
-      .updateAsset("a1", {
-        acquisitionCost: money(12_000n, "EUR"),
-        acquiredOn: Temporal.PlainDate.from("2026-01-15"),
-        usefulLifeMonths: 12,
-        residualValue: null,
-        depreciationMethod: "straight_line",
+      .updateAsset({
+        assetId: "a1",
+        patch: {
+          acquisitionCost: money(12_000n, "EUR"),
+          acquiredOn: Temporal.PlainDate.from("2026-01-15"),
+          usefulLifeMonths: 12,
+          residualValue: null,
+          depreciationMethod: "straight_line",
+        },
       })
       .orThrow();
 
@@ -677,9 +698,12 @@ describe("asset book values", () => {
     const fake = fakeTransport({});
     const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
 
-    const result = await assets.updateAsset("a1", {
-      acquisitionCost: money(12_000n, "EUR"),
-      residualValue: money(100n, "USD"),
+    const result = await assets.updateAsset({
+      assetId: "a1",
+      patch: {
+        acquisitionCost: money(12_000n, "EUR"),
+        residualValue: money(100n, "USD"),
+      },
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe("CURRENCY_MISMATCH");
@@ -703,7 +727,7 @@ describe("asset book values", () => {
 
     const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
 
-    const months = await assets.depreciations("a1").orThrow();
+    const months = await assets.depreciations({ assetId: "a1" }).orThrow();
 
     expect(months[0]).toMatchObject({
       id: "d1",
@@ -714,9 +738,12 @@ describe("asset book values", () => {
     expect(months[1]?.entryId).toBeUndefined();
 
     const disposed = await assets
-      .dispose("a1", {
-        on: Temporal.PlainDate.from("2026-05-10"),
-        proceeds: money(9000n, "EUR"),
+      .dispose({
+        assetId: "a1",
+        disposal: {
+          on: Temporal.PlainDate.from("2026-05-10"),
+          proceeds: money(9000n, "EUR"),
+        },
       })
       .orThrow();
 
@@ -729,7 +756,10 @@ describe("asset book values", () => {
     expect(disposed.disposedOn?.toString()).toBe("2026-05-10");
 
     await assets
-      .dispose("a1", { on: Temporal.PlainDate.from("2026-05-10") })
+      .dispose({
+        assetId: "a1",
+        disposal: { on: Temporal.PlainDate.from("2026-05-10") },
+      })
       .orThrow();
 
     expect(fake.calls.slice(1)).toEqual([
@@ -807,6 +837,6 @@ describe("asset book values", () => {
 
     const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
 
-    expect((await assets.depreciations("a1")).ok).toBe(false);
+    expect((await assets.depreciations({ assetId: "a1" })).ok).toBe(false);
   });
 });

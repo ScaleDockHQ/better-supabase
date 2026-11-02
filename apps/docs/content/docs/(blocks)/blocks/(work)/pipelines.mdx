@@ -273,3 +273,7 @@ await pipelines
   .orThrow();
 const [deals] = await pipelines.list(organizationId, "deal").orThrow();
 ```
+
+## Default and ensure
+
+`default({ organizationId, subjectType, scopeId })` returns the pipeline marked as default for the subject type (and scope), or `undefined`. `ensure({ organizationId, subjectType, key, name, stages })` returns the pipeline with that key, or creates it and its stages in order when it is missing. Calling it again changes nothing.

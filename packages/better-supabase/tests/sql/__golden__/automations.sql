@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:317e3f7f614626cd61d00839d38ffdfa2e3f866ed0208c7a544954e191154f03
+-- @bsb-hash sha256:b5725bc2f917bb8a361406d32d092b6bc4ac77fd397e8cde6ded8c12ef73df71
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -778,6 +778,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -820,6 +828,14 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -976,8 +992,24 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
   null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;
@@ -1488,7 +1520,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:6326d7bf133ac80c77ee0154693a68a471906c64121f3344fb412fb1726deafe
+-- @bsb-hash sha256:b90ce0a052a1d881ffff661597f020882e2afccfe629d7647901886b3b42bd19
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2265,6 +2297,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -2347,6 +2387,14 @@ begin
     actor_id => auth.uid()
   );
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -2523,6 +2571,14 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('automation.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
@@ -2535,6 +2591,14 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;
@@ -2822,6 +2886,13 @@ grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, 
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.automations', target_type => 'automation', event_prefix => 'automation', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3055,7 +3126,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:ca9cf8f05528dade23319035eae0205c23fbea05a90420d7bc74604b6ca295a4
+-- @bsb-hash sha256:ac174d35d8ef65ebcbbb122a63241ea7efa39e2b235503a08a529eb8b29f7389
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3837,6 +3908,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "app_private"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -3879,6 +3958,14 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -4035,8 +4122,24 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "app_private"."automations" x where x."id" = v_row."id";
   null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;
@@ -4547,7 +4650,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:5384ac0c7bc1446da783a7d83e83a4d9e13944ea3789c008a5c0fe25f0d68b5d
+-- @bsb-hash sha256:eb4cc703a1e4a3be145423cbd88d9acb3138f58dc5341bd7f8c15d0589648430
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5324,6 +5427,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -5366,6 +5477,14 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -5522,8 +5641,24 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
   null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;
@@ -6317,7 +6452,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:5f12fb7a764a79e58e8d9921c277b9f7a8d12be7c2d975bbdc7c6856fc18b898
+-- @bsb-hash sha256:98bc8f9625faf858ef3c59375d3e32785eeb4346345728739d1f27e4712543fc
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7100,6 +7235,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -7142,6 +7285,14 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -7298,8 +7449,24 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
   null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;
@@ -7810,7 +7977,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:5df496ee3a21c9281d538c8d6089612b99c727f5c69ddd2018d4d6a1f88bc3a3
+-- @bsb-hash sha256:36fcecc39a41568bd20400616eb188e6901ad5ac94b14e65718b17068b63ed9e
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8587,6 +8754,14 @@ begin
       raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_save"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using save_rule.tenant, save_rule.rule;
+    end if;
+  end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("org_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
@@ -8629,6 +8804,14 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
@@ -8785,8 +8968,24 @@ begin
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using remove_rule.id;
+    end if;
+  end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
   null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_automation_remove"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
   return true;
 end;
 $$;

@@ -64,6 +64,7 @@ import {
   transactionToJson,
 } from "./codecs.ts";
 import { orderDocuments } from "./documents.ts";
+import { orderHelpers } from "./helpers.ts";
 import { orderKitchen } from "./kitchen.ts";
 
 export interface OrdersOptions<
@@ -220,34 +221,43 @@ export interface Invoice<F extends object = Record<never, never>> {
 }
 
 export interface Orders<F extends object = Record<never, never>>
-  extends OrderDocuments<F>, OrderVariants {
-  saveShippingRate(
-    organizationId: string,
-    input: ShippingRateInput,
-  ): AsyncResult<{ readonly id: string }>;
+  extends OrderDocuments<F>, ReturnType<typeof orderHelpers>, OrderVariants {
+  saveShippingRate(input: {
+    organizationId: string;
+    input: ShippingRateInput;
+  }): AsyncResult<{ readonly id: string }>;
   deleteShippingRate(rateId: string): AsyncResult<boolean>;
   /**
    * The caller's open cart in the organization and currency, created when there
    * is none.
    */
-  createCart(
-    organizationId: string,
-    input: CartInput,
-  ): AsyncResult<{ readonly id: string; readonly currency: string }>;
+  createCart(input: {
+    organizationId: string;
+    input: CartInput;
+  }): AsyncResult<{ readonly id: string; readonly currency: string }>;
   /** Adds `quantity` to the variant's line. */
-  addToCart(
-    cartId: string,
-    variantId: string,
-    quantity: number,
-  ): AsyncResult<{ readonly lineId: string; readonly quantity: number }>;
+  addToCart(input: {
+    cartId: string;
+    variantId: string;
+    quantity: number;
+  }): AsyncResult<{ readonly lineId: string; readonly quantity: number }>;
   /** Sets the variant's quantity; zero removes the line. */
-  setCartLine(
-    cartId: string,
-    variantId: string,
-    quantity: number,
-  ): AsyncResult<{ readonly lineId: string | null; readonly quantity: number }>;
-  setCartDetails(cartId: string, details: CartDetails): AsyncResult<boolean>;
-  setShippingRate(cartId: string, rateId: string): AsyncResult<boolean>;
+  setCartLine(input: {
+    cartId: string;
+    variantId: string;
+    quantity: number;
+  }): AsyncResult<{
+    readonly lineId: string | null;
+    readonly quantity: number;
+  }>;
+  setCartDetails(input: {
+    cartId: string;
+    details: CartDetails;
+  }): AsyncResult<boolean>;
+  setShippingRate(input: {
+    cartId: string;
+    rateId: string;
+  }): AsyncResult<boolean>;
   /** The rates that ship to the cart's address, with their amount for this cart. */
   shippingOptions(cartId: string): AsyncResult<readonly ShippingOption[]>;
   /** The cart at today's prices, with what keeps it from checkout. */
@@ -256,21 +266,27 @@ export interface Orders<F extends object = Record<never, never>>
    * Moves an anonymous user's open carts to the user they signed in as. Service
    * only. Resolves to the number of carts moved or merged.
    */
-  mergeCarts(fromUserId: string, toUserId: string): AsyncResult<number>;
+  mergeCarts(input: {
+    fromUserId: string;
+    toUserId: string;
+  }): AsyncResult<number>;
   /**
    * Prices the cart, quotes tax, places the order (reserving its stock) and
    * creates the payment. Repeating it for the same cart returns the same order
    * and, through the idempotency key, the same payment.
    */
-  checkout(cartId: string, input?: CheckoutInput<F>): AsyncResult<Checkout<F>>;
+  checkout(input: {
+    cartId: string;
+    input?: CheckoutInput<F> | undefined;
+  }): AsyncResult<Checkout<F>>;
   /**
    * Stores a payment's state on its order; the order is paid once its total is
    * captured. Service only.
    */
-  recordPayment(
-    orderId: string | null,
-    payment: Payment,
-  ): AsyncResult<PaymentRecord>;
+  recordPayment(input: {
+    orderId: string | null;
+    payment: Payment;
+  }): AsyncResult<PaymentRecord>;
   /** Captures the order's authorized payments. */
   capture(orderId: string): AsyncResult<Order<F>>;
   /** Applies one provider event: a payment update or a refund's outcome. */
@@ -283,40 +299,48 @@ export interface Orders<F extends object = Record<never, never>>
    */
   commitTax(orderId: string): AsyncResult<TaxTransaction | null>;
   /** Cancels an unpaid order, releasing its stock and its open payments. */
-  cancelOrder(orderId: string, reason?: string): AsyncResult<boolean>;
+  cancelOrder(input: {
+    orderId: string;
+    reason?: string | undefined;
+  }): AsyncResult<boolean>;
   /** Cancels orders whose payment window passed. Service only. */
   expireOrders(maxRows?: number): AsyncResult<number>;
   getOrder(orderId: string): AsyncResult<Order<F>>;
-  createFulfillment(
-    orderId: string,
-    input?: FulfillmentInput,
-  ): AsyncResult<{ readonly id: string }>;
-  shipFulfillment(
-    fulfillmentId: string,
-    tracking?: TrackingInput,
-  ): AsyncResult<boolean>;
+  createFulfillment(input: {
+    orderId: string;
+    input?: FulfillmentInput | undefined;
+  }): AsyncResult<{ readonly id: string }>;
+  shipFulfillment(input: {
+    fulfillmentId: string;
+    tracking?: TrackingInput | undefined;
+  }): AsyncResult<boolean>;
   deliverFulfillment(fulfillmentId: string): AsyncResult<boolean>;
   /** Cancels a fulfillment that hasn't shipped. */
   cancelFulfillment(fulfillmentId: string): AsyncResult<boolean>;
-  requestReturn(
-    orderId: string,
-    lines: readonly QuantityLine[],
-    reason?: string,
-  ): AsyncResult<{ readonly id: string; readonly quantity: number }>;
+  requestReturn(input: {
+    orderId: string;
+    lines: readonly QuantityLine[];
+    reason?: string | undefined;
+  }): AsyncResult<{ readonly id: string; readonly quantity: number }>;
   /**
    * Receives the returned units; `restock` (default true) puts tracked ones
    * back in stock.
    */
   receiveReturn(
-    returnId: string,
-    options?: { readonly restock?: boolean; readonly locationId?: string },
+    input: { returnId: string } & {
+      readonly restock?: boolean;
+      readonly locationId?: string;
+    },
   ): AsyncResult<boolean>;
   rejectReturn(returnId: string): AsyncResult<boolean>;
   /**
    * Refunds through the payment provider and reverses the refunded part of the
    * tax.
    */
-  refund(orderId: string, input?: RefundRequest): AsyncResult<RefundOutcome>;
+  refund(input: {
+    orderId: string;
+    input?: RefundRequest | undefined;
+  }): AsyncResult<RefundOutcome>;
   /** The invoice of a paid order. */
   invoice(orderId: string): AsyncResult<Invoice<F>>;
   /** The handler for a scheduled job that runs `expireOrders`. */
@@ -404,7 +428,7 @@ export function createOrders<
   const loadOrder = (orderId: string): AsyncResult<Order<F>> =>
     parsed(service("get_order", { order_id: orderId }, orderOf));
 
-  const recordPayment: Orders["recordPayment"] = (orderId, payment) =>
+  const recordPayment: Orders["recordPayment"] = ({ orderId, payment }) =>
     service(
       "record_payment",
       {
@@ -486,7 +510,7 @@ export function createOrders<
     orderId: string | null,
     payment: Payment,
   ): AsyncResult<PaymentRecord> =>
-    recordPayment(orderId, payment).andThen(async (result) => {
+    recordPayment({ orderId, payment }).andThen(async (result) => {
       await afterPayment(result);
 
       return ok(result);
@@ -533,7 +557,7 @@ export function createOrders<
     };
   };
 
-  const checkout: Orders<F>["checkout"] = (cartId, input = {}) =>
+  const checkout: Orders<F>["checkout"] = ({ cartId, input = {} }) =>
     AsyncResult.from(async (): Promise<Result<Checkout<F>>> => {
       const checked =
         input.fields === undefined
@@ -796,7 +820,7 @@ export function createOrders<
     return { ...outcome, taxReversal: null };
   };
 
-  const refund: Orders["refund"] = (orderId, input = {}) =>
+  const refund: Orders["refund"] = ({ orderId, input = {} }) =>
     AsyncResult.from(async (): Promise<Result<RefundOutcome>> => {
       if (!payments) {
         return err(
@@ -969,7 +993,7 @@ export function createOrders<
       },
     );
 
-  const cancelOrder: Orders["cancelOrder"] = (orderId, reason) =>
+  const cancelOrder: Orders["cancelOrder"] = ({ orderId, reason }) =>
     call(
       "cancel_order",
       { order_id: orderId, reason: reason ?? null },
@@ -1000,7 +1024,7 @@ export function createOrders<
         });
 
         if (released.ok) {
-          await recordPayment(orderId, released.data);
+          await recordPayment({ orderId, payment: released.data });
         } else {
           logger.warn("orders: cancelling the payment failed", {
             orderId,
@@ -1017,7 +1041,7 @@ export function createOrders<
     service("expire_orders", { max_rows: maxRows ?? null }, Number);
 
   const orders: Orders<F> = {
-    saveShippingRate: (organizationId, input) =>
+    saveShippingRate: ({ organizationId, input }) =>
       call(
         "save_shipping_rate",
         {
@@ -1044,7 +1068,7 @@ export function createOrders<
       ),
     deleteShippingRate: (rateId) =>
       call("delete_shipping_rate", { rate: rateId }, isTrue),
-    createCart: (organizationId, input) =>
+    createCart: ({ organizationId, input }) =>
       call(
         "create_cart",
         {
@@ -1059,7 +1083,7 @@ export function createOrders<
           return { id: textOf(row["id"]), currency: textOf(row["currency"]) };
         },
       ),
-    addToCart: (cartId, variantId, quantity) =>
+    addToCart: ({ cartId, variantId, quantity }) =>
       call(
         "add_to_cart",
         { cart: cartId, variant: variantId, quantity },
@@ -1072,7 +1096,7 @@ export function createOrders<
           };
         },
       ),
-    setCartLine: (cartId, variantId, quantity) =>
+    setCartLine: ({ cartId, variantId, quantity }) =>
       call(
         "set_cart_line",
         { cart: cartId, variant: variantId, quantity },
@@ -1085,7 +1109,7 @@ export function createOrders<
           };
         },
       ),
-    setCartDetails: (cartId, details) =>
+    setCartDetails: ({ cartId, details }) =>
       call(
         "set_cart_details",
         {
@@ -1096,12 +1120,12 @@ export function createOrders<
         },
         isTrue,
       ),
-    setShippingRate: (cartId, rateId) =>
+    setShippingRate: ({ cartId, rateId }) =>
       call("set_cart_shipping_rate", { cart: cartId, rate: rateId }, isTrue),
     shippingOptions: (cartId) =>
       call("shipping_options", { cart: cartId }, shippingOptionsOf),
     priceCart: (cartId) => call("price_cart", { cart: cartId }, pricedCartOf),
-    mergeCarts: (fromUserId, toUserId) =>
+    mergeCarts: ({ fromUserId, toUserId }) =>
       service(
         "merge_carts",
         { from_user: fromUserId, to_user: toUserId },
@@ -1117,7 +1141,7 @@ export function createOrders<
     expireOrders,
     getOrder: (orderId) =>
       parsed(call("get_order", { order_id: orderId }, orderOf)),
-    createFulfillment: (orderId, input = {}) =>
+    createFulfillment: ({ orderId, input = {} }) =>
       call(
         "create_fulfillment",
         {
@@ -1138,7 +1162,7 @@ export function createOrders<
           id: textOf(recordOf(value, "create_fulfillment")["id"]),
         }),
       ),
-    shipFulfillment: (fulfillmentId, tracking = {}) =>
+    shipFulfillment: ({ fulfillmentId, tracking = {} }) =>
       call(
         "ship_fulfillment",
         {
@@ -1153,7 +1177,7 @@ export function createOrders<
       call("deliver_fulfillment", { fulfillment: fulfillmentId }, isTrue),
     cancelFulfillment: (fulfillmentId) =>
       call("cancel_fulfillment", { fulfillment: fulfillmentId }, isTrue),
-    requestReturn: (orderId, lines, reason) =>
+    requestReturn: ({ orderId, lines, reason }) =>
       call(
         "request_return",
         {
@@ -1170,7 +1194,7 @@ export function createOrders<
           return { id: textOf(row["id"]), quantity: Number(row["quantity"]) };
         },
       ),
-    receiveReturn: (returnId, receive = {}) =>
+    receiveReturn: ({ returnId, ...receive }) =>
       call(
         "receive_return",
         {
@@ -1199,13 +1223,17 @@ export function createOrders<
     job: async (payload) => {
       await expireOrders(maxRowsOf(payload)).orThrow();
     },
+    ...orderHelpers(() => hooked, afterPayment),
     kitchen: orderKitchen(call),
     ...orderDocuments(call, parsed),
     ...orderVariants(call),
   };
 
-  return withBlockHooks(orders, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Orders<F> = withBlockHooks(orders, options.hooks, {
     block: "orders",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

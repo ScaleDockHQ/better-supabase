@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:71305ed6343a7879b9ae6cf16393dbe0a81950aad24d512c400f883bbfcaa5c1
+-- @bsb-hash sha256:c20523b899f1b5978101f49ae22a6bc83615444b257b27e93c4928960366bf45
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -647,6 +647,31 @@ grant execute on function "better_supabase"."link_billing_customer"(uuid, text) 
 grant execute on function "better_supabase"."billing_seat_count"(uuid) to service_role;
 grant execute on function "better_supabase"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_status"(uuid) to authenticated, service_role;
+
+-- The billing page in one call. It runs as the caller and reads through the
+-- status, invoice and usage functions, which check billing and usage reads.
+create or replace function "better_supabase"."billing_overview"(tenant uuid, invoice_limit integer default 10)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_status jsonb := "better_supabase"."billing_status"(billing_overview.tenant);
+begin
+  return jsonb_build_object(
+    'customerId', v_status -> 'customer',
+    'accountId', v_status -> 'account',
+    'seats', coalesce((v_status ->> 'seats')::integer, 0),
+    'subscription', coalesce(v_status -> 'subscription', 'null'::jsonb),
+    'invoices', coalesce("better_supabase"."billing_invoices"(billing_overview.tenant, billing_overview.invoice_limit), '[]'::jsonb),
+    'usage', coalesce('[]'::jsonb, '[]'::jsonb)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."billing_overview"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."billing_overview"(uuid, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

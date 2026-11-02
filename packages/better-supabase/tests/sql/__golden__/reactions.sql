@@ -663,7 +663,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:8ae1623c455af784b33a31750392d5da2bd66affc9f9cd5869ec583f4d57fbf0
+-- @bsb-hash sha256:fb60579ec062cb9aaa75e68d2d246fe12466776614ebf5f0e837c526b9b4a354
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1294,6 +1294,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.reactions', target_type => 'reaction', event_prefix => 'reaction', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

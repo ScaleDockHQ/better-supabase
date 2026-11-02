@@ -2,6 +2,7 @@ export {
   createReactions,
   type CustomEmoji,
   type CustomEmojiInput,
+  type ReactionActors,
   type ReactionCount,
   type Reactions,
   type ReactionsOptions,

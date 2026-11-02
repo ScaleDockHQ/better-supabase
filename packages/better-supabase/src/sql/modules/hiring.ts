@@ -896,6 +896,37 @@ as $$
   from ${t("applications")} x where x.${a("id")} = application_detail.application
 $$;
 ${userGrant(`${fn("application_detail")}(uuid)`)}
+
+-- The tenant's jobs, newest first, as the caller (the table's policy decides
+-- who sees them). status keeps one status.
+create or replace function ${fn("list_jobs")}(tenant ${ctx.idType}, status text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${withExtraFields(ctx.rowJson("jobs", "x"), "x", extras)} order by x.${j("createdAt")} desc, x.${j("id")}), '[]'::jsonb)
+  from ${t("jobs")} x
+  where x.${j("tenant")} = list_jobs.tenant
+    and (list_jobs.status is null or ${asText(ctx, "jobs", `x.${j("status")}`)} = list_jobs.status)
+$$;
+${userGrant(`${fn("list_jobs")}(${ctx.idType}, text)`)}
+
+-- A job's applications in board order, as the caller. state keeps one state.
+create or replace function ${fn("list_applications")}(job uuid, state text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${applicationJson("x")} order by x.${a("stage")}, x.${a("rank")} collate "C", x.${a("id")}), '[]'::jsonb)
+  from ${t("applications")} x
+  where x.${a("job")} = list_applications.job
+    and (list_applications.state is null or ${asText(ctx, "applications", `x.${a("state")}`)} = list_applications.state)
+$$;
+${userGrant(`${fn("list_applications")}(uuid, text)`)}
 `;
 }
 
@@ -935,6 +966,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "application_detail", args: ["uuid"], returns: "jsonb" },
+    { name: "list_jobs", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "list_applications", args: ["uuid", "text"], returns: "jsonb" },
   ];
 }
 

@@ -494,6 +494,12 @@ const appTableEntries = {
       }),
     ]),
   ),
+  search: v.optional(
+    v.union([
+      v.literal(true),
+      v.strictObject({ columns: v.optional(strings) }),
+    ]),
+  ),
 };
 
 const appTableOwner = v.optional(v.picklist(["inherit", "user", "none"]));
@@ -740,6 +746,7 @@ const FLAT = {
         permissions: v.optional(blockSchemas.subjectPermissionsSchema),
         scope: v.optional(v.string()),
         cascade: v.optional(v.boolean()),
+        history: v.optional(v.array(v.string())),
         deletedAt: v.optional(v.string()),
         held: v.optional(v.string()),
         readAccess: v.optional(v.picklist(["tenant", "record"])),
@@ -776,6 +783,24 @@ const FLAT = {
       entry: v.optional(v.string()),
       output: v.optional(v.string()),
       perTenant: v.optional(v.string()),
+      defaults: v.optional(
+        v.union([
+          v.boolean(),
+          v.strictObject({
+            onCreate: v.optional(v.boolean()),
+            locale: v.optional(v.string()),
+            variants: v.optional(v.record(v.string(), v.string())),
+          }),
+        ]),
+      ),
+      sample: v.optional(
+        v.strictObject({
+          size: v.optional(v.picklist(["s", "m", "l"])),
+          seed: v.optional(v.number()),
+          locale: v.optional(v.string()),
+          output: v.optional(v.string()),
+        }),
+      ),
     }),
   ),
   openapi: v.optional(
@@ -943,6 +968,12 @@ const DesignSchema = v.strictObject({
   extraColumns: v.optional(v.record(v.string(), stringRecord)),
   positions: v.optional(
     v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
+  ),
+  seeds: v.optional(
+    v.strictObject({
+      variants: v.optional(v.record(v.string(), v.string())),
+      locale: v.optional(v.string()),
+    }),
   ),
 });
 

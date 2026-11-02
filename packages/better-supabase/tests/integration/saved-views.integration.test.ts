@@ -254,7 +254,10 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       })
       .orThrow();
 
-    const [view] = await client.list(org, "deals").orThrow();
+    const [view] = await client
+      .list({ organizationId: org, list: "deals" })
+      .orThrow();
+
     expect(view).toMatchObject({
       id: saved.id,
       kind: "board",

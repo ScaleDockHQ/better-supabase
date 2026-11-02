@@ -62,7 +62,8 @@ const session = await checkout
   })
   .orThrow();
 
-await checkout.updateSession(session.id, {
+await checkout.updateSession({
+  sessionId: session.id,
   buyer: { email: "ada@example.com" },
   status: "ready",
 });
@@ -76,7 +77,7 @@ session returns it unchanged.
 
 ```ts
 const { session: done, payment } = await admin
-  .completeSession(session.id, { mandate: credential })
+  .completeSession({ sessionId: session.id, mandate: credential })
   .orThrow();
 ```
 

@@ -122,10 +122,9 @@ describe.skipIf(!live)("time-tracking", () => {
         .orThrow();
 
       const edited = await time
-        .update(internal.id, {
-          note: null,
-          billable: true,
-          rate: money(5000n, "EUR"),
+        .update({
+          entryId: internal.id,
+          patch: { note: null, billable: true, rate: money(5000n, "EUR") },
         })
         .orThrow();
 
@@ -136,11 +135,16 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(edited.note).toBeUndefined();
       expect(
         await time
-          .update(internal.id, { startedAt: at("2026-10-06T10:00:00Z") })
+          .update({
+            entryId: internal.id,
+            patch: { startedAt: at("2026-10-06T10:00:00Z") },
+          })
           .then(hint),
       ).toBe("TIME_ENTRY_OVERLAP");
 
-      const sheet = await time.timesheet(WEEK.add({ days: 2 })).orThrow();
+      const sheet = await time
+        .timesheet({ week: WEEK.add({ days: 2 }) })
+        .orThrow();
 
       expect(sheet).toMatchObject({ status: "open", userId: ada.id });
       expect(sheet.week.toString()).toBe("2026-10-05");
@@ -163,9 +167,14 @@ describe.skipIf(!live)("time-tracking", () => {
         0, 7200, 3600, 3600, 0, 0, 0,
       ]);
 
-      const submitted = await time.submit(WEEK, "Week 41").orThrow();
+      const submitted = await time
+        .submit({ week: WEEK, note: "Week 41" })
+        .orThrow();
+
       expect(submitted).toMatchObject({ status: "submitted", note: "Week 41" });
-      expect(await time.submit(WEEK).then(hint)).toBe("TIMESHEET_SUBMITTED");
+      expect(await time.submit({ week: WEEK }).then(hint)).toBe(
+        "TIMESHEET_SUBMITTED",
+      );
       expect(await time.remove(logged.id).then(hint)).toBe(
         "TIME_PERIOD_LOCKED",
       );
@@ -187,14 +196,16 @@ describe.skipIf(!live)("time-tracking", () => {
         [submitted.approvalId],
       );
       await s.as(ada);
-      expect((await time.timesheet(WEEK).orThrow()).status).toBe("rejected");
+      expect((await time.timesheet({ week: WEEK }).orThrow()).status).toBe(
+        "rejected",
+      );
       await time
         .log({
           startedAt: at("2026-10-09T09:00:00Z"),
           endedAt: at("2026-10-09T10:00:00Z"),
         })
         .orThrow();
-      const again = await time.submit(WEEK).orThrow();
+      const again = await time.submit({ week: WEEK }).orThrow();
 
       await s.as(owner);
       await s.value("better_supabase.decide_approval($1, 'approved')", [
@@ -215,15 +226,23 @@ describe.skipIf(!live)("time-tracking", () => {
       await s.as(ada);
       expect(
         await time
-          .update(logged.id, { startedAt: at("2026-10-06T07:00:00Z") })
+          .update({
+            entryId: logged.id,
+            patch: { startedAt: at("2026-10-06T07:00:00Z") },
+          })
           .then(hint),
       ).toBe("TIME_PERIOD_LOCKED");
       expect(
         await time
-          .update(logged.id, { note: "late", billable: false })
+          .update({
+            entryId: logged.id,
+            patch: { note: "late", billable: false },
+          })
           .orThrow(),
       ).toMatchObject({ note: "late", billable: false });
-      expect(await time.submit(WEEK).then(hint)).toBe("TIMESHEET_APPROVED");
+      expect(await time.submit({ week: WEEK }).then(hint)).toBe(
+        "TIMESHEET_APPROVED",
+      );
       expect(await time.reopen(again.id!).then(hint)).toBe("TIME_FORBIDDEN");
       expect(await time.timesheets({ userId: owner.id }).then(hint)).toBe(
         "TIME_FORBIDDEN",
@@ -240,7 +259,7 @@ describe.skipIf(!live)("time-tracking", () => {
 
       await time.start().orThrow();
       const today = Temporal.Now.plainDateISO("UTC");
-      expect(await time.submit(today).then(hint)).toBe(
+      expect(await time.submit({ week: today }).then(hint)).toBe(
         "TIMESHEET_TIMER_RUNNING",
       );
 
@@ -281,8 +300,10 @@ describe.skipIf(!live)("time-tracking", () => {
         })
         .orThrow();
 
-      await time.update(entry.id, { billable: true }).orThrow();
-      const sheet = await time.submit(WEEK).orThrow();
+      await time
+        .update({ entryId: entry.id, patch: { billable: true } })
+        .orThrow();
+      const sheet = await time.submit({ week: WEEK }).orThrow();
       await s.as(owner);
       await s.value("better_supabase.decide_approval($1, 'approved')", [
         sheet.approvalId,
@@ -390,7 +411,11 @@ describe.skipIf(!live)("time-tracking", () => {
       };
 
       const series = await metrics
-        .series("time_tracked", week, { organizationId: tenant, grain: "day" })
+        .series({
+          metric: "time_tracked",
+          range: week,
+          options: { organizationId: tenant, grain: "day" },
+        })
         .orThrow();
 
       expect(series.points.slice(1, 3).map((p) => p.value)).toEqual([
@@ -398,25 +423,33 @@ describe.skipIf(!live)("time-tracking", () => {
       ]);
       expect(
         await metrics
-          .kpi("time_tracked", week, {
-            organizationId: tenant,
-            filter: { billable: true },
+          .kpi({
+            metric: "time_tracked",
+            range: week,
+            options: { organizationId: tenant, filter: { billable: true } },
           })
           .orThrow(),
       ).toMatchObject({ value: 5400, count: 1 });
 
       await s.as(ada);
       await time
-        .update(moved.id, {
-          startedAt: at("2026-10-09T09:00:00Z"),
-          endedAt: at("2026-10-09T09:30:00Z"),
+        .update({
+          entryId: moved.id,
+          patch: {
+            startedAt: at("2026-10-09T09:00:00Z"),
+            endedAt: at("2026-10-09T09:30:00Z"),
+          },
         })
         .orThrow();
       await relay();
       await s.as(owner);
 
       const after = await metrics
-        .series("time_tracked", week, { organizationId: tenant, grain: "day" })
+        .series({
+          metric: "time_tracked",
+          range: week,
+          options: { organizationId: tenant, grain: "day" },
+        })
         .orThrow();
 
       expect(after.points.slice(1, 5).map((p) => p.value)).toEqual([

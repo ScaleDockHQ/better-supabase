@@ -221,44 +221,41 @@ export interface SubmissionListOptions {
 /** `F` types the forms' extra columns, from the `fields` schema. */
 export interface Forms<F extends object = Record<never, never>> {
   create(input: FormInput<F>): AsyncResult<Form<F>>;
-  update(id: string, update: FormUpdate<F>): AsyncResult<Form<F>>;
+  update(input: { id: string; update: FormUpdate<F> }): AsyncResult<Form<F>>;
   /** Publishes a definition as the form's next version and makes it current. */
-  publish(formId: string, definition: FormDefinition): AsyncResult<FormVersion>;
+  publish(input: {
+    formId: string;
+    definition: FormDefinition;
+  }): AsyncResult<FormVersion>;
   get(id: string): AsyncResult<FormDetail<F>>;
   getVersion(versionId: string): AsyncResult<FormVersion>;
   list(
-    organizationId: string,
-    options?: { readonly status?: FormStatus },
+    input: { organizationId: string } & { readonly status?: FormStatus },
   ): AsyncResult<readonly Form<F>[]>;
   /** Submits answers to the form's current version; Postgres validates them. */
   submit(
-    formId: string,
-    answers: FormAnswers,
-    options?: SubmitOptions,
+    input: { formId: string; answers: FormAnswers } & SubmitOptions,
   ): AsyncResult<FormSubmission>;
   /** The open form behind a share link, for a respondent without an account. */
   getPublic(token: string): AsyncResult<PublicForm>;
   submitPublic(
-    token: string,
-    answers: FormAnswers,
-    options?: PublicSubmitOptions,
+    input: { token: string; answers: FormAnswers } & PublicSubmitOptions,
   ): AsyncResult<PublicSubmission>;
   getSubmission(id: string): AsyncResult<FormSubmission>;
   /** Newest first. */
   listSubmissions(
-    formId: string,
-    options?: SubmissionListOptions,
+    input: { formId: string } & SubmissionListOptions,
   ): AsyncResult<readonly FormSubmission[]>;
-  review(
-    id: string,
-    status: "accepted" | "rejected" | "submitted",
-  ): AsyncResult<FormSubmission>;
+  review(input: {
+    id: string;
+    status: "accepted" | "rejected" | "submitted";
+  }): AsyncResult<FormSubmission>;
   deleteSubmission(id: string): AsyncResult<boolean>;
   /**
    * The Net Promoter Score of the form's submitted and accepted answers, for
    * reviewers.
    */
-  nps(formId: string, options?: NpsOptions): AsyncResult<FormNps>;
+  nps(input: { formId: string } & NpsOptions): AsyncResult<FormNps>;
 }
 
 const FORM_STATUSES: readonly FormStatus[] = [
@@ -450,7 +447,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           ),
         )
         .andThen(parsed),
-    update: (id, update) =>
+    update: ({ id, update }) =>
       extra(update.fields)
         .andThen((set) =>
           call(
@@ -466,7 +463,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           ),
         )
         .andThen(parsed),
-    publish: (formId, definition) =>
+    publish: ({ formId, definition }) =>
       call("publish_form_version", { form_id: formId, definition }, (value) =>
         versionOf(value, "publish_form_version"),
       ),
@@ -488,7 +485,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_form_version", { version_id: versionId }, (value) =>
         versionOf(value, "get_form_version"),
       ),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, ...list }) =>
       call(
         "list_forms",
         { tenant: organizationId, status: list.status ?? null },
@@ -513,7 +510,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           return ok(out);
         }),
       ),
-    submit: (formId, answers, submit = {}) =>
+    submit: ({ formId, answers, ...submit }) =>
       call(
         "submit_form",
         {
@@ -537,7 +534,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           ...optional("description", optionalText(row["description"])),
         };
       }),
-    submitPublic: (token, answers, submit = {}) =>
+    submitPublic: ({ token, answers, ...submit }) =>
       call(
         "submit_public_form",
         { token, answers, bot_token: submit.botToken ?? null },
@@ -559,7 +556,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_form_submission", { submission_id: id }, (value) =>
         submissionOf(value, "get_form_submission"),
       ),
-    listSubmissions: (formId, list = {}) =>
+    listSubmissions: ({ formId, ...list }) =>
       call(
         "list_form_submissions",
         {
@@ -573,7 +570,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
             submissionOf(row, "list_form_submissions"),
           ),
       ),
-    review: (id, status) =>
+    review: ({ id, status }) =>
       call("review_form_submission", { submission_id: id, status }, (value) =>
         submissionOf(value, "review_form_submission"),
       ),
@@ -583,7 +580,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
         { submission_id: id },
         (value) => value === true,
       ),
-    nps: (formId, nps = {}) =>
+    nps: ({ formId, ...nps }) =>
       call(
         "form_nps",
         {

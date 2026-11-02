@@ -163,7 +163,10 @@ describe("createInspections", () => {
       .orThrow();
 
     const updated = await inspections
-      .update("i2", { plannedEnd: null, title: "Supplier visit" })
+      .update({
+        inspectionId: "i2",
+        change: { plannedEnd: null, title: "Supplier visit" },
+      })
       .orThrow();
 
     const listed = await inspections
@@ -243,23 +246,32 @@ describe("createInspections", () => {
     const inspections = createInspections({ transport: t, tenant: "org-1" });
 
     await inspections
-      .setMembers("i1", [{ userId: "u3", role: "observer" }])
+      .setMembers({
+        inspectionId: "i1",
+        members: [{ userId: "u3", role: "observer" }],
+      })
       .orThrow();
     await inspections.start("i1").orThrow();
 
     const saved = await inspections
-      .saveChecklist("i1", { q1: "yes" }, { draft: false })
+      .saveChecklist({
+        inspectionId: "i1",
+        answers: { q1: "yes" },
+        draft: false,
+      })
       .orThrow();
 
-    await inspections.saveChecklist("i1", { q1: "no" }).orThrow();
+    await inspections
+      .saveChecklist({ inspectionId: "i1", answers: { q1: "no" } })
+      .orThrow();
 
     const completed = await inspections
-      .complete("i1", "Two findings")
+      .complete({ inspectionId: "i1", summary: "Two findings" })
       .orThrow();
 
-    await inspections.complete("i1").orThrow();
+    await inspections.complete({ inspectionId: "i1" }).orThrow();
     await inspections.close("i1").orThrow();
-    const canceled = await inspections.cancel("i2").orThrow();
+    const canceled = await inspections.cancel({ inspectionId: "i2" }).orThrow();
     const detail = await inspections.get("i1").orThrow();
 
     expect(saved).toEqual({ submissionId: "s1" });
@@ -309,17 +321,20 @@ describe("createInspections", () => {
     const inspections = createInspections({ transport: t });
 
     const added = await inspections
-      .addFinding("i1", { type: "major_nonconformity", title: "Unlabelled" })
+      .addFinding({
+        inspectionId: "i1",
+        input: { type: "major_nonconformity", title: "Unlabelled" },
+      })
       .orThrow();
 
     const changed = await inspections
-      .updateFinding("fi1", { clause: null })
+      .updateFinding({ findingId: "fi1", change: { clause: null } })
       .orThrow();
 
     await inspections.deleteFinding("fi1").orThrow();
-    const raised = await inspections.raiseCase("fi1").orThrow();
+    const raised = await inspections.raiseCase({ findingId: "fi1" }).orThrow();
     await inspections
-      .raiseCase("fi1", { kind: "nonconformity", ownerId: "u2" })
+      .raiseCase({ findingId: "fi1", kind: "nonconformity", ownerId: "u2" })
       .orThrow();
 
     expect(added).toMatchObject({ controlId: "c1", evidence: "Photo 12" });

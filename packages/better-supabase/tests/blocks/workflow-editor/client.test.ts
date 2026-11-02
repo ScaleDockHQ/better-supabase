@@ -41,7 +41,7 @@ describe("createWorkflowEditorController", () => {
     );
 
     await flush();
-    expect(list).toHaveBeenCalledWith("org-1");
+    expect(list).toHaveBeenCalledWith({ tenant: "org-1" });
     expect(view()).toMatchObject({ error: undefined });
     expect(view().definitions).toHaveLength(1);
     expect(view().steps).toHaveLength(1);
@@ -67,7 +67,7 @@ describe("createWorkflowEditorController", () => {
 
     const mounted = mount(controller);
     await flush();
-    expect(list).toHaveBeenCalledWith(undefined);
+    expect(list).toHaveBeenCalledWith({ tenant: undefined });
     mounted.unmount();
     answer.release();
     await flush();

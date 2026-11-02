@@ -25,10 +25,9 @@ export const createDriveFolder = bsb.action(
     permission: "drive.create",
   },
   async ({ parentId, name }, { tenant, db, auth }) => {
-    const folder = await driveOf(db).createFolder(tenant, {
-      parentId,
-      name,
-      conflict: "rename",
+    const folder = await driveOf(db).createFolder({
+      organizationId: tenant,
+      folder: { parentId, name, conflict: "rename" },
     });
 
     if (!folder.ok) {
@@ -58,12 +57,15 @@ export const startDriveUpload = bsb.action(
     permission: "drive.create",
   },
   async ({ parentId, name, mimeType, size }, { tenant, db }) => {
-    const upload = await driveOf(db).upload(tenant, {
-      parentId,
-      name,
-      mimeType: mimeType || "application/octet-stream",
-      size,
-      conflict: "rename",
+    const upload = await driveOf(db).upload({
+      organizationId: tenant,
+      file: {
+        parentId,
+        name,
+        mimeType: mimeType || "application/octet-stream",
+        size,
+        conflict: "rename",
+      },
     });
 
     if (!upload.ok) {
@@ -90,7 +92,7 @@ export const commitDriveUpload = bsb.action(
     permission: "drive.create",
   },
   async ({ nodeId, attachmentId }, { db, auth }) => {
-    const committed = await driveOf(db).commit(nodeId, attachmentId);
+    const committed = await driveOf(db).commit({ id: nodeId, attachmentId });
 
     if (!committed.ok) {
       return committed;
@@ -119,7 +121,7 @@ export const renameDriveItem = bsb.action(
     permission: "drive.create",
   },
   async ({ id, name }, { db, auth }) => {
-    const renamed = await driveOf(db).rename(id, name, { conflict: "rename" });
+    const renamed = await driveOf(db).rename({ id, name, conflict: "rename" });
 
     if (!renamed.ok) {
       return renamed;
@@ -162,7 +164,7 @@ export const downloadDriveFile = bsb.action(
     permission: "drive.read",
   },
   async ({ id }, { db }) => {
-    const download = await driveOf(db).download(id, { as: true });
+    const download = await driveOf(db).download({ id, options: { as: true } });
 
     if (!download.ok) {
       return download;
@@ -183,10 +185,11 @@ export const setDriveCheckout = bsb.action(
     const drive = driveOf(db);
 
     const node = locked
-      ? await drive.lock(id, {
+      ? await drive.lock({
+          id,
           until: Temporal.Now.instant().add({ hours: 2 }),
         })
-      : await drive.unlock(id);
+      : await drive.unlock({ id });
 
     if (!node.ok) {
       return node;
@@ -206,7 +209,7 @@ export const setDriveDownloadsBlocked = bsb.action(
     permission: "drive.create",
   },
   async ({ id, blocked }, { db, auth }) => {
-    const node = await driveOf(db).blockDownloads(id, blocked);
+    const node = await driveOf(db).blockDownloads({ id, blocked });
 
     if (!node.ok) {
       return node;
@@ -226,7 +229,7 @@ export const requestDriveApproval = bsb.action(
     permission: "drive.create",
   },
   async ({ id }, { db, auth }) => {
-    const requested = await driveOf(db).requestApproval(id);
+    const requested = await driveOf(db).requestApproval({ id });
 
     if (!requested.ok) {
       return requested;

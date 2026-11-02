@@ -47,7 +47,7 @@ describe.skipIf(!live)("enrollments", () => {
       const customer = { type: "customer", id: "c1" };
 
       const enrolled = await enrollments
-        .enroll("customer-setup", customer)
+        .enroll({ program: "customer-setup", subject: customer })
         .orThrow();
 
       expect(enrolled).toMatchObject({
@@ -58,12 +58,15 @@ describe.skipIf(!live)("enrollments", () => {
       });
 
       expect(
-        (await enrollments.complete(enrolled.id, "kickoff").orThrow())
-          .completedSteps,
+        (
+          await enrollments
+            .complete({ enrollmentId: enrolled.id, step: "kickoff" })
+            .orThrow()
+        ).completedSteps,
       ).toBe(1);
 
       const completed = await enrollments
-        .complete(enrolled.id, "import")
+        .complete({ enrollmentId: enrolled.id, step: "import" })
         .orThrow();
 
       expect(completed.status).toBe("completed");
@@ -89,7 +92,7 @@ describe.skipIf(!live)("enrollments", () => {
       ).toBe("ENROLLMENTS_PROGRAM_CONFLICT");
 
       const reenrolled = await enrollments
-        .enroll("customer-setup", customer)
+        .enroll({ program: "customer-setup", subject: customer })
         .orThrow();
 
       expect(reenrolled).toMatchObject({
@@ -126,7 +129,11 @@ describe.skipIf(!live)("enrollments", () => {
         ]),
       ).toBe("ENROLLMENTS_INVALID");
       expect(
-        (await enrollments.enroll("customer-setup", customer).orThrow()).status,
+        (
+          await enrollments
+            .enroll({ program: "customer-setup", subject: customer })
+            .orThrow()
+        ).status,
       ).toBe("active");
 
       await s.as(outsider);

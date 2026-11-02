@@ -16,7 +16,7 @@ export const raiseFindingCase = bsb.action(
     permission: "inspections.write",
   },
   async ({ findingId }, { db, auth }) => {
-    const raised = await db.inspections.raiseCase(findingId);
+    const raised = await db.inspections.raiseCase({ findingId });
 
     if (!raised.ok) {
       return raised;

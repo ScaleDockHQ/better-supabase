@@ -73,10 +73,9 @@ describe.skipIf(!live)("ai-files module", () => {
         [tenant, { title: "Pictures" }],
       );
 
-      const wrongType = await files.files.upload(tenant, {
-        filename: "a.pdf",
-        mediaType: "application/pdf",
-        size: 3,
+      const wrongType = await files.files.upload({
+        organizationId: tenant,
+        file: { filename: "a.pdf", mediaType: "application/pdf", size: 3 },
       });
 
       expect(wrongType.ok ? undefined : wrongType.error.hint).toBe(
@@ -84,11 +83,14 @@ describe.skipIf(!live)("ai-files module", () => {
       );
 
       const { file, signedUrl } = await files.files
-        .upload(tenant, {
-          filename: "cat.png",
-          mediaType: "image/png",
-          size: 3,
-          chatId: chat.id,
+        .upload({
+          organizationId: tenant,
+          file: {
+            filename: "cat.png",
+            mediaType: "image/png",
+            size: 3,
+            chatId: chat.id,
+          },
         })
         .orThrow();
 
@@ -99,7 +101,7 @@ describe.skipIf(!live)("ai-files module", () => {
         path: `${tenant}/${member.id}/${file.id}/cat.png`,
       });
       expect(signedUrl).toContain(file.path);
-      const early = await files.files.confirm(file.id);
+      const early = await files.files.confirm({ fileId: file.id });
       expect(early.ok ? undefined : early.error.hint).toBe(
         "AI_FILE_NOT_UPLOADED",
       );
@@ -120,7 +122,7 @@ describe.skipIf(!live)("ai-files module", () => {
       expect(await store(file.path)).toBe("no error");
 
       const ready = await files.files
-        .confirm(file.id, "ab".repeat(32))
+        .confirm({ fileId: file.id, sha256: "ab".repeat(32) })
         .orThrow();
 
       expect(ready).toMatchObject({ status: "ready", size: 2 });
@@ -179,12 +181,15 @@ describe.skipIf(!live)("ai-files module", () => {
       const files = createAiFiles({ transport: sqlTransport(s.sql), storage });
 
       const generated = await files.files
-        .store(tenant, {
-          ownerId: owner.id,
-          filename: "sun.png",
-          mediaType: "image/png",
-          data: new Uint8Array([1, 2, 3]),
-          chatId: chat.id,
+        .store({
+          organizationId: tenant,
+          file: {
+            ownerId: owner.id,
+            filename: "sun.png",
+            mediaType: "image/png",
+            data: new Uint8Array([1, 2, 3]),
+            chatId: chat.id,
+          },
         })
         .orThrow();
 
@@ -195,35 +200,42 @@ describe.skipIf(!live)("ai-files module", () => {
       });
 
       expect(
-        await files.providerFiles.get(generated.id, "openai").orThrow(),
+        await files.providerFiles
+          .get({ fileId: generated.id, provider: "openai" })
+          .orThrow(),
       ).toBeUndefined();
       await files.providerFiles
-        .upsert(
-          generated.id,
-          "openai",
-          "file-1",
-          Temporal.Now.instant().add({ minutes: 30 }),
-        )
+        .upsert({
+          fileId: generated.id,
+          provider: "openai",
+          reference: "file-1",
+          expiresAt: Temporal.Now.instant().add({ minutes: 30 }),
+        })
         .orThrow();
       expect(
-        (await files.providerFiles.get(generated.id, "openai").orThrow())
-          ?.reference,
+        (
+          await files.providerFiles
+            .get({ fileId: generated.id, provider: "openai" })
+            .orThrow()
+        )?.reference,
       ).toBe("file-1");
       expect(
-        (await files.providerFiles.expiring("1 hour").orThrow()).map(
-          (row) => row.fileId,
-        ),
+        (
+          await files.providerFiles.expiring({ horizon: "1 hour" }).orThrow()
+        ).map((row) => row.fileId),
       ).toContain(generated.id);
       await files.providerFiles
-        .upsert(
-          generated.id,
-          "openai",
-          "file-1",
-          Temporal.Now.instant().subtract({ minutes: 1 }),
-        )
+        .upsert({
+          fileId: generated.id,
+          provider: "openai",
+          reference: "file-1",
+          expiresAt: Temporal.Now.instant().subtract({ minutes: 1 }),
+        })
         .orThrow();
       expect(
-        await files.providerFiles.get(generated.id, "openai").orThrow(),
+        await files.providerFiles
+          .get({ fileId: generated.id, provider: "openai" })
+          .orThrow(),
       ).toBeUndefined();
 
       await s.as(owner);
@@ -273,23 +285,33 @@ describe.skipIf(!live)("ai-files module", () => {
       await s.asRole(member);
 
       const doc = await files.documents
-        .create(tenant, { kind: "code", title: "main.ts", content: "a" })
+        .create({
+          organizationId: tenant,
+          document: { kind: "code", title: "main.ts", content: "a" },
+        })
         .orThrow();
 
       expect(doc.version).toBe(1);
       await files.documents
-        .update(doc.id, { content: "b", expectedVersion: 1, messageId: "m1" })
+        .update({
+          documentId: doc.id,
+          edit: { content: "b", expectedVersion: 1, messageId: "m1" },
+        })
         .orThrow();
 
-      const conflict = await files.documents.update(doc.id, {
-        content: "c",
-        expectedVersion: 1,
+      const conflict = await files.documents.update({
+        documentId: doc.id,
+        edit: { content: "c", expectedVersion: 1 },
       });
 
       expect(conflict.ok ? undefined : conflict.error.hint).toBe(
         "AI_DOCUMENT_CONFLICT",
       );
-      const rolled = await files.documents.rollback(doc.id, 1).orThrow();
+
+      const rolled = await files.documents
+        .rollback({ documentId: doc.id, version: 1 })
+        .orThrow();
+
       expect(rolled.version).toBe(3);
       expect((await files.documents.get(doc.id).orThrow()).content).toBe("a");
       expect(
@@ -305,24 +327,35 @@ describe.skipIf(!live)("ai-files module", () => {
       ]);
 
       const suggestion = await files.documents
-        .suggest(doc.id, { originalText: "a", suggestedText: "A" })
+        .suggest({
+          documentId: doc.id,
+          suggestion: { originalText: "a", suggestedText: "A" },
+        })
         .orThrow();
 
       expect(suggestion.version).toBe(3);
-      await files.documents.resolve(suggestion.id, true).orThrow();
-      expect(await files.documents.suggestions(doc.id).orThrow()).toEqual([]);
+      await files.documents
+        .resolve({ suggestionId: suggestion.id, accepted: true })
+        .orThrow();
+      expect(
+        await files.documents.suggestions({ documentId: doc.id }).orThrow(),
+      ).toEqual([]);
 
       await s.asRole(outsider);
       expect((await files.documents.get(doc.id)).ok).toBe(false);
-      const foreign = await files.documents.update(doc.id, { content: "x" });
+
+      const foreign = await files.documents.update({
+        documentId: doc.id,
+        edit: { content: "x" },
+      });
+
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
         "AI_DOCUMENT_NOT_FOUND",
       );
 
-      const forbidden = await files.documents.create(tenant, {
-        kind: "text",
-        title: "x",
-        content: "x",
+      const forbidden = await files.documents.create({
+        organizationId: tenant,
+        document: { kind: "text", title: "x", content: "x" },
       });
 
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
@@ -381,7 +414,10 @@ describe.skipIf(!live)("ai-files module", () => {
       await s.asRole(owner);
 
       const doc = await files.documents
-        .create(tenant, { kind: "text", title: "notes.md", content: "two" })
+        .create({
+          organizationId: tenant,
+          document: { kind: "text", title: "notes.md", content: "two" },
+        })
         .orThrow();
 
       await s.service();
@@ -468,7 +504,10 @@ describe.skipIf(!live)("ai-files module", () => {
       // The moved hash matches the versions block's, so an unchanged edit
       // writes no new version.
       await files.documents
-        .update(doc.id, { content: "two", messageId: "m2" })
+        .update({
+          documentId: doc.id,
+          edit: { content: "two", messageId: "m2" },
+        })
         .orThrow();
       expect(await files.documents.versions(doc.id).orThrow()).toHaveLength(2);
     } finally {

@@ -73,18 +73,17 @@ export interface Trash<F extends object = Record<never, never>> {
    * Trashes the subject and its children in one batch; `fields` sets the item's
    * extra columns.
    */
-  trash(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-    fields?: Partial<F>,
-  ): AsyncResult<TrashBatch>;
+  trash(input: {
+    organizationId: string;
+    subjectType: string;
+    subjectId: string;
+    fields?: Partial<F> | undefined;
+  }): AsyncResult<TrashBatch>;
   /** Restores the whole batch of a trash item. */
   restore(id: string): AsyncResult<TrashBatch>;
   /** Newest first, one entry per batch. */
   list(
-    organizationId: string,
-    options?: TrashListOptions,
+    input: { organizationId: string } & TrashListOptions,
   ): AsyncResult<readonly TrashItem<F>[]>;
   /** Deletes the batch's rows for good; returns how many were deleted. */
   purge(id: string): AsyncResult<number>;
@@ -134,7 +133,7 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
   );
 
   const client: Trash<F> = {
-    trash: (organizationId, subjectType, subjectId, extra) =>
+    trash: ({ organizationId, subjectType, subjectId, fields: extra }) =>
       fields
         .args(extra)
         .andThen((checked) =>
@@ -153,7 +152,7 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
       call("restore_trash", { item_id: id }, (value) =>
         batchOf(value, "restore_trash"),
       ),
-    list: (organizationId, page = {}) =>
+    list: ({ organizationId, ...page }) =>
       call(
         "list_trash",
         {

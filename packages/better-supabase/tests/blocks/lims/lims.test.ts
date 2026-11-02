@@ -64,7 +64,9 @@ describe("createLims", () => {
     const lims = createLims({ transport: t, tenant: "org-1" });
 
     const saved = await lims
-      .saveMethod({ key: "ph", name: "pH", lowerLimit: 6.5, upperLimit: 8.5 })
+      .saveMethod({
+        input: { key: "ph", name: "pH", lowerLimit: 6.5, upperLimit: 8.5 },
+      })
       .orThrow();
 
     const archived = await lims.archiveMethod("m1").orThrow();
@@ -118,7 +120,10 @@ describe("createLims", () => {
     const listed = await lims.listSamples({ status: "registered" }).orThrow();
     const completed = await lims.completeSample("s1").orThrow();
     const released = await lims.releaseSample("s1").orThrow();
-    const rejected = await lims.rejectSample("s1", "Leaked").orThrow();
+
+    const rejected = await lims
+      .rejectSample({ sampleId: "s1", reason: "Leaked" })
+      .orThrow();
 
     expect(registered.number).toBe("SMP-1");
     expect(registered.receivedOn.toString()).toBe("2026-10-29");
@@ -161,11 +166,15 @@ describe("createLims", () => {
     const { PlainDate } = temporal();
 
     const recorded = await lims
-      .recordResult("s1", "m1", { value: 9.1, instrumentId: "a1" })
+      .recordResult({
+        sampleId: "s1",
+        methodId: "m1",
+        input: { value: 9.1, instrumentId: "a1" },
+      })
       .orThrow();
 
     const status = await lims
-      .instrumentStatus("a1", PlainDate.from("2026-10-30"))
+      .instrumentStatus({ assetId: "a1", on: PlainDate.from("2026-10-30") })
       .orThrow();
 
     expect(recorded).toMatchObject({ value: 9.1, outcome: "out_of_spec" });
@@ -233,11 +242,11 @@ describe("createLims", () => {
     });
 
     const saved = await lims
-      .saveMethod({ key: "ph", name: "pH" }, "m1")
+      .saveMethod({ input: { key: "ph", name: "pH" }, methodId: "m1" })
       .orThrow();
 
     await lims.listMethods().orThrow();
-    await lims.instrumentStatus("a1").orThrow();
+    await lims.instrumentStatus({ assetId: "a1" }).orThrow();
 
     expect(saved.lowerLimit).toBeUndefined();
     expect(t.calls[0]?.[1]).toMatchObject({ method_id: "m1" });
@@ -258,7 +267,7 @@ describe("createLims", () => {
 
     await expect(
       createLims({ transport: t, tenant: "org-1" })
-        .recordResult("s1", "m1", { value: 9.1 })
+        .recordResult({ sampleId: "s1", methodId: "m1", input: { value: 9.1 } })
         .orThrow(),
     ).rejects.toThrow(/./);
   });

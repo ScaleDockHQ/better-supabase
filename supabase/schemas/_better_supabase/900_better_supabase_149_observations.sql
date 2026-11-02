@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:ae3af47c07f329357d0bf6f74c72daaffaccee4ae09abdf5337e462feb6a9164
+-- @bsb-hash sha256:166867f8b7a72a6b8083e35b8d52bf8fb2207324e96315509a7c2f14a7d07640
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2025,6 +2025,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations
 create policy bsb_tenant_scope_delete on "better_supabase"."observations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.observations', target_type => 'observation', event_prefix => 'observation', deferred => true);
+  perform better_supabase.audit('better_supabase.observation_definitions', target_type => 'observation_definition', event_prefix => 'observation_definition', deferred => true);
+end;
+$$;
 
 -- blocks.observations.api: entry points for the Data API.
 create schema if not exists "api";

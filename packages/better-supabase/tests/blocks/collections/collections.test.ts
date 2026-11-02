@@ -63,11 +63,14 @@ describe("collections block", () => {
     const t = transport({ create_collection: () => LIST });
 
     const list = await createCollections({ transport: t })
-      .create("o", {
-        name: "Key accounts",
-        subjectType: "company",
-        scope: "team",
-        teamId: "t1",
+      .create({
+        organizationId: "o",
+        input: {
+          name: "Key accounts",
+          subjectType: "company",
+          scope: "team",
+          teamId: "t1",
+        },
       })
       .orThrow();
 
@@ -114,9 +117,16 @@ describe("collections block", () => {
     });
 
     const collections = createCollections({ transport: t });
-    await collections.create("o", { name: "x", subjectType: "company" });
+    await collections.create({
+      organizationId: "o",
+      input: { name: "x", subjectType: "company" },
+    });
     expect(t.calls[0]?.[1]).toMatchObject({ scope: "user", team: null });
-    const renamed = await collections.rename("c1", { name: "y" }).orThrow();
+
+    const renamed = await collections
+      .rename({ id: "c1", input: { name: "y" } })
+      .orThrow();
+
     expect(renamed).toMatchObject({
       scope: "user",
       ownerId: "u1",
@@ -124,19 +134,22 @@ describe("collections block", () => {
       archived: true,
     });
     expect(renamed.archivedAt?.toString()).toBe("2026-10-15T09:00:00Z");
-    await collections.rename("c1", { description: null });
-    await collections.rename("c1", { description: "z" });
+    await collections.rename({ id: "c1", input: { description: null } });
+    await collections.rename({ id: "c1", input: { description: "z" } });
     expect(t.calls.slice(1, 4).map(([, args]) => args)).toEqual([
       { collection: "c1", name: "y", description: null },
       { collection: "c1", name: null, description: "" },
       { collection: "c1", name: null, description: "z" },
     ]);
-    expect(await collections.archive("c1").orThrow()).toBe(true);
+    expect(await collections.archive({ id: "c1" }).orThrow()).toBe(true);
     expect(t.calls[4]?.[1]).toEqual({ collection: "c1", archived: true });
     expect(
-      (await collections.list("o").orThrow()).map((list) => list.archived),
+      (await collections.list({ organizationId: "o" }).orThrow()).map(
+        (list) => list.archived,
+      ),
     ).toEqual([false, true]);
-    await collections.list("o", {
+    await collections.list({
+      organizationId: "o",
       subjectType: "company",
       includeArchived: true,
     });
@@ -163,28 +176,40 @@ describe("collections block", () => {
     });
 
     const collections = createCollections({ transport: t });
-    expect(await collections.add("c1", ["a", "b"]).orThrow()).toEqual({
-      added: ["a"],
-    });
+    expect(
+      await collections.add({ id: "c1", subjectIds: ["a", "b"] }).orThrow(),
+    ).toEqual({ added: ["a"] });
     expect(t.calls[0]?.[1]).toEqual({
       collection: "c1",
       subject_ids: ["a", "b"],
       subject_type: null,
     });
-    expect(await collections.remove("c1", ["a", "b"]).orThrow()).toBe(2);
-    const key = await collections.reorder("c1", "b", { next: "V" }).orThrow();
-    expect(key < "V").toBe(true);
-    expect((await collections.reorder("c1", "b", { previous: "!" })).ok).toBe(
-      false,
-    );
+    expect(
+      await collections.remove({ id: "c1", subjectIds: ["a", "b"] }).orThrow(),
+    ).toBe(2);
 
-    const first = await collections.entries("c1", { limit: 2 }).orThrow();
+    const key = await collections
+      .reorder({ id: "c1", subjectId: "b", neighbors: { next: "V" } })
+      .orThrow();
+
+    expect(key < "V").toBe(true);
+    expect(
+      (
+        await collections.reorder({
+          id: "c1",
+          subjectId: "b",
+          neighbors: { previous: "!" },
+        })
+      ).ok,
+    ).toBe(false);
+
+    const first = await collections.entries({ id: "c1", limit: 2 }).orThrow();
     expect(first.next).toEqual({ rank: "k", subjectId: "b" });
     expect(first.items[0]).toMatchObject({ title: "Company a", addedBy: "u1" });
     expect(first.items[0]?.url).toBeUndefined();
 
     const second = await collections
-      .entries("c1", { limit: 2, cursor: first.next! })
+      .entries({ id: "c1", limit: 2, cursor: first.next! })
       .orThrow();
 
     expect(second.next).toBeUndefined();
@@ -194,24 +219,27 @@ describe("collections block", () => {
       after_id: "b",
       page_size: 2,
     });
-    expect((await collections.entries("c1").orThrow()).next).toBeUndefined();
+    expect(
+      (await collections.entries({ id: "c1" }).orThrow()).next,
+    ).toBeUndefined();
 
-    expect(await collections.subjectIds("c1", { max: 10 }).orThrow()).toEqual([
-      "b",
-      "a",
-    ]);
-    expect(await collections.where("c1").orThrow()).toEqual({
+    expect(
+      await collections.subjectIds({ id: "c1", max: 10 }).orThrow(),
+    ).toEqual(["b", "a"]);
+    expect(await collections.where({ id: "c1" }).orThrow()).toEqual({
       id: { in: ["b", "a"] },
     });
     expect(
-      await collections.where("c1", { column: "company_id" }).orThrow(),
+      await collections.where({ id: "c1", column: "company_id" }).orThrow(),
     ).toEqual({ company_id: { in: ["b", "a"] } });
   });
 
   it("reads an empty add result as nothing added", async () => {
     const t = transport({ add_collection_entries: () => null });
     expect(
-      await createCollections({ transport: t }).add("c1", []).orThrow(),
+      await createCollections({ transport: t })
+        .add({ id: "c1", subjectIds: [] })
+        .orThrow(),
     ).toEqual({ added: [] });
   });
 
@@ -225,7 +253,11 @@ describe("collections block", () => {
 
     const collections = createCollections({ transport: t });
     const deal = { type: "deal", id: "d1" };
-    const star = await collections.star("o", deal).orThrow();
+
+    const star = await collections
+      .star({ organizationId: "o", subject: deal })
+      .orThrow();
+
     expect(star).toEqual({
       organizationId: "o",
       subjectType: "deal",
@@ -236,15 +268,28 @@ describe("collections block", () => {
       url: "/deals/d1",
     });
     expect(await collections.unstar(deal).orThrow()).toBe(true);
-    const stars = await collections.starred("o", { type: "deal" }).orThrow();
+
+    const stars = await collections
+      .starred({ organizationId: "o", type: "deal" })
+      .orThrow();
+
     expect(stars[1]?.title).toBeUndefined();
     expect(t.calls[2]?.[1]).toEqual({ tenant: "o", subject_type: "deal" });
-    await collections.starred("o");
+    await collections.starred({ organizationId: "o" });
     expect(t.calls[3]?.[1]).toEqual({ tenant: "o", subject_type: null });
     expect(
-      await collections.reorderStar(deal, { previous: "V" }).orThrow(),
+      await collections
+        .reorderStar({ subject: deal, neighbors: { previous: "V" } })
+        .orThrow(),
     ).toBe("k");
-    expect((await collections.reorderStar(deal, { next: "!" })).ok).toBe(false);
+    expect(
+      (
+        await collections.reorderStar({
+          subject: deal,
+          neighbors: { next: "!" },
+        })
+      ).ok,
+    ).toBe(false);
   });
 
   describe("save for later", () => {
@@ -284,9 +329,13 @@ describe("collections block", () => {
       const message = { type: "message", id: "m1" };
 
       const saved = await collections
-        .saveForLater("o", message, {
-          note: "Reply after the call",
-          remindAt: Temporal.Instant.from("2026-10-23T09:00:00Z"),
+        .saveForLater({
+          organizationId: "o",
+          subject: message,
+          input: {
+            note: "Reply after the call",
+            remindAt: Temporal.Instant.from("2026-10-23T09:00:00Z"),
+          },
         })
         .orThrow();
 
@@ -313,10 +362,13 @@ describe("collections block", () => {
         title: "Can you check the quote?",
       });
 
-      await collections.saveForLater("o", message);
+      await collections.saveForLater({ organizationId: "o", subject: message });
       expect(t.calls[1]?.[1]).toMatchObject({ note: null, remind_at: null });
 
-      const page = await collections.saved("o", { limit: 2 }).orThrow();
+      const page = await collections
+        .saved({ organizationId: "o", options: { limit: 2 } })
+        .orThrow();
+
       expect(page.items[1]).toMatchObject({
         id: "s2",
         completed: true,
@@ -336,9 +388,9 @@ describe("collections block", () => {
       });
 
       const completed = await collections
-        .saved("o", {
-          completed: true,
-          ...(page.next && { cursor: page.next }),
+        .saved({
+          organizationId: "o",
+          options: { completed: true, ...(page.next && { cursor: page.next }) },
         })
         .orThrow();
 
@@ -351,12 +403,14 @@ describe("collections block", () => {
         max_rows: null,
       });
 
-      expect(await collections.completeSaved("s1").orThrow()).toBe(true);
+      expect(await collections.completeSaved({ id: "s1" }).orThrow()).toBe(
+        true,
+      );
       expect(t.calls[4]).toEqual([
         "complete_saved_item",
         { item: "s1", completed: true },
       ]);
-      await collections.completeSaved("s1", false);
+      await collections.completeSaved({ id: "s1", completed: false });
       expect(t.calls[5]?.[1]).toEqual({ item: "s1", completed: false });
       expect(await collections.removeSaved("s1").orThrow()).toBe(false);
       expect(t.calls[6]).toEqual(["remove_saved_item", { item: "s1" }]);
@@ -374,7 +428,7 @@ describe("collections block", () => {
       const collections = createCollections({
         transport: t,
         notifier: {
-          send: (type, input) => {
+          send: ({ type, input }) => {
             sent.push([type, input]);
           },
         },

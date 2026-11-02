@@ -1,0 +1,55 @@
+---
+title: Maintenance
+description: Run every block's purges and expiries from one dispatcher, and add your own job.
+---
+
+```sql
+select better_supabase.maintenance_schedule();
+```
+
+The `housekeeping` module installs with the first block that has a recurring cleanup:
+`approvals` (expire requests), `trash` (purge batches), `webhook-inbox`, `rate-limit`,
+`idempotency` and `chat-sdk-state`. Each block lists its cleanup as a job, and
+`better_supabase.maintenance()` runs every job that is due, in name order, and records
+what happened in `maintenance_state`.
+
+`maintenance_schedule()` registers one pg_cron job that calls `maintenance()` every five
+minutes and returns `pg_cron`. Without pg_cron it returns `none`: call
+`select better_supabase.maintenance()` from your own scheduler instead, such as the cron
+route that drains the queue. `maintenance_scheduler()` tells you which of the two is
+registered.
+
+## Reading the jobs
+
+`better_supabase.maintenance_jobs` (service role only) lists each job with its function,
+its interval, when it last ran, its last status and error, and whether it is due.
+
+| Argument    | Effect                         |
+| ----------- | ------------------------------ |
+| none        | Runs the jobs that are due.    |
+| `job_name`  | Runs that job now, due or not. |
+| `force_run` | Runs every job now.            |
+
+A job that fails is recorded with its error and never stops the others. Two overlapping
+calls don't both run: the second returns an empty list. The block functions keep their
+names (`purge_webhooks`, `expire_approvals` and the rest), so a pg_cron line you already
+have keeps working.
+
+## Adding a job
+
+A SQL module adds a job through `contributes`, and lists `housekeeping` in `requires`.
+
+```ts
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("purge_expired_things"),
+      function: own.fn("purge_expired_things"),
+      every: "1 day",
+    },
+  ],
+};
+```
+
+The function runs with no arguments, so every argument needs a default. `every` is a
+Postgres interval of seconds, minutes, hours or days.

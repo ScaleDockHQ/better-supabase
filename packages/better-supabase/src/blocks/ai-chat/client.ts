@@ -68,10 +68,10 @@ export interface AiChatsActions {
   readonly loadMore: () => Promise<void>;
   readonly refresh: () => Promise<void>;
   readonly create: (input?: AiChatInput) => Promise<AiChatRecord | undefined>;
-  readonly update: (
-    chatId: string,
-    patch: AiChatPatch,
-  ) => Promise<AiChatRecord | undefined>;
+  readonly update: (input: {
+    chatId: string;
+    patch: AiChatPatch;
+  }) => Promise<AiChatRecord | undefined>;
   readonly remove: (chatId: string) => Promise<void>;
 }
 
@@ -203,7 +203,7 @@ export function createAiChatsController(
             const at = generation;
 
             const chat = await attempt(
-              chats.create(organizationId, input),
+              chats.create({ organizationId, input }),
               fail,
             );
 
@@ -216,9 +216,9 @@ export function createAiChatsController(
 
             return chat;
           },
-          update: async (chatId, patch) => {
+          update: async ({ chatId, patch }) => {
             const at = generation;
-            const chat = await attempt(chats.update(chatId, patch), fail);
+            const chat = await attempt(chats.update({ chatId, patch }), fail);
 
             if (chat) {
               edit(at, (items) =>
@@ -298,7 +298,10 @@ export interface AiChatTreeActions {
   /** Shows the branch through `messageId`. */
   readonly switchBranch: (messageId: string) => Promise<void>;
   /** Shows the sibling `offset` places from `messageId` (`-1` older, `1` newer). */
-  readonly step: (messageId: string, offset: number) => Promise<void>;
+  readonly step: (input: {
+    messageId: string;
+    offset: number;
+  }) => Promise<void>;
 }
 
 export type AiChatTreeController = Controller<
@@ -338,10 +341,10 @@ export function createAiChatTreeController(
         ticket += 1;
         const run = ticket;
 
-        const result = await messages.path(
+        const result = await messages.path({
           chatId,
-          leafId === undefined ? undefined : { leafId },
-        );
+          ...(leafId === undefined ? undefined : { leafId }),
+        });
 
         if (run === ticket) {
           apply(result);
@@ -354,7 +357,7 @@ export function createAiChatTreeController(
         }
 
         const run = state.run();
-        const result = await messages.switchBranch(chatId, messageId);
+        const result = await messages.switchBranch({ chatId, messageId });
 
         if (run !== state.run()) {
           return;
@@ -371,13 +374,13 @@ export function createAiChatTreeController(
         actions: {
           refresh: () => loadPath(),
           switchBranch,
-          step: async (messageId, offset) => {
+          step: async ({ messageId, offset }) => {
             if (!chatId) {
               return;
             }
 
             const run = state.run();
-            const result = await messages.siblings(chatId, messageId);
+            const result = await messages.siblings({ chatId, messageId });
 
             if (run !== state.run()) {
               return;
@@ -544,7 +547,7 @@ export function createAiShareController(
               return;
             }
 
-            const link = await attempt(shares.create(chatId, leafId), fail);
+            const link = await attempt(shares.create({ chatId, leafId }), fail);
 
             if (link) {
               await reload();

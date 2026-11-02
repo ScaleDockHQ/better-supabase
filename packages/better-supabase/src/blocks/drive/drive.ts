@@ -16,6 +16,7 @@ import type {
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DriveLifecycle } from "./changes.ts";
 import type { DriveDocument, DriveDocuments } from "./documents.ts";
+import type { DriveHelpers } from "./helpers.ts";
 import type { DriveAccess } from "./ownership.ts";
 import type {
   DriveContribution,
@@ -40,6 +41,7 @@ import {
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
 import { driveLifecycle } from "./changes.ts";
 import { driveDocuments } from "./documents.ts";
+import { driveHelpers } from "./helpers.ts";
 import { driveAccess } from "./ownership.ts";
 import {
   KINDS,
@@ -427,157 +429,176 @@ export interface Drive<F extends object = Record<never, never>>
   extends
     DriveDocuments<DriveNode<F>>,
     DriveLifecycle<DriveNode<F>>,
+    DriveHelpers<F>,
     DriveAccess {
-  createFolder(
-    organizationId: string,
-    folder: NewDriveFolder<F>,
-  ): AsyncResult<DriveNode<F>>;
+  createFolder(input: {
+    organizationId: string;
+    folder: NewDriveFolder<F>;
+  }): AsyncResult<DriveNode<F>>;
   get(id: string): AsyncResult<DriveNode<F>>;
   /** A folder's children (the root without `parentId`), folders first. */
-  list(
-    organizationId: string,
-    options?: DrivePage & {
-      readonly parentId?: string | null;
-      /** A top-level listing of one drive, with drives enabled. */
-      readonly driveId?: string | null;
-      readonly skip?: number;
-    },
-  ): AsyncResult<readonly DriveNode<F>[]>;
+  list(input: {
+    organizationId: string;
+    options?:
+      | (DrivePage & {
+          readonly parentId?: string | null;
+          /** A top-level listing of one drive, with drives enabled. */
+          readonly driveId?: string | null;
+          readonly skip?: number;
+        })
+      | undefined;
+  }): AsyncResult<readonly DriveNode<F>[]>;
   /** Nodes shared with the caller directly, outside folders they can open. */
   shared(
-    organizationId: string,
-    options?: DrivePage,
+    input: { organizationId: string } & DrivePage,
   ): AsyncResult<readonly DriveNode<F>[]>;
   /** The node's folders, root first, for breadcrumbs. */
   path(id: string): AsyncResult<readonly DriveCrumb[]>;
   rename(
-    id: string,
-    name: string,
-    options?: { readonly conflict?: DriveConflict },
+    input: { id: string; name: string } & { readonly conflict?: DriveConflict },
   ): AsyncResult<DriveNode<F>>;
   /** Moves into `parentId` (`null` for the root), optionally to a rank key. */
-  move(
-    id: string,
-    parentId: string | null,
-    options?: {
-      readonly rank?: string;
-      readonly conflict?: DriveConflict;
-      /** The drive to move into when `parentId` is `null`. */
-      readonly driveId?: string | null;
-    },
-  ): AsyncResult<DriveNode<F>>;
+  move(input: {
+    id: string;
+    parentId: string | null;
+    options?:
+      | {
+          readonly rank?: string;
+          readonly conflict?: DriveConflict;
+          /** The drive to move into when `parentId` is `null`. */
+          readonly driveId?: string | null;
+        }
+      | undefined;
+  }): AsyncResult<DriveNode<F>>;
   /** Deletes the node and everything under it for good. */
   delete(id: string): AsyncResult<boolean>;
   share(
-    id: string,
-    principal: DrivePrincipal,
-    role: string,
-    options?: { readonly expiresAt?: Temporal.Instant },
+    input: { id: string; principal: DrivePrincipal; role: string } & {
+      readonly expiresAt?: Temporal.Instant;
+    },
   ): AsyncResult<DriveGrant>;
-  unshare(id: string, principal: DrivePrincipal): AsyncResult<boolean>;
+  unshare(input: {
+    id: string;
+    principal: DrivePrincipal;
+  }): AsyncResult<boolean>;
   /** The node's grants, inherited ones included. */
   grants(id: string): AsyncResult<readonly DriveGrant[]>;
   /** Places a legal hold on the node and everything under it. */
-  hold(id: string, until: Temporal.Instant): AsyncResult<DriveNode<F>>;
+  hold(input: {
+    id: string;
+    until: Temporal.Instant;
+  }): AsyncResult<DriveNode<F>>;
   releaseHold(id: string): AsyncResult<DriveNode<F>>;
   /**
    * Checks the file out: until `until` (default 8 hours, at most 30 days)
    * nobody else may upload, commit, rename, move, trash or delete it.
    */
   lock(
-    id: string,
-    options?: { readonly until?: Temporal.Instant; readonly note?: string },
+    input: { id: string } & {
+      readonly until?: Temporal.Instant;
+      readonly note?: string;
+    },
   ): AsyncResult<DriveNode<F>>;
   /** Ends the check-out; `force` lets the share role end someone else's. */
   unlock(
-    id: string,
-    options?: { readonly force?: boolean },
+    input: { id: string } & { readonly force?: boolean },
   ): AsyncResult<DriveNode<F>>;
   /**
    * Blocks (or allows) downloads of the node and everything under it for
    * callers below the write role. Previews stay readable.
    */
-  blockDownloads(id: string, blocked?: boolean): AsyncResult<DriveNode<F>>;
+  blockDownloads(input: {
+    id: string;
+    blocked?: boolean | undefined;
+  }): AsyncResult<DriveNode<F>>;
   /** Blocks (or allows) downloads for every node in a drive. */
-  blockDriveDownloads(id: string, blocked?: boolean): AsyncResult<DriveDrive>;
+  blockDriveDownloads(input: {
+    id: string;
+    blocked?: boolean | undefined;
+  }): AsyncResult<DriveDrive>;
   /** The rendered pages of a file's current content. */
   previews(id: string): AsyncResult<DrivePreviews>;
   /** Signed URLs for a file's preview pages, first page first. */
   previewUrls(
-    id: string,
-    options?: { readonly expiresIn?: number },
+    input: { id: string } & { readonly expiresIn?: number },
   ): AsyncResult<readonly string[]>;
   /** The drives of an organization the caller can read. */
-  drives(
-    organizationId: string,
-    options?: DrivePage & { readonly skip?: number },
-  ): AsyncResult<readonly DriveDrive[]>;
+  drives(input: {
+    organizationId: string;
+    options?: (DrivePage & { readonly skip?: number }) | undefined;
+  }): AsyncResult<readonly DriveDrive[]>;
   drive(id: string): AsyncResult<DriveDrive>;
-  createDrive(organizationId: string, drive: NewDrive): AsyncResult<DriveDrive>;
-  renameDrive(id: string, name: string): AsyncResult<DriveDrive>;
+  createDrive(input: {
+    organizationId: string;
+    drive: NewDrive;
+  }): AsyncResult<DriveDrive>;
+  renameDrive(input: { id: string; name: string }): AsyncResult<DriveDrive>;
   /** Deletes the drive and every node in it; fails under a legal hold. */
   deleteDrive(id: string): AsyncResult<boolean>;
   shareDrive(
-    id: string,
-    principal: DrivePrincipal,
-    role: string,
-    options?: { readonly expiresAt?: Temporal.Instant },
+    input: { id: string; principal: DrivePrincipal; role: string } & {
+      readonly expiresAt?: Temporal.Instant;
+    },
   ): AsyncResult<DriveDriveGrant>;
-  unshareDrive(id: string, principal: DrivePrincipal): AsyncResult<boolean>;
+  unshareDrive(input: {
+    id: string;
+    principal: DrivePrincipal;
+  }): AsyncResult<boolean>;
   /** The drive's grants, which every node in it inherits. */
   driveGrants(id: string): AsyncResult<readonly DriveDriveGrant[]>;
   /** The caller's connections to external accounts, newest names last. */
   connections(
-    organizationId: string,
-    options?: DrivePage,
+    input: { organizationId: string } & DrivePage,
   ): AsyncResult<readonly DriveConnection[]>;
-  connect(
-    organizationId: string,
-    provider: string,
-    name: string,
-  ): AsyncResult<DriveConnection>;
+  connect(input: {
+    organizationId: string;
+    provider: string;
+    name: string;
+  }): AsyncResult<DriveConnection>;
   disconnect(id: string): AsyncResult<boolean>;
   /**
    * Creates the file (or a revision, with `conflict: "replace"`) and a signed
    * upload URL.
    */
-  upload(
-    organizationId: string,
-    file: NewDriveFile<F>,
-  ): AsyncResult<DriveUpload<F>>;
+  upload(input: {
+    organizationId: string;
+    file: NewDriveFile<F>;
+  }): AsyncResult<DriveUpload<F>>;
   /** A signed upload URL for a new revision of a file. */
-  uploadRevision(
-    id: string,
-    file: { readonly mimeType: string; readonly size: number },
-  ): AsyncResult<DriveUpload<F>>;
+  uploadRevision(input: {
+    id: string;
+    file: { readonly mimeType: string; readonly size: number };
+  }): AsyncResult<DriveUpload<F>>;
   /** Confirms an upload and makes it the file's content. */
-  commit(id: string, attachmentId: string): AsyncResult<DriveNode<F>>;
+  commit(input: {
+    id: string;
+    attachmentId: string;
+  }): AsyncResult<DriveNode<F>>;
   /**
    * Adds a file to a folder for a caller with only `options.uploadRole` on it.
    * The file takes a free name, and the result names it without its content. A
    * caller with the write role gets the same result.
    */
-  contribute(
-    organizationId: string,
+  contribute(input: {
+    organizationId: string;
     file: {
       readonly parentId: string;
       readonly name: string;
       readonly mimeType: string;
       readonly size: number;
-    },
-  ): AsyncResult<DriveContribution>;
+    };
+  }): AsyncResult<DriveContribution>;
   /** Confirms a contribution's upload, or a new revision of one. */
-  commitContribution(
-    id: string,
-    attachmentId: string,
-  ): AsyncResult<{ readonly id: string; readonly attachmentId: string }>;
+  commitContribution(input: {
+    id: string;
+    attachmentId: string;
+  }): AsyncResult<{ readonly id: string; readonly attachmentId: string }>;
   /**
    * Creates a file request on a folder: a share link with role `upload` that
    * lets anyone holding the token send files into it. Needs the share role.
    */
   createFileRequest(
-    folderId: string,
-    options?: {
+    input: { folderId: string } & {
       readonly expiresAt?: Temporal.Instant;
       readonly maxUses?: number;
       readonly password?: string;
@@ -588,75 +609,77 @@ export interface Drive<F extends object = Record<never, never>>
    * one file through a file request token, uploads it and commits it. Each call
    * counts one use of the link.
    */
-  uploadToRequest(
-    token: string,
-    file: Blob,
+  uploadToRequest(input: {
+    token: string;
+    file: Blob;
     options: {
       readonly name: string;
       /** Default: the blob's type. */
       readonly mimeType?: string;
       readonly password?: string;
-    },
-  ): AsyncResult<DriveRequestUpload>;
+    };
+  }): AsyncResult<DriveRequestUpload>;
   /** A signed URL for the file's current content, behind the scan gate. */
-  download(
-    id: string,
-    options?: { readonly as?: string | boolean },
-  ): AsyncResult<AttachmentDownload>;
+  download(input: {
+    id: string;
+    options?: { readonly as?: string | boolean } | undefined;
+  }): AsyncResult<AttachmentDownload>;
   revisions(id: string): AsyncResult<readonly DriveRevision[]>;
-  restoreRevision(id: string, revisionId: string): AsyncResult<DriveNode<F>>;
+  restoreRevision(input: {
+    id: string;
+    revisionId: string;
+  }): AsyncResult<DriveNode<F>>;
   /** Moves the node and everything under it to the bin. */
   trash(id: string): AsyncResult<DriveBatch>;
   /** Restores a bin entry, renaming it when the name is taken now. */
   restore(
-    binId: string,
-    options?: { readonly conflict?: DriveConflict },
+    input: { binId: string } & { readonly conflict?: DriveConflict },
   ): AsyncResult<DriveBatch & { readonly node: DriveNode<F> }>;
   /** The bin, newest first: the entries the caller may restore. */
-  bin(
-    organizationId: string,
-    options?: DrivePage & { readonly before?: Temporal.Instant },
-  ): AsyncResult<readonly DriveBinEntry<F>[]>;
+  bin(input: {
+    organizationId: string;
+    options?: (DrivePage & { readonly before?: Temporal.Instant }) | undefined;
+  }): AsyncResult<readonly DriveBinEntry<F>[]>;
   /** Deletes a bin entry for good; returns how many nodes went. */
   purge(binId: string): AsyncResult<number>;
-  star(id: string, starred?: boolean): AsyncResult<boolean>;
+  star(input: {
+    id: string;
+    starred?: boolean | undefined;
+  }): AsyncResult<boolean>;
   /** Records the node as opened, for `recent`. */
   open(id: string): AsyncResult<DriveNode<F>>;
   starred(
-    organizationId: string,
-    options?: DrivePage,
+    input: { organizationId: string } & DrivePage,
   ): AsyncResult<readonly DriveNode<F>[]>;
   recent(
-    organizationId: string,
-    options?: DrivePage,
+    input: { organizationId: string } & DrivePage,
   ): AsyncResult<readonly DriveNode<F>[]>;
   /**
    * What a share link token opens; `nodeId` picks an item under a linked
    * folder.
    */
   link(
-    token: string,
-    options?: { readonly nodeId?: string },
+    input: { token: string } & { readonly nodeId?: string },
   ): AsyncResult<DriveLinkView<F>>;
   /** Puts a tag on the node as a label, or takes it off (`applied: false`). */
-  label(
-    id: string,
-    tagId: string,
-    applied?: boolean,
-  ): AsyncResult<DriveNode<F>>;
+  label(input: {
+    id: string;
+    tagId: string;
+    applied?: boolean | undefined;
+  }): AsyncResult<DriveNode<F>>;
   /** The nodes that carry a label and the caller can read, folders first. */
   labeled(
-    organizationId: string,
-    tagId: string,
-    options?: DrivePage,
+    input: { organizationId: string; tagId: string } & DrivePage,
   ): AsyncResult<readonly DriveNode<F>[]>;
   /**
    * Asks for approval of one version of a file: `attachmentId`, or the current
    * one. The request stays with those bytes.
    */
   requestApproval(
-    id: string,
-    options?: { readonly attachmentId?: string; readonly reason?: string },
+    input: { id: string } & {
+      readonly attachmentId?: string;
+      readonly reason?: string;
+    },
   ): AsyncResult<DriveApproval>;
   /** The file's approval requests, newest first. */
   approvals(id: string): AsyncResult<readonly DriveApproval[]>;
@@ -737,12 +760,13 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   const client: Drive = {
     ...driveDocuments(call, nodeOf, nodesOf),
     ...driveLifecycle(call, nodeOf),
+    ...driveHelpers(call, () => built, storage),
     ...driveAccess({
       call,
       recordAccess: options.recordAccess,
       subjectType: options.subjectType,
     }),
-    createFolder: (organizationId, folder) =>
+    createFolder: ({ organizationId, folder }) =>
       call(
         "drive_create_folder",
         {
@@ -757,7 +781,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     get: (id) =>
       call("drive_get", { node: id }, (value) => nodeOf(value, "drive_get")),
-    list: (organizationId, list = {}) =>
+    list: ({ organizationId, options: list = {} }) =>
       page("drive_list", {
         tenant: organizationId,
         parent: list.parentId ?? null,
@@ -765,7 +789,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         skip: list.skip ?? null,
         drive: list.driveId ?? null,
       }),
-    shared: (organizationId, list = {}) =>
+    shared: ({ organizationId, ...list }) =>
       page("drive_shared", {
         tenant: organizationId,
         page_size: list.pageSize ?? null,
@@ -778,13 +802,13 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           kind: enumOrThrow(row["kind"], KINDS, "drive node kind"),
         })),
       ),
-    rename: (id, name, rename = {}) =>
+    rename: ({ id, name, ...rename }) =>
       call(
         "drive_rename",
         { node: id, name, conflict: rename.conflict ?? null },
         (value) => nodeOf(value, "drive_rename"),
       ),
-    move: (id, parentId, move = {}) =>
+    move: ({ id, parentId, options: move = {} }) =>
       call(
         "drive_move",
         {
@@ -798,7 +822,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     delete: (id) =>
       call("drive_delete", { node: id }, (value) => value === true),
-    share: (id, principal, role, share = {}) =>
+    share: ({ id, principal, role, ...share }) =>
       call(
         "drive_share",
         {
@@ -810,7 +834,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => grantOf(value, "drive_share"),
       ),
-    unshare: (id, principal) =>
+    unshare: ({ id, principal }) =>
       call(
         "drive_unshare",
         {
@@ -826,7 +850,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           grantOf(row, "drive_grants"),
         ),
       ),
-    hold: (id, until) =>
+    hold: ({ id, until }) =>
       call("drive_hold", { node: id, until: until.toString() }, (value) =>
         nodeOf(value, "drive_hold"),
       ),
@@ -834,7 +858,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_release_hold", { node: id }, (value) =>
         nodeOf(value, "drive_release_hold"),
       ),
-    lock: (id, lock = {}) =>
+    lock: ({ id, ...lock }) =>
       call(
         "drive_lock",
         {
@@ -844,19 +868,19 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => nodeOf(value, "drive_lock"),
       ),
-    unlock: (id, unlock = {}) =>
+    unlock: ({ id, ...unlock }) =>
       call(
         "drive_unlock",
         { node: id, force: unlock.force ?? false },
         (value) => nodeOf(value, "drive_unlock"),
       ),
-    blockDownloads: (id, blocked = true) =>
+    blockDownloads: ({ id, blocked = true }) =>
       call(
         "drive_set_download_blocked",
         { target_type: "node", target_id: id, blocked },
         (value) => nodeOf(value, "drive_set_download_blocked"),
       ),
-    blockDriveDownloads: (id, blocked = true) =>
+    blockDriveDownloads: ({ id, blocked = true }) =>
       call(
         "drive_set_download_blocked",
         { target_type: "drive", target_id: id, blocked },
@@ -866,7 +890,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_previews", { node: id }, (value) =>
         previewsOf(value, "drive_previews"),
       ),
-    previewUrls: (id, urls = {}) => {
+    previewUrls: ({ id, ...urls }) => {
       if (storage === undefined) {
         return AsyncResult.err(noStorage());
       }
@@ -891,7 +915,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         return ok(signedUrls);
       });
     },
-    drives: (organizationId, list = {}) =>
+    drives: ({ organizationId, options: list = {} }) =>
       call(
         "drive_list_drives",
         {
@@ -905,7 +929,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_get_drive", { drive: id }, (value) =>
         driveOf(value, "drive_get_drive"),
       ),
-    createDrive: (organizationId, drive) =>
+    createDrive: ({ organizationId, drive }) =>
       call(
         "drive_create_drive",
         {
@@ -917,13 +941,13 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => driveOf(value, "drive_create_drive"),
       ),
-    renameDrive: (id, name) =>
+    renameDrive: ({ id, name }) =>
       call("drive_rename_drive", { drive: id, name }, (value) =>
         driveOf(value, "drive_rename_drive"),
       ),
     deleteDrive: (id) =>
       call("drive_delete_drive", { drive: id }, (value) => value === true),
-    shareDrive: (id, principal, role, share = {}) =>
+    shareDrive: ({ id, principal, role, ...share }) =>
       call(
         "drive_share_drive",
         {
@@ -935,7 +959,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => driveGrantOf(value, "drive_share_drive"),
       ),
-    unshareDrive: (id, principal) =>
+    unshareDrive: ({ id, principal }) =>
       call(
         "drive_unshare_drive",
         {
@@ -951,13 +975,13 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           driveGrantOf(row, "drive_grants_for_drive"),
         ),
       ),
-    connections: (organizationId, list = {}) =>
+    connections: ({ organizationId, ...list }) =>
       call(
         "drive_list_connections",
         { tenant: organizationId, page_size: list.pageSize ?? null },
         (value) => connectionsOf(value, "drive_list_connections"),
       ),
-    connect: (organizationId, provider, name) =>
+    connect: ({ organizationId, provider, name }) =>
       call(
         "drive_connect",
         { tenant: organizationId, provider, name },
@@ -965,7 +989,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     disconnect: (id) =>
       call("drive_disconnect", { connection: id }, (value) => value === true),
-    upload: (organizationId, file) =>
+    upload: ({ organizationId, file }) =>
       withUploadUrl(() =>
         call(
           "drive_create_file",
@@ -982,7 +1006,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           signed("drive_create_file"),
         ),
       ),
-    uploadRevision: (id, file) =>
+    uploadRevision: ({ id, file }) =>
       withUploadUrl(() =>
         call(
           "drive_upload_revision",
@@ -990,13 +1014,13 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           signed("drive_upload_revision"),
         ),
       ),
-    commit: (id, attachmentId) =>
+    commit: ({ id, attachmentId }) =>
       claimed(attachmentId).andThen(() =>
         call("drive_commit", { node: id, attachment: attachmentId }, (value) =>
           nodeOf(value, "drive_commit"),
         ),
       ),
-    contribute: (organizationId, file) => {
+    contribute: ({ organizationId, file }) => {
       if (storage === undefined) {
         return AsyncResult.err(noStorage());
       }
@@ -1027,7 +1051,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         })),
       );
     },
-    commitContribution: (id, attachmentId) =>
+    commitContribution: ({ id, attachmentId }) =>
       claimed(attachmentId).andThen(() =>
         call(
           "drive_commit",
@@ -1035,7 +1059,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           committedOf,
         ),
       ),
-    createFileRequest: (folderId, request = {}) =>
+    createFileRequest: ({ folderId, ...request }) =>
       call(
         "drive_request_files",
         {
@@ -1050,7 +1074,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           return { id: textOf(row["id"]), token: textOf(row["token"]) };
         },
       ),
-    uploadToRequest: (token, file, upload) => {
+    uploadToRequest: ({ token, file, options: upload }) => {
       if (storage === undefined) {
         return AsyncResult.err(noStorage());
       }
@@ -1078,14 +1102,17 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         }
 
         return client
-          .commitContribution(pending.id, pending.attachment.id)
+          .commitContribution({
+            id: pending.id,
+            attachmentId: pending.attachment.id,
+          })
           .map((committed): DriveRequestUpload => ({
             passwordRequired: false,
             ...committed,
           }));
       });
     },
-    download: (id, download = {}) => {
+    download: ({ id, options: download = {} }) => {
       if (attachments === undefined) {
         return AsyncResult.err(noAttachments());
       }
@@ -1111,19 +1138,20 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           );
         }
 
-        return attachments.download(
-          node.document?.effectiveOnly === true
-            ? (node.document.effectiveAttachmentId ?? node.attachmentId)
-            : node.attachmentId,
-          download,
-        );
+        return attachments.download({
+          id:
+            node.document?.effectiveOnly === true
+              ? (node.document.effectiveAttachmentId ?? node.attachmentId)
+              : node.attachmentId,
+          options: download,
+        });
       });
     },
     revisions: (id) =>
       call("drive_revisions", { node: id }, (value) =>
         recordsOf(value, "drive_revisions").map(revisionOf),
       ),
-    restoreRevision: (id, revisionId) =>
+    restoreRevision: ({ id, revisionId }) =>
       call(
         "drive_restore_revision",
         { node: id, version: revisionId },
@@ -1133,7 +1161,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_trash", { node: id }, (value) =>
         batchOf(value, "drive_trash"),
       ),
-    restore: (binId, restore = {}) =>
+    restore: ({ binId, ...restore }) =>
       call(
         "drive_restore",
         { item: binId, conflict: restore.conflict ?? null },
@@ -1145,7 +1173,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           ),
         }),
       ),
-    bin: (organizationId, list = {}) =>
+    bin: ({ organizationId, options: list = {} }) =>
       call(
         "drive_bin",
         {
@@ -1156,33 +1184,33 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => recordsOf(value, "drive_bin").map(binEntryOf),
       ),
     purge: (binId) => call("drive_purge", { item: binId }, Number),
-    star: (id, starred = true) =>
+    star: ({ id, starred = true }) =>
       call("drive_star", { node: id, starred }, (value) => value === true),
     open: (id) =>
       call("drive_open", { node: id }, (value) => nodeOf(value, "drive_open")),
-    starred: (organizationId, list = {}) =>
+    starred: ({ organizationId, ...list }) =>
       page("drive_marked", {
         tenant: organizationId,
         recent: false,
         page_size: list.pageSize ?? null,
       }),
-    recent: (organizationId, list = {}) =>
+    recent: ({ organizationId, ...list }) =>
       page("drive_marked", {
         tenant: organizationId,
         recent: true,
         page_size: list.pageSize ?? null,
       }),
-    label: (id, tagId, applied = true) =>
+    label: ({ id, tagId, applied = true }) =>
       call("drive_label", { node: id, tag: tagId, applied }, (value) =>
         nodeOf(value, "drive_label"),
       ),
-    labeled: (organizationId, tagId, list = {}) =>
+    labeled: ({ organizationId, tagId, ...list }) =>
       page("drive_labeled", {
         tenant: organizationId,
         tag: tagId,
         page_size: list.pageSize ?? null,
       }),
-    requestApproval: (id, request = {}) =>
+    requestApproval: ({ id, ...request }) =>
       call(
         "drive_request_approval",
         {
@@ -1198,7 +1226,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           approvalOf(row, "drive_approvals"),
         ),
       ),
-    link: (token, link = {}) =>
+    link: ({ token, ...link }) =>
       call("drive_link", { token, node: link.nodeId ?? null }, linkOf),
     prune: (prune = {}) =>
       call(
@@ -1226,9 +1254,11 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       }),
   };
 
-  return withBlockHooks(
+  const built = withBlockHooks(
     withFields<FieldsOf<S>>(client, fields),
     options.hooks,
     { block: "drive", ...(options.logger ? { logger: options.logger } : {}) },
   );
+
+  return built;
 }

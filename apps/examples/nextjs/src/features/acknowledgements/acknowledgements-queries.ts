@@ -28,7 +28,9 @@ async function loadPending(): Promise<readonly PendingRow[] | null> {
     return null;
   }
 
-  const mine = await db.acknowledgements.mine(tenant).orThrow();
+  const mine = await db.acknowledgements
+    .mine({ organizationId: tenant })
+    .orThrow();
 
   return mine.map((item) => ({
     type: item.record.type,

@@ -169,7 +169,7 @@ export interface CompleteCheckoutSessionInput {
   /** The compact mandate the agent presents. */
   readonly mandate?: string;
   /** Passed to `orders.checkout`. */
-  readonly checkout?: Parameters<Orders["checkout"]>[1];
+  readonly checkout?: Parameters<Orders["checkout"]>[0]["input"];
 }
 
 /** What `completeSession` resolves to. */
@@ -187,8 +187,7 @@ export interface AgentCheckout {
   ): AsyncResultType<CreatedCheckoutSession>;
   /** Sets the buyer details or status of an open session; needs `write`. */
   updateSession(
-    sessionId: string,
-    input: UpdateCheckoutSessionInput,
+    input: { sessionId: string } & UpdateCheckoutSessionInput,
   ): AsyncResultType<CheckoutSession>;
   getSession(sessionId: string): AsyncResultType<CheckoutSession>;
   listSessions(
@@ -209,8 +208,7 @@ export interface AgentCheckout {
    * the order. Service only, because the orders checkout is.
    */
   completeSession(
-    sessionId: string,
-    input?: CompleteCheckoutSessionInput,
+    input: { sessionId: string } & CompleteCheckoutSessionInput,
   ): AsyncResultType<CompletedCheckoutSession>;
   /** Signs a mandate with the signing-keys owner's active key. */
   signMandate(input: SignMandateInput): AsyncResultType<string>;
@@ -218,8 +216,7 @@ export interface AgentCheckout {
   verifyMandate(credential: string): AsyncResultType<VerifiedMandate>;
   /** Verifies and stores a mandate; storing it twice returns the same row. */
   storeMandate(
-    credential: string,
-    options?: { readonly sessionId?: string },
+    input: { credential: string } & { readonly sessionId?: string },
   ): AsyncResultType<AgentMandate>;
   getMandate(mandateId: string): AsyncResultType<AgentMandate>;
   listMandates(
@@ -466,7 +463,7 @@ export function createAgentCheckout(
         return signing;
       }
 
-      const jwks = await signing.data.keys.jwks(signing.data.owner);
+      const jwks = await signing.data.keys.jwks({ owner: signing.data.owner });
 
       if (!jwks.ok) {
         return jwks;
@@ -485,10 +482,10 @@ export function createAgentCheckout(
       }
     });
 
-  const storeMandate: AgentCheckout["storeMandate"] = (
+  const storeMandate: AgentCheckout["storeMandate"] = ({
     credential,
-    extra = {},
-  ) =>
+    ...extra
+  }) =>
     AsyncResult.from(async () => {
       const organizationId = await tenant();
 
@@ -550,10 +547,10 @@ export function createAgentCheckout(
         );
   };
 
-  const completeSession: AgentCheckout["completeSession"] = (
+  const completeSession: AgentCheckout["completeSession"] = ({
     sessionId,
-    input = {},
-  ) =>
+    ...input
+  }) =>
     AsyncResult.from(async (): Promise<Result<CompletedCheckoutSession>> => {
       const orders = needs(options.orders, "orders");
 
@@ -620,7 +617,10 @@ export function createAgentCheckout(
           return allowed;
         }
 
-        const saved = await storeMandate(input.mandate, { sessionId });
+        const saved = await storeMandate({
+          credential: input.mandate,
+          sessionId,
+        });
 
         if (!saved.ok) {
           return saved;
@@ -645,10 +645,10 @@ export function createAgentCheckout(
         }
       }
 
-      const checkout = await orders.data.checkout(
-        current.cartId,
-        input.checkout,
-      );
+      const checkout = await orders.data.checkout({
+        cartId: current.cartId,
+        input: input.checkout,
+      });
 
       if (!checkout.ok) {
         return checkout;
@@ -714,7 +714,9 @@ export function createAgentCheckout(
         };
       }
 
-      return signing.data.keys.signer(signing.data.owner).signJwt(claims);
+      return signing.data.keys
+        .signer({ owner: signing.data.owner })
+        .signJwt(claims);
     });
 
   const client: AgentCheckout = {
@@ -745,7 +747,7 @@ export function createAgentCheckout(
           }),
         );
       }),
-    updateSession: (sessionId, input) =>
+    updateSession: ({ sessionId, ...input }) =>
       call(
         "update_checkout_session",
         {
@@ -775,7 +777,7 @@ export function createAgentCheckout(
       ),
     priceSession,
     cancelSession: (sessionId) =>
-      client.updateSession(sessionId, { status: "canceled" }),
+      client.updateSession({ sessionId, status: "canceled" }),
     completeSession,
     signMandate,
     verifyMandate,

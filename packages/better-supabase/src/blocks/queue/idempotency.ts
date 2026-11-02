@@ -80,16 +80,16 @@ export interface Idempotency {
    * Runs `handler` at most once per key: retries with the same key and body get
    * the stored response (with `Idempotency-Replayed: true`).
    */
-  handle(
-    request: Request,
-    handler: (request: Request) => Promise<Response> | Response,
-  ): Promise<Response>;
+  handle(input: {
+    request: Request;
+    handler: (request: Request) => Promise<Response> | Response;
+  }): Promise<Response>;
   /** The lower-level protocol, for non-HTTP callers. */
-  begin(
-    key: string,
-    fingerprint: string,
-    scope?: string,
-  ): AsyncResult<{
+  begin(input: {
+    key: string;
+    fingerprint: string;
+    scope?: string | undefined;
+  }): AsyncResult<{
     state: IdempotencyState;
     status: number | null;
     body: unknown;
@@ -101,20 +101,28 @@ export interface Idempotency {
    * the lock ran out or another caller took the key over. `handle` calls it at
    * half the lock while the handler runs.
    */
-  extend(key: string, holder: string, scope?: string): AsyncResult<boolean>;
+  extend(input: {
+    key: string;
+    holder: string;
+    scope?: string | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Stores the response for `holder`. `false` when the lock ran out and another
    * caller took the key over, so the response was not stored.
    */
-  complete(
-    key: string,
-    holder: string,
-    status: number,
-    body: unknown,
-    scope?: string,
-  ): AsyncResult<boolean>;
+  complete(input: {
+    key: string;
+    holder: string;
+    status: number;
+    body: unknown;
+    scope?: string | undefined;
+  }): AsyncResult<boolean>;
   /** Forgets the key so it can be retried; `false` when `holder` lost it. */
-  release(key: string, holder: string, scope?: string): AsyncResult<boolean>;
+  release(input: {
+    key: string;
+    holder: string;
+    scope?: string | undefined;
+  }): AsyncResult<boolean>;
   /** Deletes expired keys (`purge_idempotency_keys`); returns how many. */
   purge(): AsyncResult<number>;
   /** A job handler that runs `purge`; schedule it hourly. */
@@ -295,7 +303,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
   const client: Idempotency = {
     purge: () => calls.purge(),
     purgeJob: () => async () => hooked.purge().orThrow(),
-    begin: (key, fingerprint, scope = "") =>
+    begin: ({ key, fingerprint, scope = "" }) =>
       calls
         .begin(scope, key, fingerprint, ttl, lock)
         .andThen((row) =>
@@ -310,11 +318,12 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
                 dbError("unexpected", "begin_idempotent returned no row"),
               ),
         ),
-    extend: (key, holder, scope = "") => calls.extend(scope, key, holder, lock),
-    complete: (key, holder, status, body, scope = "") =>
+    extend: ({ key, holder, scope = "" }) =>
+      calls.extend(scope, key, holder, lock),
+    complete: ({ key, holder, status, body, scope = "" }) =>
       calls.complete(scope, key, holder, status, body),
-    release: (key, holder, scope = "") => calls.release(scope, key, holder),
-    async handle(request, handler) {
+    release: ({ key, holder, scope = "" }) => calls.release(scope, key, holder),
+    async handle({ request, handler }) {
       const key = request.headers.get(headerName);
       const url = new URL(request.url);
       const instance = url.pathname;
@@ -352,7 +361,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
         `${request.method} ${instance}${url.search}\n${body}`,
       );
 
-      const started = await hooked.begin(key, fingerprint, scope);
+      const started = await hooked.begin({ key, fingerprint, scope });
 
       if (!started.ok) {
         return problemResponse(started.error, { instance, format });
@@ -424,7 +433,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
           return;
         }
 
-        void hooked.extend(key, holder, scope).then((extended) => {
+        void hooked.extend({ key, holder, scope }).then((extended) => {
           if (extended.ok && !extended.data) {
             // Another request holds the key now; complete returns false.
             renewing = false;
@@ -440,12 +449,12 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
         try {
           response = await handler(request);
         } catch (cause) {
-          await hooked.release(key, holder, scope);
+          await hooked.release({ key, holder, scope });
           throw cause;
         }
 
         if (response.status >= 500) {
-          await hooked.release(key, holder, scope);
+          await hooked.release({ key, holder, scope });
 
           return response;
         }
@@ -455,13 +464,13 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
           contentType: response.headers.get("content-type"),
         };
 
-        const completed = await hooked.complete(
+        const completed = await hooked.complete({
           key,
           holder,
-          response.status,
-          stored,
+          status: response.status,
+          body: stored,
           scope,
-        );
+        });
 
         if (!completed.ok || !completed.data) {
           // The lock expired and another request took the key, or the store

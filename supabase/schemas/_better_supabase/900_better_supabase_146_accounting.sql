@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a8a49d13c9c79cf14062c88148c1d59330bacd60b6317126bbb96c88d281c4d3
+-- @bsb-hash sha256:a6c1e8303e87e0867c0568e33eb9ba9b1f05b6faf632c3132bd5ae403cccc289
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1970,6 +1970,47 @@ $$;
 revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
 grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
 
+-- The period engine's view of a fiscal period (ADR 0197): the same blockers and
+-- the same close, found by the range the periods block names. A range with no
+-- accounting period has no blockers and nothing to close.
+create or replace function "better_supabase"."accounting_range_close_blockers"(tenant uuid, starts_on date, ends_on date)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce("better_supabase"."accounting_period_close_blockers"(x."id"), '{}'::text[])
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_range_close_blockers.tenant
+    and x."starts_on" = accounting_range_close_blockers.starts_on
+    and x."ends_on" = accounting_range_close_blockers.ends_on
+$$;
+revoke execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_range_close_blockers"(uuid, date, date) to service_role;
+
+create or replace function "better_supabase"."accounting_close_range"(tenant uuid, starts_on date, ends_on date)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  select x."id" into v_id from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = accounting_close_range.tenant
+    and x."starts_on" = accounting_close_range.starts_on
+    and x."ends_on" = accounting_close_range.ends_on;
+  if found then
+    perform "better_supabase"."close_accounting_period"(v_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_close_range"(uuid, date, date) from public, anon, authenticated;
+grant execute on function "better_supabase"."accounting_close_range"(uuid, date, date) to service_role;
+
 -- Closes a period: nothing posts into it until it reopens. Closing a closed
 -- period returns it unchanged.
 create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
@@ -3509,9 +3550,25 @@ create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_li
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.accounting_accounts', target_type => 'accounting_account', event_prefix => 'accounting_account', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_journals', target_type => 'accounting_journal', event_prefix => 'accounting_journal', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_periods', target_type => 'accounting_period', event_prefix => 'accounting_period', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_entries', target_type => 'accounting_entry', event_prefix => 'accounting_entry', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_dimensions', target_type => 'accounting_dimension', event_prefix => 'accounting_dimension', deferred => true);
+  perform better_supabase.audit('better_supabase.accounting_budgets', target_type => 'accounting_budget', event_prefix => 'accounting_budget', deferred => true);
+end;
+$$;
+
 -- blocks.accounting.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."accounting_range_close_blockers"(uuid, date, date);
+drop function if exists "api"."accounting_close_range"(uuid, date, date);
 
 drop function if exists "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
 drop function if exists "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);

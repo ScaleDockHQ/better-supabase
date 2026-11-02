@@ -20,6 +20,8 @@ export {
 
 export { createBilling } from "./billing.ts";
 
+export type { BillingOverview, BillingReads } from "./reads.ts";
+
 export type { BillingEventData } from "../../core/block-events.ts";
 
 export type { StripeClient, StripeSource, StripeTaxId } from "../stripe.ts";

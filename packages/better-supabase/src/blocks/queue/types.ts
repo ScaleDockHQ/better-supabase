@@ -355,9 +355,7 @@ export interface Queue<Q extends QueueSchemas> {
    * the job id.
    */
   enqueue<N extends Extract<keyof Q, string>>(
-    queue: N,
-    payload: PayloadIn<Q, N>,
-    options?: EnqueueOptions,
+    input: { queue: N; payload: PayloadIn<Q, N> } & EnqueueOptions,
   ): AsyncResult<number>;
   /**
    * Enqueues once per `dedupeKey`: while a job with the key is waiting, running
@@ -365,14 +363,13 @@ export interface Queue<Q extends QueueSchemas> {
    * `duplicate: true` instead. For inbound deliveries that a sender retries.
    * SQL connections or a transport only.
    */
-  enqueueOnce<N extends Extract<keyof Q, string>>(
-    queue: N,
-    payload: PayloadIn<Q, N>,
-    options: EnqueueOnceOptions,
-  ): AsyncResult<EnqueueOnceResult>;
+  enqueueOnce<N extends Extract<keyof Q, string>>(input: {
+    queue: N;
+    payload: PayloadIn<Q, N>;
+    options: EnqueueOnceOptions;
+  }): AsyncResult<EnqueueOnceResult>;
   claim<N extends Extract<keyof Q, string>>(
-    queue: N,
-    options?: ClaimOptions,
+    input: { queue: N } & ClaimOptions,
   ): AsyncResult<Job<PayloadOut<Q, N>>[]>;
   /**
    * Archives the job. `false` when the lease was lost (another worker claimed
@@ -384,24 +381,22 @@ export interface Queue<Q extends QueueSchemas> {
    * when the lease was lost.
    */
   fail(
-    job: Job,
-    error: unknown,
-    options?: FailOptions,
+    input: { job: Job; error: unknown } & FailOptions,
   ): AsyncResult<"queued" | "dead" | null>;
   /**
    * Pushes the lease out by `lease` seconds. `false` when it was lost or the
    * transport can't.
    */
-  extend(job: Job, lease: number): AsyncResult<boolean>;
+  extend(input: { job: Job; lease: number }): AsyncResult<boolean>;
   /**
    * Enqueues a dead letter again with its payload and attempts, and removes it
    * from the archive. Returns the new id, or `null` when `id` is not a dead
    * letter of `queue`. SQL connections only.
    */
-  replay(
-    queue: Extract<keyof Q, string>,
-    id: number,
-  ): AsyncResult<number | null>;
+  replay(input: {
+    queue: Extract<keyof Q, string>;
+    id: number;
+  }): AsyncResult<number | null>;
   /**
    * Counts per queue (ready, in flight, delayed, dead and the oldest waiting
    * message's age), for an admin page. Defaults to every queue `createQueue`
@@ -415,8 +410,7 @@ export interface Queue<Q extends QueueSchemas> {
    * only.
    */
   listDead<N extends Extract<keyof Q, string>>(
-    queue: N,
-    options?: ListDeadOptions,
+    input: { queue: N } & ListDeadOptions,
   ): AsyncResult<DeadJob<PayloadOut<Q, N>>[]>;
   /**
    * Enqueues dead letters again, the `ids` given or the newest `limit` (1000),
@@ -424,8 +418,7 @@ export interface Queue<Q extends QueueSchemas> {
    * on the queue. SQL connections only.
    */
   retryDead(
-    queue: Extract<keyof Q, string>,
-    options?: RetryDeadOptions,
+    input: { queue: Extract<keyof Q, string> } & RetryDeadOptions,
   ): AsyncResult<number>;
   /**
    * Deletes archived messages (`purge_job_archive`): completed ones after
@@ -447,11 +440,12 @@ export interface Queue<Q extends QueueSchemas> {
    * connections only.
    */
   schedule<N extends Extract<keyof Q, string>>(
-    name: string,
-    cron: string,
-    queue: N,
-    payload: PayloadIn<Q, N>,
-    options?: ScheduleOptions,
+    input: {
+      name: string;
+      cron: string;
+      queue: N;
+      payload: PayloadIn<Q, N>;
+    } & ScheduleOptions,
   ): AsyncResult<void>;
   unschedule(name: string): AsyncResult<boolean>;
   /**
@@ -461,10 +455,10 @@ export interface Queue<Q extends QueueSchemas> {
    * before anything is written. Run it on deploy or after a settings change;
    * running it twice changes nothing. SQL connections only.
    */
-  ensureSchedules(
-    definitions: readonly ScheduleDefinitions<Q>[],
-    options: EnsureSchedulesOptions,
-  ): AsyncResult<EnsureSchedulesResult>;
+  ensureSchedules(input: {
+    definitions: readonly ScheduleDefinitions<Q>[];
+    options: EnsureSchedulesOptions;
+  }): AsyncResult<EnsureSchedulesResult>;
   /**
    * Schedules by name prefix or tenant, with their next and last run. SQL
    * connections only.
@@ -485,9 +479,7 @@ export interface Queue<Q extends QueueSchemas> {
    * cron and edge invocations.
    */
   drain<N extends Extract<keyof Q, string>>(
-    queue: N,
-    handler: JobHandler<PayloadOut<Q, N>>,
-    options?: DrainOptions,
+    input: { queue: N; handler: JobHandler<PayloadOut<Q, N>> } & DrainOptions,
   ): Promise<DrainResult>;
   /**
    * A route handler for a cron caller such as Vercel Cron: checks the bearer
@@ -499,9 +491,7 @@ export interface Queue<Q extends QueueSchemas> {
   ): (request: Request) => Promise<Response>;
   /** Polls and processes jobs until `signal` aborts. */
   work<N extends Extract<keyof Q, string>>(
-    queue: N,
-    handler: JobHandler<PayloadOut<Q, N>>,
-    options?: WorkOptions,
+    input: { queue: N; handler: JobHandler<PayloadOut<Q, N>> } & WorkOptions,
   ): Promise<DrainResult>;
   /**
    * Runs one job a push backend delivered (a Vercel Queues callback): checks
@@ -510,10 +500,11 @@ export interface Queue<Q extends QueueSchemas> {
    * it on `ok` and retries or drops it on an error.
    */
   runJob<N extends Extract<keyof Q, string>>(
-    queue: N,
-    delivery: JobDelivery,
-    handler: JobHandler<PayloadOut<Q, N>>,
-    options?: RunJobOptions,
+    input: {
+      queue: N;
+      delivery: JobDelivery;
+      handler: JobHandler<PayloadOut<Q, N>>;
+    } & RunJobOptions,
   ): AsyncResult<void>;
 }
 

@@ -1492,7 +1492,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:f9dc6ea98811aed21065d3bbdebc786eb0bb53fbedcf54fef2aaf0cb2e3d5031
+-- @bsb-hash sha256:07cf9a24dedd642663a5538cb79518904b435872f4bf5b9fcc14545ba8576987
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2523,6 +2523,7 @@ as $$
     ('user', 'better_supabase.till_counts', '"better_supabase"."till_counts"', 'counted_by', true, '{}'::text[], true),
     ('user', 'better_supabase.till_deposits', '"better_supabase"."till_deposits"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'decided_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.periods', '"better_supabase"."periods"', 'closed_by', true, '{}'::text[], true),
     ('user', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'prescriber_id', true, '{}'::text[], true),
     ('user', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'created_by', true, '{}'::text[], true),
@@ -2552,6 +2553,7 @@ as $$
     ('organization', 'better_supabase.usage_events', '"better_supabase"."usage_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_distinct', '"better_supabase"."usage_distinct"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.usage_billed_periods', '"better_supabase"."usage_billed_periods"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_quotas', '"better_supabase"."usage_quotas"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.billing_customers', '"better_supabase"."billing_customers"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.billing_subscriptions', '"better_supabase"."billing_subscriptions"', 'organization_id', true, '{}'::text[], true),
@@ -2786,6 +2788,7 @@ as $$
     ('organization', 'better_supabase.invoice_e_endpoints', '"better_supabase"."invoice_e_endpoints"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invoice_e_deliveries', '"better_supabase"."invoice_e_deliveries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.sla_policies', '"better_supabase"."sla_policies"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.sla_escalations', '"better_supabase"."sla_escalations"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.sla_clocks', '"better_supabase"."sla_clocks"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.goals', '"better_supabase"."goals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.employees', '"better_supabase"."employees"', 'tenant_id', true, '{}'::text[], true),
@@ -3009,6 +3012,7 @@ as $$
     ('organization', 'better_supabase.till_deposits', '"better_supabase"."till_deposits"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_rules', '"better_supabase"."care_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.care_alerts', '"better_supabase"."care_alerts"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.periods', '"better_supabase"."periods"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'tenant_id', true, '{}'::text[], true),

@@ -59,11 +59,11 @@ export interface RateLimit {
    * `scope`. The limit is the scope's rule (`set_rate_limit`) unless `rule`
    * gives one.
    */
-  check(
-    scope: string,
-    key: string,
-    rule?: RateLimitRule,
-  ): AsyncResult<RateLimitDecision>;
+  check(input: {
+    scope: string;
+    key: string;
+    rule?: RateLimitRule | undefined;
+  }): AsyncResult<RateLimitDecision>;
   /**
    * Counts one hit against several limits in one database round trip, such as a
    * per-user, a per-IP and a per-organization limit. The hit counts only when
@@ -150,7 +150,7 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
         Number(value ?? 0),
       ),
     purgeJob: (jobOptions) => async () => hooked.purge(jobOptions).orThrow(),
-    check: (scope, key, rule) => {
+    check: ({ scope, key, rule }) => {
       if (rule !== undefined && (!Number.isInteger(rule.max) || rule.max < 1)) {
         return AsyncResult.err(
           dbError(

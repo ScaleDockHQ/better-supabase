@@ -1,6 +1,6 @@
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:cc222a07b92cf9334ee38afb226b66ebd2c494cb9b6e4d4f61f8727cdc29637f
+-- @bsb-hash sha256:bb6f1cf35230e0fee06f2fb567c16c321c77f32fc2491677ea5fef80b0b4e4eb
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -458,6 +458,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_line
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.payroll_runs', target_type => 'payroll_run', event_prefix => 'payroll_run', deferred => true);
+  perform better_supabase.audit('better_supabase.payroll_lines', target_type => 'payroll_line', event_prefix => 'payroll_line', deferred => true);
+end;
+$$;
 
 -- blocks.payroll-export.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,4 +1,5 @@
 import type {
+  AnyBlocksConfig,
   AppColumnConfig,
   AppColumnType,
   AppTableConfig,
@@ -54,6 +55,38 @@ function list(value: string | true | undefined): string[] {
     : [];
 }
 
+/** A `column=value` argument map of a tag, without bare flags. */
+function textArgs(
+  args: Readonly<Record<string, string | true>>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(args).flatMap(([key, value]) =>
+      typeof value === "string" ? [[key, value]] : [],
+    ),
+  );
+}
+
+/** The `on` object of block `name` with `entry` for `type`, unless it has one. */
+function bindOn(
+  blocks: AnyBlocksConfig,
+  name: string,
+  type: string,
+  entry: Record<string, unknown>,
+): AnyBlocksConfig {
+  const current = blocks[name];
+  const on = current?.on;
+
+  const bound: Record<string, Record<string, unknown>> = Array.isArray(on)
+    ? Object.fromEntries(on.map((each: unknown) => [String(each), {}]))
+    : { ...(on === undefined ? {} : Object.fromEntries(Object.entries(on))) };
+
+  if (current === undefined || type in bound) {
+    return blocks;
+  }
+
+  return { ...blocks, [name]: { ...current, on: { ...bound, [type]: entry } } };
+}
+
 function text(value: string | true | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
@@ -62,11 +95,11 @@ function text(value: string | true | undefined): string | undefined {
  * `config` with the per-table features the schema's `@bsb` table comments turn
  * on (ADR 0102): `subject`, `realtime`, `vector-search`, `json` (`column=Type`,
  * or `column=import:module#Name`), `encrypted` (`column=type`, a bare column is
- * text), `lookup` (bare encrypted columns) and `events` (`on`, `include`).
- * `audit`, `audit-reads` and `expose` change the table's SQL only, so `gen` has
- * nothing to read from them. A key the config sets itself wins, so a project
- * can move to tags one table at a time. Tables outside `config.schemas` are
- * ignored.
+ * text), `lookup` (bare encrypted columns), `events` (`on`, `include`) and
+ * `search` (`columns`). `audit`, `audit-reads` and `expose` change the table's
+ * SQL only, so `gen` has nothing to read from them. A key the config sets
+ * itself wins, so a project can move to tags one table at a time. Tables
+ * outside `config.schemas` are ignored.
  */
 export function withTableTags(
   config: ResolvedConfig,
@@ -81,6 +114,14 @@ export function withTableTags(
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
   const fromTags = new Set<string>();
   const eventTables = new Set<string>();
+
+  let blocks = config.blocks;
+
+  const pending: {
+    table: string;
+    tag: string;
+    args: Record<string, string | true>;
+  }[] = [];
 
   const blockTypes = new Map(
     config.blockNames.flatMap((module) =>
@@ -251,6 +292,29 @@ export function withTableTags(
         eventTables.add(table.name);
         changed = true;
       } else if (
+        tag.name === "search" &&
+        table.schema === "public" &&
+        appTables[table.name]?.search === undefined
+      ) {
+        const columns = list(tag.args["columns"]);
+
+        appTables[table.name] = {
+          ...appTables[table.name],
+          search: columns.length === 0 ? true : { columns },
+        };
+
+        changed = true;
+      } else if (
+        tag.name === "audit-reads" ||
+        tag.name === "history" ||
+        tag.name === "lifecycle"
+      ) {
+        pending.push({
+          table: names.has(short) ? short : qualified,
+          tag: tag.name,
+          args: tag.args,
+        });
+      } else if (
         tag.name === "vector-search" &&
         !vectorSearch.some((each) => names.has(each.table))
       ) {
@@ -277,9 +341,44 @@ export function withTableTags(
     }
   }
 
+  for (const { table, tag, args } of pending) {
+    const type = Object.entries(subjects).find(
+      ([, subject]) =>
+        subject.table === table ||
+        subject.table === `public.${table}` ||
+        `public.${subject.table}` === table,
+    )?.[0];
+
+    if (type === undefined) {
+      continue;
+    }
+
+    const subject = subjects[type];
+
+    if (tag === "audit-reads" && subject !== undefined) {
+      subjects[type] = { ...subject, auditReads: true };
+      changed = true;
+    } else if (tag === "history") {
+      const fields = Object.keys(args).filter((key) => args[key] === true);
+      const next = bindOn(blocks, "field-history", type, { fields });
+
+      changed ||= next !== blocks && fields.length > 0;
+      blocks = fields.length > 0 ? next : blocks;
+    } else if (tag === "lifecycle") {
+      const entry = textArgs(args);
+
+      if (entry["stage"] !== undefined && entry["pipeline"] !== undefined) {
+        const next = bindOn(blocks, "pipelines", type, entry);
+        changed ||= next !== blocks;
+        blocks = next;
+      }
+    }
+  }
+
   return changed
     ? {
         ...config,
+        blocks,
         subjects,
         vectorSearch,
         json,

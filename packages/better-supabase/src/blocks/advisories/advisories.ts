@@ -198,10 +198,12 @@ export interface Advisories {
    * Replaces a version's components with a CycloneDX 1.4 to 1.7 JSON BOM. A
    * component's `group` is prefixed to its name. Needs `advisories.write`.
    */
-  importSbom(versionId: string, bom: unknown): AsyncResult<ProductVersion>;
+  importSbom(input: {
+    versionId: string;
+    bom: unknown;
+  }): AsyncResult<ProductVersion>;
   components(
-    versionId: string,
-    options?: { readonly limit?: number },
+    input: { versionId: string } & { readonly limit?: number },
   ): AsyncResult<StoredSbomComponent[]>;
   /**
    * Tracks a vulnerability by its CVE or OSV id. A CVSS vector is parsed: a 3.x
@@ -247,14 +249,13 @@ export interface Advisories {
     readonly impactStatement?: string;
     readonly actionStatement?: string;
   }): AsyncResult<StoredVexStatement>;
-  vexStatements(
-    productId: string,
-    versionId?: string,
-  ): AsyncResult<StoredVexStatement[]>;
+  vexStatements(input: {
+    productId: string;
+    versionId?: string | undefined;
+  }): AsyncResult<StoredVexStatement[]>;
   /** An OpenVEX 0.2.0 document with the product's statements. */
   openVex(
-    productId: string,
-    options: OpenVexOptions,
+    input: { productId: string } & OpenVexOptions,
   ): AsyncResult<Readonly<Record<string, unknown>>>;
   /** Creates a draft, or with `id` changes one. Needs `advisories.write`. */
   saveAdvisory(input: {
@@ -268,8 +269,10 @@ export interface Advisories {
   }): AsyncResult<Advisory>;
   /** Releases or revises an advisory. Needs `advisories.publish`. */
   publishAdvisory(
-    id: string,
-    options?: { readonly status?: "interim" | "final"; readonly note?: string },
+    input: { id: string } & {
+      readonly status?: "interim" | "final";
+      readonly note?: string;
+    },
   ): AsyncResult<Advisory>;
   advisories(options?: {
     readonly status?: AdvisoryStatus;
@@ -731,7 +734,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           (value) => recordsOf(value, "list_product_versions").map(versionOf),
         ),
       ),
-    importSbom: (versionId, bom) =>
+    importSbom: ({ versionId, bom }) =>
       AsyncResult.from(async () => {
         const parsed = parseCycloneDx(bom);
 
@@ -768,7 +771,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           ),
         );
       }),
-    components: (versionId, list = {}) =>
+    components: ({ versionId, ...list }) =>
       withTenant((organizationId) =>
         call(
           "list_sbom_components",
@@ -926,8 +929,9 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           statementOf,
         ),
       ),
-    vexStatements: statements,
-    openVex: (productId, vex) =>
+    vexStatements: ({ productId, versionId }) =>
+      statements(productId, versionId),
+    openVex: ({ productId, ...vex }) =>
       AsyncResult.from(async () => {
         const [list, products] = await Promise.all([
           statements(productId, undefined),
@@ -987,7 +991,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           advisoryOf,
         ),
       ),
-    publishAdvisory: (id, publish = {}) =>
+    publishAdvisory: ({ id, ...publish }) =>
       withTenant((organizationId) =>
         call(
           "publish_advisory",

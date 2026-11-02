@@ -225,15 +225,14 @@ export interface OauthServer {
    * once.
    */
   registerClient(
-    metadata: OauthClientMetadata,
-    options?: RegisterClientOptions,
+    input: { metadata: OauthClientMetadata } & RegisterClientOptions,
   ): AsyncResult<RegisteredOauthClient>;
   readClient(clientId: string): AsyncResult<OauthClient | null>;
   /** Changes the given metadata (RFC 7592); `null` for an unknown client. */
-  updateClient(
-    clientId: string,
-    metadata: Omit<OauthClientMetadata, "tokenEndpointAuthMethod">,
-  ): AsyncResult<OauthClient | null>;
+  updateClient(input: {
+    clientId: string;
+    metadata: Omit<OauthClientMetadata, "tokenEndpointAuthMethod">;
+  }): AsyncResult<OauthClient | null>;
   /**
    * A new secret for a confidential client; `null` for an unknown or public
    * client.
@@ -245,15 +244,15 @@ export interface OauthServer {
    * The client when the secret matches, `null` otherwise. Pass `null` for a
    * public client.
    */
-  verifyClient(
-    clientId: string,
-    secret: string | null,
-  ): AsyncResult<OauthClient | null>;
+  verifyClient(input: {
+    clientId: string;
+    secret: string | null;
+  }): AsyncResult<OauthClient | null>;
   /** Whether the RFC 7592 registration access token belongs to the client. */
-  verifyRegistrationToken(
-    clientId: string,
-    token: string,
-  ): AsyncResult<boolean>;
+  verifyRegistrationToken(input: {
+    clientId: string;
+    token: string;
+  }): AsyncResult<boolean>;
   /** Stores a code after the user consented, under their grant for the client. */
   createAuthorizationCode(
     request: AuthorizationCodeRequest,
@@ -265,31 +264,34 @@ export interface OauthServer {
   redeemAuthorizationCode(
     redemption: AuthorizationCodeRedemption,
   ): AsyncResult<OauthAuthorization | null>;
-  createDeviceCode(
-    clientId: string,
-    scope?: string,
-    resource?: readonly string[],
-  ): AsyncResult<IssuedDeviceCode>;
+  createDeviceCode(input: {
+    clientId: string;
+    scope?: string | undefined;
+    resource?: readonly string[] | undefined;
+  }): AsyncResult<IssuedDeviceCode>;
   /** The pending request for a user code as typed, dashes and case ignored. */
   deviceRequest(userCode: string): AsyncResult<DeviceRequest | null>;
-  approveDeviceCode(userCode: string, userId: string): AsyncResult<boolean>;
-  denyDeviceCode(userCode: string, userId: string): AsyncResult<boolean>;
-  pollDeviceCode(
-    deviceCode: string,
-    clientId: string,
-    resource?: readonly string[],
-  ): AsyncResult<DeviceCodePoll>;
+  approveDeviceCode(input: {
+    userCode: string;
+    userId: string;
+  }): AsyncResult<boolean>;
+  denyDeviceCode(input: {
+    userCode: string;
+    userId: string;
+  }): AsyncResult<boolean>;
+  pollDeviceCode(input: {
+    deviceCode: string;
+    clientId: string;
+    resource?: readonly string[] | undefined;
+  }): AsyncResult<DeviceCodePoll>;
   listGrants(
-    userId: string,
-    options?: ListGrantsOptions,
+    input: { userId: string } & ListGrantsOptions,
   ): AsyncResult<readonly OauthGrant[]>;
   /** Revokes a grant: every token carrying its `grant_id` fails `isRevoked`. */
   revokeGrant(grantId: string): AsyncResult<boolean>;
   /** Puts an access token's `jti` on the revocation list until `expiresAt`. */
   revokeToken(
-    jti: string,
-    expiresAt: Temporal.Instant,
-    options?: RevokeTokenOptions,
+    input: { jti: string; expiresAt: Temporal.Instant } & RevokeTokenOptions,
   ): AsyncResult<boolean>;
   /**
    * Whether a token is revoked by `jti` or by its grant. A grant id that is
@@ -490,7 +492,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
     );
 
   const client: OauthServer = {
-    registerClient: (metadata, registerOptions = {}) => {
+    registerClient: ({ metadata, ...registerOptions }) => {
       const method = metadata.tokenEndpointAuthMethod ?? "client_secret_basic";
       const grantTypes = metadata.grantTypes ?? ["authorization_code"];
       const bad = checkRedirects(metadata.redirectUris);
@@ -543,7 +545,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
       call("oauth_client", { client_id: clientId }, (value) =>
         optionalClient(value, "oauth_client"),
       ),
-    updateClient: (clientId, metadata) => {
+    updateClient: ({ clientId, metadata }) => {
       const bad = checkRedirects(metadata.redirectUris);
 
       if (bad) {
@@ -580,7 +582,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
         { client_id: clientId },
         (value) => value === true,
       ),
-    verifyClient: (clientId, secret) =>
+    verifyClient: ({ clientId, secret }) =>
       run(async () => (secret === null ? null : sha256Hex(secret))).andThen(
         (hash) =>
           call(
@@ -589,7 +591,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
             (value) => optionalClient(value, "verify_oauth_client"),
           ),
       ),
-    verifyRegistrationToken: (clientId, token) =>
+    verifyRegistrationToken: ({ clientId, token }) =>
       run(() => sha256Hex(token)).andThen((hash) =>
         call(
           "verify_oauth_registration_token",
@@ -665,7 +667,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
         ),
       );
     },
-    createDeviceCode: (clientId, scope, resource) => {
+    createDeviceCode: ({ clientId, scope, resource }) => {
       const deviceCode = randomToken(32);
       const code = userCode();
 
@@ -709,9 +711,10 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
           };
         },
       ),
-    approveDeviceCode: (code, userId) => decide(code, userId, true),
-    denyDeviceCode: (code, userId) => decide(code, userId, false),
-    pollDeviceCode: (deviceCode, clientId, resource) =>
+    approveDeviceCode: ({ userCode: code, userId }) =>
+      decide(code, userId, true),
+    denyDeviceCode: ({ userCode: code, userId }) => decide(code, userId, false),
+    pollDeviceCode: ({ deviceCode, clientId, resource }) =>
       run(() => sha256Hex(deviceCode)).andThen((hash) =>
         call(
           "poll_oauth_device_code",
@@ -723,7 +726,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
           pollOf,
         ),
       ),
-    listGrants: (userId, listOptions = {}) =>
+    listGrants: ({ userId, ...listOptions }) =>
       call(
         "list_oauth_grants",
         {
@@ -738,7 +741,7 @@ export function createOauthServer(options: OauthServerOptions): OauthServer {
         { grant_id: grantId },
         (value) => value === true,
       ),
-    revokeToken: (jti, expiresAt, revokeOptions = {}) =>
+    revokeToken: ({ jti, expiresAt, ...revokeOptions }) =>
       call(
         "revoke_oauth_token",
         {

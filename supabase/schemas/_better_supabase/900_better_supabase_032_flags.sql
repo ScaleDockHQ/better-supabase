@@ -1,6 +1,6 @@
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:afea203c994e22185251eba7d35df0cffd3b660f75052792abec2db5568b82af
+-- @bsb-hash sha256:0b00db8a07f04a065cdcef0350e07337f6ac762ff39b4aa0f3aa1cb8384c8aab
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -708,6 +708,13 @@ grant execute on function "better_supabase"."flag_bucket"(text, text) to anon, a
 grant execute on function "better_supabase"."flag_evaluation"(text, uuid, uuid, jsonb) to service_role;
 grant execute on function "better_supabase"."flag_enabled"(text, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_definitions"() to service_role;
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.flags', target_type => 'flag', event_prefix => 'flag', deferred => true);
+end;
+$$;
 
 -- blocks.flags.api: entry points for the Data API.
 create schema if not exists "api";

@@ -53,7 +53,10 @@ export interface DataExporter {
    * Writes one NDJSON file per table, then marks the export ready (which emits
    * `data_export.completed`). A failure marks it failed and returns the error.
    */
-  run(exportId: string, signal?: AbortSignal): AsyncResult<DataExport>;
+  run(input: {
+    exportId: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<DataExport>;
   /**
    * A jobs handler: `queue.work('data-exports', exporter.job)`. An export that
    * is no longer pending or failed (cancelled, deleted, running or ready)
@@ -178,10 +181,13 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
     return failed ?? ok(files);
   };
 
-  const run = (
-    exportId: string,
-    signal?: AbortSignal,
-  ): AsyncResult<DataExport> =>
+  const run = ({
+    exportId,
+    signal,
+  }: {
+    exportId: string;
+    signal?: AbortSignal | undefined;
+  }): AsyncResult<DataExport> =>
     call("claim_data_export", { id: exportId }, (value) => value).andThen(
       async (value): Promise<Result<DataExport>> => {
         if (!isRecord(value)) {
@@ -236,7 +242,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   return {
     run,
     job: async (payload, _job, signal) => {
-      await settle(run(payload.exportId, signal));
+      await settle(run({ exportId: payload.exportId, signal }));
     },
     sink: () => ({
       async send(events) {
@@ -250,7 +256,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
           const id = optionalText(event.data["exportId"]);
 
           if (id !== undefined) {
-            await settle(run(id));
+            await settle(run({ exportId: id }));
           }
         }
       },

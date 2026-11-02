@@ -63,16 +63,19 @@ describe("createAgents", () => {
     const agents = createAgents({ transport });
 
     const created = await agents
-      .create("o1", {
-        slug: "writer",
-        name: "Writer",
-        description: "Writes",
-        instructions: "Be brief",
-        model: null,
-        tools: ["search"],
-        connectorIds: ["c1"],
-        knowledgeScopes: [{ scope: "agent" }],
-        starters: ["Hi"],
+      .create({
+        organizationId: "o1",
+        agent: {
+          slug: "writer",
+          name: "Writer",
+          description: "Writes",
+          instructions: "Be brief",
+          model: null,
+          tools: ["search"],
+          connectorIds: ["c1"],
+          knowledgeScopes: [{ scope: "agent" }],
+          starters: ["Hi"],
+        },
       })
       .orThrow();
 
@@ -107,7 +110,10 @@ describe("createAgents", () => {
 
     const missing = await agents.get("gone");
     expect(missing.ok ? undefined : missing.error.hint).toBe("AGENT_NOT_FOUND");
-    expect((await agents.bySlug("o1", "writer").orThrow()).slug).toBe("writer");
+    expect(
+      (await agents.bySlug({ organizationId: "o1", slug: "writer" }).orThrow())
+        .slug,
+    ).toBe("writer");
     expect(calls.at(-1)?.args).toEqual({ tenant: "o1", slug: "writer" });
   });
 
@@ -130,7 +136,7 @@ describe("createAgents", () => {
     });
 
     const agent = await createAgents({ transport })
-      .update("o1", "a1", {})
+      .update({ organizationId: "o1", agentId: "a1", fields: {} })
       .orThrow();
 
     expect(agent).toMatchObject({
@@ -159,19 +165,34 @@ describe("createAgents", () => {
     expect(
       (
         await agents
-          .list("o1", { filter: "store", search: "w", limit: 5 })
+          .list({
+            organizationId: "o1",
+            filter: "store",
+            search: "w",
+            limit: 5,
+          })
           .orThrow()
       ).map((agent) => agent.id),
     ).toEqual(["a1"]);
-    expect((await agents.publish("a1", "public").orThrow()).visibility).toBe(
-      "public",
-    );
-    expect(await agents.install("o1", "a1").orThrow()).toBe(true);
-    await agents.install("o1", "a1", false);
-    await agents.rate("a1", 5, "great");
+    expect(
+      (await agents.publish({ agentId: "a1", visibility: "public" }).orThrow())
+        .visibility,
+    ).toBe("public");
+    expect(
+      await agents.install({ organizationId: "o1", agentId: "a1" }).orThrow(),
+    ).toBe(true);
+    await agents.install({
+      organizationId: "o1",
+      agentId: "a1",
+      installed: false,
+    });
+    await agents.rate({ agentId: "a1", rating: 5, comment: "great" });
     expect(
       await agents
-        .setSkills("a1", [{ provider: "vercel", reference: { slug: "pdf" } }])
+        .setSkills({
+          agentId: "a1",
+          skills: [{ provider: "vercel", reference: { slug: "pdf" } }],
+        })
         .orThrow(),
     ).toBe(2);
     expect(await agents.remove("a1").orThrow()).toBe(true);

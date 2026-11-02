@@ -2,10 +2,10 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   nullableInstant,
@@ -117,27 +117,72 @@ export interface UpsertBatchResult extends ImportBatchReply {
   readonly dryRun: boolean;
 }
 
+/** One entity's items for `run`, in the order runs must write them. */
+export interface ImportRunEntity {
+  readonly entity: string;
+  readonly items: Iterable<ImportItem> | AsyncIterable<ImportItem>;
+}
+
+export interface RunImportsOptions extends StartImportRunOptions {
+  /** Items per `upsertBatch` call. Default 200. */
+  readonly batchSize?: number | undefined;
+  /** Called after each batch with the entity's running totals. */
+  readonly onBatch?:
+    | ((progress: {
+        readonly entity: string;
+        readonly items: number;
+        readonly errors: number;
+      }) => void)
+    | undefined;
+}
+
+/** What `run` answers: the finished run's counts and what the batches reported. */
+export interface ImportRunResult {
+  readonly id: string;
+  readonly dryRun: boolean;
+  readonly counts: Readonly<Record<string, ImportEntityCounts>>;
+  /** Rejected items, by entity, with the batch's hint code. */
+  readonly errors: readonly ImportRunError[];
+  readonly warnings: readonly {
+    readonly entity: string;
+    readonly key: string | null;
+    readonly code: string;
+    readonly message: string;
+  }[];
+}
+
 export interface Imports {
+  /**
+   * Runs a whole import in one call, for the service role: `runs.start`,
+   * `markRunning`, one `upsertBatch` per `batchSize` items of each entity in
+   * the order given, then `finish`. Item errors do not stop the run; they come
+   * back in `errors`. When a call fails (the run could not start, a batch
+   * threw), the run is cancelled and the error returned.
+   */
+  run(
+    input: {
+      organizationId: string;
+      source: string;
+      entities: readonly ImportRunEntity[];
+    } & RunImportsOptions,
+  ): AsyncResult<ImportRunResult>;
   /** Starts a run and returns its id. Prefer `runs.start`. */
-  start(
-    organizationId: string,
-    source: string,
-    mapping?: Readonly<Record<string, string>>,
-  ): AsyncResult<{ readonly id: string }>;
+  start(input: {
+    organizationId: string;
+    source: string;
+    mapping?: Readonly<Record<string, string>> | undefined;
+  }): AsyncResult<{ readonly id: string }>;
   readonly runs: {
     /**
      * Starts a pending run. Fails with `IMPORT_RUN_ACTIVE` while another is
      * open.
      */
     start(
-      organizationId: string,
-      source: string,
-      options?: StartImportRunOptions,
+      input: { organizationId: string; source: string } & StartImportRunOptions,
     ): AsyncResult<{ readonly id: string }>;
     get(id: string): AsyncResult<ImportRun>;
     list(
-      organizationId: string,
-      options?: ListImportRunsOptions,
+      input: { organizationId: string } & ListImportRunsOptions,
     ): AsyncResult<readonly ImportRun[]>;
     /** Cancels a pending or running run; `false` when it already ended. */
     cancel(id: string): AsyncResult<boolean>;
@@ -148,20 +193,20 @@ export interface Imports {
    * Writes one batch of an entity through its `importTarget` (service role).
    * Each item inserts, is unchanged, updates, or is `conflicted`.
    */
-  upsertBatch(
-    runId: string,
-    entity: string,
-    items: readonly ImportItem[],
-  ): AsyncResult<UpsertBatchResult>;
+  upsertBatch(input: {
+    runId: string;
+    entity: string;
+    items: readonly ImportItem[];
+  }): AsyncResult<UpsertBatchResult>;
   /**
    * Looks up the subjects keys imported to; a key never imported is left out
    * (service role).
    */
-  resolve(
-    runId: string,
-    entity: string,
-    keys: readonly ImportKey[],
-  ): AsyncResult<readonly ResolvedImportKey[]>;
+  resolve(input: {
+    runId: string;
+    entity: string;
+    keys: readonly ImportKey[];
+  }): AsyncResult<readonly ResolvedImportKey[]>;
   /**
    * Ends a running run, marks missing records on a full run and emits the
    * import events (service role).
@@ -286,14 +331,112 @@ export function createImports(options: ImportsOptions): Imports {
   });
 
   const client: Imports = {
-    start: (organizationId, source, mapping) =>
+    run: ({ organizationId, source, entities, batchSize, onBatch, ...start }) =>
+      AsyncResult.from(async () => {
+        const size = Math.max(1, batchSize ?? 200);
+
+        const started = await hooked.runs.start({
+          organizationId,
+          source,
+          ...start,
+        });
+
+        if (!started.ok) {
+          return started;
+        }
+
+        const { id } = started.data;
+        const errors: ImportRunError[] = [];
+        const warnings: ImportRunResult["warnings"][number][] = [];
+
+        const stop = async <T>(failure: T): Promise<T> => {
+          await hooked.runs.cancel(id);
+
+          return failure;
+        };
+
+        const running = await hooked.markRunning(id);
+
+        if (!running.ok) {
+          return stop(running);
+        }
+
+        for (const { entity, items } of entities) {
+          let batch: ImportItem[] = [];
+          let sent = 0;
+          let rejected = 0;
+
+          const flush = async () => {
+            const reply = await hooked.upsertBatch({
+              runId: id,
+              entity,
+              items: batch,
+            });
+
+            if (!reply.ok) {
+              return reply;
+            }
+
+            sent += batch.length;
+            rejected += reply.data.errors.length;
+            batch = [];
+
+            for (const error of reply.data.errors) {
+              errors.push({ entity, ...error });
+            }
+
+            for (const warning of reply.data.warnings ?? []) {
+              warnings.push({ entity, ...warning });
+            }
+
+            onBatch?.({ entity, items: sent, errors: rejected });
+
+            return reply;
+          };
+
+          for await (const item of items) {
+            batch.push(item);
+
+            if (batch.length >= size) {
+              const flushed = await flush();
+
+              if (!flushed.ok) {
+                return stop(flushed);
+              }
+            }
+          }
+
+          if (batch.length > 0) {
+            const flushed = await flush();
+
+            if (!flushed.ok) {
+              return stop(flushed);
+            }
+          }
+        }
+
+        const finished = await hooked.finish(id);
+
+        if (!finished.ok) {
+          return stop(finished);
+        }
+
+        return ok({
+          id,
+          dryRun: start.dryRun === true,
+          counts: finished.data,
+          errors,
+          warnings,
+        });
+      }),
+    start: ({ organizationId, source, mapping }) =>
       call(
         "start_import",
         { tenant: organizationId, source, mapping: mapping ?? {} },
         (value) => idOf(value, "start_import"),
       ),
     runs: {
-      start: (organizationId, source, startOptions = {}) =>
+      start: ({ organizationId, source, ...startOptions }) =>
         call(
           "start_import_run",
           { tenant: organizationId, source, options: startArg(startOptions) },
@@ -303,7 +446,7 @@ export function createImports(options: ImportsOptions): Imports {
         call("get_import_run", { id }, (value) =>
           runOf(value, "get_import_run"),
         ),
-      list: (organizationId, listOptions = {}) =>
+      list: ({ organizationId, ...listOptions }) =>
         call(
           "list_import_runs",
           {
@@ -322,7 +465,7 @@ export function createImports(options: ImportsOptions): Imports {
     },
     markRunning: (id) =>
       call("mark_import_running", { id }, (value) => value === true),
-    upsertBatch: (runId, entity, items) =>
+    upsertBatch: ({ runId, entity, items }) =>
       call(
         "import_upsert_batch",
         { run: runId, entity, items: items.map(itemArg) },
@@ -353,7 +496,7 @@ export function createImports(options: ImportsOptions): Imports {
           };
         },
       ),
-    resolve: (runId, entity, keys) =>
+    resolve: ({ runId, entity, keys }) =>
       call(
         "import_resolve",
         { run: runId, entity, keys: keys.map(keyArg) },
@@ -370,8 +513,11 @@ export function createImports(options: ImportsOptions): Imports {
       call("finish_import_run", { run: runId }, (value) => countsOf(value)),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Imports = withBlockHooks(client, options.hooks, {
     block: "imports",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

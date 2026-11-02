@@ -138,6 +138,7 @@ declare
   v_cart uuid;
   v_order jsonb;
   v_id uuid;
+  v_board jsonb;
 begin
   ${AS_ALICE}
   v_cart := (better_supabase.create_cart('${TENANT}', 'EUR') ->> 'id')::uuid;
@@ -158,6 +159,13 @@ begin
   perform better_supabase.record_payment(v_id, 'test', 'pay_1', 'succeeded', 'EUR', 3750, 3750);
   if (select count(*) from better_supabase.order_payments) <> 1 or (select state from public.purchases where id = v_id) <> 'paid' then
     raise exception 'paid %', (select state from public.purchases where id = v_id);
+  end if;
+  v_board := better_supabase.order_status_board('${TENANT}');
+  if v_board #>> '{columns,0,status}' <> 'paid'
+    or v_board #>> '{columns,0,count}' <> '1'
+    or v_board #>> '{columns,0,totals,0,total}' <> '3750'
+    or v_board #>> '{columns,0,orders,0,id}' <> v_id::text then
+    raise exception 'board %', v_board;
   end if;
 end;
 $$;`),

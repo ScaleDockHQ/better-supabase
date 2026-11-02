@@ -78,14 +78,16 @@ export interface TargetInput<F extends object = Record<never, never>> {
 }
 
 export interface Goals<F extends object = Record<never, never>> {
-  upsert(
-    organizationId: string,
-    target: TargetInput<F>,
-  ): AsyncResult<Target<F>>;
+  upsert(input: {
+    organizationId: string;
+    target: TargetInput<F>;
+  }): AsyncResult<Target<F>>;
   /** The targets running on `on` (today by default), with progress. */
   progress(
-    organizationId: string,
-    options?: { readonly on?: Temporal.PlainDate; readonly ownerId?: string },
+    input: { organizationId: string } & {
+      readonly on?: Temporal.PlainDate;
+      readonly ownerId?: string;
+    },
   ): AsyncResult<TargetProgress<F>[]>;
 }
 
@@ -133,7 +135,7 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
   const fields: BlockFields<F> = blockFields(options.fields, "target fields");
 
   const client: Goals<F> = {
-    upsert: (organizationId, target) => {
+    upsert: ({ organizationId, target }) => {
       const { id, goal, actual, fields: extra, ...rest } = target;
 
       return fields
@@ -155,7 +157,7 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
           ).andThen(fields.row),
         );
     },
-    progress: (organizationId, progress = {}) =>
+    progress: ({ organizationId, ...progress }) =>
       call(
         "goal_progress",
         {

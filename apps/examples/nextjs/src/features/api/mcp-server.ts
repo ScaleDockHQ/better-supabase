@@ -3,8 +3,6 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { createMcp } from "better-supabase/mcp";
 import * as v from "valibot";
 
-import type { PermissionKey } from "@/lib/supabase/blocks.generated";
-
 import { betterSupabase } from "@/lib/supabase";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -67,10 +65,5 @@ export const bsb = createMcp(betterSupabase, {
     ),
     annotations: { idempotentHint: true },
     run: ({ role, permission, granted }, { db }) =>
-      db.permissions.setOverride(
-        role,
-        // SAFETY: set_permission_override refuses a key outside the catalog.
-        permission as PermissionKey,
-        granted,
-      ),
+      db.permissions.setOverride({ role, permission, granted }),
   });

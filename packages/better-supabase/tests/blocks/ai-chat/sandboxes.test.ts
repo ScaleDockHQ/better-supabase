@@ -63,16 +63,19 @@ describe("createAiChat sandboxes", () => {
 
     const { sandboxes } = createAiChat({ transport });
     await sandboxes
-      .register("o1", {
-        provider: "vercel",
-        sandboxId: "sbx_1",
-        userId: "u1",
-        chatId: "c1",
-        harnessId: "claude-code",
-        containerId: "ctr",
-        metadata: { runtime: "node24" },
-        idleSeconds: 299.6,
-        expiresAt: Temporal.Instant.from(AT),
+      .register({
+        organizationId: "o1",
+        sandbox: {
+          provider: "vercel",
+          sandboxId: "sbx_1",
+          userId: "u1",
+          chatId: "c1",
+          harnessId: "claude-code",
+          containerId: "ctr",
+          metadata: { runtime: "node24" },
+          idleSeconds: 299.6,
+          expiresAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
     expect(calls[0]?.args).toEqual({
@@ -90,15 +93,25 @@ describe("createAiChat sandboxes", () => {
       },
     });
     await sandboxes
-      .register("o1", { provider: "vercel", sandboxId: "sbx_2" })
+      .register({
+        organizationId: "o1",
+        sandbox: { provider: "vercel", sandboxId: "sbx_2" },
+      })
       .orThrow();
     expect(calls[1]?.args["fields"]).toEqual({});
     expect(await sandboxes.touch("s1").orThrow()).toBe(true);
-    expect((await sandboxes.forChat("c1", "vercel").orThrow())?.status).toBe(
-      "stopped",
-    );
-    expect(await sandboxes.forChat("c2", "vercel").orThrow()).toBeUndefined();
-    const listed = await sandboxes.list("o1", { chatId: "c1" }).orThrow();
+    expect(
+      (await sandboxes.forChat({ chatId: "c1", provider: "vercel" }).orThrow())
+        ?.status,
+    ).toBe("stopped");
+    expect(
+      await sandboxes.forChat({ chatId: "c2", provider: "vercel" }).orThrow(),
+    ).toBeUndefined();
+
+    const listed = await sandboxes
+      .list({ organizationId: "o1", chatId: "c1" })
+      .orThrow();
+
     expect(listed[0]?.stoppedAt?.toString()).toBe(AT);
     expect(listed[0]?.harnessId).toBeUndefined();
   });
@@ -120,10 +133,12 @@ describe("createAiChat sandboxes", () => {
 
     const { sandboxes } = createAiChat({ transport });
 
-    const stopped = await sandboxes.idleStopJob(async (sandbox) => {
-      if (sandbox.id === "s2") {
-        throw new Error("busy");
-      }
+    const stopped = await sandboxes.idleStopJob({
+      stop: async (sandbox) => {
+        if (sandbox.id === "s2") {
+          throw new Error("busy");
+        }
+      },
     })(undefined, job, signal);
 
     expect(stopped).toBe(1);
@@ -139,9 +154,9 @@ describe("createAiChat sandboxes", () => {
       finish_ai_sandbox_stop: () => Promise.reject(new Error("db down")),
     });
 
-    const result = await createAiChat({ transport }).sandboxes.stopIdle(
-      async () => {},
-    );
+    const result = await createAiChat({ transport }).sandboxes.stopIdle({
+      stop: async () => {},
+    });
 
     expect(result.ok).toBe(false);
   });

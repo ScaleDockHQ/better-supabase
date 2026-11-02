@@ -21,6 +21,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { catalogLists } from "./bookings-lists.ts";
 import {
   BOOKINGS_CONTRIBUTES,
   hostBusy,
@@ -931,7 +932,7 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -964,6 +965,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "confirm_booking", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_booking_resources",
+      args: ["{id}", "boolean"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_booking_services",
+      args: ["{id}", "boolean"],
+      returns: "jsonb",
+    },
     { name: "cancel_booking", args: ["uuid", "text"], returns: "jsonb" },
     { name: "expire_booking_holds", args: [], returns: "integer" },
     {

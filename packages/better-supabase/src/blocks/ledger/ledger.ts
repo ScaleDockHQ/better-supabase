@@ -206,13 +206,11 @@ export interface Ledger {
    * record decides the tenant.
    */
   holderAccounts(
-    holder: RecordRef,
-    options?: { readonly kind?: string },
+    input: { holder: RecordRef } & { readonly kind?: string },
   ): AsyncResult<readonly LedgerAccount[]>;
   /** Newest first; `before` pages back. */
   entries(
-    accountId: string,
-    options?: {
+    input: { accountId: string } & {
       readonly before?: Temporal.Instant;
       readonly pageSize?: number;
     },
@@ -225,13 +223,18 @@ export interface Ledger {
   post(input: LedgerTransactionInput): AsyncResult<LedgerTransaction>;
   /** Posts the opposite entries. A transaction reverses once. */
   reverse(
-    transactionId: string,
-    options?: { readonly memo?: string },
+    input: { transactionId: string } & { readonly memo?: string },
   ): AsyncResult<LedgerTransaction>;
   /** Reserves part of the available balance. Needs `ledger.post`. */
-  hold(accountId: string, input: LedgerHoldInput): AsyncResult<LedgerHold>;
+  hold(input: {
+    accountId: string;
+    input: LedgerHoldInput;
+  }): AsyncResult<LedgerHold>;
   /** Moves held funds to another account. */
-  capture(holdId: string, input: LedgerCaptureInput): AsyncResult<LedgerHold>;
+  capture(input: {
+    holdId: string;
+    input: LedgerCaptureInput;
+  }): AsyncResult<LedgerHold>;
   release(holdId: string): AsyncResult<LedgerHold>;
 }
 
@@ -410,7 +413,7 @@ export function createLedger(options: LedgerOptions): Ledger {
             ),
         ),
       ),
-    holderAccounts: (holder, list = {}) =>
+    holderAccounts: ({ holder, ...list }) =>
       call(
         "list_ledger_accounts",
         {
@@ -425,7 +428,7 @@ export function createLedger(options: LedgerOptions): Ledger {
             accountOf(row, "list_ledger_accounts"),
           ),
       ),
-    entries: (accountId, list = {}) =>
+    entries: ({ accountId, ...list }) =>
       call(
         "ledger_account_entries",
         {
@@ -465,13 +468,13 @@ export function createLedger(options: LedgerOptions): Ledger {
           (value) => transactionOf(value, "post_ledger_transaction"),
         ),
       ),
-    reverse: (transactionId, reverse = {}) =>
+    reverse: ({ transactionId, ...reverse }) =>
       call(
         "reverse_ledger_transaction",
         { transaction_id: transactionId, memo: reverse.memo ?? null },
         (value) => transactionOf(value, "reverse_ledger_transaction"),
       ),
-    hold: (accountId, input) =>
+    hold: ({ accountId, input }) =>
       call(
         "place_ledger_hold",
         {
@@ -483,7 +486,7 @@ export function createLedger(options: LedgerOptions): Ledger {
         },
         (value) => holdOf(value, "place_ledger_hold"),
       ),
-    capture: (holdId, input) =>
+    capture: ({ holdId, input }) =>
       call(
         "capture_ledger_hold",
         {

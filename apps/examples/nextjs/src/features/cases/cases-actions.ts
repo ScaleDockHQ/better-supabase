@@ -16,7 +16,7 @@ export const moveCase = bsb.action(
     permission: "cases.read",
   },
   async ({ caseId, stageId }, { db, auth }) => {
-    const moved = await db.cases.move(caseId, { stageId });
+    const moved = await db.cases.move({ caseId, to: { stageId } });
 
     if (!moved.ok) {
       return moved;
@@ -39,7 +39,7 @@ export const closeCase = bsb.action(
     permission: "cases.read",
   },
   async ({ caseId, note }, { db, auth }) => {
-    const closed = await db.cases.close(caseId, note);
+    const closed = await db.cases.close({ caseId, note });
 
     if (!closed.ok) {
       return closed;

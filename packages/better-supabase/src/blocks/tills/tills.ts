@@ -177,7 +177,10 @@ export interface Tills {
    * Renames, archives or changes the cash account of a till; needs
    * `tills.manage`.
    */
-  updateTill(tillId: string, input: TillUpdate): AsyncResultType<Till>;
+  updateTill(input: {
+    tillId: string;
+    input: TillUpdate;
+  }): AsyncResultType<Till>;
   /** Tills by name; archived ones only with `includeArchived`. */
   listTills(options?: {
     readonly includeArchived?: boolean;
@@ -187,8 +190,10 @@ export interface Tills {
    * needs `tills.write`.
    */
   openSession(
-    tillId: string,
-    options?: { readonly openingFloat?: Money; readonly notes?: string },
+    input: { tillId: string } & {
+      readonly openingFloat?: Money;
+      readonly notes?: string;
+    },
   ): AsyncResultType<TillSession>;
   getSession(sessionId: string): AsyncResultType<TillSessionDetail>;
   listSessions(
@@ -199,35 +204,35 @@ export interface Tills {
    * cash out cannot take more than the drawer holds.
    */
   recordMovement(
-    sessionId: string,
-    kind: TillMovementKind,
-    amount: Money,
-    options?: { readonly reason?: string; readonly reference?: string },
+    input: { sessionId: string; kind: TillMovementKind; amount: Money } & {
+      readonly reason?: string;
+      readonly reference?: string;
+    },
   ): AsyncResultType<TillMovement>;
   /**
    * Counts the drawer and ends the session; needs `tills.write`. The variance
    * is booked in accounting when the till has a cash account.
    */
-  closeSession(
-    sessionId: string,
-    input: CloseTillSessionInput,
-  ): AsyncResultType<TillSessionDetail>;
+  closeSession(input: {
+    sessionId: string;
+    input: CloseTillSessionInput;
+  }): AsyncResultType<TillSessionDetail>;
   /**
    * Takes counted cash to the bank from a closed session, never more than the
    * count in total; needs `tills.manage`.
    */
-  deposit(
-    sessionId: string,
-    input: DepositTillCashInput,
-  ): AsyncResultType<TillDeposit>;
+  deposit(input: {
+    sessionId: string;
+    input: DepositTillCashInput;
+  }): AsyncResultType<TillDeposit>;
   /**
    * Matches a pending deposit to its bank transaction through the banking
    * block; needs `tills.manage`.
    */
-  reconcileDeposit(
-    depositId: string,
-    bankTransactionId: string,
-  ): AsyncResultType<TillDeposit>;
+  reconcileDeposit(input: {
+    depositId: string;
+    bankTransactionId: string;
+  }): AsyncResultType<TillDeposit>;
 }
 
 /** Options for {@link createTills}. */
@@ -405,7 +410,7 @@ export function createTills(options: TillsOptions): Tills {
           (value) => tillOf(value, "create_till"),
         ),
       ),
-    updateTill: (tillId, input) =>
+    updateTill: ({ tillId, input }) =>
       call(
         "update_till",
         { till_id: tillId, input: definedOf(input) },
@@ -425,7 +430,7 @@ export function createTills(options: TillsOptions): Tills {
             ),
         ),
       ),
-    openSession: (tillId, open = {}) =>
+    openSession: ({ tillId, ...open }) =>
       call(
         "open_till_session",
         {
@@ -452,7 +457,7 @@ export function createTills(options: TillsOptions): Tills {
             ),
         ),
       ),
-    recordMovement: (sessionId, kind, amount, extra = {}) =>
+    recordMovement: ({ sessionId, kind, amount, ...extra }) =>
       call(
         "record_till_movement",
         {
@@ -466,7 +471,7 @@ export function createTills(options: TillsOptions): Tills {
         },
         (value) => movementOf(value, "record_till_movement"),
       ),
-    closeSession: (sessionId, input) =>
+    closeSession: ({ sessionId, input }) =>
       call(
         "close_till_session",
         {
@@ -479,7 +484,7 @@ export function createTills(options: TillsOptions): Tills {
         },
         (value) => detailOf(value, "close_till_session"),
       ),
-    deposit: (sessionId, input) =>
+    deposit: ({ sessionId, input }) =>
       call(
         "deposit_till_cash",
         {
@@ -492,7 +497,7 @@ export function createTills(options: TillsOptions): Tills {
         },
         (value) => depositOf(value, "deposit_till_cash"),
       ),
-    reconcileDeposit: (depositId, bankTransactionId) =>
+    reconcileDeposit: ({ depositId, bankTransactionId }) =>
       call(
         "reconcile_till_deposit",
         { deposit_id: depositId, bank_transaction_id: bankTransactionId },

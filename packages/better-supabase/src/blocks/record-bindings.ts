@@ -107,6 +107,16 @@ export interface RecordBindingDefinition<
   ) => AsyncResult<Readonly<Record<string, unknown>>>;
   /** The binding's rows as timeline entries, for `loadTimeline`. */
   readonly timeline?: (data: Data) => readonly TimelineItem[];
+  /**
+   * Copies the binding's rows from one record to another and returns how many
+   * it copied, for `bsb.recordAt(type, id).copyTo`. Leave it out for rows that
+   * must not be copied, such as versions or signatures.
+   */
+  readonly copy?: (
+    client: Client,
+    from: RecordRef,
+    to: RecordRef,
+  ) => AsyncResult<number>;
   /** The block events that make the binding stale; `*` ends a prefix. */
   readonly events?: readonly string[];
   /** A reducer for `useOptimistic`, applying a pending write to the rows. */
@@ -151,6 +161,11 @@ export interface AnyRecordBinding {
     subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, unknown>>>;
   readonly timeline?: (data: never) => readonly TimelineItem[];
+  readonly copy?: (
+    client: never,
+    from: RecordRef,
+    to: RecordRef,
+  ) => AsyncResult<number>;
   readonly events: readonly string[];
   readonly optimistic?: (state: never, action: never) => unknown;
   readonly writes?: RecordBindingWrites;

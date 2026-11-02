@@ -1325,7 +1325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:98564e848752c117ebe8e04f68f27c0274f26b2d00411534bf73834e0a0cd653
+-- @bsb-hash sha256:bb21b4115e1e7846e3c94ee5021a1d32ad25511bbf256720136c4d239a3c1117
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2751,6 +2751,16 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certi
 create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.courses', target_type => 'course', event_prefix => 'course', deferred => true);
+  perform better_supabase.audit('better_supabase.course_modules', target_type => 'course_module', event_prefix => 'course_module', deferred => true);
+  perform better_supabase.audit('better_supabase.course_lessons', target_type => 'course_lesson', event_prefix => 'course_lesson', deferred => true);
+  perform better_supabase.audit('better_supabase.course_certificates', target_type => 'course_certificate', event_prefix => 'course_certificate', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

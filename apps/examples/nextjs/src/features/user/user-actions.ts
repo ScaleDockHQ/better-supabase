@@ -7,6 +7,8 @@ import * as v from "valibot";
 import { avatars } from "@/lib/buckets";
 import { bsb } from "@/lib/supabase/server";
 
+import { ProfileRow } from "./profile-row";
+
 /**
  * Call after the browser client signs in or out. `refresh()` from a Server
  * Action clears the client router cache, including every private session read,
@@ -17,7 +19,7 @@ export async function sessionChanged(): Promise<void> {
   refresh();
 }
 
-/** The caller's name in the profiles SQL module (`public.update_my_profile`). */
+/** The caller's name in the profiles SQL module (`db.profiles.updateMine`). */
 export const updateProfile = bsb.action(
   {
     input: v.object({
@@ -29,7 +31,7 @@ export const updateProfile = bsb.action(
       return err(dbError("unauthorized", "Sign in to change your profile"));
     }
 
-    const updated = await db.$rpc("update_my_profile", { full_name: fullName });
+    const updated = await db.profiles.updateMine({ full_name: fullName });
 
     if (!updated.ok) {
       return updated;
@@ -51,7 +53,7 @@ const AVATAR_EXTENSIONS = new Map([
 
 /**
  * Uploads a new avatar under the caller's id, points the profile at its path
- * (`public.set_my_avatar_path`), then removes the previous object.
+ * (`db.profiles.setAvatar`), then removes the previous object.
  */
 export const uploadAvatar = bsb.action(
   {
@@ -77,7 +79,7 @@ export const uploadAvatar = bsb.action(
       );
     }
 
-    const profile = await db.$rpc("my_profile");
+    const profile = await db.profiles.mine();
 
     if (!profile.ok) {
       return profile;
@@ -90,9 +92,10 @@ export const uploadAvatar = bsb.action(
         avatar,
         {
           contentType: avatar.type,
-          previous: profile.data[0]?.avatarPath ?? null,
-          commit: (path) =>
-            db.$rpc("set_my_avatar_path", { avatar_path: path }),
+          previous: profile.data
+            ? v.parse(ProfileRow, profile.data).avatar_path
+            : null,
+          commit: (path) => db.profiles.setAvatar({ path }),
         },
       );
 

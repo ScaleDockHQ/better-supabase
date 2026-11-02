@@ -67,11 +67,17 @@ Amounts are `Money` values from [commerce](/docs/concepts/commerce): a `bigint` 
 
 ```ts
 const { accepted, rejected } = await deals
-  .update([
-    { dealId, field: "stageId", value: proposalStageId },
-    { dealId, field: "closeOn", value: Temporal.PlainDate.from("2026-12-15") },
-    { dealId, field: "forecast", value: "commit" },
-  ])
+  .update({
+    changes: [
+      { dealId, field: "stageId", value: proposalStageId },
+      {
+        dealId,
+        field: "closeOn",
+        value: Temporal.PlainDate.from("2026-12-15"),
+      },
+      { dealId, field: "forecast", value: "commit" },
+    ],
+  })
   .orThrow();
 ```
 
@@ -111,12 +117,19 @@ await deals.create(organizationId, {
   closeOn,
   fields: { region: "emea" },
 });
-await deals.update([{ dealId, field: "region", value: "apac" }]);
+await deals.update({
+  changes: [{ dealId, field: "region", value: "apac" }],
+  strict: true,
+});
 ```
+
+`update` returns the refused changes in `rejected` and leaves the others applied. With `strict: true`, the first refused change is the error instead, with its hint (such as `DEAL_LOCKED`) as the `raised` code.
 
 ## Stages, winning and losing
 
 A deal moves stage when `stageId` changes, through an edit or a board drag with [rank](/docs/blocks/rank) (the `deal` subject groups the board by `stage_id`). The pipelines module checks the move and keeps the stage history. A won or lost stage sets `outcome`, which stamps `closedAt` and records `deal.closed` with the outcome. `win(dealId, note)` and `lose(dealId, reason)` move the deal to its pipeline's first won or lost stage, and `reopen(dealId, stageId?)` moves it back to an open stage.
+
+`moveStage({ dealId, stageId })` is `update` with one `stageId` change and `strict`, so a refused move comes back as the error and your `update` hooks see it.
 
 ## Contacts, team and lines
 

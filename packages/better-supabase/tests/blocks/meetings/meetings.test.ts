@@ -59,7 +59,10 @@ describe("createMeetings", () => {
       .orThrow();
 
     const started = await meetings.start("m1").orThrow();
-    const held = await meetings.hold("m1", "Done").orThrow();
+
+    const held = await meetings
+      .hold({ meetingId: "m1", summary: "Done" })
+      .orThrow();
 
     expect(created.startsAt.toString()).toBe("2026-10-29T10:00:00Z");
     expect(created.endsAt).toBeUndefined();
@@ -105,12 +108,15 @@ describe("createMeetings", () => {
       .orThrow();
 
     const updated = await meetings
-      .update("m1", { fields: { room_code: "C-3" } })
+      .update({ meetingId: "m1", change: { fields: { room_code: "C-3" } } })
       .orThrow();
 
-    const refused = await meetings.update("m1", {
-      // SAFETY: a value the schema refuses, to prove the client checks it.
-      fields: { room_code: 1 } as unknown as { room_code: string },
+    const refused = await meetings.update({
+      meetingId: "m1",
+      change: {
+        // SAFETY: a value the schema refuses, to prove the client checks it.
+        fields: { room_code: 1 } as unknown as { room_code: string },
+      },
     });
 
     const listed = await meetings.list().orThrow();
@@ -151,9 +157,12 @@ describe("createMeetings", () => {
     const meetings = createMeetings({ transport: t, tenant: "org-1" });
 
     await meetings
-      .recordDecision("m1", { title: "Approve the budget" })
+      .recordDecision({
+        meetingId: "m1",
+        input: { title: "Approve the budget" },
+      })
       .orThrow();
-    const passed = await meetings.decide("d1").orThrow();
+    const passed = await meetings.decide({ decisionId: "d1" }).orThrow();
 
     expect(passed.status).toBe("passed");
     expect(passed.decidedAt?.toString()).toBe("2026-10-29T10:00:00Z");
@@ -218,10 +227,13 @@ describe("createMeetings", () => {
     const meetings = createMeetings({ transport: t, tenant: "org-1" });
 
     await meetings
-      .addActionItem("m1", {
-        task: { title: "Send it" },
-        assignees: ["u2"],
-        decisionId: "d1",
+      .addActionItem({
+        meetingId: "m1",
+        input: {
+          task: { title: "Send it" },
+          assignees: ["u2"],
+          decisionId: "d1",
+        },
       })
       .orThrow();
 
@@ -264,19 +276,29 @@ describe("createMeetings", () => {
     const meetings = createMeetings({ transport: t, tenant: "org-1" });
 
     await meetings
-      .update("m1", {
-        title: "Moved",
-        endsAt: temporal().Instant.from(AT),
-        location: null,
+      .update({
+        meetingId: "m1",
+        change: {
+          title: "Moved",
+          endsAt: temporal().Instant.from(AT),
+          location: null,
+        },
       })
       .orThrow();
-    await meetings.cancel("m1", "No quorum").orThrow();
+    await meetings.cancel({ meetingId: "m1", reason: "No quorum" }).orThrow();
     await meetings
-      .setAttendee("m1", "u1", { role: "guest", attendance: "absent" })
+      .setAttendee({
+        meetingId: "m1",
+        userId: "u1",
+        attendee: { role: "guest", attendance: "absent" },
+      })
       .orThrow();
-    await meetings.decide("d1", "rejected").orThrow();
+    await meetings.decide({ decisionId: "d1", status: "rejected" }).orThrow();
     await meetings
-      .addActionItem("m1", { task: { title: "Call" }, agendaItemId: "a1" })
+      .addActionItem({
+        meetingId: "m1",
+        input: { task: { title: "Call" }, agendaItemId: "a1" },
+      })
       .orThrow();
 
     expect(t.calls.map(([name]) => name)).toEqual([

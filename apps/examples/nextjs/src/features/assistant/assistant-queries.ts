@@ -71,7 +71,7 @@ export async function getStoredChat(
   }
 
   const [path, runs] = await Promise.all([
-    chats.messages.path(chatId, { native: true }).orThrow(),
+    chats.messages.path({ chatId, native: true }).orThrow(),
     aiRuns(supabase).list({ chatId, limit: 1 }).orThrow(),
   ]);
 

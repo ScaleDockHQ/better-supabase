@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:3e3f6b80667a99d39f9f07866d95716a584a9b10a7992d822db78c6b0f75945c
+-- @bsb-hash sha256:ce87026efe53e869c110aab02cf392a2eb0b705847288adda03a037afab29f9c
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2585,6 +2585,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_acti
 create policy bsb_tenant_scope_delete on "better_supabase"."meeting_action_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.meetings', target_type => 'meeting', event_prefix => 'meeting', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_attendees', target_type => 'meeting_attendee', event_prefix => 'meeting_attendee', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_agenda_items', target_type => 'meeting_agenda_item', event_prefix => 'meeting_agenda_item', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_decisions', target_type => 'meeting_decision', event_prefix => 'meeting_decision', deferred => true);
+  perform better_supabase.audit('better_supabase.meeting_action_items', target_type => 'meeting_action_item', event_prefix => 'meeting_action_item', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

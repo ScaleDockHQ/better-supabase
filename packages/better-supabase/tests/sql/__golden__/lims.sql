@@ -777,7 +777,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:051c09615b89368c7d6ad144e94ba5dbb91b4adf0ae8d22f28a8f6bc5837a750
+-- @bsb-hash sha256:7f5425fcbbfb516eae3022c16778901678b0de9a492763d3e37bca70a1016539
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,6 +1617,15 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_results
 create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.lims_samples', target_type => 'lims_sample', event_prefix => 'lims_sample', deferred => true);
+  perform better_supabase.audit('better_supabase.lims_methods', target_type => 'lims_method', event_prefix => 'lims_method', deferred => true);
+  perform better_supabase.audit('better_supabase.lims_results', target_type => 'lims_result', event_prefix => 'lims_result', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -63,10 +63,13 @@ describe("createLegalEntities", () => {
     const entities = createLegalEntities({ transport: t, tenant: "org-1" });
 
     await entities
-      .update("le1", {
-        name: "Acme",
-        vatNumber: null,
-        fiscal: { taxPeriod: "monthly" },
+      .update({
+        id: "le1",
+        input: {
+          name: "Acme",
+          vatNumber: null,
+          fiscal: { taxPeriod: "monthly" },
+        },
       })
       .orThrow();
 
@@ -136,11 +139,15 @@ describe("createLegalEntities", () => {
       "invoice.footer": "Thanks",
     });
     expect(
-      await entities.setSetting("le1", "invoice.footer", "Thanks").orThrow(),
+      await entities
+        .setSetting({ id: "le1", key: "invoice.footer", value: "Thanks" })
+        .orThrow(),
     ).toBe("Thanks");
-    expect(await entities.resetSetting("le1", "invoice.footer").orThrow()).toBe(
-      true,
-    );
+    expect(
+      await entities
+        .resetSetting({ id: "le1", key: "invoice.footer" })
+        .orThrow(),
+    ).toBe(true);
     expect(t.calls[1]?.[1]).toEqual({
       legal_entity_id: "le1",
       key: "invoice.footer",
@@ -164,24 +171,22 @@ describe("createLegalEntities", () => {
 
     expect(
       await entities
-        .resolveSetting("invoice.footer", { legalEntityId: "le1" })
+        .resolveSetting({ key: "invoice.footer", legalEntityId: "le1" })
         .orThrow(),
     ).toEqual({
       source: "legal_entity",
       value: "Thanks",
       legalEntityId: "le1",
     });
-    expect(await entities.resolveSetting("invoice.days").orThrow()).toEqual({
-      source: "organization",
-      value: 7,
-      legalEntityId: undefined,
-    });
-    expect(await entities.resolveSetting("a").orThrow()).toEqual({
+    expect(
+      await entities.resolveSetting({ key: "invoice.days" }).orThrow(),
+    ).toEqual({ source: "organization", value: 7, legalEntityId: undefined });
+    expect(await entities.resolveSetting({ key: "a" }).orThrow()).toEqual({
       source: "default",
       value: undefined,
       legalEntityId: undefined,
     });
-    expect((await entities.resolveSetting("b").orThrow()).source).toBe(
+    expect((await entities.resolveSetting({ key: "b" }).orThrow()).source).toBe(
       "default",
     );
     expect(t.calls[0]?.[1]).toEqual({
@@ -249,14 +254,17 @@ describe("createLegalEntities", () => {
       })
       .orThrow();
     await entities
-      .update("le1", {
-        code: "NL03",
-        address: { city: "Breda" },
-        cocNumber: "9",
-        iban: "NL3",
-        bic: null,
-        logoAttachmentId: null,
-        defaultCurrency: "USD",
+      .update({
+        id: "le1",
+        input: {
+          code: "NL03",
+          address: { city: "Breda" },
+          cocNumber: "9",
+          iban: "NL3",
+          bic: null,
+          logoAttachmentId: null,
+          defaultCurrency: "USD",
+        },
       })
       .orThrow();
 

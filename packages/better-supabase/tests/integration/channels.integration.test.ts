@@ -85,7 +85,9 @@ describe.skipIf(!live)("channels", () => {
       });
 
       // The channel is a conversation: messages go through messaging.
-      await messaging.send(general.id, { body: "Hello" }).orThrow();
+      await messaging
+        .send({ conversationId: general.id, message: { body: "Hello" } })
+        .orThrow();
 
       await s.asRole(member2);
 
@@ -96,7 +98,10 @@ describe.skipIf(!live)("channels", () => {
       expect(await channels.find("secret").orThrow()).toBeUndefined();
       expect(await channels.join(secret.id)).toMatchObject({ ok: false });
       expect(
-        await channels.update(general.id, { topic: "Mine" }),
+        await channels.update({
+          channelId: general.id,
+          change: { topic: "Mine" },
+        }),
       ).toMatchObject({ ok: false });
 
       expect(await channels.join(general.id).orThrow()).toBe(true);
@@ -110,10 +115,14 @@ describe.skipIf(!live)("channels", () => {
 
       // The private channel's owner invites; the invitee then sees it.
       await s.asRole(member);
-      expect(await channels.invite(secret.id, [member2.id]).orThrow()).toBe(1);
-      expect(await channels.invite(secret.id, [outsider.id])).toMatchObject({
-        ok: false,
-      });
+      expect(
+        await channels
+          .invite({ channelId: secret.id, userIds: [member2.id] })
+          .orThrow(),
+      ).toBe(1);
+      expect(
+        await channels.invite({ channelId: secret.id, userIds: [outsider.id] }),
+      ).toMatchObject({ ok: false });
 
       await s.asRole(member2);
       expect((await channels.find("secret").orThrow())?.id).toBe(secret.id);
@@ -122,7 +131,10 @@ describe.skipIf(!live)("channels", () => {
       await s.asRole(owner);
 
       const renamed = await channels
-        .update(general.id, { name: "news", topic: null, purpose: "Company" })
+        .update({
+          channelId: general.id,
+          change: { name: "news", topic: null, purpose: "Company" },
+        })
         .orThrow();
 
       expect(renamed).toMatchObject({
@@ -130,7 +142,9 @@ describe.skipIf(!live)("channels", () => {
         topic: undefined,
         purpose: "Company",
       });
-      expect(await channels.archive(general.id).orThrow()).toBe(true);
+      expect(await channels.archive({ channelId: general.id }).orThrow()).toBe(
+        true,
+      );
       expect(await channels.list({ browse: true }).orThrow()).toEqual([]);
       expect(
         (

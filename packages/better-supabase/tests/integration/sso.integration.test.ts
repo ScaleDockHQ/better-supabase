@@ -118,7 +118,7 @@ describe.skipIf(!live)("sso", () => {
       });
 
       const done = await admin
-        .verifyDomain(added.id, { actorId: owner.id })
+        .verifyDomain({ domainId: added.id, options: { actorId: owner.id } })
         .orThrow();
 
       expect(done.verifiedAt).toBeDefined();
@@ -155,7 +155,10 @@ describe.skipIf(!live)("sso", () => {
       expect(listed).toMatchObject({ domain: name, enforceSso: false });
       expect(
         await sso
-          .updateDomain(added.id, { autoJoinRole: "owner" })
+          .updateDomain({
+            domainId: added.id,
+            settings: { autoJoinRole: "owner" },
+          })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("SSO_ROLE_INVALID");
       expect(await sso.removeDomain(claim.id).orThrow()).toBe(false);
@@ -293,7 +296,7 @@ describe.skipIf(!live)("sso", () => {
       });
 
       const removed = await admin
-        .removeSamlProvider(provider, { actorId: owner.id })
+        .removeSamlProvider({ providerId: provider, actorId: owner.id })
         .orThrow();
 
       expect(removed?.domains).toEqual([name]);

@@ -284,7 +284,7 @@ export function MemberTable({
 
   const changeRole = useCallback(
     async (member: Member, role: Role) => {
-      const result = await setRole(member.userId, role);
+      const result = await setRole({ userId: member.userId, role });
 
       if (result.ok) {
         toast.success(t("Role updated"));

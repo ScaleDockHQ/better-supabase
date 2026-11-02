@@ -312,11 +312,13 @@ describe("security-events transmitter methods", () => {
   it("answers unknown streams with null, false or not_found", async () => {
     const { transmitter } = await setup();
     const id = crypto.randomUUID();
-    expect(await transmitter.updateStream(id, {}).orThrow()).toBeNull();
+    expect(
+      await transmitter.updateStream({ id, input: {} }).orThrow(),
+    ).toBeNull();
     expect(await transmitter.deleteStream(id).orThrow()).toBe(false);
-    const status = await transmitter.setStatus(id, "paused");
+    const status = await transmitter.setStatus({ id, status: "paused" });
     expect(!status.ok && status.error.hint).toBe("SSF_STREAM_NOT_FOUND");
-    const verify = await transmitter.verify(id);
+    const verify = await transmitter.verify({ id });
     expect(!verify.ok && verify.error.hint).toBe("SSF_STREAM_NOT_FOUND");
   });
 

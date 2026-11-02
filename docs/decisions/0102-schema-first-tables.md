@@ -40,16 +40,18 @@ A breaking release with a migration guide, a codemod and a changeset.
 - `subject`, `realtime` and `vector-search` keep their arguments from the config keys they replace.
 - `json` takes `column=Type` pairs, or `column=import:module#Name`; `encrypted` takes `column=type`
   pairs (a bare column is text); `events` takes `on` and `include` as comma lists.
-- `audit`, `audit-reads` and `expose` change the table's SQL only (the audit trigger, the reveal
-  audit and the grants live in the table's own file), so `gen` reads nothing from them.
+- `audit` and `expose` change the table's SQL only (the audit trigger and the grants live in the
+  table's own file, and `table enable` writes them), so `gen` reads nothing from them.
+  `audit-reads` sets `auditReads` on the table's subject, `history` binds the `field-history`
+  block and `lifecycle` binds the `pipelines` block (all three need a `subject` tag).
 - A key the config sets itself wins over a tag, so a project moves one table at a time.
 
 ## Addendum: the SQL modules read tags too
 
 - `loadConfig` reads the `@bsb` comments in the declarative schema files and adds `subject`,
   `realtime`, `vector-search` and `json` entries to the resolved config, so `upgrade`, `gen` and
-  doctor see one config. `appTables` is never filled from tags: the tables' SQL is already in the
-  files.
+  doctor see one config. `appTables` gets no table of its own from tags, only the `encrypted`, `lookup`,
+  `server` and `events` settings of tables in `public`: the tables' SQL is already in the files.
 - `subject` takes `type`, `id`, `id-type`, `tenant` (`false` for none), `title`, `url`, `scope`,
   `cascade`, `deleted-at`, `search` (bare), `search-title`, `search-body`, `search-description`,
   `search-exclude`, `rank`, `rank-group`, `versions` (comma list), `versions-auto=false` and

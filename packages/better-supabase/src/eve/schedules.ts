@@ -85,21 +85,22 @@ export interface EveQueueJob {
 export interface EveQueueDrainer {
   /** Enqueues the due schedules' jobs; a pg_cron scheduler has none. */
   runSchedules(): AsyncResult<number>;
-  drain(
-    queue: string,
-    handler: (payload: EveAgentJob, job: EveQueueJob) => unknown,
-    options?: { readonly budgetMs?: number },
-  ): Promise<unknown>;
+  drain(input: {
+    queue: never;
+    handler: (payload: EveAgentJob, job: EveQueueJob) => unknown;
+    readonly budgetMs?: number;
+  }): Promise<unknown>;
 }
 
 /** The part of the queue block `scheduleAgent` writes to. */
 export interface EveQueueScheduler {
   schedule(
-    name: string,
-    cron: string,
-    queue: string,
-    payload: EveAgentJob,
-    options?: ScheduleOptions,
+    input: {
+      name: string;
+      cron: string;
+      queue: string;
+      payload: EveAgentJob;
+    } & ScheduleOptions,
   ): AsyncResult<void>;
 }
 
@@ -187,11 +188,13 @@ export function queueSchedules(
   const run = async (args: EveScheduleArgs) => {
     await options.queue.runSchedules().orThrow();
 
-    return options.queue.drain(
-      options.queueName ?? "eve",
-      agentJobHandler(options, args),
-      { budgetMs: options.budgetMs ?? 50_000 },
-    );
+    return options.queue.drain({
+      // SAFETY: the drainer's queue names are the app's own; `never` keeps a
+      // `Queue` with literal names assignable, and the name is checked there.
+      queue: (options.queueName ?? "eve") as never,
+      handler: agentJobHandler(options, args),
+      budgetMs: options.budgetMs ?? 50_000,
+    });
   };
 
   return (args) => {
@@ -219,5 +222,11 @@ export function scheduleAgent(
 ): AsyncResult<void> {
   const { queue: queueName, ...rest } = options;
 
-  return queue.schedule(name, cron, queueName ?? "eve", job, rest);
+  return queue.schedule({
+    name,
+    cron,
+    queue: queueName ?? "eve",
+    payload: job,
+    ...rest,
+  });
 }

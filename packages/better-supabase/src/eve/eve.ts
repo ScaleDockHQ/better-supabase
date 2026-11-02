@@ -152,7 +152,10 @@ export function supabaseDocumentBackend(
   return {
     apiVersion: 1,
     read: async ({ key }) => {
-      const result = await options.memory.documents.read(scope, key);
+      const result = await options.memory.documents.read({
+        scopeKey: scope,
+        path: key,
+      });
 
       if (!result.ok) {
         throw new DbException(result.error);
@@ -161,8 +164,11 @@ export function supabaseDocumentBackend(
       return result.data ?? null;
     },
     write: async ({ key, content, expectedVersion }) => {
-      const result = await options.memory.documents.write(scope, key, content, {
-        expectedVersion,
+      const result = await options.memory.documents.write({
+        scopeKey: scope,
+        path: key,
+        content,
+        options: { expectedVersion },
       });
 
       if (result.ok) {
@@ -372,16 +378,25 @@ export function supabaseMemory(
       .trim();
 
     const [core, archival, documents] = await Promise.all([
-      memory.render(where.organizationId, where.namespace).orThrow(),
+      memory
+        .render({ organizationId: where.organizationId, ns: where.namespace })
+        .orThrow(),
       query.length === 0
         ? Promise.resolve([])
         : memory.archival
-            .search(where.organizationId, query, where.namespace, { k })
+            .search({
+              organizationId: where.organizationId,
+              query,
+              ns: where.namespace,
+              k,
+            })
             .orThrow(),
       query.length === 0 || !options.knowledge
         ? Promise.resolve([])
         : options.knowledge
-            .search(where.organizationId, query, {
+            .search({
+              organizationId: where.organizationId,
+              query,
               k,
               scopes: options.knowledgeScopes ?? [{ scope: "organization" }],
             })
@@ -435,7 +450,7 @@ export function supabaseMemory(
         const scopeKey = ctx.memory.scope.key;
 
         const stored = await memory.documents
-          .read(OPS_SCOPE, `${scopeKey}/${path}`)
+          .read({ scopeKey: OPS_SCOPE, path: `${scopeKey}/${path}` })
           .orThrow();
 
         if (stored) {
@@ -446,12 +461,12 @@ export function supabaseMemory(
 
         const result = await recall(ctx, where);
 
-        const written = await memory.documents.write(
-          OPS_SCOPE,
-          `${scopeKey}/${path}`,
-          JSON.stringify(result),
-          { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
-        );
+        const written = await memory.documents.write({
+          scopeKey: OPS_SCOPE,
+          path: `${scopeKey}/${path}`,
+          content: JSON.stringify(result),
+          options: { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
+        });
 
         if (written.ok) {
           return result;
@@ -462,7 +477,7 @@ export function supabaseMemory(
         }
 
         const raced = await memory.documents
-          .read(OPS_SCOPE, `${scopeKey}/${path}`)
+          .read({ scopeKey: OPS_SCOPE, path: `${scopeKey}/${path}` })
           .orThrow();
 
         const value: unknown = raced ? JSON.parse(raced.content) : null;
@@ -483,7 +498,11 @@ export function supabaseMemory(
 
               const marker = `${ctx.memory.scope.key}/capture/${ctx.operationId}`;
 
-              if (await memory.documents.read(OPS_SCOPE, marker).orThrow()) {
+              if (
+                await memory.documents
+                  .read({ scopeKey: OPS_SCOPE, path: marker })
+                  .orThrow()
+              ) {
                 return;
               }
 
@@ -491,18 +510,21 @@ export function supabaseMemory(
 
               if (facts.length > 0) {
                 await memory
-                  .saveExtracted(where.organizationId, facts, where.namespace, {
+                  .saveExtracted({
+                    organizationId: where.organizationId,
+                    facts,
+                    ns: where.namespace,
                     sourceMessageId: ctx.operationId,
                   })
                   .orThrow();
               }
 
-              const written = await memory.documents.write(
-                OPS_SCOPE,
-                marker,
-                "{}",
-                { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
-              );
+              const written = await memory.documents.write({
+                scopeKey: OPS_SCOPE,
+                path: marker,
+                content: "{}",
+                options: { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
+              });
 
               if (!written.ok && !isConflict(written.error)) {
                 throw new DbException(written.error);
@@ -544,7 +566,11 @@ export function supabaseMemory(
             const fact = typeof input["fact"] === "string" ? input["fact"] : "";
 
             const saved = await memory.archival
-              .upsert(where.organizationId, fact, where.namespace)
+              .upsert({
+                organizationId: where.organizationId,
+                content: fact,
+                ns: where.namespace,
+              })
               .orThrow();
 
             return { id: saved.id };
@@ -565,14 +591,20 @@ export function supabaseMemory(
                 : "";
 
             const page = await memory.archival
-              .list(where.organizationId, where.namespace, { limit: 1000 })
+              .list({
+                organizationId: where.organizationId,
+                ns: where.namespace,
+                limit: 1000,
+              })
               .orThrow();
 
             if (!page.some((record) => record.id === id)) {
               return { deleted: false };
             }
 
-            return { deleted: await memory.archival.forget(id).orThrow() };
+            return {
+              deleted: await memory.archival.forget({ memoryId: id }).orThrow(),
+            };
           },
         }),
       };

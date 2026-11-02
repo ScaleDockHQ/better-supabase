@@ -67,7 +67,11 @@ describe("calendar client", () => {
 
     expect(
       await calendar
-        .createCalendar("org", "Team", { tz: "Europe/Amsterdam" })
+        .createCalendar({
+          organizationId: "org",
+          name: "Team",
+          options: { tz: "Europe/Amsterdam" },
+        })
         .orThrow(),
     ).toEqual({ id: "c1" });
     expect(calls[0]?.args).toEqual({
@@ -84,7 +88,11 @@ describe("calendar client", () => {
 
   it("expands occurrences from the listed rows", async () => {
     const { calls, calendar } = recorder({ list_calendar_events: [SERIES] });
-    const found = await calendar.occurrences(["c1"], range).orThrow();
+
+    const found = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
+
     expect(found.map((item) => item.start.toString())).toEqual([
       "2026-03-23T08:00:00Z",
       "2026-03-30T07:00:00Z",
@@ -112,10 +120,12 @@ describe("calendar client", () => {
       save_calendar_event: { id: "o1", uid: "s1", created: true },
     });
 
-    const [, second] = await calendar.occurrences(["c1"], range).orThrow();
+    const [, second] = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     const saved = await calendar
-      .editOccurrence(second!, { title: "Moved" })
+      .editOccurrence({ occurrence: second!, changes: { title: "Moved" } })
       .orThrow();
 
     expect(saved).toEqual({ id: "o1", uid: "s1", created: true });
@@ -145,10 +155,12 @@ describe("calendar client", () => {
       split_calendar_event: { id: "s2", uid: "s1-20260406T070000Z" },
     });
 
-    const [, , third] = await calendar.occurrences(["c1"], range).orThrow();
+    const [, , third] = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     const result = await calendar
-      .editFollowing(third!, { title: "Later" })
+      .editFollowing({ occurrence: third!, changes: { title: "Later" } })
       .orThrow();
 
     expect(result).toEqual({ id: "s2" });
@@ -172,8 +184,14 @@ describe("calendar client", () => {
       save_calendar_event: { id: "s1", uid: "s1", created: false },
     });
 
-    const [first] = await calendar.occurrences(["c1"], range).orThrow();
-    await calendar.editFollowing(first!, { title: "Renamed" });
+    const [first] = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
+
+    await calendar.editFollowing({
+      occurrence: first!,
+      changes: { title: "Renamed" },
+    });
     expect(calls[1]).toEqual({
       fn: "save_calendar_event",
       args: { calendar_id: "c1", item: { title: "Renamed", id: "s1" } },
@@ -189,7 +207,9 @@ describe("calendar client", () => {
       delete_calendar_event: true,
     });
 
-    const found = await calendar.occurrences(["c1"], range).orThrow();
+    const found = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     const occurrence = found.find(
       (item) =>
@@ -241,11 +261,9 @@ describe("calendar client", () => {
       "END:VCALENDAR",
     ].join("\r\n");
 
-    expect(await calendar.importIcs("c1", ics).orThrow()).toEqual({
-      created: 1,
-      updated: 0,
-      skipped: 1,
-    });
+    expect(
+      await calendar.importIcs({ calendarId: "c1", text: ics }).orThrow(),
+    ).toEqual({ created: 1, updated: 0, skipped: 1 });
     expect(calls[0]?.args).toMatchObject({
       calendar_id: "c1",
       source: {
@@ -264,7 +282,9 @@ describe("calendar client", () => {
     });
 
     const out = await calendar
-      .exportIcs({ id: "c1", name: "Team", tz: "Europe/Amsterdam" })
+      .exportIcs({
+        calendar: { id: "c1", name: "Team", tz: "Europe/Amsterdam" },
+      })
       .orThrow();
 
     expect(out).toContain("X-WR-CALNAME:Team\r\n");
@@ -389,15 +409,22 @@ describe("calendar client", () => {
         ownerId: "t1",
       },
     ]);
-    const [event] = await calendar.events(["c1"], range).orThrow();
+
+    const [event] = await calendar
+      .events({ calendarIds: ["c1"], range })
+      .orThrow();
+
     expect(event?.rrule).toBe(SERIES.rrule);
     expect(
       await calendar
-        .upsert("c1", {
-          title: "Review",
-          startsAt: range.from,
-          endsAt: range.from.add({ hours: 1 }),
-          exdates: [range.from],
+        .upsert({
+          calendarId: "c1",
+          input: {
+            title: "Review",
+            startsAt: range.from,
+            endsAt: range.from.add({ hours: 1 }),
+            exdates: [range.from],
+          },
         })
         .orThrow(),
     ).toEqual({ id: "e1", uid: "e1", created: false });
@@ -419,17 +446,24 @@ describe("calendar client", () => {
       respond_calendar_event: true,
     });
 
-    await calendar.setAttendee("e1", { email: "a@example.test" }).orThrow();
     await calendar
-      .setAttendee("e1", {
-        email: "b@example.test",
-        name: "Bea",
-        userId: "u2",
-        role: "optional",
+      .setAttendee({ eventId: "e1", attendee: { email: "a@example.test" } })
+      .orThrow();
+    await calendar
+      .setAttendee({
+        eventId: "e1",
+        attendee: {
+          email: "b@example.test",
+          name: "Bea",
+          userId: "u2",
+          role: "optional",
+        },
       })
       .orThrow();
-    await calendar.removeAttendee("e1", "a@example.test").orThrow();
-    await calendar.respond("e1", "tentative").orThrow();
+    await calendar
+      .removeAttendee({ eventId: "e1", email: "a@example.test" })
+      .orThrow();
+    await calendar.respond({ eventId: "e1", response: "tentative" }).orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       {
         event_id: "e1",
@@ -486,7 +520,10 @@ describe("calendar client", () => {
       save_calendar_event: { id: "x", uid: "x", created: false },
     });
 
-    const found = await calendar.occurrences(["c1"], range).orThrow();
+    const found = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
+
     const moved = found.find((item) => item.event.id === "o1")!;
     const lone = found.find((item) => item.event.id === "e2")!;
 
@@ -501,10 +538,16 @@ describe("calendar client", () => {
       response: "needs-action",
     });
     expect(lone.event.status).toBe("confirmed");
-    await calendar.editOccurrence(moved, { title: "Again" }).orThrow();
-    await calendar.editOccurrence(lone, { title: "Solo" }).orThrow();
-    await calendar.editFollowing(lone, { title: "Solo 2" }).orThrow();
-    await calendar.editOccurrence(third, {}).orThrow();
+    await calendar
+      .editOccurrence({ occurrence: moved, changes: { title: "Again" } })
+      .orThrow();
+    await calendar
+      .editOccurrence({ occurrence: lone, changes: { title: "Solo" } })
+      .orThrow();
+    await calendar
+      .editFollowing({ occurrence: lone, changes: { title: "Solo 2" } })
+      .orThrow();
+    await calendar.editOccurrence({ occurrence: third, changes: {} }).orThrow();
     expect(calls.slice(1).map((call) => call.args)).toEqual([
       { calendar_id: "c1", item: { title: "Again", id: "o1" } },
       { calendar_id: "c1", item: { title: "Solo", id: "e2" } },
@@ -525,14 +568,21 @@ describe("calendar client", () => {
 
   it("refuses to split a series after its last occurrence", async () => {
     const { calls, calendar } = recorder({ list_calendar_events: [SERIES] });
-    const [, , , last] = await calendar.occurrences(["c1"], range).orThrow();
+
+    const [, , , last] = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     const beyond = {
       ...last!,
       originalStart: Temporal.Instant.from("2027-01-04T08:00:00Z"),
     };
 
-    const result = await calendar.editFollowing(beyond, { title: "Never" });
+    const result = await calendar.editFollowing({
+      occurrence: beyond,
+      changes: { title: "Never" },
+    });
+
     expect(result.ok ? undefined : result.error.hint).toBe(
       "CALENDAR_SPLIT_INVALID",
     );
@@ -559,11 +609,15 @@ describe("calendar adoption options", () => {
     });
 
     await calendar
-      .createCalendar("org", "Mine", {
-        ownerType: "user",
-        ownerId: "u1",
-        visibility: "private",
-        isDefault: true,
+      .createCalendar({
+        organizationId: "org",
+        name: "Mine",
+        options: {
+          ownerType: "user",
+          ownerId: "u1",
+          visibility: "private",
+          isDefault: true,
+        },
       })
       .orThrow();
     expect(calls[0]?.args["attrs"]).toEqual({
@@ -572,7 +626,10 @@ describe("calendar adoption options", () => {
     });
     expect(
       await calendar
-        .updateCalendar("c2", { name: "Mine (old)", rank: null })
+        .updateCalendar({
+          id: "c2",
+          attributes: { name: "Mine (old)", rank: null },
+        })
         .orThrow(),
     ).toBe(true);
     expect(calls[1]).toEqual({
@@ -619,10 +676,13 @@ describe("calendar adoption options", () => {
 
     expect(
       await calendar
-        .setAttendee("e1", {
-          subjectType: "contact",
-          subjectId: "c-1",
-          optional: true,
+        .setAttendee({
+          eventId: "e1",
+          attendee: {
+            subjectType: "contact",
+            subjectId: "c-1",
+            optional: true,
+          },
         })
         .orThrow(),
     ).toBe(true);
@@ -633,7 +693,9 @@ describe("calendar adoption options", () => {
     expect(await calendar.removeAttendeeById("a1").orThrow()).toBe(true);
     expect(calls[1]?.args).toEqual({ attendee_id: "a1" });
 
-    const [event] = await calendar.events(["c1"], range).orThrow();
+    const [event] = await calendar
+      .events({ calendarIds: ["c1"], range })
+      .orThrow();
 
     expect(event?.attendees).toEqual([
       {
@@ -657,11 +719,17 @@ describe("calendar adoption options", () => {
       list_calendar_grants: [{ userId: "u2", role: "editor" }],
     });
 
-    expect(await calendar.setGrant("c1", "u2", "editor").orThrow()).toBe(true);
+    expect(
+      await calendar
+        .setGrant({ calendarId: "c1", userId: "u2", role: "editor" })
+        .orThrow(),
+    ).toBe(true);
     expect(await calendar.grants("c1").orThrow()).toEqual([
       { userId: "u2", role: "editor" },
     ]);
-    expect(await calendar.removeGrant("c1", "u2").orThrow()).toBe(true);
+    expect(
+      await calendar.removeGrant({ calendarId: "c1", userId: "u2" }).orThrow(),
+    ).toBe(true);
     expect(calls.map((call) => call.fn)).toEqual([
       "set_calendar_grant",
       "list_calendar_grants",
@@ -683,7 +751,9 @@ describe("calendar adoption options", () => {
       calendar_user_feed: { userId: "u1", calendars: [], events: [withDates] },
     });
 
-    const found = await calendar.occurrences(["c1"], range).orThrow();
+    const found = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     expect(found.map((item) => item.start.toString())).toEqual([
       "2026-03-23T08:00:00Z",
@@ -706,9 +776,9 @@ describe("calendar adoption options", () => {
     });
 
     await calendar
-      .importIcs(
-        "c1",
-        [
+      .importIcs({
+        calendarId: "c1",
+        text: [
           "BEGIN:VCALENDAR",
           "BEGIN:VEVENT",
           "UID:x1",
@@ -718,7 +788,7 @@ describe("calendar adoption options", () => {
           "END:VEVENT",
           "END:VCALENDAR",
         ].join("\r\n"),
-      )
+      })
       .orThrow();
 
     expect(calls[0]?.args["source"]).toMatchObject({
@@ -746,21 +816,26 @@ describe("calendar alarms", () => {
       save_calendar_event: { id: "s1", uid: "s1", created: false },
     });
 
-    const [first] = await calendar.occurrences(["c1"], range).orThrow();
+    const [first] = await calendar
+      .occurrences({ calendarIds: ["c1"], range })
+      .orThrow();
 
     expect(first!.event.alarms).toEqual([
       { method: "display", offsetMinutes: 10, id: "a1" },
     ]);
 
     await calendar
-      .editFollowing(first!, {
-        alarms: [
-          {
-            method: "email",
-            offsetMinutes: 0,
-            at: Temporal.Instant.from("2026-03-22T18:00:00Z"),
-          },
-        ],
+      .editFollowing({
+        occurrence: first!,
+        changes: {
+          alarms: [
+            {
+              method: "email",
+              offsetMinutes: 0,
+              at: Temporal.Instant.from("2026-03-22T18:00:00Z"),
+            },
+          ],
+        },
       })
       .orThrow();
 

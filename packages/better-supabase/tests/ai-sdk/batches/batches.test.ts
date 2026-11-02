@@ -68,7 +68,7 @@ function fakeStore(due: AiBatch[] = []) {
   let current = batch();
 
   const store: AiKeys["batches"] = {
-    record: (_org, input) => {
+    record: ({ organizationId: _org, batch: input }) => {
       recorded.push(input);
 
       return AsyncResult.ok(current);
@@ -77,7 +77,7 @@ function fakeStore(due: AiBatch[] = []) {
     list: () => AsyncResult.ok([current]),
     items: () => AsyncResult.ok([]),
     due: () => AsyncResult.ok(due),
-    update: (id, patch) => {
+    update: ({ batchId: id, patch }) => {
       updates.push({ id, patch });
       current = {
         ...current,
@@ -89,7 +89,7 @@ function fakeStore(due: AiBatch[] = []) {
 
       return AsyncResult.ok(current);
     },
-    saveItems: (_id, items) => {
+    saveItems: ({ batchId: _id, items }) => {
       saved.push([...items]);
 
       return AsyncResult.ok(items.length);

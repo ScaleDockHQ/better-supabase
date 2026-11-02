@@ -12,6 +12,7 @@ describe("withBlockSubjects", () => {
         tenant: "tenant_id",
         title: "title",
         deletedAt: "archived_at",
+        history: ["title", "body"],
         permissions: { read: "tasks.read", write: "tasks.write" },
         rank: { column: "rank", group: "stage_id" },
         search: { title: "title", body: ["identifier", "body"] },

@@ -231,7 +231,7 @@ function DocumentSession({
     }
 
     setSuggestions({ kind: "loading" });
-    const listed = await session.current.documents.suggestions(documentId);
+    const listed = await session.current.documents.suggestions({ documentId });
 
     setSuggestions(
       listed.ok ? { kind: "ok", items: listed.data } : { kind: "error" },
@@ -400,10 +400,10 @@ function DocumentSession({
             const decided =
               decision === "accepted"
                 ? await session.current.provider.acceptSuggestion(suggestion.id)
-                : await session.current.documents.decideSuggestion(
-                    suggestion.id,
-                    "rejected",
-                  );
+                : await session.current.documents.decideSuggestion({
+                    suggestionId: suggestion.id,
+                    decision: "rejected",
+                  });
 
             if (decided.ok) {
               await loadSuggestions();

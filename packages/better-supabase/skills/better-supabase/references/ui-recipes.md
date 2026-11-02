@@ -835,7 +835,7 @@ export function CommentThread({
 
     setPending(true);
 
-    if ((await add(text)).ok) {
+    if ((await add({ body: text })).ok) {
       setBody("");
     }
 
@@ -935,7 +935,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
     setPending(true);
 
-    if ((await add(text)).ok) {
+    if ((await add({ body: text })).ok) {
       setBody("");
     }
 
@@ -2471,7 +2471,7 @@ export function MemberTable({
 
   const changeRole = useCallback(
     async (member: Member, role: Role) => {
-      const result = await setRole(member.userId, role);
+      const result = await setRole({ userId: member.userId, role });
 
       if (result.ok) {
         toast.success(t("Role updated"));
@@ -2673,7 +2673,9 @@ export function MembersTable() {
               accessibilityRole="button"
               accessibilityHint={editable ? `Changes the role to ${next}` : ""}
               disabled={!editable || busy}
-              onPress={() => void setRole(member.userId, next)}
+              onPress={() =>
+                void setRole({ userId: member.userId, role: next })
+              }
             >
               <Text style={{ color: editable ? "#2563eb" : "#737373" }}>
                 {member.role}
@@ -5225,7 +5227,10 @@ export function MessageComposer({
   conversationId: string;
   placeholder: string;
   inputRef?: Ref<HTMLTextAreaElement>;
-  onSend: (body: string, draft: MessageDraft) => Promise<Result<unknown>>;
+  onSend: (input: {
+    body: string;
+    draft: MessageDraft;
+  }) => Promise<Result<unknown>>;
   onTyping: (typing: boolean) => void;
 }) {
   const t = useExtracted("chat");
@@ -5300,8 +5305,11 @@ export function MessageComposer({
 
     setSending(true);
 
-    const result = await onSend(text, {
-      attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+    const result = await onSend({
+      body: text,
+      draft: {
+        attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+      },
     });
 
     setSending(false);
@@ -8040,9 +8048,19 @@ async function loadPanels(
     metrics.map(async ({ key }) => {
       const [kpi, series] = await Promise.all([
         client
-          .kpi(key, range, { organizationId, compare: "previous" })
+          .kpi({
+            metric: key,
+            range,
+            options: { organizationId, compare: "previous" },
+          })
           .orThrow(),
-        client.series(key, range, { organizationId, grain: "day" }).orThrow(),
+        client
+          .series({
+            metric: key,
+            range,
+            options: { organizationId, grain: "day" },
+          })
+          .orThrow(),
       ]);
 
       return { key, kpi, rows: toChartData(series) };
@@ -8731,7 +8749,7 @@ function EmptyConditions() {
             type="button"
             size="sm"
             onClick={() => {
-              builder.addRule(undefined, builder.fields?.[0]?.id);
+              builder.addRule({ field: builder.fields?.[0]?.id });
             }}
           >
             <PlusIcon />
@@ -8769,7 +8787,7 @@ function GroupEditor({
     const index = group.rules.findIndex((child) => child.id === over.id);
 
     if (index !== -1) {
-      builder.move(String(active.id), group.id, index);
+      builder.move({ id: String(active.id), group: group.id, index });
     }
   };
 
@@ -8809,7 +8827,10 @@ function GroupEditor({
             size="sm"
             variant="ghost"
             onClick={() => {
-              builder.addRule(group.id, builder.fields?.[0]?.id);
+              builder.addRule({
+                group: group.id,
+                field: builder.fields?.[0]?.id,
+              });
             }}
           >
             <PlusIcon />
@@ -8821,12 +8842,15 @@ function GroupEditor({
               size="sm"
               variant="ghost"
               onClick={() => {
-                const added = builder.addGroup(
-                  group.id,
-                  group.combinator === "and" ? "or" : "and",
-                );
+                const added = builder.addGroup({
+                  group: group.id,
+                  combinator: group.combinator === "and" ? "or" : "and",
+                });
 
-                builder.addRule(added, builder.fields?.[0]?.id);
+                builder.addRule({
+                  group: added,
+                  field: builder.fields?.[0]?.id,
+                });
               }}
             >
               <PlusIcon />
@@ -8940,7 +8964,7 @@ function Connective({
       ]}
       onValueChange={(value) => {
         if (value === "and" || value === "or") {
-          builder.setCombinator(group.id, value);
+          builder.setCombinator({ group: group.id, combinator: value });
         }
       }}
     >
@@ -9089,7 +9113,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
           }))}
           onValueChange={(value) => {
             if (value !== null) {
-              builder.setField(rule.id, value);
+              builder.setField({ id: rule.id, field: value });
             }
           }}
         >
@@ -9113,7 +9137,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
           }))}
           onValueChange={(value) => {
             if (value !== null) {
-              builder.setOperator(rule.id, value);
+              builder.setOperator({ id: rule.id, operator: value });
             }
           }}
         >
@@ -9134,7 +9158,7 @@ function ConditionRow({ rule }: { rule: FilterRule }) {
             value={valueText(field, rule)}
             disabled={disabled}
             onChange={(text) => {
-              builder.setValue(rule.id, valueOf(field, text));
+              builder.setValue({ id: rule.id, value: valueOf(field, text) });
             }}
           />
         ) : null}
@@ -10968,7 +10992,7 @@ export function ReactionsBar({
                     disabled={!canReact || busy !== null}
                     onClick={() => {
                       setBusy(emoji);
-                      void toggle(subject, emoji).finally(() => {
+                      void toggle({ subject, emoji }).finally(() => {
                         setBusy(null);
                       });
                     }}
@@ -21858,7 +21882,7 @@ function DocumentSession({
     }
 
     setSuggestions({ kind: "loading" });
-    const listed = await session.current.documents.suggestions(documentId);
+    const listed = await session.current.documents.suggestions({ documentId });
 
     setSuggestions(
       listed.ok ? { kind: "ok", items: listed.data } : { kind: "error" },
@@ -22027,10 +22051,10 @@ function DocumentSession({
             const decided =
               decision === "accepted"
                 ? await session.current.provider.acceptSuggestion(suggestion.id)
-                : await session.current.documents.decideSuggestion(
-                    suggestion.id,
-                    "rejected",
-                  );
+                : await session.current.documents.decideSuggestion({
+                    suggestionId: suggestion.id,
+                    decision: "rejected",
+                  });
 
             if (decided.ok) {
               await loadSuggestions();

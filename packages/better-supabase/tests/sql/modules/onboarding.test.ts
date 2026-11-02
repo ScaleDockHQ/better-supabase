@@ -66,6 +66,20 @@ describe("onboarding module", () => {
     );
   });
 
+  it("completes a step from its completeOn event next to its events", () => {
+    const sql = sqlOf(["outbox", "onboarding"], {
+      checklists: [
+        defineChecklist({
+          id: "sales",
+          scope: "organization",
+          steps: [{ id: "send", completeOn: "invoice.sent" }],
+        }),
+      ],
+    });
+
+    expect(sql).toContain("in ('invoice.sent')");
+  });
+
   it("snapshots each checklist's steps in order", () => {
     const sql = sqlOf(["outbox", "onboarding"], {
       checklists: [team, profile],

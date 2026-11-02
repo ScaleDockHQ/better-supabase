@@ -1,0 +1,56 @@
+---
+title: People
+description: Employees, leave, shifts, payroll export, qualifications and enrollments.
+---
+
+Covers the employee record and what surrounds it: leave and its balances, shifts, payroll export, qualifications and onboarding programs.
+
+```bash
+better-supabase add people
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { people: {} } });
+```
+
+`add` lists `people` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/people` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { peopleBlock } from "better-supabase/blocks/people";
+```
+
+## Parts
+
+Installing `people` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`employees`](/docs/blocks/employees)
+- [`leave`](/docs/blocks/leave)
+- [`shifts`](/docs/blocks/shifts)
+- [`payroll-export`](/docs/blocks/payroll-export)
+- [`qualifications`](/docs/blocks/qualifications)
+- [`enrollments`](/docs/blocks/enrollments)
+
+Hiring lives in [`recruiting`](/docs/blocks/recruiting), which the `people` preset lists next to the blocks it keeps.
+
+## Helpers
+
+`onboard` and `offboard`: `onboard` creates the employee and enrolls them in an onboarding program. `offboard` ends the employment, cancels the listed enrollments and unassigns the listed shifts, stopping at the first failure.
+
+```ts
+await blocks.people.onboard({
+  organizationId,
+  employee: { name: "Ann" },
+  program: "onboarding",
+});
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove people
+better-supabase remove people --with-parts
+```
+
+The first command replaces `people` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

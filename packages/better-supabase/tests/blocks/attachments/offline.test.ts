@@ -141,7 +141,7 @@ describe("attachments with offline", () => {
       requireScan: true,
     });
 
-    expect(await offline.download("a1")).toMatchObject({
+    expect(await offline.download({ id: "a1" })).toMatchObject({
       ok: false,
       error: { hint: "ATTACHMENT_NOT_SCANNED" },
     });

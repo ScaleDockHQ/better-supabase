@@ -149,11 +149,11 @@ describe.skipIf(!live)("block access over the provider's row grants", () => {
       await s.service();
 
       const { id: granted } = await calendar
-        .createCalendar(org, "Granted")
+        .createCalendar({ organizationId: org, name: "Granted" })
         .orThrow();
 
       const { id: other } = await calendar
-        .createCalendar(org, "Other")
+        .createCalendar({ organizationId: org, name: "Other" })
         .orThrow();
 
       await s.client.query(
@@ -219,7 +219,11 @@ describe.skipIf(!live)("block access over the provider's row grants", () => {
       });
 
       await s.service();
-      const { id } = await calendar.createCalendar(org, "Team").orThrow();
+
+      const { id } = await calendar
+        .createCalendar({ organizationId: org, name: "Team" })
+        .orThrow();
+
       await s.client.query(
         `insert into ${schema}.row_grants values ($1, $2, 'agendaCalendar.read'), ($1, $2, 'agendaCalendar.update')`,
         [alice.id, id],
@@ -227,10 +231,13 @@ describe.skipIf(!live)("block access over the provider's row grants", () => {
 
       await s.as(alice);
       await calendar
-        .upsert(id, {
-          title: "Standup",
-          startsAt: Temporal.Now.instant().add({ hours: 24 }),
-          endsAt: Temporal.Now.instant().add({ hours: 25 }),
+        .upsert({
+          calendarId: id,
+          input: {
+            title: "Standup",
+            startsAt: Temporal.Now.instant().add({ hours: 24 }),
+            endsAt: Temporal.Now.instant().add({ hours: 25 }),
+          },
         })
         .orThrow();
 
@@ -288,7 +295,11 @@ describe.skipIf(!live)("block access over the provider's row grants", () => {
       });
 
       await s.service();
-      const { id } = await calendar.createCalendar(org, "Team").orThrow();
+
+      const { id } = await calendar
+        .createCalendar({ organizationId: org, name: "Team" })
+        .orThrow();
+
       const team = crypto.randomUUID();
       await s.client.query(
         `insert into ${schema}.role_grants values ('viewer', $1, 'agendaCalendar.read'), ('viewer', $1, 'agendaCalendar.update')`,
@@ -303,10 +314,13 @@ describe.skipIf(!live)("block access over the provider's row grants", () => {
         [team, id],
       );
       await calendar
-        .upsert(id, {
-          title: "Retro",
-          startsAt: Temporal.Now.instant().add({ hours: 24 }),
-          endsAt: Temporal.Now.instant().add({ hours: 25 }),
+        .upsert({
+          calendarId: id,
+          input: {
+            title: "Retro",
+            startsAt: Temporal.Now.instant().add({ hours: 24 }),
+            endsAt: Temporal.Now.instant().add({ hours: 25 }),
+          },
         })
         .orThrow();
 

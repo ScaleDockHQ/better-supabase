@@ -55,18 +55,21 @@ describe("search block", () => {
   it("searches as the caller and maps the hits", async () => {
     const { calls, transport } = recorder({ search: [hit] });
     const search = createSearch({ transport });
-    expect(await search.search("revenue").orThrow()).toEqual([
+    expect(await search.search({ q: "revenue" }).orThrow()).toEqual([
       { ...hit, score: 0.5 },
     ]);
     await search
-      .search("revenue", {
-        types: ["note"],
-        organizationId: "org",
-        limit: 5,
-        embedding: [0.1, 0.2],
+      .search({
+        q: "revenue",
+        query: {
+          types: ["note"],
+          organizationId: "org",
+          limit: 5,
+          embedding: [0.1, 0.2],
+        },
       })
       .orThrow();
-    await search.search("revenue", { embedding: null }).orThrow();
+    await search.search({ q: "revenue", query: { embedding: null } }).orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       { q: "revenue", types: null, tenant: null, max_results: 20 },
       {
@@ -83,7 +86,12 @@ describe("search block", () => {
   it("rejects an embedding that is not finite before calling", async () => {
     const { calls, transport } = recorder();
     const search = createSearch({ transport });
-    const result = await search.search("x", { embedding: [Number.NaN] });
+
+    const result = await search.search({
+      q: "x",
+      query: { embedding: [Number.NaN] },
+    });
+
     expect(result.ok).toBe(false);
     expect(calls).toEqual([]);
   });
@@ -101,9 +109,15 @@ describe("search block", () => {
     expect(recent?.openedAt?.toString()).toBe("2026-10-01T10:00:00Z");
     expect(recent?.starredAt).toBeUndefined();
     await search.favorites({ limit: 3, types: ["note"] }).orThrow();
-    expect(await search.touch("note", "n1").orThrow()).toBe(true);
-    expect(await search.star("note", "n1").orThrow()).toBe(true);
-    await search.star("note", "n1", false).orThrow();
+    expect(
+      await search.touch({ subjectType: "note", subjectId: "n1" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await search.star({ subjectType: "note", subjectId: "n1" }).orThrow(),
+    ).toBe(true);
+    await search
+      .star({ subjectType: "note", subjectId: "n1", starred: false })
+      .orThrow();
     expect(calls.map((call) => call.args)).toEqual([
       { max_results: 10, types: null },
       { max_results: 3, types: ["note"] },
@@ -127,8 +141,12 @@ describe("search block", () => {
       service: service.transport,
     });
 
-    expect(await search.refresh("note", "n1").orThrow()).toBe(true);
-    expect(await search.remove("note", "n1").orThrow()).toBe(false);
+    expect(
+      await search.refresh({ subjectType: "note", subjectId: "n1" }).orThrow(),
+    ).toBe(true);
+    expect(
+      await search.remove({ subjectType: "note", subjectId: "n1" }).orThrow(),
+    ).toBe(false);
     expect(await search.reindex().orThrow()).toBe(4);
     await search.reindex("note").orThrow();
     expect(member.calls).toEqual([]);
@@ -155,11 +173,14 @@ describe("search block", () => {
     const texts: string[][] = [];
 
     const stored = await search
-      .embedPending((values) => {
-        texts.push([...values]);
+      .embedPending({
+        embed: (values) => {
+          texts.push([...values]);
 
-        return Promise.resolve(values.map((_, index) => [index, 1]));
-      }, 10)
+          return Promise.resolve(values.map((_, index) => [index, 1]));
+        },
+        limit: 10,
+      })
       .orThrow();
 
     expect(stored).toBe(2);
@@ -182,7 +203,7 @@ describe("search block", () => {
 
     expect(
       await empty
-        .embedPending(() => Promise.reject(new Error("unused")))
+        .embedPending({ embed: () => Promise.reject(new Error("unused")) })
         .orThrow(),
     ).toBe(0);
 
@@ -194,7 +215,10 @@ describe("search block", () => {
       }).transport,
     });
 
-    const result = await short.embedPending(() => Promise.resolve([]));
+    const result = await short.embedPending({
+      embed: () => Promise.resolve([]),
+    });
+
     expect(result.ok ? undefined : result.error.message).toContain(
       "embed returned 0 vectors for 1 texts",
     );
@@ -208,13 +232,13 @@ describe("search block", () => {
       hooks: {
         touch: {
           before: (args) => {
-            seen.push(`before ${args.join("/")}`);
+            seen.push(`before ${args[0].subjectType}/${args[0].subjectId}`);
           },
         },
       },
     });
 
-    await search.touch("note", "n1").orThrow();
+    await search.touch({ subjectType: "note", subjectId: "n1" }).orThrow();
     expect(seen).toEqual(["before note/n1"]);
   });
 });
@@ -230,12 +254,24 @@ describe("searchSink", () => {
         failure = next;
       },
       search: {
-        remove: (type: string, id: string) => {
+        remove: ({
+          subjectType: type,
+          subjectId: id,
+        }: {
+          subjectType: string;
+          subjectId: string;
+        }) => {
           calls.push(`remove ${type}/${id}`);
 
           return Promise.resolve(failure ? err(failure as never) : ok(true));
         },
-        refresh: (type: string, id: string) => {
+        refresh: ({
+          subjectType: type,
+          subjectId: id,
+        }: {
+          subjectType: string;
+          subjectId: string;
+        }) => {
           calls.push(`refresh ${type}/${id}`);
 
           return Promise.resolve(failure ? err(failure as never) : ok(true));

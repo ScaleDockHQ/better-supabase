@@ -101,20 +101,29 @@ describe.skipIf(!live)("orders kitchen", () => {
       }).kitchen;
 
       const grill = await kitchen
-        .saveStation(org, {
-          key: "grill",
-          name: "Grill",
-          position: 1,
-          productIds: [burger],
+        .saveStation({
+          organizationId: org,
+          input: {
+            key: "grill",
+            name: "Grill",
+            position: 1,
+            productIds: [burger],
+          },
         })
         .orThrow();
 
       const pass = await kitchen
-        .saveStation(org, { key: "pass", name: "Pass", default: true })
+        .saveStation({
+          organizationId: org,
+          input: { key: "pass", name: "Pass", default: true },
+        })
         .orThrow();
 
       const bar = await kitchen
-        .saveStation(org, { key: "bar", name: "Bar", productIds: [lemonade] })
+        .saveStation({
+          organizationId: org,
+          input: { key: "bar", name: "Bar", productIds: [lemonade] },
+        })
         .orThrow();
 
       expect(grill).toMatchObject({
@@ -125,24 +134,46 @@ describe.skipIf(!live)("orders kitchen", () => {
       });
       expect(
         hint(
-          await kitchen.saveStation(org, { key: "x", productIds: ["nope"] }),
+          await kitchen.saveStation({
+            organizationId: org,
+            input: { key: "x", productIds: ["nope"] },
+          }),
         ),
       ).not.toBe("ok");
       expect(
-        hint(await kitchen.saveStation(other, { key: "theirs", name: "No" })),
+        hint(
+          await kitchen.saveStation({
+            organizationId: other,
+            input: { key: "theirs", name: "No" },
+          }),
+        ),
       ).toBe("ORDERS_FORBIDDEN");
       expect(
         hint(
-          await kitchen.saveStation(org, { name: "Gone" }, crypto.randomUUID()),
+          await kitchen.saveStation({
+            organizationId: org,
+            input: { name: "Gone" },
+            stationId: crypto.randomUUID(),
+          }),
         ),
       ).toBe("ORDERS_KITCHEN_STATION_NOT_FOUND");
 
       const renamed = await kitchen
-        .saveStation(org, { name: "Bar & drinks", default: true }, bar.id)
+        .saveStation({
+          organizationId: org,
+          input: { name: "Bar & drinks", default: true },
+          stationId: bar.id,
+        })
         .orThrow();
 
       expect(renamed).toMatchObject({ name: "Bar & drinks", isDefault: true });
-      await kitchen.saveStation(org, { default: true }, pass.id).orThrow();
+      await kitchen
+        .saveStation({
+          organizationId: org,
+          input: { default: true },
+          stationId: pass.id,
+        })
+        .orThrow();
 
       expect(
         (await kitchen.stations(org).orThrow()).map((station) => [
@@ -157,13 +188,13 @@ describe.skipIf(!live)("orders kitchen", () => {
 
       expect(
         await kitchen
-          .send(orderId, { [line("Burger")]: "  no onions " })
+          .send({ orderId, notes: { [line("Burger")]: "  no onions " } })
           .orThrow(),
       ).toBe(3);
-      expect(await kitchen.send(orderId).orThrow()).toBe(0);
+      expect(await kitchen.send({ orderId }).orThrow()).toBe(0);
 
       const grillQueue = await kitchen
-        .queue(org, { stationId: grill.id })
+        .queue({ organizationId: org, query: { stationId: grill.id } })
         .orThrow();
 
       expect(grillQueue).toHaveLength(1);
@@ -178,7 +209,7 @@ describe.skipIf(!live)("orders kitchen", () => {
           stationId: grill.id,
         },
       ]);
-      const all = await kitchen.queue(org).orThrow();
+      const all = await kitchen.queue({ organizationId: org }).orThrow();
       expect(all[0]!.lines.map((item) => [item.title, item.stationId])).toEqual(
         [
           ["Burger", grill.id],
@@ -188,35 +219,58 @@ describe.skipIf(!live)("orders kitchen", () => {
       );
 
       const preparing = await kitchen
-        .setState(line("Burger"), "preparing")
+        .setState({ lineId: line("Burger"), state: "preparing" })
         .orThrow();
 
       expect(preparing.state).toBe("preparing");
       expect(preparing.startedAt).toBeDefined();
       expect(preparing.readyAt).toBeUndefined();
       expect(
-        hint(await kitchen.setState(line("Burger"), "burnt" as "ready")),
+        hint(
+          await kitchen.setState({
+            lineId: line("Burger"),
+            state: "burnt" as "ready",
+          }),
+        ),
       ).toBe("ORDERS_PREPARATION_STATE_INVALID");
-      expect(hint(await kitchen.setState(crypto.randomUUID(), "ready"))).toBe(
-        "ORDERS_PREPARATION_NOT_FOUND",
-      );
-      expect(hint(await viewing.setState(line("Burger"), "ready"))).toBe(
+      expect(
+        hint(
+          await kitchen.setState({
+            lineId: crypto.randomUUID(),
+            state: "ready",
+          }),
+        ),
+      ).toBe("ORDERS_PREPARATION_NOT_FOUND");
+      expect(
+        hint(
+          await viewing.setState({ lineId: line("Burger"), state: "ready" }),
+        ),
+      ).toBe("ORDERS_FORBIDDEN");
+      expect(hint(await outsider.bump({ orderId, state: "ready" }))).toBe(
         "ORDERS_FORBIDDEN",
       );
-      expect(hint(await outsider.bump(orderId, "ready"))).toBe(
-        "ORDERS_FORBIDDEN",
+      expect(await outsider.queue({ organizationId: org }).orThrow()).toEqual(
+        [],
       );
-      expect(await outsider.queue(org).orThrow()).toEqual([]);
 
-      expect(await kitchen.bump(orderId, "ready", bar.id).orThrow()).toBe(1);
-      expect(await kitchen.bump(orderId, "ready").orThrow()).toBe(2);
-      expect(await kitchen.bump(orderId, "ready").orThrow()).toBe(0);
+      expect(
+        await kitchen
+          .bump({ orderId, state: "ready", stationId: bar.id })
+          .orThrow(),
+      ).toBe(1);
+      expect(await kitchen.bump({ orderId, state: "ready" }).orThrow()).toBe(2);
+      expect(await kitchen.bump({ orderId, state: "ready" }).orThrow()).toBe(0);
 
-      const back = await kitchen.setState(line("Fries"), "preparing").orThrow();
+      const back = await kitchen
+        .setState({ lineId: line("Fries"), state: "preparing" })
+        .orThrow();
+
       expect(back.readyAt).toBeUndefined();
-      await kitchen.setState(line("Fries"), "ready").orThrow();
+      await kitchen
+        .setState({ lineId: line("Fries"), state: "ready" })
+        .orThrow();
 
-      const [board] = await kitchen.board(org).orThrow();
+      const [board] = await kitchen.board({ organizationId: org }).orThrow();
       expect(board).toMatchObject({
         orderId,
         number: "SO-1",
@@ -228,16 +282,27 @@ describe.skipIf(!live)("orders kitchen", () => {
       expect(board!.readyAt).toBeDefined();
       expect(board!.servedAt).toBeUndefined();
 
-      expect(await kitchen.bump(orderId, "served").orThrow()).toBe(3);
+      expect(await kitchen.bump({ orderId, state: "served" }).orThrow()).toBe(
+        3,
+      );
       expect(
         await kitchen
-          .board(org, { since: Temporal.Now.instant().add({ hours: 1 }) })
+          .board({
+            organizationId: org,
+            query: { since: Temporal.Now.instant().add({ hours: 1 }) },
+          })
           .orThrow(),
       ).toEqual([]);
       expect(
-        (await kitchen.queue(org, { states: ["served"] }).orThrow())[0]!.lines,
+        (
+          await kitchen
+            .queue({ organizationId: org, query: { states: ["served"] } })
+            .orThrow()
+        )[0]!.lines,
       ).toHaveLength(3);
-      expect(await kitchen.queue(org).orThrow()).toEqual([]);
+      expect(await kitchen.queue({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
 
@@ -265,8 +330,10 @@ describe.skipIf(!live)("orders kitchen", () => {
         "update better_supabase.orders set status = 'cancelled' where id = $1",
         [orderId],
       );
-      expect(hint(await kitchen.send(orderId))).toBe("ORDERS_KITCHEN_CLOSED");
-      expect(hint(await kitchen.send(crypto.randomUUID()))).toBe(
+      expect(hint(await kitchen.send({ orderId }))).toBe(
+        "ORDERS_KITCHEN_CLOSED",
+      );
+      expect(hint(await kitchen.send({ orderId: crypto.randomUUID() }))).toBe(
         "ORDERS_ORDER_NOT_FOUND",
       );
       expect(await kitchen.deleteStation(grill.id).orThrow()).toBe(true);

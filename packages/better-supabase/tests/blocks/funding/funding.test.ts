@@ -150,17 +150,22 @@ describe("createFunding", () => {
     const funding = createFunding({ transport: t });
 
     const saved = await funding
-      .saveProduct("org-1", {
-        code: "H126",
-        title: "Personal care",
-        unit: "hour",
-        rate: money(7500n, "EUR"),
-        validFrom: day("2026-01-01"),
+      .saveProduct({
+        organizationId: "org-1",
+        input: {
+          code: "H126",
+          title: "Personal care",
+          unit: "hour",
+          rate: money(7500n, "EUR"),
+          validFrom: day("2026-01-01"),
+        },
       })
       .orThrow();
 
-    await funding.products("org-1", { includeExpired: true }).orThrow();
-    await funding.products("org-1").orThrow();
+    await funding
+      .products({ organizationId: "org-1", includeExpired: true })
+      .orThrow();
+    await funding.products({ organizationId: "org-1" }).orThrow();
 
     expect(saved.rate).toEqual(money(7500n, "EUR"));
     expect(saved.validFrom?.toString()).toBe("2026-01-01");
@@ -224,32 +229,41 @@ describe("createFunding", () => {
     const subject = { type: "client", id: "c1" };
 
     const created = await funding
-      .createAward("org-1", subject, {
-        funderId: "f1",
-        productId: "p1",
-        units: 8,
-        period: "week",
-        startsOn: day("2026-10-01"),
-        reference: "IND-1",
-        fields: { indication: "VV4" },
+      .createAward({
+        organizationId: "org-1",
+        subject,
+        input: {
+          funderId: "f1",
+          productId: "p1",
+          units: 8,
+          period: "week",
+          startsOn: day("2026-10-01"),
+          reference: "IND-1",
+          fields: { indication: "VV4" },
+        },
       })
       .orThrow();
 
     await funding
-      .updateAward("org-1", subject, "w1", { units: 10, endsOn: null })
+      .updateAward({
+        organizationId: "org-1",
+        subject,
+        awardId: "w1",
+        patch: { units: 10, endsOn: null },
+      })
       .orThrow();
 
     const ended = await funding
-      .endAward("w1", { endsOn: day("2026-12-31") })
+      .endAward({ awardId: "w1", endsOn: day("2026-12-31") })
       .orThrow();
 
-    await funding.endAward("w1").orThrow();
+    await funding.endAward({ awardId: "w1" }).orThrow();
 
     const [listed] = await funding
-      .awards("org-1", { subject, includeEnded: true })
+      .awards({ organizationId: "org-1", subject, includeEnded: true })
       .orThrow();
 
-    await funding.awards("org-1").orThrow();
+    await funding.awards({ organizationId: "org-1" }).orThrow();
     const usage = await funding.usage("w1").orThrow();
 
     expect(created).toMatchObject({
@@ -338,40 +352,53 @@ describe("createFunding", () => {
     const funding = createFunding({ transport: t, service });
 
     const delivery = await funding
-      .registerDelivery("w1", {
-        deliveredOn: day("2026-10-05"),
-        units: 1.5,
-        sourceType: "time_entry",
-        sourceId: "t1",
-        performerId: "u2",
+      .registerDelivery({
+        awardId: "w1",
+        input: {
+          deliveredOn: day("2026-10-05"),
+          units: 1.5,
+          sourceType: "time_entry",
+          sourceId: "t1",
+          performerId: "u2",
+        },
       })
       .orThrow();
 
     await funding
-      .registerDelivery("w1", { deliveredOn: day("2026-10-05"), units: 1 })
-      .orThrow();
-
-    const registration = await funding
-      .registerFromTime("org-1", day("2026-10-01"), day("2026-10-31"))
-      .orThrow();
-
-    const changed = await funding
-      .approveDeliveries(["d1"], { approved: false })
-      .orThrow();
-
-    await funding.approveDeliveries(["d1"]).orThrow();
-
-    const [listed] = await funding
-      .deliveries("org-1", {
+      .registerDelivery({
         awardId: "w1",
-        status: "approved",
-        since: day("2026-10-01"),
-        until: day("2026-10-31"),
-        limit: 10,
+        input: { deliveredOn: day("2026-10-05"), units: 1 },
       })
       .orThrow();
 
-    await funding.deliveries("org-1").orThrow();
+    const registration = await funding
+      .registerFromTime({
+        organizationId: "org-1",
+        since: day("2026-10-01"),
+        until: day("2026-10-31"),
+      })
+      .orThrow();
+
+    const changed = await funding
+      .approveDeliveries({ deliveryIds: ["d1"], approved: false })
+      .orThrow();
+
+    await funding.approveDeliveries({ deliveryIds: ["d1"] }).orThrow();
+
+    const [listed] = await funding
+      .deliveries({
+        organizationId: "org-1",
+        filter: {
+          awardId: "w1",
+          status: "approved",
+          since: day("2026-10-01"),
+          until: day("2026-10-31"),
+          limit: 10,
+        },
+      })
+      .orThrow();
+
+    await funding.deliveries({ organizationId: "org-1" }).orThrow();
 
     expect(delivery).toMatchObject({ units: 1.5, sourceId: "t1" });
     expect(delivery.claimLineId).toBeUndefined();
@@ -427,7 +454,11 @@ describe("createFunding", () => {
     });
 
     const registration = await funding
-      .registerFromTime("org-1", day("2026-10-01"), day("2026-10-31"))
+      .registerFromTime({
+        organizationId: "org-1",
+        since: day("2026-10-01"),
+        until: day("2026-10-31"),
+      })
       .orThrow();
 
     expect(registration.registered[0]).toMatchObject({
@@ -463,39 +494,45 @@ describe("createFunding", () => {
     const funding = createFunding({ transport: t });
 
     const built = await funding
-      .buildClaim("org-1", {
-        funderId: "f1",
-        periodStart: day("2026-10-01"),
-        periodEnd: day("2026-10-31"),
-        format: "iwlz-aw319",
+      .buildClaim({
+        organizationId: "org-1",
+        input: {
+          funderId: "f1",
+          periodStart: day("2026-10-01"),
+          periodEnd: day("2026-10-31"),
+          format: "iwlz-aw319",
+        },
       })
       .orThrow();
 
     const read = await funding.claim("k1").orThrow();
     await funding
-      .claims("org-1", { status: "draft", funderId: "f1" })
+      .claims({ organizationId: "org-1", status: "draft", funderId: "f1" })
       .orThrow();
-    await funding.claims("org-1").orThrow();
+    await funding.claims({ organizationId: "org-1" }).orThrow();
 
     const sent = await funding
-      .markSent("k1", { externalRef: "vecozo-1" })
+      .markSent({ claimId: "k1", sent: { externalRef: "vecozo-1" } })
       .orThrow();
 
-    await funding.markSent("k1").orThrow();
+    await funding.markSent({ claimId: "k1" }).orThrow();
 
     const answered = await funding
-      .recordResponse("k1", {
-        lines: [{ lineId: "l1", status: "rejected", rejectionCode: "0233" }],
+      .recordResponse({
+        claimId: "k1",
+        response: {
+          lines: [{ lineId: "l1", status: "rejected", rejectionCode: "0233" }],
+        },
       })
       .orThrow();
 
     const deleted = await funding.deleteClaim("k1").orThrow();
 
     const invoiced = await funding
-      .invoiceClaim("k1", { dueOn: "2026-12-01" })
+      .invoiceClaim({ claimId: "k1", attrs: { dueOn: "2026-12-01" } })
       .orThrow();
 
-    await funding.invoiceClaim("k1").orThrow();
+    await funding.invoiceClaim({ claimId: "k1" }).orThrow();
 
     expect(built.total).toEqual(money(11_250n, "EUR"));
     expect(built.lines[0]).toMatchObject({
@@ -557,7 +594,7 @@ describe("createFunding", () => {
       }),
     });
 
-    const sent = await funding.send("k1").orThrow();
+    const sent = await funding.send({ claimId: "k1" }).orThrow();
     const [, markArgs] = t.calls[1] ?? [];
 
     expect(sent.status).toBe("sent");
@@ -578,11 +615,15 @@ describe("createFunding", () => {
       return result.ok ? undefined : result.error.hint;
     };
 
-    expect(await hint(createFunding({ transport: t }).send("k1"))).toBe(
-      "FUNDING_FORMAT_UNKNOWN",
-    );
     expect(
-      await hint(createFunding({ transport: t, formats: [format] }).send("k1")),
+      await hint(createFunding({ transport: t }).send({ claimId: "k1" })),
+    ).toBe("FUNDING_FORMAT_UNKNOWN");
+    expect(
+      await hint(
+        createFunding({ transport: t, formats: [format] }).send({
+          claimId: "k1",
+        }),
+      ),
     ).toBe("FUNDING_NO_CHANNEL");
     expect(
       await hint(
@@ -592,7 +633,7 @@ describe("createFunding", () => {
           channel: channelOf({
             send: () => Promise.reject(new Error("VECOZO is down")),
           }),
-        }).send("k1"),
+        }).send({ claimId: "k1" }),
       ),
     ).toBe("FUNDING_CHANNEL_FAILED");
   });
@@ -612,7 +653,7 @@ describe("createFunding", () => {
       formats: [format],
       channel: channelOf(),
     })
-      .poll("k1")
+      .poll({ claimId: "k1" })
       .orThrow();
 
     expect(answered?.status).toBe("rejected");
@@ -630,7 +671,7 @@ describe("createFunding", () => {
       formats: [format],
       channel: channelOf({ poll: () => Promise.resolve(undefined) }),
     })
-      .poll("k1")
+      .poll({ claimId: "k1" })
       .orThrow();
 
     const noPoll: FundingClaimChannel = {
@@ -644,7 +685,7 @@ describe("createFunding", () => {
       formats: [format],
       channel: noPoll,
     })
-      .poll("k1")
+      .poll({ claimId: "k1" })
       .orThrow();
 
     expect(waiting).toBeUndefined();
@@ -677,22 +718,30 @@ describe("createFunding", () => {
     });
 
     await funding
-      .saveProduct("org-1", {
-        code: "H126",
-        title: "Personal care",
-        unit: "hour",
-        rate: money(7500n, "EUR"),
+      .saveProduct({
+        organizationId: "org-1",
+        input: {
+          code: "H126",
+          title: "Personal care",
+          unit: "hour",
+          rate: money(7500n, "EUR"),
+        },
       })
       .orThrow();
 
-    const [award] = await funding.awards("org-1").orThrow();
-    await funding.recordResponse("k1", { lines: [] }).orThrow();
+    const [award] = await funding.awards({ organizationId: "org-1" }).orThrow();
     await funding
-      .recordResponse("k1", { lines: [{ lineId: "l1", status: "accepted" }] })
+      .recordResponse({ claimId: "k1", response: { lines: [] } })
+      .orThrow();
+    await funding
+      .recordResponse({
+        claimId: "k1",
+        response: { lines: [{ lineId: "l1", status: "accepted" }] },
+      })
       .orThrow();
 
     const controller = new AbortController();
-    await funding.poll("k1", { signal: controller.signal }).orThrow();
+    await funding.poll({ claimId: "k1", signal: controller.signal }).orThrow();
 
     expect(t.calls[0]?.[1]).toMatchObject({ valid_from: null });
     expect(award).toMatchObject({ units: 0, fields: {} });

@@ -32,7 +32,10 @@ export const reserveAttachment = bsb.action(
   },
   ({ filename, mediaType, size, chatId }, { tenant, supabase }) =>
     aiFiles(supabase)
-      .files.upload(tenant, { filename, mediaType, size, chatId })
+      .files.upload({
+        organizationId: tenant,
+        file: { filename, mediaType, size, chatId },
+      })
       .map(({ file, token }) => ({
         id: file.id,
         bucket: file.bucket,
@@ -50,7 +53,7 @@ export const confirmAttachment = bsb.action(
   },
   ({ id }, { supabase }) =>
     aiFiles(supabase)
-      .files.confirm(id)
+      .files.confirm({ fileId: id })
       .map((file) => ({
         type: "file" as const,
         mediaType: file.mediaType,

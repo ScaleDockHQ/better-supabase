@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:4ef8f580ed53a5f2893c314869a4f54c7f0fed77bfb64bba0e5fff2ce9234122
+-- @bsb-hash sha256:f04fbed28b709dd02c605b4442bc2f41b60246a1defbf5f0a8d3e7ecdddd4ac9
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4303,6 +4303,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."discount_rul
 create policy bsb_tenant_scope_delete on "better_supabase"."discount_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.products', target_type => 'product', event_prefix => 'product', deferred => true);
+  perform better_supabase.audit('better_supabase.product_variants', target_type => 'product_variant', event_prefix => 'product_variant', deferred => true);
+end;
+$$;
 
 -- blocks.catalog.api: entry points for the Data API.
 create schema if not exists "api";

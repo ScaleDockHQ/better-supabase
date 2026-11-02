@@ -60,20 +60,26 @@ export type CommentDraft = Omit<NewComment, "body">;
 
 export interface CommentsActions {
   /** Posts a comment on the subject; a failure is also kept in `error`. */
-  readonly add: (
-    body: string,
-    draft?: CommentDraft,
-  ) => Promise<Result<Comment>>;
+  readonly add: (input: {
+    body: string;
+    draft?: CommentDraft | undefined;
+  }) => Promise<Result<Comment>>;
   /** Edits one of the caller's comments. */
-  readonly edit: (id: string, edit: CommentEdit) => Promise<Result<Comment>>;
+  readonly edit: (input: {
+    id: string;
+    edit: CommentEdit;
+  }) => Promise<Result<Comment>>;
   /** Soft-deletes a comment: it stays in the thread as a placeholder. */
   readonly remove: (id: string) => Promise<Result<boolean>>;
   /** Resolves a thread by its root comment, or opens it again. */
-  readonly resolve: (
-    id: string,
-    resolved?: boolean,
-  ) => Promise<Result<Comment>>;
-  readonly pin: (id: string, pinned?: boolean) => Promise<Result<Comment>>;
+  readonly resolve: (input: {
+    id: string;
+    resolved?: boolean | undefined;
+  }) => Promise<Result<Comment>>;
+  readonly pin: (input: {
+    id: string;
+    pinned?: boolean | undefined;
+  }) => Promise<Result<Comment>>;
   readonly refresh: () => Promise<void>;
 }
 
@@ -106,10 +112,10 @@ export function createCommentsController(
         ticket += 1;
         const request = ticket;
 
-        const result = await client.list(
+        const result = await client.list({
           subject,
-          options.limit === undefined ? {} : { limit: options.limit },
-        );
+          ...(options.limit === undefined ? {} : { limit: options.limit }),
+        });
 
         if (request !== ticket) {
           return;
@@ -188,7 +194,7 @@ export function createCommentsController(
           return;
         }
 
-        const found = await client.conversation(subject);
+        const found = await client.conversation({ subject });
 
         if (found.ok && found.data !== undefined) {
           join(found.data);
@@ -213,15 +219,16 @@ export function createCommentsController(
       return {
         actions: {
           refresh,
-          add: (body, draft = {}) =>
+          add: ({ body, draft = {} }) =>
             subject === null
               ? Promise.resolve(
                   err(dbError("invalid_input", "No subject is open")),
                 )
-              : write(client.create(subject, { ...draft, body })),
-          edit: (id, edit) => write(client.edit(id, edit)),
-          resolve: (id, resolved) => write(client.resolve(id, resolved)),
-          pin: (id, pinned) => write(client.pin(id, pinned)),
+              : write(client.create({ subject, comment: { ...draft, body } })),
+          edit: ({ id, edit }) => write(client.edit({ id, edit })),
+          resolve: ({ id, resolved }) =>
+            write(client.resolve({ id, resolved })),
+          pin: ({ id, pinned }) => write(client.pin({ id, pinned })),
           remove: async (id) => {
             const result = await client.remove(id);
 

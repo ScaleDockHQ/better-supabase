@@ -111,10 +111,13 @@ describe("createAnnouncements", () => {
       { type: "role", roles: ["admin"] },
       { type: "plan", plans: ["pro"] },
     ] as const) {
-      await client.update("a1", { audience });
+      await client.update({ announcementId: "a1", input: { audience } });
     }
 
-    await client.update("a1", { endsAt: null, href: null });
+    await client.update({
+      announcementId: "a1",
+      input: { endsAt: null, href: null },
+    });
     expect(call.mock.calls.slice(2).map((c) => c[2])).toEqual([
       { id: "a1", fields: { audience: "all", targets: [] } },
       { id: "a1", fields: { audience: "role", targets: ["admin"] } },
@@ -123,7 +126,10 @@ describe("createAnnouncements", () => {
     ]);
     expect(await client.remove("a1").orThrow()).toBe(true);
     expect(() =>
-      client.update("a1", { audience: { type: "everyone" } as never }),
+      client.update({
+        announcementId: "a1",
+        input: { audience: { type: "everyone" } as never },
+      }),
     ).toThrow("Unknown audience");
   });
 });

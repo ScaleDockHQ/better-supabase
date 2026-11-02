@@ -22,9 +22,21 @@ describe("createEntitlements", () => {
       },
     });
 
-    expect(await entitlements.has("org-1", "exports").orThrow()).toBe(true);
-    expect(await entitlements.value("org-1", "seats").orThrow()).toBe(10);
-    expect(await entitlements.value("org-1", "sso").orThrow()).toBeUndefined();
+    expect(
+      await entitlements
+        .has({ organizationId: "org-1", key: "exports" })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await entitlements
+        .value({ organizationId: "org-1", key: "seats" })
+        .orThrow(),
+    ).toBe(10);
+    expect(
+      await entitlements
+        .value({ organizationId: "org-1", key: "sso" })
+        .orThrow(),
+    ).toBeUndefined();
     expect(calls).toEqual([
       ["api", "has_entitlement", { tenant: "org-1", key: "exports" }],
       ["api", "entitlement_value", { tenant: "org-1", key: "seats" }],
@@ -37,14 +49,22 @@ describe("createEntitlements", () => {
       transport: { call: () => Promise.resolve(true) },
       hooks: {
         has: {
-          before: ([, key]) =>
+          before: ([{ key }]) =>
             key === "beta" ? dbError("forbidden", "Not yet") : undefined,
         },
       },
     });
 
-    const refused = await entitlements.has("org-1", "beta");
+    const refused = await entitlements.has({
+      organizationId: "org-1",
+      key: "beta",
+    });
+
     expect(refused.ok).toBe(false);
-    expect(await entitlements.has("org-1", "exports").orThrow()).toBe(true);
+    expect(
+      await entitlements
+        .has({ organizationId: "org-1", key: "exports" })
+        .orThrow(),
+    ).toBe(true);
   });
 });

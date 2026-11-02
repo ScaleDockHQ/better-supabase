@@ -245,12 +245,14 @@ describe("security-events transmitter", () => {
       .orThrow();
 
     expect(
-      await transmitter.setStatus(stream.id, "paused", "maintenance").orThrow(),
+      await transmitter
+        .setStatus({ id: stream.id, status: "paused", reason: "maintenance" })
+        .orThrow(),
     ).toBe("enabled");
     expect(t.dispatched).toHaveLength(1);
-    await transmitter.verify(stream.id, "s1").orThrow();
+    await transmitter.verify({ id: stream.id, state: "s1" }).orThrow();
     expect(t.queued).toHaveLength(1);
-    await transmitter.setStatus(stream.id, "enabled").orThrow();
+    await transmitter.setStatus({ id: stream.id, status: "enabled" }).orThrow();
 
     const types = t.dispatched.map(
       ({ set }) =>

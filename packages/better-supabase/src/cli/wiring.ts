@@ -359,7 +359,7 @@ export function wiringChecklist(
 
   if (plan.actions.length > 0) {
     steps.push(
-      `Register the actions in the rules consumer's \`createActionRegistry\`: ${plan.actions.map((entry) => `${entry.kind} (${entry.block})`).join(", ")}.`,
+      `Build the rules consumer's registry with \`createActionRegistry([...blockActions(blocks, { clients })])\` from \`better-supabase/blocks/automations\`; the blocks ship these actions: ${plan.actions.map((entry) => `${entry.kind} (${entry.block})`).join(", ")}.`,
     );
   }
 

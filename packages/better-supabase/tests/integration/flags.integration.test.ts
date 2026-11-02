@@ -110,9 +110,9 @@ describe.skipIf(!live)("flags", () => {
       await s.asRole(staff, { platform_permissions: ["flags.manage"] });
       expect(
         await admin
-          .upsert("new_editor", {
-            description: "The new editor",
-            rolloutPercentage: 25,
+          .upsert({
+            key: "new_editor",
+            input: { description: "The new editor", rolloutPercentage: 25 },
           })
           .orThrow(),
       ).toMatchObject({
@@ -122,16 +122,26 @@ describe.skipIf(!live)("flags", () => {
         defaultVariant: "off",
       });
       expect(
-        await admin.upsert("new_editor", { enabled: false }).orThrow(),
+        await admin
+          .upsert({ key: "new_editor", input: { enabled: false } })
+          .orThrow(),
       ).toMatchObject({ enabled: false, rolloutPercentage: 25 });
       expect(
         await admin
-          .override("new_editor", { organizationId: organization }, "on")
+          .override({
+            key: "new_editor",
+            target: { organizationId: organization },
+            variant: "on",
+          })
           .orThrow(),
       ).toBe(true);
       expect(
         await admin
-          .override("new_editor", { userId: owner.id }, "on")
+          .override({
+            key: "new_editor",
+            target: { userId: owner.id },
+            variant: "on",
+          })
           .orThrow(),
       ).toBe(true);
 
@@ -142,16 +152,20 @@ describe.skipIf(!live)("flags", () => {
       expect(flag!.overrides).toHaveLength(2);
       expect(
         await admin
-          .override("new_editor", { userId: owner.id }, null)
+          .override({
+            key: "new_editor",
+            target: { userId: owner.id },
+            variant: null,
+          })
           .orThrow(),
       ).toBe(true);
       await s.rows("savepoint override_both");
       expect(
-        await admin.override(
-          "new_editor",
-          { organizationId: organization, userId: owner.id } as never,
-          "on",
-        ),
+        await admin.override({
+          key: "new_editor",
+          target: { organizationId: organization, userId: owner.id } as never,
+          variant: "on",
+        }),
       ).toMatchObject({ error: { hint: "FLAGS_OVERRIDE_TARGET" } });
       await s.rows("rollback to savepoint override_both");
       await s.asRole(owner);
@@ -477,9 +491,15 @@ describe.skipIf(!live)("flags", () => {
       const admin = createFlags({ transport: sqlTransport(s.sql) });
 
       await admin
-        .upsert("ramp", { rolloutPercentage: 25 }, { message: "First" })
+        .upsert({
+          key: "ramp",
+          input: { rolloutPercentage: 25 },
+          message: "First",
+        })
         .orThrow();
-      await admin.upsert("ramp", { rolloutPercentage: 75 }).orThrow();
+      await admin
+        .upsert({ key: "ramp", input: { rolloutPercentage: 75 } })
+        .orThrow();
 
       const history = await admin.history("ramp").orThrow();
 
@@ -489,12 +509,15 @@ describe.skipIf(!live)("flags", () => {
       ]);
       expect(history[0]?.changedBy).toBe(staff.id);
       expect(
-        (await admin.restore("ramp", 1).orThrow())?.rolloutPercentage,
+        (await admin.restore({ key: "ramp", revision: 1 }).orThrow())
+          ?.rolloutPercentage,
       ).toBe(25);
       expect((await admin.history("ramp").orThrow())[0]?.message).toBe(
         "Restored revision 1",
       );
-      expect(await admin.restore("ramp", 99).orThrow()).toBeUndefined();
+      expect(
+        await admin.restore({ key: "ramp", revision: 99 }).orThrow(),
+      ).toBeUndefined();
       expect(
         (await admin.segments().orThrow()).map((segment) => segment.name),
       ).toEqual(["owners"]);

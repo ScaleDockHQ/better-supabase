@@ -42,7 +42,7 @@ export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
     return null;
   }
 
-  const jwks = await signingKeys().jwks(organizationOwner(tenant));
+  const jwks = await signingKeys().jwks({ owner: organizationOwner(tenant) });
 
   if (!jwks.ok) {
     throw new Error(jwks.error.message);

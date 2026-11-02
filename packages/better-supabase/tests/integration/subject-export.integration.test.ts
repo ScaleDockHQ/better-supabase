@@ -163,7 +163,7 @@ describe.skipIf(!live)("subject export", () => {
     await s.asRole(ann);
 
     const requested = await lifecycle
-      .requestSubjectExport("it_chart", chart)
+      .requestSubjectExport({ subjectType: "it_chart", subjectId: chart })
       .orThrow();
 
     expect(requested).toMatchObject({
@@ -176,7 +176,11 @@ describe.skipIf(!live)("subject export", () => {
       status: "pending",
     });
     expect(
-      (await lifecycle.requestSubjectExport("it_chart", chart).orThrow()).id,
+      (
+        await lifecycle
+          .requestSubjectExport({ subjectType: "it_chart", subjectId: chart })
+          .orThrow()
+      ).id,
     ).toBe(requested.id);
     expect(
       (await lifecycle.exports(org).orThrow()).map((row) => row.id),
@@ -192,7 +196,7 @@ describe.skipIf(!live)("subject export", () => {
       pageSize: 1,
     });
 
-    const ready = await exporter.run(requested.id).orThrow();
+    const ready = await exporter.run({ exportId: requested.id }).orThrow();
 
     expect(ready.files.toSorted()).toEqual([
       `${requested.id}/better_supabase.field_values.ndjson`,
@@ -249,16 +253,19 @@ describe.skipIf(!live)("subject export", () => {
 
     await s.asRole(max);
 
-    const refused = await lifecycle.requestSubjectExport("it_chart", chart);
+    const refused = await lifecycle.requestSubjectExport({
+      subjectType: "it_chart",
+      subjectId: chart,
+    });
 
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "DATA_EXPORT_FORBIDDEN",
     );
 
-    const missing = await lifecycle.requestSubjectExport(
-      "it_chart",
-      crypto.randomUUID(),
-    );
+    const missing = await lifecycle.requestSubjectExport({
+      subjectType: "it_chart",
+      subjectId: crypto.randomUUID(),
+    });
 
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "DATA_EXPORT_FORBIDDEN",
@@ -288,7 +295,11 @@ describe.skipIf(!live)("subject export", () => {
     await s.asRole(ada);
 
     const managed = await lifecycle
-      .requestSubjectExport("it_chart", chart, { format: "csv" })
+      .requestSubjectExport({
+        subjectType: "it_chart",
+        subjectId: chart,
+        format: "csv",
+      })
       .orThrow();
 
     expect(managed).toMatchObject({ subject: "record", format: "csv" });
@@ -302,7 +313,7 @@ describe.skipIf(!live)("subject export", () => {
       storage: memory.storage,
     });
 
-    const ready = await exporter.run(managed.id).orThrow();
+    const ready = await exporter.run({ exportId: managed.id }).orThrow();
 
     expect(ready.files).toContain(`${managed.id}/public.it_charts.csv`);
     expect(memory.files.get(`${managed.id}/public.it_charts.csv`)).toContain(

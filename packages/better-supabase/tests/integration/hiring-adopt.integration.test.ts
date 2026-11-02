@@ -185,10 +185,13 @@ describe.skipIf(!live)("hiring over the app's tables", () => {
       await s.as(owner);
 
       const job = await hiring
-        .saveJob(org, {
-          title: "Backend engineer",
-          status: "open",
-          employmentType: "full_time",
+        .saveJob({
+          organizationId: org,
+          job: {
+            title: "Backend engineer",
+            status: "open",
+            employmentType: "full_time",
+          },
         })
         .orThrow();
 
@@ -203,7 +206,9 @@ describe.skipIf(!live)("hiring over the app's tables", () => {
       const stage = (name: string): string =>
         stages.find((row) => row.name === name)?.id ?? "";
 
-      const application = await hiring.apply(job.id, { id: ada!.id }).orThrow();
+      const application = await hiring
+        .apply({ jobId: job.id, candidate: { id: ada!.id } })
+        .orThrow();
 
       expect(application).toMatchObject({
         candidate: { type: "candidate", id: ada!.id },
@@ -211,17 +216,25 @@ describe.skipIf(!live)("hiring over the app's tables", () => {
         state: "active",
       });
       expect(
-        hint(await hiring.apply(job.id, { type: "person", id: ada!.id })),
+        hint(
+          await hiring.apply({
+            jobId: job.id,
+            candidate: { type: "person", id: ada!.id },
+          }),
+        ),
       ).toBe("HIRING_CANDIDATE_TYPE_UNSUPPORTED");
 
       const start = Temporal.Instant.from("2026-10-20T09:00:00Z");
 
       const interview = await hiring
-        .scheduleInterview(application.id, {
-          startsAt: start,
-          endsAt: start.add({ hours: 1 }),
-          interviewerIds: [interviewer.id],
-          kind: "video",
+        .scheduleInterview({
+          applicationId: application.id,
+          interview: {
+            startsAt: start,
+            endsAt: start.add({ hours: 1 }),
+            interviewerIds: [interviewer.id],
+            kind: "video",
+          },
         })
         .orThrow();
 
@@ -235,19 +248,22 @@ describe.skipIf(!live)("hiring over the app's tables", () => {
 
       await s.as(interviewer);
       await hiring
-        .score(application.id, {
-          rating: 3,
-          scores: [
-            { criterion: "craft", score: 3 },
-            { criterion: "communication", score: 4 },
-          ],
+        .score({
+          applicationId: application.id,
+          card: {
+            rating: 3,
+            scores: [
+              { criterion: "craft", score: 3 },
+              { criterion: "communication", score: 4 },
+            ],
+          },
         })
         .orThrow();
 
       const card = await hiring
-        .score(application.id, {
-          rating: 4,
-          scores: [{ criterion: "craft", score: 5 }],
+        .score({
+          applicationId: application.id,
+          card: { rating: 4, scores: [{ criterion: "craft", score: 5 }] },
         })
         .orThrow();
 
@@ -265,8 +281,14 @@ describe.skipIf(!live)("hiring over the app's tables", () => {
       const hired = await hiring.hire(application.id).orThrow();
       expect(hired).toMatchObject({ state: "hired", stageId: stage("Hired") });
 
-      const second = await hiring.apply(job.id, { id: bob!.id }).orThrow();
-      const rejected = await hiring.reject(second.id).orThrow();
+      const second = await hiring
+        .apply({ jobId: job.id, candidate: { id: bob!.id } })
+        .orThrow();
+
+      const rejected = await hiring
+        .reject({ applicationId: second.id })
+        .orThrow();
+
       expect(rejected).toMatchObject({
         state: "rejected",
         stageId: stage("Rejected"),

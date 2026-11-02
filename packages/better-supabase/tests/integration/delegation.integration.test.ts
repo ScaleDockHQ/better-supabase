@@ -52,8 +52,8 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
       queues: { [queue]: v.object({ id: v.number() }) },
     });
 
-    await jobs.enqueue(queue, { id: 1 }, { context }).orThrow();
-    const [job] = await jobs.claim(queue).orThrow();
+    await jobs.enqueue({ queue, payload: { id: 1 }, context }).orThrow();
+    const [job] = await jobs.claim({ queue }).orThrow();
     expect(job?.payload).toEqual({ id: 1 });
 
     return job!.context;

@@ -119,8 +119,8 @@ create table if not exists ${appeals} (
 );
 create unique index if not exists ${name("appeals", "open_statement_idx")} on ${appeals} (${p("statement")}) where ${p("status")} = 'open' and ${p("statement")} is not null;
 create unique index if not exists ${name("appeals", "open_notice_idx")} on ${appeals} (${p("notice")}) where ${p("status")} = 'open' and ${p("notice")} is not null;
-create index if not exists ${name("appeals", "tenant_idx")} on ${appeals} (${p("tenant")}, ${p("createdAt")} desc);
 create index if not exists ${name("appeals", "appellant_idx")} on ${appeals} (${p("appellant")});
+create index if not exists ${name("appeals", "tenant_idx")} on ${appeals} (${p("tenant")}, ${p("createdAt")} desc);
 `;
 }
 

@@ -2558,6 +2558,28 @@
       ],
       "additionalProperties": false
     },
+    "rsFinanceOverviewArgs": {
+      "title": "rs_finance_overview arguments",
+      "type": "object",
+      "properties": {
+        "p": {}
+      },
+      "required": [
+        "p"
+      ],
+      "additionalProperties": false
+    },
+    "rsPipelineOverviewArgs": {
+      "title": "rs_pipeline_overview arguments",
+      "type": "object",
+      "properties": {
+        "p": {}
+      },
+      "required": [
+        "p"
+      ],
+      "additionalProperties": false
+    },
     "rsWorkspaceSummaryArgs": {
       "title": "rs_workspace_summary arguments",
       "type": "object",
@@ -2640,6 +2662,12 @@
     },
     "islandCountsResult": {
       "title": "island_counts result"
+    },
+    "rsFinanceOverviewResult": {
+      "title": "rs_finance_overview result"
+    },
+    "rsPipelineOverviewResult": {
+      "title": "rs_pipeline_overview result"
     },
     "rsWorkspaceSummaryResult": {
       "title": "rs_workspace_summary result"

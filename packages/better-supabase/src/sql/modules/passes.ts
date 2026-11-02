@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { ensureExclusion } from "../exclusion.ts";
 import {
   addForeignKey,
   fail,
@@ -85,7 +86,13 @@ const NAMES: BlockSqlNames = {
     pass_check_in: { table: "checkIns", singular: "pass_check_in" },
   },
   events: EVENTS,
-  options: ["checkInOpens", "dropInLength", "credits", "creditRefundBefore"],
+  options: [
+    "checkInOpens",
+    "dropInLength",
+    "credits",
+    "creditRefundBefore",
+    "noOverlap",
+  ],
   tables: {
     passes: {
       name: "passes",
@@ -155,6 +162,33 @@ const list = (values: readonly string[]): string =>
 /** Whether the passes table keeps the record a pass is for. */
 const keepsSubject = (ctx: BlockSqlContext): boolean =>
   ctx.has("passes", "subjectType") && ctx.has("passes", "subjectId");
+
+/** The exclusion that keeps a holder's active passes of a kind from overlapping. */
+function passOverlap(ctx: BlockSqlContext): string {
+  if (!ctx.flag("noOverlap", false) || !ctx.owns("passes")) {
+    return "";
+  }
+
+  const p = (column: string): string => ctx.col("passes", column);
+
+  return `\n${ensureExclusion(
+    ctx.table("passes"),
+    ctx.naming.rename("passes_no_overlap"),
+    [
+      { expression: p("holderUser"), operator: "=" },
+      { expression: p("kind"), operator: "=" },
+      {
+        expression: `coalesce(${p("resource")}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+        operator: "=",
+      },
+      {
+        expression: `tstzrange(${p("validFrom")}, ${p("validUntil")}, '[)')`,
+        operator: "&&",
+      },
+    ],
+    `${p("status")} = 'active'`,
+  )}`;
+}
 
 function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
@@ -228,7 +262,7 @@ create table if not exists ${passes} (
 create index if not exists ${index("passes", "tenant_idx")} on ${passes} (${p("tenant")}, ${p("createdAt")} desc);
 create index if not exists ${index("passes", "holder_idx")} on ${passes} (${p("holderUser")});
 create index if not exists ${index("passes", "booking_idx")} on ${passes} (${p("booking")});
-create index if not exists ${index("passes", "resource_idx")} on ${passes} (${p("resource")});
+create index if not exists ${index("passes", "resource_idx")} on ${passes} (${p("resource")});${passOverlap(ctx)}
 ${subject ? `create index if not exists ${index("passes", "subject_idx")} on ${passes} (${p("tenant")}, ${p("subjectType")}, ${p("subjectId")});\n` : ""}${lockModuleTable(ctx, "passes")}
 ${bookingKeys}
 -- Every scan, admitted or not, for the door log and the drop-in count.

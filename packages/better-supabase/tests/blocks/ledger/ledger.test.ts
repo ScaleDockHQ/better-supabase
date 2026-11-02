@@ -132,7 +132,9 @@ describe("createLedger", () => {
     expect(account.createdAt.toString()).toBe("2026-10-22T10:00:00Z");
 
     await ledger.accounts({ kind: "credit" }).orThrow();
-    await ledger.holderAccounts({ type: "party", id: "p1" }).orThrow();
+    await ledger
+      .holderAccounts({ holder: { type: "party", id: "p1" } })
+      .orThrow();
 
     expect(fake.calls).toEqual([
       [
@@ -225,7 +227,8 @@ describe("createLedger", () => {
     expect(posted.reverses).toBeUndefined();
 
     expect(
-      (await ledger.reverse("t1", { memo: "undo" }).orThrow()).reverses,
+      (await ledger.reverse({ transactionId: "t1", memo: "undo" }).orThrow())
+        .reverses,
     ).toBe("t1");
     expect((await ledger.transaction("t1").orThrow()).kind).toBe(
       "credit.grant",
@@ -263,7 +266,11 @@ describe("createLedger", () => {
     const ledger = createLedger({ transport: fake.transport });
 
     const [entry] = await ledger
-      .entries("a1", { before: Temporal.Instant.from(AT), pageSize: 10 })
+      .entries({
+        accountId: "a1",
+        before: Temporal.Instant.from(AT),
+        pageSize: 10,
+      })
       .orThrow();
 
     expect(entry).toMatchObject({
@@ -273,7 +280,7 @@ describe("createLedger", () => {
       actorId: "u1",
     });
     expect(entry?.memo).toBeUndefined();
-    await ledger.entries("a1").orThrow();
+    await ledger.entries({ accountId: "a1" }).orThrow();
     expect(fake.calls).toEqual([
       [
         "ledger_account_entries",
@@ -303,10 +310,13 @@ describe("createLedger", () => {
     const ledger = createLedger({ transport: fake.transport });
 
     const hold = await ledger
-      .hold("a1", {
-        amount: money(500n, "EUR"),
-        reference: { type: "orders", id: "o2" },
-        expiresAt: Temporal.Instant.from(AT),
+      .hold({
+        accountId: "a1",
+        input: {
+          amount: money(500n, "EUR"),
+          reference: { type: "orders", id: "o2" },
+          expiresAt: Temporal.Instant.from(AT),
+        },
       })
       .orThrow();
 
@@ -314,11 +324,17 @@ describe("createLedger", () => {
     expect(hold.expiresAt?.toString()).toBe("2026-10-22T10:00:00Z");
 
     const captured = await ledger
-      .capture("h1", { toAccountId: "a3", amount: 200n, memo: "order" })
+      .capture({
+        holdId: "h1",
+        input: { toAccountId: "a3", amount: 200n, memo: "order" },
+      })
       .orThrow();
 
     expect(captured.transactionId).toBe("t3");
-    await ledger.capture("h1", { toAccountId: "a3", kind: "order.capture" });
+    await ledger.capture({
+      holdId: "h1",
+      input: { toAccountId: "a3", kind: "order.capture" },
+    });
 
     const released = await ledger.release("h1").orThrow();
     expect(released.status).toBe("released");
@@ -419,18 +435,24 @@ describe("createLedger", () => {
       })
       .orThrow();
     await ledger
-      .hold("a1", {
-        amount: 500n,
-        reference: { type: "orders", id: "o2" },
-        expiresAt: at,
+      .hold({
+        accountId: "a1",
+        input: {
+          amount: 500n,
+          reference: { type: "orders", id: "o2" },
+          expiresAt: at,
+        },
       })
       .orThrow();
     await ledger
-      .capture("h1", {
-        toAccountId: "a2",
-        amount: 200n,
-        kind: "gift_card.redeem",
-        memo: "order o2",
+      .capture({
+        holdId: "h1",
+        input: {
+          toAccountId: "a2",
+          amount: 200n,
+          kind: "gift_card.redeem",
+          memo: "order o2",
+        },
       })
       .orThrow();
 
@@ -528,9 +550,11 @@ describe("createLedger", () => {
         ],
       })
       .orThrow();
-    await ledger.reverse("t1").orThrow();
-    await ledger.hold("a1", { amount: 1n }).orThrow();
-    await ledger.capture("h1", { toAccountId: "a2" }).orThrow();
+    await ledger.reverse({ transactionId: "t1" }).orThrow();
+    await ledger.hold({ accountId: "a1", input: { amount: 1n } }).orThrow();
+    await ledger
+      .capture({ holdId: "h1", input: { toAccountId: "a2" } })
+      .orThrow();
 
     expect(fake.calls.map(([, args]) => args)).toEqual([
       {

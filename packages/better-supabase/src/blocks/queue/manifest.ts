@@ -15,7 +15,7 @@ import { createWebhookInbox } from "./webhook-inbox.ts";
 /** The `queue` block's manifest (ADR 0029). */
 export const queueBlock: BlockOf<"queue", typeof createQueue> = defineBlock({
   name: "queue",
-  sql: ["queue"],
+  sql: ["queue", "housekeeping"],
   options: { queue: queueSqlOptions },
   create: createQueue,
   category: "automation",

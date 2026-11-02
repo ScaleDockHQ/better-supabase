@@ -59,13 +59,13 @@ describe.skipIf(!live)("passes", () => {
       };
 
       await asService();
-      await keys.create(owned).orThrow();
-      const jwks = await keys.jwks(owned).orThrow();
+      await keys.create({ owner: owned }).orThrow();
+      const jwks = await keys.jwks({ owner: owned }).orThrow();
 
       const passes = createPasses({
         transport: sqlTransport(s.sql),
         tenant,
-        signer: keys.signer(owned),
+        signer: keys.signer({ owner: owned }),
         jwks,
       });
 
@@ -91,15 +91,19 @@ describe.skipIf(!live)("passes", () => {
 
       await s.asRole(owner);
       const [head, body] = token.split(".");
-      const forged = await passes.checkIn(`${head}.${body}.${"A".repeat(86)}`);
+
+      const forged = await passes.checkIn({
+        token: `${head}.${body}.${"A".repeat(86)}`,
+      });
+
       expect(forged.ok ? undefined : forged.error.hint).toBe(
         "PASS_TOKEN_INVALID",
       );
 
       expect(
-        await passes.checkIn(token, { gate: "north" }).orThrow(),
+        await passes.checkIn({ token, gate: "north" }).orThrow(),
       ).toMatchObject({ admitted: true, gate: "north", pass: { uses: 1 } });
-      expect(await passes.checkIn(token).orThrow()).toMatchObject({
+      expect(await passes.checkIn({ token }).orThrow()).toMatchObject({
         admitted: false,
         reason: "used_up",
       });
@@ -112,13 +116,12 @@ describe.skipIf(!live)("passes", () => {
         .issue({ kind: "day", resourceId: room!.id, usesAllowed: 5 })
         .orThrow();
 
-      expect((await passes.checkInManually(first.id).orThrow()).admitted).toBe(
-        true,
-      );
-      expect(await passes.checkInManually(second.id).orThrow()).toMatchObject({
-        admitted: false,
-        reason: "full",
-      });
+      expect(
+        (await passes.checkInManually({ passId: first.id }).orThrow()).admitted,
+      ).toBe(true);
+      expect(
+        await passes.checkInManually({ passId: second.id }).orThrow(),
+      ).toMatchObject({ admitted: false, reason: "full" });
       expect(await passes.occupancy(room!.id).orThrow()).toEqual({
         resourceId: room!.id,
         capacity: 2,
@@ -131,13 +134,12 @@ describe.skipIf(!live)("passes", () => {
       await asService();
       const revokedToken = await passes.token(second).orThrow();
       await s.asRole(owner);
-      expect(await passes.checkIn(revokedToken).orThrow()).toMatchObject({
-        admitted: false,
-        reason: "revoked",
-      });
+      expect(
+        await passes.checkIn({ token: revokedToken }).orThrow(),
+      ).toMatchObject({ admitted: false, reason: "revoked" });
 
       expect(
-        (await passes.checkIns(ticket.id).orThrow())
+        (await passes.checkIns({ passId: ticket.id }).orThrow())
           .map((scan) => scan.reason ?? "admitted")
           .toSorted(),
       ).toEqual(["admitted", "used_up"]);

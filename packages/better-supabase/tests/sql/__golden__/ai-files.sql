@@ -826,7 +826,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:f7906ed6ff2e708ed98b1c2ff5a4dd1cb393ed93942a3d10d8a6424092f4ae65
+-- @bsb-hash sha256:e6b4bc55854e1e3f2f23af8ed5c9933559f0beda59e68c667e4ab19031d33e01
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,6 +1617,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.ai_documents', target_type => 'ai_document', event_prefix => 'ai_document', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

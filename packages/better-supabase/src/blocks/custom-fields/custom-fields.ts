@@ -10,8 +10,11 @@ import type { FieldPack } from "./pack.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import {
+  neighborsForIndex,
+  rankBetweenResult,
+} from "../../core/rank-result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   optionalText,
@@ -116,13 +119,13 @@ export interface CustomFields {
    */
   listDefinitions(entity: string): AsyncResult<FieldDefinitionDetail[]>;
   /** Adds or updates the definition of `key` on `entity`. */
-  saveDefinition(
-    entity: string,
-    key: string,
-    label: string,
-    type: CustomFieldType,
-    sensitive?: boolean,
-  ): AsyncResult<FieldDefinition>;
+  saveDefinition(input: {
+    entity: string;
+    key: string;
+    label: string;
+    type: CustomFieldType;
+    sensitive?: boolean | undefined;
+  }): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;
   /**
    * Stores a `text`, `email` or `url` field's values as ciphertext from now on
@@ -134,7 +137,20 @@ export interface CustomFields {
    * Moves a definition between the definitions with rank keys `previous` and
    * `next`. Resolves to its new key.
    */
-  reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
+  reorderDefinition(input: {
+    id: string;
+    neighbors: RankNeighbors;
+  }): AsyncResult<string>;
+  /**
+   * Puts a definition at position `toIndex` (0 is first) among `entity`'s
+   * definitions and resolves to its new key. It reads `listDefinitions` and
+   * calls `reorderDefinition` with the neighbours there.
+   */
+  moveDefinition(input: {
+    id: string;
+    entity: string;
+    toIndex: number;
+  }): AsyncResult<string>;
   /**
    * Installs a field pack in the tenant. A definition is matched by pack and
    * key, so installing a version again changes nothing. Fails with
@@ -146,17 +162,17 @@ export interface CustomFields {
   /** Installs each pack of `options.packs`, in order. */
   installPacks(): AsyncResult<FieldPackInstall[]>;
   /** The custom field values set on `subject`. */
-  readValues(
-    subject: RecordRef,
-    scope?: FieldEntityScope,
-  ): AsyncResult<unknown>;
+  readValues(input: {
+    subject: RecordRef;
+    scope?: FieldEntityScope | undefined;
+  }): AsyncResult<unknown>;
   /** Sets one custom field value of `subject`. */
-  setValue(
-    subject: RecordRef,
-    definitionId: string,
-    value: string,
-    scope?: FieldEntityScope,
-  ): AsyncResult<FieldDefinition>;
+  setValue(input: {
+    subject: RecordRef;
+    definitionId: string;
+    value: string;
+    scope?: FieldEntityScope | undefined;
+  }): AsyncResult<FieldDefinition>;
   /**
    * Keyed layout: every field of `subject` as typed rows, in rank order and
    * then by key.
@@ -166,9 +182,17 @@ export interface CustomFields {
    * Keyed layout: sets the field `key` of `subject`, creating it or updating
    * its label, type and value.
    */
-  setField(subject: RecordRef, input: SetFieldInput): AsyncResult<FieldValue>;
+  setField(input: {
+    subject: RecordRef;
+    input: SetFieldInput;
+  }): AsyncResult<FieldValue>;
   /** Keyed layout: removes one field value. */
   deleteValue(id: string): AsyncResult<boolean>;
+  /** `setField` for each input, in order. It stops at the first failure. */
+  setMany(input: {
+    subject: RecordRef;
+    inputs: readonly SetFieldInput[];
+  }): AsyncResult<FieldValue[]>;
 }
 
 function fieldValueOf(value: unknown): FieldValue {
@@ -249,7 +273,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
             }),
         ),
       ),
-    saveDefinition: (entity, key, label, type, sensitive) =>
+    saveDefinition: ({ entity, key, label, type, sensitive }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_field_definition",
@@ -264,7 +288,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           idOf("save_field_definition"),
         ),
       ),
-    reorderDefinition: (id, neighbors) => {
+    reorderDefinition: ({ id, neighbors }) => {
       const key = rankBetweenResult(neighbors);
 
       if (!key.ok) {
@@ -277,6 +301,14 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         () => key.data,
       );
     },
+    moveDefinition: ({ id, entity, toIndex }) =>
+      hooked.listDefinitions(entity).andThen((definitions) => {
+        const neighbors = neighborsForIndex(definitions, id, toIndex);
+
+        return neighbors.ok
+          ? hooked.reorderDefinition({ id, neighbors: neighbors.data })
+          : AsyncResult.err(neighbors.error);
+      }),
     deleteDefinition: (id) =>
       call(
         "delete_field_definition",
@@ -313,7 +345,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
 
       return chain.map(() => results);
     },
-    readValues: (subject, scope) =>
+    readValues: ({ subject, scope }) =>
       tenant().andThen((organizationId) =>
         call(
           "read_field_values",
@@ -326,7 +358,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           (value) => value,
         ),
       ),
-    setValue: (subject, definitionId, value, scope) =>
+    setValue: ({ subject, definitionId, value, scope }) =>
       tenant().andThen((organizationId) =>
         call(
           "set_field_value",
@@ -353,7 +385,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           (value) => (Array.isArray(value) ? value : []).map(fieldValueOf),
         ),
       ),
-    setField: (subject, input) =>
+    setField: ({ subject, input }) =>
       tenant().andThen((organizationId) =>
         call(
           "set_field_value",
@@ -373,10 +405,29 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       ),
     deleteValue: (id) =>
       call("delete_field_value", { value_id: id }, (value) => value === true),
+    setMany: ({ subject, inputs }) =>
+      AsyncResult.from(async () => {
+        const values: FieldValue[] = [];
+
+        for (const input of inputs) {
+          const value = await hooked.setField({ subject, input });
+
+          if (!value.ok) {
+            return value;
+          }
+
+          values.push(value.data);
+        }
+
+        return ok(values);
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: CustomFields = withBlockHooks(client, options.hooks, {
     block: "custom-fields",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

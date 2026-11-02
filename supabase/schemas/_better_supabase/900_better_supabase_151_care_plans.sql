@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:001ae9fa00c57fe467f736b260e777d1f533b2298494389c7a782db3181e0df9
+-- @bsb-hash sha256:c6a3581120ceb3697b6e4f4eb9f9d9399b084285318c6e938789a40c6e66bd91
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1932,6 +1932,17 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_ev
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.care_plans', target_type => 'care_plan', event_prefix => 'care_plan', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_problems', target_type => 'care_plan_problem', event_prefix => 'care_plan_problem', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_goals', target_type => 'care_plan_goal', event_prefix => 'care_plan_goal', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_actions', target_type => 'care_plan_action', event_prefix => 'care_plan_action', deferred => true);
+  perform better_supabase.audit('better_supabase.care_plan_evaluations', target_type => 'care_plan_evaluation', event_prefix => 'care_plan_evaluation', deferred => true);
+end;
+$$;
 
 -- blocks.care-plans.api: entry points for the Data API.
 create schema if not exists "api";

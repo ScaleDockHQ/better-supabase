@@ -320,7 +320,11 @@ export function connectTools(
       return err(authorization.error);
     }
 
-    const session = await connectors.sessions.get(server.id, options.chatKey);
+    const session = await connectors.sessions.get({
+      serverId: server.id,
+      chatKey: options.chatKey,
+    });
+
     const previous = session.ok ? session.data : undefined;
     const chatKey = options.chatKey ?? "";
     let sessionId = previous?.sessionId;
@@ -345,7 +349,7 @@ export function connectTools(
             sessionId = next;
 
             if (next === undefined) {
-              void connectors.sessions.forget(server.id, chatKey);
+              void connectors.sessions.forget({ serverId: server.id, chatKey });
             }
           },
         },
@@ -379,10 +383,13 @@ export function connectTools(
       );
 
       if (sessionId !== undefined) {
-        void connectors.sessions.upsert(server.id, {
-          chatKey,
-          sessionId,
-          initializeResult: { ...client.initializeResult },
+        void connectors.sessions.upsert({
+          serverId: server.id,
+          session: {
+            chatKey,
+            sessionId,
+            initializeResult: { ...client.initializeResult },
+          },
         });
       }
 
@@ -397,11 +404,11 @@ export function connectTools(
       const fingerprints = await fingerprintTools(tools);
       const fingerprint = await digestOf(fingerprints);
 
-      const status = await connectors.fingerprints.check(
-        server.id,
+      const status = await connectors.fingerprints.check({
+        serverId: server.id,
         fingerprint,
-        fingerprints,
-      );
+        tools: fingerprints,
+      });
 
       if (!status.ok) {
         await close();

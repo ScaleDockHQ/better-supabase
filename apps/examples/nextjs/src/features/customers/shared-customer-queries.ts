@@ -23,7 +23,7 @@ export async function getSharedCustomer(
   "use cache: private";
   const { db } = await bsb.cached();
 
-  const link = await db.shareLinks.resolve(token).orThrow();
+  const link = await db.shareLinks.resolve({ token }).orThrow();
 
   if (link?.subject.type !== "customer") {
     return null;

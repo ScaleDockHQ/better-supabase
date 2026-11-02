@@ -51,7 +51,10 @@ describe("comments fields", () => {
     });
 
     const created = await comments
-      .create(PROJECT, { body: "Hello", fields: { visibility: "internal" } })
+      .create({
+        subject: PROJECT,
+        comment: { body: "Hello", fields: { visibility: "internal" } },
+      })
       .orThrow();
 
     expectTypeOf(created.fields.visibility).toEqualTypeOf<
@@ -60,10 +63,13 @@ describe("comments fields", () => {
     expect(created.fields).toEqual({ visibility: "internal" });
     expect(attrsOf(t.calls[0])["fields"]).toEqual({ visibility: "internal" });
     await comments
-      .edit("c1", { body: "Changed", fields: { visibility: "customer" } })
+      .edit({
+        id: "c1",
+        edit: { body: "Changed", fields: { visibility: "customer" } },
+      })
       .orThrow();
     expect(attrsOf(t.calls[1])["fields"]).toEqual({ visibility: "customer" });
-    const list = await comments.list(PROJECT).orThrow();
+    const list = await comments.list({ subject: PROJECT }).orThrow();
     expect(list.map((comment) => comment.fields.visibility)).toEqual([
       "internal",
       "internal",
@@ -73,7 +79,7 @@ describe("comments fields", () => {
   it("leaves fields out of a write that sets none", async () => {
     const t = fieldsTransport({ create_comment: () => ROW });
     await createComments({ transport: t, tenant: "org-1" })
-      .create(PROJECT, { body: "Hello" })
+      .create({ subject: PROJECT, comment: { body: "Hello" } })
       .orThrow();
     expect(attrsOf(t.calls[0])["fields"]).toBeUndefined();
   });
@@ -89,14 +95,14 @@ describe("comments fields", () => {
       tenant: "org-1",
     });
 
-    const edited = await comments.edit("c1", {
-      body: "Changed",
-      fields: { visibility: "public" as never },
+    const edited = await comments.edit({
+      id: "c1",
+      edit: { body: "Changed", fields: { visibility: "public" as never } },
     });
 
     expect(edited.ok ? undefined : edited.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
-    const listed = await comments.list(PROJECT);
+    const listed = await comments.list({ subject: PROJECT });
     expect(listed.ok ? undefined : listed.error.kind).toBe("validation");
   });
 });

@@ -119,7 +119,7 @@ describe("createClinicalDecisionSupport", () => {
       engines: [engine],
     });
 
-    const alerts = await cds.evaluate(SUBJECT).orThrow();
+    const alerts = await cds.evaluate({ subject: SUBJECT }).orThrow();
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ source: "built-in", subject: SUBJECT });
@@ -148,7 +148,7 @@ describe("createClinicalDecisionSupport", () => {
       ],
     });
 
-    const result = await cds.evaluate(SUBJECT);
+    const result = await cds.evaluate({ subject: SUBJECT });
 
     expect(result.ok).toBe(false);
     expect(result.error).toMatchObject({ hint: "CARE_ENGINE_FAILED" });
@@ -196,7 +196,7 @@ describe("createClinicalDecisionSupport", () => {
     });
 
     const decided = await cds
-      .decide("a1", "overridden", { reason: "Benefit" })
+      .decide({ alertId: "a1", decision: "overridden", reason: "Benefit" })
       .orThrow();
 
     expect(decided).toMatchObject({
@@ -262,7 +262,7 @@ describe("createClinicalDecisionSupport", () => {
       ],
     });
 
-    const alerts = await cds.evaluate(SUBJECT).orThrow();
+    const alerts = await cds.evaluate({ subject: SUBJECT }).orThrow();
     const rules = await cds.rules().orThrow();
 
     expect(alerts[0]).toMatchObject({

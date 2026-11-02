@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:e1f67ed3f3792a85b3704bd71de576ed8b893f89089a4be6b761191b62a2c2c2
+-- @bsb-hash sha256:601bc2cbec44bcf18cac28fc30e678b94d5d08629341fe618c65b76be432b29c
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1041,6 +1041,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_p
 create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.saved_views', target_type => 'saved_view', event_prefix => 'saved_view', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

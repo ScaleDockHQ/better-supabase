@@ -77,6 +77,33 @@ describe("withTableTags", () => {
     });
   });
 
+  it("turns audit-reads, history and lifecycle tags into config", async () => {
+    const { name, key } = await first();
+
+    const config = resolveConfig(
+      { blocks: { "field-history": {}, pipelines: {} } },
+      "/tmp",
+    );
+
+    const next = withTableTags(
+      config,
+      await tagged(
+        name,
+        "@bsb subject; audit-reads; history title body; lifecycle stage=status pipeline=deals",
+      ),
+    );
+
+    expect(next.subjects[name]).toMatchObject({ table: key, auditReads: true });
+
+    expect(next.blocks["field-history"]?.on).toEqual({
+      [name]: { fields: ["title", "body"] },
+    });
+
+    expect(next.blocks["pipelines"]?.on).toEqual({
+      [name]: { stage: "status", pipeline: "deals" },
+    });
+  });
+
   it("keeps what the config sets itself", async () => {
     const { name, key } = await first();
 

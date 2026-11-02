@@ -370,7 +370,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:2cdc691a0ff37fcdfd5dd57fcd83dfd08cf8902aa162b487deb9b85fdd19d69a
+-- @bsb-hash sha256:84e1e8428feca7771c02b7519b4ed7a0471162c6d29a79d055f60c33171886a8
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -708,6 +708,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_sna
 create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

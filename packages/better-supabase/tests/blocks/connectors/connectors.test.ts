@@ -121,21 +121,28 @@ describe("createConnectors", () => {
       grant: undefined,
       credentialRef: { provider: "vault", secret: "k" },
     });
-    const missing = await connectors.servers.get("gone");
+    const missing = await connectors.servers.get({ serverId: "gone" });
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "CONNECTOR_NOT_FOUND",
     );
-    await connectors.servers.create("o1", {
-      name: "GitHub",
-      url: "https://mcp.example.com",
-      transport: "sse",
-      authType: "header",
-      credentialRef: { provider: "vault", secret: "k" },
-      scopes: ["read"],
-      clientMetadata: { client_name: "app" },
-      enabled: true,
+    await connectors.servers.create({
+      organizationId: "o1",
+      server: {
+        name: "GitHub",
+        url: "https://mcp.example.com",
+        transport: "sse",
+        authType: "header",
+        credentialRef: { provider: "vault", secret: "k" },
+        scopes: ["read"],
+        clientMetadata: { client_name: "app" },
+        enabled: true,
+      },
     });
-    await connectors.servers.update("o1", "s1", { credentialRef: null });
+    await connectors.servers.update({
+      organizationId: "o1",
+      serverId: "s1",
+      fields: { credentialRef: null },
+    });
     expect(calls.slice(-2).map(({ args }) => args)).toEqual([
       {
         tenant: "o1",
@@ -164,7 +171,7 @@ describe("createConnectors", () => {
       service: service.transport,
     });
 
-    await connectors.servers.get("s1", { ownerId: "u2" });
+    await connectors.servers.get({ serverId: "s1", ownerId: "u2" });
     expect(user.calls).toEqual([]);
     expect(service.calls[0]?.args).toEqual({ id: "s1", owner: "u2" });
   });
@@ -203,9 +210,16 @@ describe("createConnectors", () => {
     expect(revoked).toHaveLength(3);
 
     // The same ref again is a reconnect; its secret holds the new token.
-    await connectors.grants.record("s1", "u1", REF);
+    await connectors.grants.record({
+      serverId: "s1",
+      userId: "u1",
+      credentialRef: REF,
+    });
     expect(revoked).toHaveLength(3);
-    await connectors.grants.record("s1", "u3", REF, {
+    await connectors.grants.record({
+      serverId: "s1",
+      userId: "u3",
+      credentialRef: REF,
       scopes: ["read"],
       expiresAt: Temporal.Instant.from(AT),
     });
@@ -253,9 +267,9 @@ describe("createConnectors", () => {
       expiring_connector_grants: () => [grantRow({ credential_ref: null })],
     });
 
-    const result = await createConnectors({ transport }).grants.expiring(
-      Temporal.Instant.from(AT),
-    );
+    const result = await createConnectors({ transport }).grants.expiring({
+      before: Temporal.Instant.from(AT),
+    });
 
     expect(result.ok ? undefined : result.error.message).toContain(
       "without a ref",
@@ -284,26 +298,47 @@ describe("createConnectors", () => {
     const connectors = createConnectors({ transport });
     const at = Temporal.Instant.from(AT);
     expect(
-      await connectors.grants.expiring(at, { limit: 3 }).orThrow(),
+      await connectors.grants.expiring({ before: at, limit: 3 }).orThrow(),
     ).toHaveLength(1);
-    expect(await connectors.grants.renew("g1", at).orThrow()).toBe(true);
-    expect(await connectors.sessions.get("s1", "c1").orThrow()).toEqual({
+    expect(
+      await connectors.grants.renew({ grantId: "g1", expiresAt: at }).orThrow(),
+    ).toBe(true);
+    expect(
+      await connectors.sessions
+        .get({ serverId: "s1", chatKey: "c1" })
+        .orThrow(),
+    ).toEqual({
       sessionId: "sess",
       initializeResult: { protocolVersion: "2025-11-25" },
       expiresAt: at,
     });
-    expect(await connectors.sessions.get("s1").orThrow()).toBeUndefined();
-    await connectors.sessions.upsert("s1", { sessionId: "sess" });
-    await connectors.sessions.forget("s1", "c1");
+    expect(
+      await connectors.sessions.get({ serverId: "s1" }).orThrow(),
+    ).toBeUndefined();
+    await connectors.sessions.upsert({
+      serverId: "s1",
+      session: { sessionId: "sess" },
+    });
+    await connectors.sessions.forget({ serverId: "s1", chatKey: "c1" });
     expect(await connectors.sessions.purge().orThrow()).toBe(4);
-    expect(await connectors.fingerprints.check("s1", "old").orThrow()).toBe(
-      "approved",
-    );
-    expect(await connectors.fingerprints.check("s1", "new", {}).orThrow()).toBe(
-      "pending",
-    );
-    await connectors.fingerprints.approve("s1", "new");
-    await connectors.fingerprints.reject("s1", "new");
+    expect(
+      await connectors.fingerprints
+        .check({ serverId: "s1", fingerprint: "old" })
+        .orThrow(),
+    ).toBe("approved");
+    expect(
+      await connectors.fingerprints
+        .check({ serverId: "s1", fingerprint: "new", tools: {} })
+        .orThrow(),
+    ).toBe("pending");
+    await connectors.fingerprints.approve({
+      serverId: "s1",
+      fingerprint: "new",
+    });
+    await connectors.fingerprints.reject({
+      serverId: "s1",
+      fingerprint: "new",
+    });
     expect(
       calls
         .filter(({ fn }) =>

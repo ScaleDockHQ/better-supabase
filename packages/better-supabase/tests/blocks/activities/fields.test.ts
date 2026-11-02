@@ -30,11 +30,15 @@ describe("engagements fields", () => {
     const engagements = createActivities({ transport: t, fields: Fields });
 
     const logged = await engagements
-      .log(
-        "o",
-        { type: "call", title: "Intro", fields: { sentiment: "positive" } },
-        [{ type: "deal", id: "d1" }],
-      )
+      .log({
+        organizationId: "o",
+        input: {
+          type: "call",
+          title: "Intro",
+          fields: { sentiment: "positive" },
+        },
+        subjects: [{ type: "deal", id: "d1" }],
+      })
       .orThrow();
 
     expect(logged.fields.sentiment).toBe("positive");
@@ -43,7 +47,11 @@ describe("engagements fields", () => {
       title: "Intro",
       fields: { sentiment: "positive" },
     });
-    const list = await engagements.of({ type: "deal", id: "d1" }).orThrow();
+
+    const list = await engagements
+      .of({ subject: { type: "deal", id: "d1" } })
+      .orThrow();
+
     expect(list.map((entry) => entry.fields.sentiment)).toEqual([
       "positive",
       "positive",
@@ -59,7 +67,7 @@ describe("engagements fields", () => {
     const updated = await createActivities({
       transport: t,
       fields: Fields,
-    }).update("e1", { fields: { sentiment: "angry" as never } });
+    }).update({ id: "e1", input: { fields: { sentiment: "angry" as never } } });
 
     expect(updated.ok ? undefined : updated.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);

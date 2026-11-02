@@ -2,11 +2,11 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { fromBase64, toBase64 } from "../../core/base64.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -119,74 +119,100 @@ export interface DecidedSuggestion extends DocumentSuggestion {
 
 export type SuggestionDecision = "accepted" | "rejected" | "withdrawn";
 
+/** A document page in one read: `documents.page`. */
+export interface DocumentPage extends OpenedDocument {
+  /** Newest first; empty unless `versions` was asked for. */
+  readonly versions: readonly DocumentVersion[];
+  /** Open suggestions, oldest first; empty unless `suggestions` was asked for. */
+  readonly suggestions: readonly DocumentSuggestion[];
+}
+
 export interface Documents {
   /** The document's state; creates it on first open for an editor. */
   open(ref: DocumentRef): AsyncResult<OpenedDocument>;
+  /**
+   * `open`, plus the versions (needs the versions module) and the open
+   * suggestions when asked for, read together. Opening creates the document for
+   * an editor, so the other two read after it.
+   */
+  page(
+    ref: DocumentRef & {
+      readonly versions?: boolean;
+      readonly suggestions?: boolean;
+    },
+  ): AsyncResult<DocumentPage>;
   /** Appends an update and returns its sequence number. */
-  push(documentId: string, update: Uint8Array): AsyncResult<number>;
+  push(input: { documentId: string; update: Uint8Array }): AsyncResult<number>;
   /**
    * Updates after `afterSeq`. When compaction dropped some of them, the result
    * carries the snapshot to start from instead.
    */
-  pull(documentId: string, afterSeq: number): AsyncResult<DocumentState>;
+  pull(input: {
+    documentId: string;
+    afterSeq: number;
+  }): AsyncResult<DocumentState>;
   /**
    * Stores `state` as the snapshot through `throughSeq` and drops those
    * updates. Returns false when a newer snapshot exists. The service role or
    * `documents.manage`.
    */
-  compact(
-    documentId: string,
-    state: Uint8Array,
-    throughSeq: number,
-  ): AsyncResult<boolean>;
+  compact(input: {
+    documentId: string;
+    state: Uint8Array;
+    throughSeq: number;
+  }): AsyncResult<boolean>;
   /** Saves the merged state as a version; needs the versions module. */
-  saveVersion(
-    documentId: string,
-    state: Uint8Array,
-    label?: string,
-  ): AsyncResult<{ readonly id: string; readonly number: number }>;
+  saveVersion(input: {
+    documentId: string;
+    state: Uint8Array;
+    label?: string | undefined;
+  }): AsyncResult<{ readonly id: string; readonly number: number }>;
   /**
    * Newest first; needs the versions module. `named: true` keeps the versions
    * with a name.
    */
   versions(
-    documentId: string,
-    options?: { readonly named?: boolean },
+    input: { documentId: string } & { readonly named?: boolean },
   ): AsyncResult<readonly DocumentVersion[]>;
   /**
    * Names a version, or removes its name with `null`. A named version is kept
    * out of retention. Editors; needs the versions module.
    */
-  nameVersion(
-    documentId: string,
-    versionId: string,
-    label: string | null,
-  ): AsyncResult<boolean>;
+  nameVersion(input: {
+    documentId: string;
+    versionId: string;
+    label: string | null;
+  }): AsyncResult<boolean>;
   /**
    * Stores an update as a suggestion instead of appending it. Editors, and
    * readers who hold `documents.suggest`.
    */
-  suggest(
-    documentId: string,
-    update: Uint8Array,
-    summary?: string,
-  ): AsyncResult<DocumentSuggestion>;
+  suggest(input: {
+    documentId: string;
+    update: Uint8Array;
+    summary?: string | undefined;
+  }): AsyncResult<DocumentSuggestion>;
   /** Oldest first. Default status: `open`. */
-  suggestions(
-    documentId: string,
-    options?: { readonly status?: DocumentSuggestionStatus | "all" },
-  ): AsyncResult<readonly DocumentSuggestion[]>;
+  suggestions(input: {
+    documentId: string;
+    options?:
+      | { readonly status?: DocumentSuggestionStatus | "all" }
+      | undefined;
+  }): AsyncResult<readonly DocumentSuggestion[]>;
   /**
    * Accepts or rejects a suggestion (editors), or withdraws it (its author).
    * Accepting appends the update to the log.
    */
-  decideSuggestion(
-    suggestionId: string,
-    decision: SuggestionDecision,
-    note?: string,
-  ): AsyncResult<DecidedSuggestion>;
+  decideSuggestion(input: {
+    suggestionId: string;
+    decision: SuggestionDecision;
+    note?: string | undefined;
+  }): AsyncResult<DecidedSuggestion>;
   /** A saved state; needs the versions module. */
-  version(documentId: string, versionId: string): AsyncResult<Uint8Array>;
+  version(input: {
+    documentId: string;
+    versionId: string;
+  }): AsyncResult<Uint8Array>;
   /** Documents with at least `minUpdates` uncompacted updates. Service role. */
   toCompact(options?: {
     readonly minUpdates?: number;
@@ -302,6 +328,37 @@ export function createDocuments(options: DocumentsOptions): Documents {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Documents = {
+    page: ({ versions, suggestions, ...ref }) =>
+      AsyncResult.from<DocumentPage>(async () => {
+        const opened = await hooked.open(ref);
+
+        if (!opened.ok) {
+          return err(opened.error);
+        }
+
+        const [versionList, suggestionList] = await Promise.all([
+          versions
+            ? hooked.versions({ documentId: opened.data.id })
+            : Promise.resolve(ok<readonly DocumentVersion[]>([])),
+          suggestions
+            ? hooked.suggestions({ documentId: opened.data.id })
+            : Promise.resolve(ok<readonly DocumentSuggestion[]>([])),
+        ]);
+
+        if (!versionList.ok) {
+          return err(versionList.error);
+        }
+
+        if (!suggestionList.ok) {
+          return err(suggestionList.error);
+        }
+
+        return ok({
+          ...opened.data,
+          versions: versionList.data,
+          suggestions: suggestionList.data,
+        });
+      }),
     open: (ref) =>
       call(
         "open_document",
@@ -313,19 +370,19 @@ export function createDocuments(options: DocumentsOptions): Documents {
         },
         openedOf,
       ),
-    push: (documentId, update) =>
+    push: ({ documentId, update }) =>
       call(
         "push_document_update",
         { document_id: documentId, payload: toBase64(update) },
         (value) => seqOf(value, "push_document_update"),
       ),
-    pull: (documentId, afterSeq) =>
+    pull: ({ documentId, afterSeq }) =>
       call(
         "pull_document_updates",
         { document_id: documentId, after_seq: afterSeq },
         (value) => stateOf(value, "pull_document_updates"),
       ),
-    compact: (documentId, state, throughSeq) =>
+    compact: ({ documentId, state, throughSeq }) =>
       call(
         "compact_document",
         {
@@ -335,7 +392,7 @@ export function createDocuments(options: DocumentsOptions): Documents {
         },
         (value) => value === true,
       ),
-    saveVersion: (documentId, state, label) =>
+    saveVersion: ({ documentId, state, label }) =>
       call(
         "save_document_version",
         {
@@ -352,19 +409,19 @@ export function createDocuments(options: DocumentsOptions): Documents {
           };
         },
       ),
-    versions: (documentId, list = {}) =>
+    versions: ({ documentId, ...list }) =>
       call("list_document_versions", { document_id: documentId }, (value) =>
         recordsOf(value, "list_document_versions")
           .map(versionOf)
           .filter((item) => list.named !== true || item.label !== undefined),
       ),
-    nameVersion: (documentId, versionId, label) =>
+    nameVersion: ({ documentId, versionId, label }) =>
       call(
         "name_document_version",
         { document_id: documentId, version_id: versionId, label },
         (value) => value === true,
       ),
-    suggest: (documentId, update, summary) =>
+    suggest: ({ documentId, update, summary }) =>
       call(
         "suggest_document_change",
         {
@@ -374,7 +431,7 @@ export function createDocuments(options: DocumentsOptions): Documents {
         },
         (value) => suggestionOf(value, "suggest_document_change"),
       ),
-    suggestions: (documentId, list = {}) =>
+    suggestions: ({ documentId, options: list = {} }) =>
       call(
         "list_document_suggestions",
         { document_id: documentId, status: list.status ?? "open" },
@@ -383,13 +440,13 @@ export function createDocuments(options: DocumentsOptions): Documents {
             suggestionOf(item, "list_document_suggestions"),
           ),
       ),
-    decideSuggestion: (suggestionId, decision, note) =>
+    decideSuggestion: ({ suggestionId, decision, note }) =>
       call(
         "decide_document_suggestion",
         { suggestion_id: suggestionId, decision, note: note ?? null },
         (value) => suggestionOf(value, "decide_document_suggestion"),
       ),
-    version: (documentId, versionId) =>
+    version: ({ documentId, versionId }) =>
       call(
         "get_document_version",
         { document_id: documentId, version_id: versionId },
@@ -409,8 +466,11 @@ export function createDocuments(options: DocumentsOptions): Documents {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Documents = withBlockHooks(client, options.hooks, {
     block: "documents",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

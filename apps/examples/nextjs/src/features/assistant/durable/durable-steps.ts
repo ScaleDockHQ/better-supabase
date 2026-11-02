@@ -53,7 +53,9 @@ export async function recordRunStep(
   step: AiRunStepInput,
 ): Promise<void> {
   "use step";
-  await createAiChat(serviceOptions()).runs.steps.record(runId, step).orThrow();
+  await createAiChat(serviceOptions())
+    .runs.steps.record({ runId, step })
+    .orThrow();
 }
 
 /** The research agent's subagent: answers one question on its own. */
@@ -82,11 +84,14 @@ export async function deliverReport(
 ): Promise<void> {
   "use step";
   await serviceNotifications()
-    .send("workflow.message", {
-      tenant: organizationId,
-      recipients: [userId],
-      includeActor: true,
-      data: { title },
+    .send({
+      type: "workflow.message",
+      input: {
+        tenant: organizationId,
+        recipients: [userId],
+        includeActor: true,
+        data: { title },
+      },
     })
     .orThrow();
 }

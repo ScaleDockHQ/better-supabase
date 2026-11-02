@@ -146,7 +146,7 @@ describe("createAiEvals", () => {
     });
 
     const added = await createAiEvals({ transport })
-      .items.addFromFeedback("d1")
+      .items.addFromFeedback({ datasetId: "d1" })
       .orThrow();
 
     expect(added).toBe(3);
@@ -176,7 +176,7 @@ describe("createAiEvals", () => {
     });
 
     const compared = await createAiEvals({ transport })
-      .runs.compare("a", "b")
+      .runs.compare({ baseRunId: "a", candidateRunId: "b" })
       .orThrow();
 
     expect(compared.passRateDelta).toBe(-0.5);
@@ -195,7 +195,8 @@ describe("createAiEvals", () => {
     });
 
     const config = await createAiEvals({ transport })
-      .exportPromptfoo("d1", {
+      .exportPromptfoo({
+        datasetId: "d1",
         prompt: "Answer: {{question}}",
         model: "openai:gpt-4.1-mini",
         scorers: [
@@ -363,19 +364,22 @@ describe("createAiEvals reads and writes", () => {
     const evals = createAiEvals({ transport });
 
     const dataset = await evals.datasets
-      .create("support", { organizationId: "o1", description: "d" })
+      .create({ name: "support", organizationId: "o1", description: "d" })
       .orThrow();
 
     expect(dataset).toMatchObject({ id: "d1", organizationId: "o1" });
 
     await expect(
       evals.items
-        .add("d1", [{ input: "a" }, { input: "b", expected: "B" }])
+        .add({
+          datasetId: "d1",
+          items: [{ input: "a" }, { input: "b", expected: "B" }],
+        })
         .orThrow(),
     ).resolves.toBe(2);
 
     const listed = await evals.items
-      .list("d1", { pendingRun: "r1", after: "i0", limit: 5 })
+      .list({ datasetId: "d1", pendingRun: "r1", after: "i0", limit: 5 })
       .orThrow();
 
     expect(listed[0]).toMatchObject({
@@ -406,7 +410,8 @@ describe("createAiEvals reads and writes", () => {
     const evals = createAiEvals({ transport });
 
     const created = await evals.runs
-      .create("d1", {
+      .create({
+        datasetId: "d1",
         promptName: "greet",
         promptVersion: 2,
         model: "m",
@@ -430,12 +435,18 @@ describe("createAiEvals reads and writes", () => {
       id: "r1",
     });
 
-    const listed = await evals.runs.list("d1", { limit: 2 }).orThrow();
+    const listed = await evals.runs
+      .list({ datasetId: "d1", limit: 2 })
+      .orThrow();
 
     expect(listed.map((run) => run.status)).toEqual(["failed", "cancelled"]);
 
     const recorded = await evals.runs
-      .record("r1", "i1", { output: "A", latencyMs: 12 })
+      .record({
+        runId: "r1",
+        itemId: "i1",
+        result: { output: "A", latencyMs: 12 },
+      })
       .orThrow();
 
     expect(recorded.scores["tone"]).toEqual({
@@ -447,7 +458,7 @@ describe("createAiEvals reads and writes", () => {
     expect(recorded.latencyMs).toBe(12);
 
     const results = await evals.runs
-      .results("r1", { onlyFailed: true, after: "i0", limit: 3 })
+      .results({ runId: "r1", onlyFailed: true, after: "i0", limit: 3 })
       .orThrow();
 
     expect(results[1]).toMatchObject({ latencyMs: undefined, error: "x" });
@@ -456,9 +467,9 @@ describe("createAiEvals reads and writes", () => {
       max_rows: 3,
     });
 
-    await expect(evals.runs.finish("r1").orThrow()).resolves.toMatchObject({
-      id: "r1",
-    });
+    await expect(
+      evals.runs.finish({ runId: "r1" }).orThrow(),
+    ).resolves.toMatchObject({ id: "r1" });
     expect(calls.at(-1)?.args).toMatchObject({ status: "completed" });
   });
 
@@ -475,7 +486,7 @@ describe("createAiEvals reads and writes", () => {
     });
 
     const compared = await createAiEvals({ transport })
-      .runs.compare("a", "b", { scoreDrop: 0.2 })
+      .runs.compare({ baseRunId: "a", candidateRunId: "b", scoreDrop: 0.2 })
       .orThrow();
 
     expect(compared).toMatchObject({

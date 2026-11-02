@@ -200,11 +200,15 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     const lead = { type: "lead", id: "l1" };
 
     const first = await scores
-      .compute("lead", lead, {
-        stage: "qualified",
-        revenue: 250_000,
-        employees: 80,
-        name: "Acme",
+      .compute({
+        modelKey: "lead",
+        subject: lead,
+        fields: {
+          stage: "qualified",
+          revenue: 250_000,
+          employees: 80,
+          name: "Acme",
+        },
       })
       .orThrow();
 
@@ -230,17 +234,21 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     });
 
     const again = await scores
-      .compute("lead", lead, {
-        stage: "qualified",
-        revenue: 250_000,
-        employees: 80,
+      .compute({
+        modelKey: "lead",
+        subject: lead,
+        fields: { stage: "qualified", revenue: 250_000, employees: 80 },
       })
       .orThrow();
 
     expect(again).toMatchObject({ changed: false, id: first.id });
 
     const lost = await scores
-      .compute("lead", lead, { stage: "lost", revenue: null, employees: null })
+      .compute({
+        modelKey: "lead",
+        subject: lead,
+        fields: { stage: "lost", revenue: null, employees: null },
+      })
       .orThrow();
 
     expect(lost).toMatchObject({ changed: true, score: -44, band: "cold" });
@@ -251,18 +259,17 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     });
 
     await scores
-      .compute(
-        "lead",
-        { type: "lead", id: "l2" },
-        { stage: "new", employees: 30 },
-      )
+      .compute({
+        modelKey: "lead",
+        subject: { type: "lead", id: "l2" },
+        fields: { stage: "new", employees: 30 },
+      })
       .orThrow();
 
     expect(
-      (await scores.history("lead", lead).orThrow()).map((s) => [
-        s.score,
-        s.current,
-      ]),
+      (await scores.history({ modelKey: "lead", subject: lead }).orThrow()).map(
+        (s) => [s.score, s.current],
+      ),
     ).toEqual([
       [-44, true],
       [81, false],
@@ -271,11 +278,17 @@ describe.skipIf(!live)("scores module in Postgres", () => {
       expect.objectContaining({ score: -44, modelName: "Lead score" }),
     ]);
     expect(
-      (await scores.top("lead").orThrow()).map((s) => s.subject.id),
+      (await scores.top({ modelKey: "lead" }).orThrow()).map(
+        (s) => s.subject.id,
+      ),
     ).toEqual(["l2", "l1"]);
-    expect(await scores.top("lead", { band: "hot" }).orThrow()).toEqual([]);
     expect(
-      await scores.top("lead", { minScore: 0, pageSize: 1 }).orThrow(),
+      await scores.top({ modelKey: "lead", band: "hot" }).orThrow(),
+    ).toEqual([]);
+    expect(
+      await scores
+        .top({ modelKey: "lead", minScore: 0, pageSize: 1 })
+        .orThrow(),
     ).toEqual([expect.objectContaining({ score: 15, band: "cold" })]);
 
     await session.service();
@@ -312,9 +325,10 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     expect(
       (await scores.saveModel({ ...LEAD, key: "member" })).error?.hint,
     ).toBe("SCORES_FORBIDDEN");
-    expect((await scores.compute("lead", lead, {})).error?.hint).toBe(
-      "SCORES_FORBIDDEN",
-    );
+    expect(
+      (await scores.compute({ modelKey: "lead", subject: lead, fields: {} }))
+        .error?.hint,
+    ).toBe("SCORES_FORBIDDEN");
     expect(await scores.list({ on: lead }).orThrow()).toHaveLength(1);
 
     await session.as(outsider);
@@ -322,26 +336,36 @@ describe.skipIf(!live)("scores module in Postgres", () => {
       "SCORES_FORBIDDEN",
     );
     expect((await scores.models()).error?.hint).toBe("SCORES_FORBIDDEN");
-    expect((await scores.history("lead", lead)).error?.hint).toBe(
+    expect(
+      (await scores.history({ modelKey: "lead", subject: lead })).error?.hint,
+    ).toBe("SCORES_FORBIDDEN");
+    expect((await scores.top({ modelKey: "lead" })).error?.hint).toBe(
       "SCORES_FORBIDDEN",
     );
-    expect((await scores.top("lead")).error?.hint).toBe("SCORES_FORBIDDEN");
 
     await session.as(owner);
     const owned = scoresFor(tenant);
     const [model] = await owned.models().orThrow();
 
-    expect((await owned.compute("missing", lead, {})).error?.hint).toBe(
-      "SCORES_MODEL_NOT_FOUND",
-    );
     expect(
-      (await owned.compute("lead", { type: "party", id: "p" }, {})).error?.hint,
+      (await owned.compute({ modelKey: "missing", subject: lead, fields: {} }))
+        .error?.hint,
+    ).toBe("SCORES_MODEL_NOT_FOUND");
+    expect(
+      (
+        await owned.compute({
+          modelKey: "lead",
+          subject: { type: "party", id: "p" },
+          fields: {},
+        })
+      ).error?.hint,
     ).toBe("SCORES_SUBJECT_MISMATCH");
 
     await owned.saveModel({ id: model!.id, enabled: false }).orThrow();
-    expect((await owned.compute("lead", lead, {})).error?.hint).toBe(
-      "SCORES_MODEL_DISABLED",
-    );
+    expect(
+      (await owned.compute({ modelKey: "lead", subject: lead, fields: {} }))
+        .error?.hint,
+    ).toBe("SCORES_MODEL_DISABLED");
 
     await session.as(outsider);
     expect((await scoresFor(tenant).model(model!.id)).error?.kind).toBe(
@@ -354,6 +378,8 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     await session.as(owner);
     expect(await owned.deleteModel(model!.id).orThrow()).toBe(true);
     expect(await owned.deleteModel(model!.id).orThrow()).toBe(false);
-    expect(await owned.history("lead", lead).orThrow()).toEqual([]);
+    expect(
+      await owned.history({ modelKey: "lead", subject: lead }).orThrow(),
+    ).toEqual([]);
   });
 });

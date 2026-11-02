@@ -355,22 +355,28 @@ describe("orders block", () => {
 
     expect(
       await o
-        .saveShippingRate("org", {
-          name: "Standard",
-          countries: ["NL"],
-          kind: "weight",
-          amount: money(495, "EUR"),
-          amountPerKg: money(100, "EUR"),
-          freeOver: money(10_000, "EUR"),
+        .saveShippingRate({
+          organizationId: "org",
+          input: {
+            name: "Standard",
+            countries: ["NL"],
+            kind: "weight",
+            amount: money(495, "EUR"),
+            amountPerKg: money(100, "EUR"),
+            freeOver: money(10_000, "EUR"),
+          },
         })
         .orThrow(),
     ).toEqual({ id: "r1" });
     await o
-      .saveShippingRate("org", {
-        id: "r1",
-        name: "Pickup",
-        amount: money(0, "EUR"),
-        active: false,
+      .saveShippingRate({
+        organizationId: "org",
+        input: {
+          id: "r1",
+          name: "Pickup",
+          amount: money(0, "EUR"),
+          active: false,
+        },
       })
       .orThrow();
     expect(calls[0]?.args).toEqual({
@@ -398,36 +404,43 @@ describe("orders block", () => {
     expect(await o.deleteShippingRate("r1").orThrow()).toBe(true);
     expect(
       await o
-        .createCart("org", {
-          currency: "EUR",
-          email: "a@example.test",
-          priceListId: "pl",
+        .createCart({
+          organizationId: "org",
+          input: {
+            currency: "EUR",
+            email: "a@example.test",
+            priceListId: "pl",
+          },
         })
         .orThrow(),
     ).toEqual({ id: "c1", currency: "EUR" });
-    await o.createCart("org", { currency: "EUR" }).orThrow();
-    expect(await o.addToCart("c1", "v1", 2).orThrow()).toEqual({
-      lineId: "l1",
-      quantity: 2,
-    });
-    expect(await o.setCartLine("c1", "v1", 0).orThrow()).toEqual({
-      lineId: null,
-      quantity: 0,
-    });
     await o
-      .setCartDetails("c1", {
-        email: "b@example.test",
-        shippingAddress: ADDRESS,
+      .createCart({ organizationId: "org", input: { currency: "EUR" } })
+      .orThrow();
+    expect(
+      await o
+        .addToCart({ cartId: "c1", variantId: "v1", quantity: 2 })
+        .orThrow(),
+    ).toEqual({ lineId: "l1", quantity: 2 });
+    expect(
+      await o
+        .setCartLine({ cartId: "c1", variantId: "v1", quantity: 0 })
+        .orThrow(),
+    ).toEqual({ lineId: null, quantity: 0 });
+    await o
+      .setCartDetails({
+        cartId: "c1",
+        details: { email: "b@example.test", shippingAddress: ADDRESS },
       })
       .orThrow();
-    await o.setCartDetails("c1", {}).orThrow();
+    await o.setCartDetails({ cartId: "c1", details: {} }).orThrow();
     expect(calls.at(-1)?.args).toEqual({
       cart: "c1",
       email: null,
       shipping_address: null,
       billing_address: null,
     });
-    await o.setShippingRate("c1", "r1").orThrow();
+    await o.setShippingRate({ cartId: "c1", rateId: "r1" }).orThrow();
     expect(await o.shippingOptions("c1").orThrow()).toEqual([
       { id: "r1", name: "Standard", kind: "weight", amount: money(695, "EUR") },
     ]);
@@ -437,7 +450,9 @@ describe("orders block", () => {
     expect(priced.lines[0]?.previousUnitAmount).toEqual(money(1900, "EUR"));
     expect(priced.promotions[0]?.code).toBe("TEN");
     expect(priced.shipping?.amount).toEqual(money(495, "EUR"));
-    expect(await o.mergeCarts("anon", "u1").orThrow()).toBe(1);
+    expect(
+      await o.mergeCarts({ fromUserId: "anon", toUserId: "u1" }).orThrow(),
+    ).toBe(1);
   });
 
   it("decodes a sparse cart", async () => {
@@ -501,11 +516,14 @@ describe("orders block", () => {
     );
 
     const result = await o
-      .checkout("c1", {
-        customer: "cus_1",
-        returnUrl: "https://shop.test/done",
-        locationId: "w1",
-        metadata: { channel: "web" },
+      .checkout({
+        cartId: "c1",
+        input: {
+          customer: "cus_1",
+          returnUrl: "https://shop.test/done",
+          locationId: "w1",
+          metadata: { channel: "web" },
+        },
       })
       .orThrow();
 
@@ -587,7 +605,7 @@ describe("orders block", () => {
       { tax, pricesIncludeTax: true, taxCategory: "standard" },
     );
 
-    const result = await o.checkout("c1").orThrow();
+    const result = await o.checkout({ cartId: "c1" }).orThrow();
     expect(result.payment).toBeNull();
     expect(quote.mock.calls[0]?.[0]).toMatchObject({
       address: {
@@ -604,7 +622,7 @@ describe("orders block", () => {
 
   it("refuses carts that can't check out", async () => {
     const hint = (o: ReturnType<typeof orders>["orders"]) =>
-      o.checkout("c1").then((r) => !r.ok && r.error.hint);
+      o.checkout({ cartId: "c1" }).then((r) => !r.ok && r.error.hint);
 
     expect(
       await hint(orders({ price_cart: () => cartRow({ lines: [] }) }).orders),
@@ -660,7 +678,7 @@ describe("orders block", () => {
       { tax: TAX },
     );
 
-    const result = await o.checkout("c1").orThrow();
+    const result = await o.checkout({ cartId: "c1" }).orThrow();
     expect(result).toMatchObject({ payment: null, order: { id: "o1" } });
     expect(fns()).toEqual(["price_cart", "place_order"]);
   });
@@ -676,7 +694,7 @@ describe("orders block", () => {
       { payments: fakePayments(), tax: TAX },
     );
 
-    const result = await o.checkout("c1").orThrow();
+    const result = await o.checkout({ cartId: "c1" }).orThrow();
     expect(result.payment).toBeNull();
     expect(calls[2]?.args).toMatchObject({
       provider: "none",
@@ -696,7 +714,7 @@ describe("orders block", () => {
     const base = { price_cart: () => cartRow(), place_order: () => orderRow() };
     expect(
       await orders(base, { payments: declined })
-        .orders.checkout("c1")
+        .orders.checkout({ cartId: "c1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("PAYMENT_DECLINED");
     expect(
@@ -704,7 +722,7 @@ describe("orders block", () => {
         { ...base, record_payment: raise("ORDERS_PAYMENT_CONFLICT") },
         { payments: fakePayments() },
       )
-        .orders.checkout("c1")
+        .orders.checkout({ cartId: "c1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_PAYMENT_CONFLICT");
     expect(
@@ -716,7 +734,7 @@ describe("orders block", () => {
         },
         { payments: fakePayments() },
       )
-        .orders.checkout("c1")
+        .orders.checkout({ cartId: "c1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_ORDER_NOT_FOUND");
     expect(
@@ -725,7 +743,7 @@ describe("orders block", () => {
         place_order: () => orderRow({ total: "0" }),
         record_payment: raise("ORDERS_AMOUNT_INVALID"),
       })
-        .orders.checkout("c1")
+        .orders.checkout({ cartId: "c1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_AMOUNT_INVALID");
     expect(
@@ -735,7 +753,7 @@ describe("orders block", () => {
         record_payment: () => recordRow(false),
         get_order: raise("X"),
       })
-        .orders.checkout("c1")
+        .orders.checkout({ cartId: "c1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("X");
   });
@@ -756,7 +774,7 @@ describe("orders block", () => {
       { payments: fakePayments(), tax },
     );
 
-    const result = await o.checkout("c1").orThrow();
+    const result = await o.checkout({ cartId: "c1" }).orThrow();
     expect(result.order.taxTransaction).toBeUndefined();
     expect(logger.warn).toHaveBeenCalledWith(
       "orders: tax commit failed; retry with commitTax",
@@ -892,10 +910,13 @@ describe("orders block", () => {
     );
 
     const outcome = await o
-      .refund("o1", {
-        amount: money(2000, "EUR"),
-        returnId: "ret1",
-        reason: "too small",
+      .refund({
+        orderId: "o1",
+        input: {
+          amount: money(2000, "EUR"),
+          returnId: "ret1",
+          reason: "too small",
+        },
       })
       .orThrow();
 
@@ -959,7 +980,7 @@ describe("orders block", () => {
     };
 
     await orders(full, { payments: fakePayments(), tax: { ...TAX, reverse } })
-      .orders.refund("o1")
+      .orders.refund({ orderId: "o1" })
       .orThrow();
     expect(reverse.mock.calls[0]?.[0].lines).toBeUndefined();
 
@@ -971,7 +992,9 @@ describe("orders block", () => {
       },
     });
 
-    expect((await broken.orders.refund("o1").orThrow()).taxReversal).toBeNull();
+    expect(
+      (await broken.orders.refund({ orderId: "o1" }).orThrow()).taxReversal,
+    ).toBeNull();
     expect(broken.logger.warn).toHaveBeenCalledWith(
       "orders: tax reversal failed",
       expect.anything(),
@@ -983,12 +1006,12 @@ describe("orders block", () => {
     );
 
     expect(
-      (await untaxed.orders.refund("o1").orThrow()).taxReversal,
+      (await untaxed.orders.refund({ orderId: "o1" }).orThrow()).taxReversal,
     ).toBeNull();
     expect(
       (
         await orders(full, { payments: fakePayments() })
-          .orders.refund("o1")
+          .orders.refund({ orderId: "o1" })
           .orThrow()
       ).taxReversal,
     ).toBeNull();
@@ -1023,9 +1046,9 @@ describe("orders block", () => {
       { payments },
     );
 
-    expect(await o.refund("o1").then((r) => !r.ok && r.error.hint)).toBe(
-      "TOO_MUCH",
-    );
+    expect(
+      await o.refund({ orderId: "o1" }).then((r) => !r.ok && r.error.hint),
+    ).toBe("TOO_MUCH");
     expect(calls.at(-2)?.args).toEqual({
       refund: "rf1",
       status: "failed",
@@ -1033,7 +1056,7 @@ describe("orders block", () => {
     });
     expect(
       await orders({})
-        .orders.refund("o1")
+        .orders.refund({ orderId: "o1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_NO_PAYMENTS");
     expect(
@@ -1041,7 +1064,7 @@ describe("orders block", () => {
         { create_refund: raise("ORDERS_REFUND_INVALID") },
         { payments },
       )
-        .orders.refund("o1")
+        .orders.refund({ orderId: "o1" })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_REFUND_INVALID");
 
@@ -1069,7 +1092,9 @@ describe("orders block", () => {
     );
 
     expect(
-      await pending.orders.refund("o1").then((r) => !r.ok && r.error.hint),
+      await pending.orders
+        .refund({ orderId: "o1" })
+        .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_REFUND_NOT_FOUND");
     expect(pending.calls.at(-1)?.args["status"]).toBe("failed");
     expect(
@@ -1093,7 +1118,7 @@ describe("orders block", () => {
         },
         { payments },
       )
-        .orders.refund("o1", { amount: money(10, "EUR") })
+        .orders.refund({ orderId: "o1", input: { amount: money(10, "EUR") } })
         .then((r) => !r.ok && r.error.hint),
     ).toBe("TOO_MUCH");
   });
@@ -1322,7 +1347,9 @@ describe("orders block", () => {
       { payments: fakePayments({ cancel }) },
     );
 
-    expect(await o.cancelOrder("o1", "changed mind").orThrow()).toBe(true);
+    expect(
+      await o.cancelOrder({ orderId: "o1", reason: "changed mind" }).orThrow(),
+    ).toBe(true);
     expect(cancel).toHaveBeenCalledExactlyOnceWith("pi_1", {
       idempotencyKey: "cancel:pay1",
     });
@@ -1337,7 +1364,9 @@ describe("orders block", () => {
       },
     );
 
-    expect(await failing.orders.cancelOrder("o1").orThrow()).toBe(true);
+    expect(await failing.orders.cancelOrder({ orderId: "o1" }).orThrow()).toBe(
+      true,
+    );
     expect(failing.logger.warn).toHaveBeenCalledWith(
       "orders: cancelling the payment failed",
       expect.anything(),
@@ -1347,7 +1376,7 @@ describe("orders block", () => {
         { cancel_order: () => true, get_order: raise("X") },
         { payments: fakePayments({ cancel }) },
       )
-        .orders.cancelOrder("o1")
+        .orders.cancelOrder({ orderId: "o1" })
         .orThrow(),
     ).toBe(true);
     expect(
@@ -1355,12 +1384,12 @@ describe("orders block", () => {
         { cancel_order: () => false },
         { payments: fakePayments({ cancel }) },
       )
-        .orders.cancelOrder("o1")
+        .orders.cancelOrder({ orderId: "o1" })
         .orThrow(),
     ).toBe(false);
     expect(
       await orders({ cancel_order: () => true })
-        .orders.cancelOrder("o1")
+        .orders.cancelOrder({ orderId: "o1" })
         .orThrow(),
     ).toBe(true);
   });
@@ -1387,7 +1416,9 @@ describe("orders block", () => {
       expire_orders: () => 2,
     });
 
-    expect(await o.createFulfillment("o1").orThrow()).toEqual({ id: "f1" });
+    expect(await o.createFulfillment({ orderId: "o1" }).orThrow()).toEqual({
+      id: "f1",
+    });
     expect(calls[0]?.args).toEqual({
       order_id: "o1",
       lines: null,
@@ -1397,21 +1428,23 @@ describe("orders block", () => {
       tracking_url: null,
     });
     await o
-      .createFulfillment("o1", {
-        lines: [{ lineId: "l1", quantity: 1 }],
-        locationId: "w1",
-        carrier: "PostNL",
-        trackingNumber: "3S",
-        trackingUrl: "https://t.test",
+      .createFulfillment({
+        orderId: "o1",
+        input: {
+          lines: [{ lineId: "l1", quantity: 1 }],
+          locationId: "w1",
+          carrier: "PostNL",
+          trackingNumber: "3S",
+          trackingUrl: "https://t.test",
+        },
       })
       .orThrow();
     expect(calls[1]?.args["lines"]).toEqual([{ lineId: "l1", quantity: 1 }]);
-    await o.shipFulfillment("f1").orThrow();
+    await o.shipFulfillment({ fulfillmentId: "f1" }).orThrow();
     await o
-      .shipFulfillment("f1", {
-        carrier: "DHL",
-        trackingNumber: "1",
-        trackingUrl: "u",
+      .shipFulfillment({
+        fulfillmentId: "f1",
+        tracking: { carrier: "DHL", trackingNumber: "1", trackingUrl: "u" },
       })
       .orThrow();
     expect(calls[3]?.args).toEqual({
@@ -1424,18 +1457,24 @@ describe("orders block", () => {
     expect(await o.cancelFulfillment("f1").orThrow()).toBe(false);
     expect(
       await o
-        .requestReturn("o1", [{ lineId: "l1", quantity: 1 }], "too small")
+        .requestReturn({
+          orderId: "o1",
+          lines: [{ lineId: "l1", quantity: 1 }],
+          reason: "too small",
+        })
         .orThrow(),
     ).toEqual({ id: "ret1", quantity: 1 });
-    await o.requestReturn("o1", [{ lineId: "l1", quantity: 1 }]).orThrow();
-    await o.receiveReturn("ret1").orThrow();
+    await o
+      .requestReturn({ orderId: "o1", lines: [{ lineId: "l1", quantity: 1 }] })
+      .orThrow();
+    await o.receiveReturn({ returnId: "ret1" }).orThrow();
     expect(calls.at(-1)?.args).toEqual({
       return_id: "ret1",
       restock: true,
       location: null,
     });
     await o
-      .receiveReturn("ret1", { restock: false, locationId: "w1" })
+      .receiveReturn({ returnId: "ret1", restock: false, locationId: "w1" })
       .orThrow();
     expect(await o.rejectReturn("ret1").orThrow()).toBe(true);
     const invoice = await o.invoice("o1").orThrow();
@@ -1500,16 +1539,19 @@ describe("order fields", () => {
 
     const o = createOrders({ transport: route.transport, fields: schema });
 
-    const bad = await o.checkout("c1", {
-      // @ts-expect-error not one of the channels
-      fields: { channel: "fax" },
+    const bad = await o.checkout({
+      cartId: "c1",
+      input: {
+        // @ts-expect-error not one of the channels
+        fields: { channel: "fax" },
+      },
     });
 
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(route.calls).toHaveLength(0);
 
     const placed = await o
-      .checkout("c1", { fields: { channel: "pos" } })
+      .checkout({ cartId: "c1", input: { fields: { channel: "pos" } } })
       .orThrow();
 
     expect(route.calls[1]?.args).toMatchObject({ fields: { channel: "pos" } });
@@ -1546,33 +1588,36 @@ describe("orders from documents", () => {
     });
 
     const fromLines = await o
-      .fromLines("org", {
-        currency: "EUR",
-        lines: [
-          { variantId: "v1", quantity: 2 },
-          {
-            title: "Setup",
-            sku: "SETUP",
-            quantity: 1,
-            unitAmount: money(5000n, "EUR"),
-            discount: money(500n, "EUR"),
-            tax: money(945n, "EUR"),
-            requiresShipping: false,
-          },
-        ],
-        email: "buyer@example.test",
-        shippingAddress: ADDRESS,
-        locationId: "l1",
-        shippingTotal: money(495n, "EUR"),
-        taxInclusive: false,
-        origin: { type: "work_order", id: "w1" },
+      .fromLines({
+        organizationId: "org",
+        input: {
+          currency: "EUR",
+          lines: [
+            { variantId: "v1", quantity: 2 },
+            {
+              title: "Setup",
+              sku: "SETUP",
+              quantity: 1,
+              unitAmount: money(5000n, "EUR"),
+              discount: money(500n, "EUR"),
+              tax: money(945n, "EUR"),
+              requiresShipping: false,
+            },
+          ],
+          email: "buyer@example.test",
+          shippingAddress: ADDRESS,
+          locationId: "l1",
+          shippingTotal: money(495n, "EUR"),
+          taxInclusive: false,
+          origin: { type: "work_order", id: "w1" },
+        },
       })
       .orThrow();
 
     expect(fromLines.created).toBe(true);
     expect(fromLines.order.status).toBe("confirmed");
 
-    const fromQuote = await o.fromQuote("q1").orThrow();
+    const fromQuote = await o.fromQuote({ quoteId: "q1" }).orThrow();
     expect(fromQuote.created).toBe(false);
     expect(calls).toEqual([
       {
@@ -1640,7 +1685,9 @@ describe("orders from documents", () => {
     });
 
     expect(
-      await o.purchaseOrderFromOrder("o1", { id: "s1" }).orThrow(),
+      await o
+        .purchaseOrderFromOrder({ orderId: "o1", supplier: { id: "s1" } })
+        .orThrow(),
     ).toEqual({ id: "po1", orderId: "o1" });
     expect(calls).toEqual([
       {
@@ -1670,11 +1717,14 @@ describe("orders from documents", () => {
       }),
     });
 
-    await o.createFulfillment("o1", {
-      lines: [
-        { lineId: "ol1", quantity: 1, detail: { serials: ["SN-1"] } },
-        { lineId: "ol2", quantity: 1 },
-      ],
+    await o.createFulfillment({
+      orderId: "o1",
+      input: {
+        lines: [
+          { lineId: "ol1", quantity: 1, detail: { serials: ["SN-1"] } },
+          { lineId: "ol2", quantity: 1 },
+        ],
+      },
     });
 
     expect(calls[0]?.args["lines"]).toEqual([

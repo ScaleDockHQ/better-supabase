@@ -76,22 +76,28 @@ describe.skipIf(!live)("contracts", () => {
       await s.as(rep);
       expect(
         await contracts
-          .create(org, {
-            title: "Poached",
-            counterparty: { type: "vendor", id: foreign },
+          .create({
+            organizationId: org,
+            input: {
+              title: "Poached",
+              counterparty: { type: "vendor", id: foreign },
+            },
           })
           .then(hint),
       ).toBe("CONTRACT_INVALID");
 
       const draft = await contracts
-        .create(org, {
-          title: "Hosting agreement",
-          counterparty: { type: "vendor", id: vendor },
-          value: money(2_400_000n, "EUR"),
-          startsOn: day("2025-01-01"),
-          endsOn: day("2025-12-31"),
-          autoRenew: true,
-          noticeDays: 60,
+        .create({
+          organizationId: org,
+          input: {
+            title: "Hosting agreement",
+            counterparty: { type: "vendor", id: vendor },
+            value: money(2_400_000n, "EUR"),
+            startsOn: day("2025-01-01"),
+            endsOn: day("2025-12-31"),
+            autoRenew: true,
+            noticeDays: 60,
+          },
         })
         .orThrow();
 
@@ -107,35 +113,50 @@ describe.skipIf(!live)("contracts", () => {
       expect(draft.noticeDeadline?.toString()).toBe("2025-11-01");
 
       const edited = await contracts
-        .update(draft.id, { title: "Hosting agreement 2025" })
+        .update({
+          contractId: draft.id,
+          changes: { title: "Hosting agreement 2025" },
+        })
         .orThrow();
 
       expect(edited.title).toBe("Hosting agreement 2025");
 
       expect(
-        (await contracts.transition(draft.id, "submit").orThrow()).status,
+        (
+          await contracts
+            .transition({ contractId: draft.id, action: "submit" })
+            .orThrow()
+        ).status,
       ).toBe("in_review");
       expect(
         await contracts
-          .sendForSignature(draft.id, { signers: [owner.id] })
+          .sendForSignature({
+            contractId: draft.id,
+            input: { signers: [owner.id] },
+          })
           .then(hint),
       ).toBe("CONTRACT_FORBIDDEN");
 
       await s.as(owner);
 
       const out = await contracts
-        .sendForSignature(draft.id, { signers: [owner.id] })
+        .sendForSignature({
+          contractId: draft.id,
+          input: { signers: [owner.id] },
+        })
         .orThrow();
 
       expect(out.status).toBe("out_for_signature");
       expect(
-        await contracts.update(draft.id, { title: "Changed" }).then(hint),
+        await contracts
+          .update({ contractId: draft.id, changes: { title: "Changed" } })
+          .then(hint),
       ).toBe("CONTRACT_LOCKED");
 
       await signatures
-        .sign(out.signatureRequestId ?? "", {
-          method: "typed",
-          typedName: "Owner",
+        .sign({
+          requestId: out.signatureRequestId ?? "",
+          input: { method: "typed", typedName: "Owner" },
         })
         .orThrow();
       const active = await contracts.get(draft.id).orThrow();
@@ -150,10 +171,13 @@ describe.skipIf(!live)("contracts", () => {
       expect(reminders.map((row) => row.user_id)).toEqual([rep.id]);
 
       const obligation = await contracts
-        .saveObligation(draft.id, {
-          title: "Quarterly uptime report",
-          dueOn: day("2025-03-31"),
-          ownerId: rep.id,
+        .saveObligation({
+          contractId: draft.id,
+          input: {
+            title: "Quarterly uptime report",
+            dueOn: day("2025-03-31"),
+            ownerId: rep.id,
+          },
         })
         .orThrow();
 
@@ -161,15 +185,25 @@ describe.skipIf(!live)("contracts", () => {
 
       await s.as(rep);
       expect(
-        (await contracts.setObligationStatus(obligation.id, "done").orThrow())
-          .status,
+        (
+          await contracts
+            .setObligationStatus({
+              obligationId: obligation.id,
+              status: "done",
+            })
+            .orThrow()
+        ).status,
       ).toBe("done");
       expect(
-        await contracts.obligations(org, { openOnly: true }).orThrow(),
+        await contracts
+          .obligations({ organizationId: org, openOnly: true })
+          .orThrow(),
       ).toEqual([]);
 
       await s.asRole(outsider);
-      expect(await contracts.list(org).orThrow()).toEqual([]);
+      expect(await contracts.list({ organizationId: org }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
       expect(await contracts.runRenewals(day("2026-01-02")).orThrow()).toEqual({
@@ -183,16 +217,22 @@ describe.skipIf(!live)("contracts", () => {
       expect(renewed.renewedCount).toBe(1);
 
       const ended = await contracts
-        .transition(draft.id, "terminate", "Moved to another host")
+        .transition({
+          contractId: draft.id,
+          action: "terminate",
+          reason: "Moved to another host",
+        })
         .orThrow();
 
       expect(ended).toMatchObject({
         status: "terminated",
         terminationReason: "Moved to another host",
       });
-      expect(await contracts.transition(draft.id, "terminate").then(hint)).toBe(
-        "CONTRACT_TRANSITION_INVALID",
-      );
+      expect(
+        await contracts
+          .transition({ contractId: draft.id, action: "terminate" })
+          .then(hint),
+      ).toBe("CONTRACT_TRANSITION_INVALID");
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where type like 'contract.%' order by position",

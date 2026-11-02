@@ -116,7 +116,9 @@ describe("link flow", () => {
       "redeem_identity_link",
       { code: "ABC123DEF456", ...slack },
     );
-    await createIdentities({ transport: t }).beginLink("email").orThrow();
+    await createIdentities({ transport: t })
+      .beginLink({ kind: "email" })
+      .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
       "begin_identity_link",

@@ -21,6 +21,7 @@ import {
   raise,
 } from "../shared.ts";
 import { platformLists } from "./billing-platform.ts";
+import { BILLING_READS, billingReads } from "./billing-reads.ts";
 import {
   subscriptionSourceOf,
   webhookSubscriptions,
@@ -42,6 +43,7 @@ const EVENTS: BlockSqlEvents<BillingEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
+  reads: BILLING_READS,
   options: ["seatRoles", "plans", "tenantKey", "subscriptions"],
   tables: {
     customers: {
@@ -763,7 +765,8 @@ grant execute on function ${fn("billing_customer_tenant")}(text) to service_role
 grant execute on function ${fn("link_billing_customer")}(${id}, text) to service_role;
 grant execute on function ${fn("billing_seat_count")}(${id}) to service_role;
 grant execute on function ${fn("billing_subscription_item")}(${id}, text) to service_role;
-grant execute on function ${fn("billing_status")}(${id}) to authenticated, service_role;`;
+grant execute on function ${fn("billing_status")}(${id}) to authenticated, service_role;
+${billingReads(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -802,6 +805,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "billing_status", args: ["{id}"], returns: "jsonb" },
+    { name: "billing_overview", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "billing_subscription", args: ["{id}"], returns: "jsonb" },
     {
       name: "billing_all_invoices",
@@ -836,7 +840,7 @@ export const BILLING: BlockSqlDefinition = {
   description:
     "Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.",
   requires: ["memberships", "permissions"],
-  integrates: ["organizations"],
+  integrates: ["organizations", "usage"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

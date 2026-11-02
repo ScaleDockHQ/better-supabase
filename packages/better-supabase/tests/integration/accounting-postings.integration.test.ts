@@ -97,17 +97,24 @@ describe.skipIf(!live)("accounting postings", () => {
     await s.as(owner);
 
     const books = createAccounting({ transport: sqlTransport(s.sql) });
-    await books.setup(tenant, { functionalCurrency: "EUR" }).orThrow();
-    await books.openFiscalYear(tenant, 2026).orThrow();
-    const accounts = await books.accounts(tenant).orThrow();
+    await books
+      .setup({ organizationId: tenant, input: { functionalCurrency: "EUR" } })
+      .orThrow();
+    await books
+      .openFiscalYear({ organizationId: tenant, fiscalYear: 2026 })
+      .orThrow();
+    const accounts = await books.accounts({ organizationId: tenant }).orThrow();
     await createTax({ transport: sqlTransport(s.sql), tenant })
       .saveCode({
-        code: "VAT21",
-        name: "VAT 21%",
-        type: "sales",
-        rateBps: 2100,
-        salesAccountId: accounts.find((account) => account.code === "2100")!.id,
-        returnBoxes: ["1a"],
+        input: {
+          code: "VAT21",
+          name: "VAT 21%",
+          type: "sales",
+          rateBps: 2100,
+          salesAccountId: accounts.find((account) => account.code === "2100")!
+            .id,
+          returnBoxes: ["1a"],
+        },
       })
       .orThrow();
   });
@@ -123,20 +130,26 @@ describe.skipIf(!live)("accounting postings", () => {
     const books = createAccounting({ transport });
 
     const draft = await invoices
-      .create(tenant, { title: "Work" }, [
-        { description: "Work", unitAmount: eur(1000n), taxRateBps: 2100 },
-      ])
+      .create({
+        organizationId: tenant,
+        input: { title: "Work" },
+        lines: [
+          { description: "Work", unitAmount: eur(1000n), taxRateBps: 2100 },
+        ],
+      })
       .orThrow();
 
     expect(await booked("invoice", draft.id)).toEqual([]);
 
-    const invoice = await invoices.issue(draft.id).orThrow();
+    const invoice = await invoices.issue({ invoiceId: draft.id }).orThrow();
 
     expect(await booked("invoice", invoice.id)).toEqual([
       { status: "posted", total: "1210" },
     ]);
 
-    const again = await books.postSource("invoice", invoice.id).orThrow();
+    const again = await books
+      .postSource({ sourceType: "invoice", sourceId: invoice.id })
+      .orThrow();
 
     expect(again?.status).toBe("posted");
     expect(await booked("invoice", invoice.id)).toHaveLength(1);
@@ -144,13 +157,19 @@ describe.skipIf(!live)("accounting postings", () => {
     const today = Temporal.Now.plainDateISO("UTC");
 
     const report = await books
-      .taxReport(tenant, day("2026-01-01"), today)
+      .taxReport({
+        organizationId: tenant,
+        since: day("2026-01-01"),
+        until: today,
+      })
       .orThrow();
 
     expect(report.boxes).toEqual([{ box: "1a", base: 1000n, tax: 210n }]);
     expect(report.netTax).toBe(210n);
 
-    await invoices.recordPayment(invoice.id, { amount: eur(500n) }).orThrow();
+    await invoices
+      .recordPayment({ invoiceId: invoice.id, payment: { amount: eur(500n) } })
+      .orThrow();
 
     await s.service();
 
@@ -166,13 +185,15 @@ describe.skipIf(!live)("accounting postings", () => {
     ]);
 
     const other = await invoices
-      .create(tenant, { title: "Mistake" }, [
-        { description: "Oops", unitAmount: eur(300n) },
-      ])
+      .create({
+        organizationId: tenant,
+        input: { title: "Mistake" },
+        lines: [{ description: "Oops", unitAmount: eur(300n) }],
+      })
       .orThrow();
 
-    await invoices.issue(other.id).orThrow();
-    await invoices.void(other.id, "mistake").orThrow();
+    await invoices.issue({ invoiceId: other.id }).orThrow();
+    await invoices.void({ invoiceId: other.id, reason: "mistake" }).orThrow();
 
     expect(await booked("invoice", other.id)).toEqual([
       { status: "reversed", total: "300" },
@@ -185,15 +206,20 @@ describe.skipIf(!live)("accounting postings", () => {
     const invoices = createInvoices({ transport });
 
     const draft = await invoices
-      .create(tenant, { title: "Late payer" }, [
-        { description: "Work", unitAmount: eur(1000n) },
-      ])
+      .create({
+        organizationId: tenant,
+        input: { title: "Late payer" },
+        lines: [{ description: "Work", unitAmount: eur(1000n) }],
+      })
       .orThrow();
 
-    const invoice = await invoices.issue(draft.id).orThrow();
+    const invoice = await invoices.issue({ invoiceId: draft.id }).orThrow();
 
     const charged = await invoices
-      .charge(invoice.id, { amount: eur(50n), description: "Late fee" })
+      .charge({
+        invoiceId: invoice.id,
+        charge: { amount: eur(50n), description: "Late fee" },
+      })
       .orThrow();
 
     const charge = charged.charges?.[0];
@@ -203,18 +229,23 @@ describe.skipIf(!live)("accounting postings", () => {
     ]);
 
     const second = await invoices
-      .charge(invoice.id, { amount: eur(20n), description: "Reminder" })
+      .charge({
+        invoiceId: invoice.id,
+        charge: { amount: eur(20n), description: "Reminder" },
+      })
       .orThrow();
 
     const extra = second.charges?.find((each) => each.id !== charge!.id);
 
-    await invoices.removeCharge(extra!.id).orThrow();
+    await invoices.removeCharge({ chargeId: extra!.id }).orThrow();
 
     expect(await booked("invoice_charge", extra!.id)).toEqual([
       { status: "reversed", total: "20" },
     ]);
 
-    await invoices.writeOff(invoice.id, "uncollectible").orThrow();
+    await invoices
+      .writeOff({ invoiceId: invoice.id, reason: "uncollectible" })
+      .orThrow();
 
     expect(await booked("invoice_write_off", invoice.id)).toEqual([
       { status: "posted", total: "1050" },
@@ -235,11 +266,14 @@ describe.skipIf(!live)("accounting postings", () => {
       .orThrow();
 
     await expenses
-      .addLine(report.id, {
-        categoryId: meals.id,
-        spentOn: day("2026-10-01"),
-        amount: eur(4000n),
-        description: "Lunch",
+      .addLine({
+        reportId: report.id,
+        line: {
+          categoryId: meals.id,
+          spentOn: day("2026-10-01"),
+          amount: eur(4000n),
+          description: "Lunch",
+        },
       })
       .orThrow();
     const submitted = await expenses.submit(report.id).orThrow();
@@ -254,7 +288,9 @@ describe.skipIf(!live)("accounting postings", () => {
       { status: "posted", total: "4000" },
     ]);
 
-    await expenses.reimburse(report.id, { reference: "SEPA-1" }).orThrow();
+    await expenses
+      .reimburse({ reportId: report.id, input: { reference: "SEPA-1" } })
+      .orThrow();
 
     expect(await booked("expense_reimbursement", report.id)).toEqual([
       { status: "posted", total: "4000" },
@@ -313,7 +349,7 @@ describe.skipIf(!live)("accounting postings", () => {
     const leases = createLeases({ transport, tenant });
 
     const company = await createContacts({ transport })
-      .saveCompany(tenant, { name: "Acme" })
+      .saveCompany({ organizationId: tenant, input: { name: "Acme" } })
       .orThrow();
 
     const unit = await s.value<{ id: string }>(
@@ -333,7 +369,7 @@ describe.skipIf(!live)("accounting postings", () => {
     await leases.activate(lease.id).orThrow();
     await leases.postDueRent({ through: day("2026-02-15") }).orThrow();
 
-    const charges = await leases.charges(lease.id).orThrow();
+    const charges = await leases.charges({ leaseId: lease.id }).orThrow();
 
     for (const charge of charges) {
       expect(await booked("lease_rent", charge.id)).toEqual([
@@ -342,7 +378,10 @@ describe.skipIf(!live)("accounting postings", () => {
     }
 
     await leases
-      .recordPayment(lease.id, { amount: eur(150_000n), reference: "bank-1" })
+      .recordPayment({
+        leaseId: lease.id,
+        payment: { amount: eur(150_000n), reference: "bank-1" },
+      })
       .orThrow();
 
     await s.service();
@@ -363,7 +402,7 @@ describe.skipIf(!live)("accounting postings", () => {
     const donations = createDonations({ transport, tenant });
 
     const company = await createContacts({ transport })
-      .saveCompany(tenant, { name: "Donor" })
+      .saveCompany({ organizationId: tenant, input: { name: "Donor" } })
       .orThrow();
 
     const gift = await donations

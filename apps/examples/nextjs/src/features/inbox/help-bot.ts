@@ -70,7 +70,11 @@ export async function answerHelp(
     return;
   }
 
-  await inbox.conversations.typing(conversationId, true, BOT);
+  await inbox.conversations.typing({
+    conversationId,
+    typing: true,
+    actor: BOT,
+  });
 
   try {
     const response = await assistant().respond(
@@ -100,12 +104,15 @@ export async function answerHelp(
       return;
     }
 
-    await inbox.messages.send(conversationId, {
-      body: answer,
-      format: "markdown",
-      authorType: "bot",
+    await inbox.messages.send({
+      conversationId,
+      input: { body: answer, format: "markdown", authorType: "bot" },
     });
   } finally {
-    await inbox.conversations.typing(conversationId, false, BOT);
+    await inbox.conversations.typing({
+      conversationId,
+      typing: false,
+      actor: BOT,
+    });
   }
 }

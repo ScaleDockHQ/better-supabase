@@ -743,6 +743,14 @@ export const GET = bsb.debugRoute();
 In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
 context: `{ calls, waves, tables, ms }`.
 
+Without a `debug` option, development still watches round trips: `createNext`
+takes `devRoundTripBudget` (default 4, `false` turns it off) and warns when a
+render waits on more sequential waves than that. The warning names
+[read sets](/docs/repository/read-sets) as the fix, and
+[BS609](/docs/cli/doctor#bs609) finds three or more awaited database reads
+in one `Promise.all`. The OpenTelemetry plugin sets `better_supabase.db.round_trips` on each
+database span.
+
 Fail CI when a page gets chattier with
 [`expectDbBudget`](/docs/testing#database-budget):
 

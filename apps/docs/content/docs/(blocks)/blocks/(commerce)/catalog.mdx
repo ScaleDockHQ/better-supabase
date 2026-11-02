@@ -115,14 +115,20 @@ over a discontinued product, which reads as `archived`;
 
 ```ts
 const size = await catalog
-  .saveOption(shirt.id, { name: "Size", values: ["S", "M", "L"] })
+  .saveOption({
+    productId: shirt.id,
+    input: { name: "Size", values: ["S", "M", "L"] },
+  })
   .orThrow();
 
 await catalog
-  .createVariant(shirt.id, {
-    sku: "SHIRT-LINEN-S",
-    optionValues: [size.values[0].id],
-    weightGrams: 220,
+  .createVariant({
+    productId: shirt.id,
+    input: {
+      sku: "SHIRT-LINEN-S",
+      optionValues: [size.values[0].id],
+      weightGrams: 220,
+    },
   })
   .orThrow();
 ```
@@ -176,7 +182,7 @@ catalog: {
   values: { variants: { status: { discontinued: "discontinued" } } },
 }
 
-await catalog.setVariantStatus(variantId, "discontinued").orThrow();
+await catalog.setVariantStatus({ variantId, status: "discontinued" }).orThrow();
 ```
 
 ### The whole matrix at once
@@ -204,10 +210,13 @@ options with their values and the live variants with their `optionValueIds`.
 
 ```ts
 const matrix = await catalog
-  .setOptions(shirt.id, [
-    { name: "Size", values: ["S", "M", "L"] },
-    { name: "Colour", values: ["Sand", "Navy"] },
-  ])
+  .setOptions({
+    productId: shirt.id,
+    options: [
+      { name: "Size", values: ["S", "M", "L"] },
+      { name: "Colour", values: ["Sand", "Navy"] },
+    ],
+  })
   .orThrow();
 // matrix.variants.length === 6
 ```
@@ -242,20 +251,24 @@ renumber the rest yourself. A position with text ranks returns the same error.
 `blockConfig` passes `rankType` to the client.
 
 ```ts
-await catalog.moveCategory(categoryId, parentId, { position: 3 }).orThrow();
+await catalog
+  .moveCategory({ categoryId, parentId, rank: { position: 3 } })
+  .orThrow();
 ```
 
 ## Prices
 
 ```ts
 await catalog
-  .setPrice(variantId, {
-    amount: money(4900n, "EUR"),
-    compareAt: money(5900n, "EUR"),
+  .setPrice({
+    variantId,
+    input: { amount: money(4900n, "EUR"), compareAt: money(5900n, "EUR") },
   })
   .orThrow();
 
-const price = await catalog.variantPrice(variantId, "EUR").orThrow();
+const price = await catalog
+  .variantPrice({ variantId, currency: "EUR" })
+  .orThrow();
 // { id, variantId, amount: { amount: 4900n, currency: "EUR" }, compareAt, priceListId: null }
 ```
 
@@ -317,7 +330,7 @@ catalog: {
   },
 }
 
-await catalog.createVariant(productId, { sku: "TEE-S", fields: { is_default: true } }).orThrow();
+await catalog.createVariant({ productId, input: { sku: "TEE-S", fields: { is_default: true } } }).orThrow();
 ```
 
 ## Categories and collections
@@ -334,22 +347,25 @@ renders it with the filter UI it already has:
 
 ```ts
 await catalog
-  .saveCollection(organizationId, {
-    title: "Digital",
-    kind: "rule",
-    rule: {
-      id: "root",
-      type: "group",
-      combinator: "and",
-      rules: [
-        {
-          id: "kind",
-          type: "rule",
-          path: ["kind"],
-          operator: "is",
-          value: "digital",
-        },
-      ],
+  .saveCollection({
+    organizationId,
+    input: {
+      title: "Digital",
+      kind: "rule",
+      rule: {
+        id: "root",
+        type: "group",
+        combinator: "and",
+        rules: [
+          {
+            id: "kind",
+            type: "rule",
+            path: ["kind"],
+            operator: "is",
+            value: "digital",
+          },
+        ],
+      },
     },
   })
   .orThrow();
@@ -363,22 +379,29 @@ and lists the products it sells:
 
 ```ts
 const web = await catalog
-  .saveChannel(organizationId, {
-    key: "web-de",
-    name: "Web shop Germany",
-    currency: "EUR",
-    priceListId: retailListId,
+  .saveChannel({
+    organizationId,
+    input: {
+      key: "web-de",
+      name: "Web shop Germany",
+      currency: "EUR",
+      priceListId: retailListId,
+    },
   })
   .orThrow();
 
-await catalog.listOnChannel(web.id, [shirt.id]).orThrow();
+await catalog
+  .listOnChannel({ channelId: web.id, productIds: [shirt.id] })
+  .orThrow();
 
 const listed = await catalog
-  .channelProducts(web.id, { locale: "de", limit: 50 })
+  .channelProducts({ channelId: web.id, locale: "de", limit: 50 })
   .orThrow();
 // [{ id, slug, status, kind, locale: "de", title, description, listedAt }]
 
-const price = await catalog.channelPrice(web.id, variantId).orThrow();
+const price = await catalog
+  .channelPrice({ channelId: web.id, variantId })
+  .orThrow();
 ```
 
 The key is lower-case letters, digits and hyphens, unique per organization
@@ -404,24 +427,30 @@ looks a code up:
 
 ```ts
 await catalog
-  .saveProductIdentifier(organizationId, {
-    variantId,
-    type: "ean",
-    value: "4006381333931",
+  .saveProductIdentifier({
+    organizationId,
+    input: { variantId, type: "ean", value: "4006381333931" },
   })
   .orThrow();
 
 await catalog
-  .saveProductIdentifier(organizationId, {
-    variantId,
-    type: "supplier",
-    value: "GV-100",
-    partyId: supplierId,
+  .saveProductIdentifier({
+    organizationId,
+    input: {
+      variantId,
+      type: "supplier",
+      value: "GV-100",
+      partyId: supplierId,
+    },
   })
   .orThrow();
 
 const matches = await catalog
-  .findVariantsByIdentifier(organizationId, "GV-100", { type: "supplier" })
+  .findVariantsByIdentifier({
+    organizationId,
+    value: "GV-100",
+    type: "supplier",
+  })
   .orThrow();
 // [{ identifierId, variantId, productId, sku, type, value, partyId }]
 ```
@@ -439,16 +468,19 @@ one:
 
 ```ts
 await catalog
-  .saveProductRelation(organizationId, {
-    fromVariantId: oldValve,
-    toVariantId: newValve,
-    kind: "superseded_by",
+  .saveProductRelation({
+    organizationId,
+    input: {
+      fromVariantId: oldValve,
+      toVariantId: newValve,
+      kind: "superseded_by",
+    },
   })
   .orThrow();
 
-await catalog.variantRelations(oldValve).orThrow();
+await catalog.variantRelations({ variantId: oldValve }).orThrow();
 // [{ kind: "superseded_by", direction: "outgoing", variantId, sku }]
-await catalog.variantRelations(newValve).orThrow();
+await catalog.variantRelations({ variantId: newValve }).orThrow();
 // [{ kind: "superseded_by", direction: "incoming", variantId, sku }]
 
 const current = await catalog.replacementVariant(oldValve).orThrow();
@@ -472,23 +504,26 @@ list without creating a product for every row:
 
 ```ts
 const item = await catalog
-  .saveSupplierItem(organizationId, {
-    supplierId,
-    code: "GV-100",
-    description: "Gate valve, brass",
-    price: 123450n, // minor units of the currency
-    currency: "EUR",
-    unit: "pcs",
-    keywords: "acme valves",
+  .saveSupplierItem({
+    organizationId,
+    input: {
+      supplierId,
+      code: "GV-100",
+      description: "Gate valve, brass",
+      price: 123450n, // minor units of the currency
+      currency: "EUR",
+      unit: "pcs",
+      keywords: "acme valves",
+    },
   })
   .orThrow();
 
 const found = await catalog
-  .searchSupplierItems(organizationId, "brass gate", { supplierId })
+  .searchSupplierItems({ organizationId, query: "brass gate", supplierId })
   .orThrow();
 
 const promoted = await catalog
-  .promoteSupplierItem(item.id, { sku: "VALVE-100" })
+  .promoteSupplierItem({ itemId: item.id, sku: "VALVE-100" })
   .orThrow();
 // { productId, variantId, created: true }
 ```
@@ -516,24 +551,32 @@ Every supplier names its price list columns differently.
 
 ```ts
 await catalog
-  .setSupplierItemMapping(organizationId, supplierId, {
-    columns: {
-      code: "Artikel",
-      description: "Omschrijving",
-      price: "Prijs",
-      keywords: ["Merk", "Groep"],
+  .setSupplierItemMapping({
+    organizationId,
+    supplierId,
+    input: {
+      columns: {
+        code: "Artikel",
+        description: "Omschrijving",
+        price: "Prijs",
+        keywords: ["Merk", "Groep"],
+      },
+      defaults: { currency: "EUR", unit: "pcs" },
     },
-    defaults: { currency: "EUR", unit: "pcs" },
   })
   .orThrow();
 
 const fields = await catalog
-  .mapSupplierRow(organizationId, supplierId, {
-    Artikel: "GV-100",
-    Omschrijving: "Gate valve",
-    Prijs: "1.234,50",
-    Merk: "Acme",
-    Groep: "valves",
+  .mapSupplierRow({
+    organizationId,
+    supplierId,
+    row: {
+      Artikel: "GV-100",
+      Omschrijving: "Gate valve",
+      Prijs: "1.234,50",
+      Merk: "Acme",
+      Groep: "valves",
+    },
   })
   .orThrow();
 // { code: "GV-100", description: "Gate valve", price: 123450n,
@@ -575,7 +618,9 @@ so `8481 80 99` is stored as `84818099`, and `null` clears it
 `weightGrams` of `saveVariant`.
 
 ```ts
-await catalog.setVariantTradeCode(variantId, "8481 80 99").orThrow();
+await catalog
+  .setVariantTradeCode({ variantId, tradeCode: "8481 80 99" })
+  .orThrow();
 ```
 
 ## Discount groups and the matrix
@@ -584,25 +629,38 @@ A customer group and a product group are the two axes of a price matrix. `saveDi
 
 ```ts
 const dealers = await db.catalog
-  .saveDiscountGroup(orgId, {
-    kind: "customer",
-    code: "DEALER",
-    name: "Dealers",
+  .saveDiscountGroup({
+    organizationId: orgId,
+    input: { kind: "customer", code: "DEALER", name: "Dealers" },
   })
   .orThrow();
 const pumps = await db.catalog
-  .saveDiscountGroup(orgId, { kind: "product", code: "PUMPS", name: "Pumps" })
+  .saveDiscountGroup({
+    organizationId: orgId,
+    input: { kind: "product", code: "PUMPS", name: "Pumps" },
+  })
   .orThrow();
 
-await db.catalog.setPartyDiscountGroup(orgId, companyId, dealers.id).orThrow();
-await db.catalog.setVariantDiscountGroup(variantId, pumps.id).orThrow();
+await db.catalog
+  .setPartyDiscountGroup({
+    organizationId: orgId,
+    partyId: companyId,
+    groupId: dealers.id,
+  })
+  .orThrow();
+await db.catalog
+  .setVariantDiscountGroup({ variantId, groupId: pumps.id })
+  .orThrow();
 
 await db.catalog
-  .saveDiscountRule(orgId, {
-    customerGroupId: dealers.id,
-    productGroupId: pumps.id,
-    minQuantity: 10,
-    discountBps: 2500,
+  .saveDiscountRule({
+    organizationId: orgId,
+    input: {
+      customerGroupId: dealers.id,
+      productGroupId: pumps.id,
+      minQuantity: 10,
+      discountBps: 2500,
+    },
   })
   .orThrow();
 ```
@@ -631,14 +689,19 @@ blocks: { catalog: { options: { locales: ["en", "de", "pt-BR"] } } },
 
 ```ts
 await catalog
-  .setProductTranslation(shirt.id, "de", {
-    title: "Leinenhemd",
-    description: "Aus reinem Leinen.",
+  .setProductTranslation({
+    productId: shirt.id,
+    locale: "de",
+    translation: { title: "Leinenhemd", description: "Aus reinem Leinen." },
   })
   .orThrow();
-await catalog.setVariantTranslation(variantId, "de", "Klein").orThrow();
+await catalog
+  .setVariantTranslation({ variantId, locale: "de", title: "Klein" })
+  .orThrow();
 
-const text = await catalog.productText(shirt.id, { locale: "de-AT" }).orThrow();
+const text = await catalog
+  .productText({ productId: shirt.id, locale: "de-AT" })
+  .orThrow();
 // { id, slug, locale: "de", title: "Leinenhemd", description, variants: [{ id, sku, title }] }
 ```
 
@@ -661,24 +724,32 @@ optional variant it shows:
 
 ```ts
 const file = await attachments
-  .put(
-    { type: "product", id: shirt.id },
-    { name: "front.jpg", mimeType: "image/jpeg", size: image.byteLength },
-    image,
-  )
+  .put({
+    subject: { type: "product", id: shirt.id },
+    attachment: {
+      name: "front.jpg",
+      mimeType: "image/jpeg",
+      size: image.byteLength,
+    },
+    file: image,
+  })
   .orThrow();
 
 const media = await catalog
-  .addProductMedia(shirt.id, file.id, {
-    alt: { en: "Linen shirt, front", de: "Leinenhemd, vorne" },
+  .addProductMedia({
+    productId: shirt.id,
+    attachmentId: file.id,
+    input: { alt: { en: "Linen shirt, front", de: "Leinenhemd, vorne" } },
   })
   .orThrow();
 // { id, position: 0 }
 
-await catalog.reorderProductMedia(shirt.id, [media.id, otherId]).orThrow();
+await catalog
+  .reorderProductMedia({ productId: shirt.id, mediaIds: [media.id, otherId] })
+  .orThrow();
 
 const gallery = await catalog
-  .productMedia(shirt.id, { locale: "de" })
+  .productMedia({ productId: shirt.id, locale: "de" })
   .orThrow();
 // [{ id, attachmentId, variantId, position, alt: "Leinenhemd, vorne", altByLocale }]
 ```
@@ -790,9 +861,18 @@ const client = createCatalog({
 const catalog = createCatalog({ transport });
 
 const shirt = await catalog
-  .createProduct(organizationId, { title: "Linen Shirt", kind: "physical" })
+  .createProduct({
+    organizationId,
+    input: { title: "Linen Shirt", kind: "physical" },
+  })
   .orThrow();
 // { id, slug: "linen-shirt", status: "draft" }
 
-await catalog.setProductStatus(shirt.id, "active").orThrow();
+await catalog
+  .setProductStatus({ productId: shirt.id, status: "active" })
+  .orThrow();
 ```
+
+## Simple products
+
+`createSimpleProduct({ organizationId, title, price, sku, slug, description, publish })` creates a product with one variant and its price, and sets it to `active` when `publish` is true. It returns `{ product, variant, price }`.

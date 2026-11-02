@@ -161,16 +161,25 @@ describe("createAccounting", () => {
     const books = createAccounting({ transport: t });
 
     const settings = await books
-      .setup("org-1", { functionalCurrency: "EUR", fiscalYearStartMonth: 4 })
+      .setup({
+        organizationId: "org-1",
+        input: { functionalCurrency: "EUR", fiscalYearStartMonth: 4 },
+      })
       .orThrow();
 
-    await books.setup("org-1").orThrow();
+    await books.setup({ organizationId: "org-1" }).orThrow();
 
     const missing = await books.settings("org-2").orThrow();
-    const cleared = await books.setLockDate("org-1", null).orThrow();
+
+    const cleared = await books
+      .setLockDate({ organizationId: "org-1", lockDate: null })
+      .orThrow();
 
     await books
-      .setLockDate("org-1", Temporal.PlainDate.from("2026-03-31"))
+      .setLockDate({
+        organizationId: "org-1",
+        lockDate: Temporal.PlainDate.from("2026-03-31"),
+      })
       .orThrow();
 
     expect(settings.lockDate?.toString()).toBe("2026-03-31");
@@ -213,33 +222,45 @@ describe("createAccounting", () => {
     const books = createAccounting({ transport: t });
 
     const saved = await books
-      .saveAccount("org-1", {
-        code: "1300",
-        name: "Accounts receivable",
-        type: "asset",
-        subtype: "receivable",
-        parentId: "a0",
-        currency: "EUR",
-        reconcilable: true,
-        accountId: "a1",
+      .saveAccount({
+        organizationId: "org-1",
+        input: {
+          code: "1300",
+          name: "Accounts receivable",
+          type: "asset",
+          subtype: "receivable",
+          parentId: "a0",
+          currency: "EUR",
+          reconcilable: true,
+          accountId: "a1",
+        },
       })
       .orThrow();
 
     await books
-      .saveAccount("org-1", { code: "8000", name: "Revenue", type: "income" })
+      .saveAccount({
+        organizationId: "org-1",
+        input: { code: "8000", name: "Revenue", type: "income" },
+      })
       .orThrow();
 
-    const archived = await books.archiveAccount("a2").orThrow();
+    const archived = await books.archiveAccount({ accountId: "a2" }).orThrow();
 
-    await books.archiveAccount("a2", false).orThrow();
+    await books.archiveAccount({ accountId: "a2", archived: false }).orThrow();
 
     const roles = await books
-      .setAccountRole("org-1", "receivable", "a1")
+      .setAccountRole({
+        organizationId: "org-1",
+        role: "receivable",
+        accountId: "a1",
+      })
       .orThrow();
 
-    const listed = await books.accounts("org-1").orThrow();
+    const listed = await books.accounts({ organizationId: "org-1" }).orThrow();
 
-    await books.accounts("org-1", { includeArchived: true }).orThrow();
+    await books
+      .accounts({ organizationId: "org-1", includeArchived: true })
+      .orThrow();
 
     expect(saved).toMatchObject({ roles: ["receivable"], reconcilable: true });
     expect(archived.archivedAt?.toString()).toBe("2026-10-22T10:00:00Z");
@@ -301,7 +322,9 @@ describe("createAccounting", () => {
       list_accounting_accounts: () => [{ ...ACCOUNT, type: "other" }],
     });
 
-    const listed = await createAccounting({ transport: t }).accounts("org-1");
+    const listed = await createAccounting({ transport: t }).accounts({
+      organizationId: "org-1",
+    });
 
     expect(listed.ok).toBe(false);
   });
@@ -317,24 +340,36 @@ describe("createAccounting", () => {
     const books = createAccounting({ transport: t });
 
     await books
-      .saveJournal("org-1", {
-        code: "SAL",
-        name: "Sales",
-        type: "sales",
-        defaultAccountId: "a2",
-        currency: "EUR",
-        journalId: "j1",
+      .saveJournal({
+        organizationId: "org-1",
+        input: {
+          code: "SAL",
+          name: "Sales",
+          type: "sales",
+          defaultAccountId: "a2",
+          currency: "EUR",
+          journalId: "j1",
+        },
       })
       .orThrow();
     await books
-      .saveJournal("org-1", { code: "GEN", name: "General", type: "general" })
+      .saveJournal({
+        organizationId: "org-1",
+        input: { code: "GEN", name: "General", type: "general" },
+      })
       .orThrow();
 
     const journals = await books.journals("org-1").orThrow();
-    const [opened] = await books.openFiscalYear("org-1", 2026).orThrow();
-    const [listed] = await books.periods("org-1").orThrow();
 
-    await books.periods("org-1", 2026).orThrow();
+    const [opened] = await books
+      .openFiscalYear({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
+
+    const [listed] = await books.periods({ organizationId: "org-1" }).orThrow();
+
+    await books
+      .periods({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
 
     expect(journals[0]).toMatchObject({ code: "SAL", defaultAccountId: "a2" });
     expect(opened?.startsOn.toString()).toBe("2026-01-01");
@@ -407,32 +442,43 @@ describe("createAccounting", () => {
     const on = Temporal.PlainDate.from("2026-01-15");
 
     const dimension = await books
-      .saveDimension("org-1", "project", "Project")
+      .saveDimension({
+        organizationId: "org-1",
+        key: "project",
+        name: "Project",
+      })
       .orThrow();
 
     await books
-      .saveDimensionValue("d1", { code: "apollo", name: "Apollo" })
+      .saveDimensionValue({
+        dimensionId: "d1",
+        input: { code: "apollo", name: "Apollo" },
+      })
       .orThrow();
     await books
-      .saveDimensionValue("d1", {
-        code: "gemini",
-        name: "Gemini",
-        archived: true,
+      .saveDimensionValue({
+        dimensionId: "d1",
+        input: { code: "gemini", name: "Gemini", archived: true },
       })
       .orThrow();
 
     const [listed] = await books.dimensions("org-1").orThrow();
 
     const rate = await books
-      .setFxRate("org-1", {
-        base: "USD",
-        quote: "EUR",
-        onDate: on,
-        rate: "0.930769",
+      .setFxRate({
+        organizationId: "org-1",
+        input: { base: "USD", quote: "EUR", onDate: on, rate: "0.930769" },
       })
       .orThrow();
 
-    const looked = await books.fxRate("org-1", "USD", "EUR", on).orThrow();
+    const looked = await books
+      .fxRate({
+        organizationId: "org-1",
+        base: "USD",
+        quote: "EUR",
+        onDate: on,
+      })
+      .orThrow();
 
     expect(dimension.values).toEqual([]);
     expect(listed?.values[1]?.archivedAt?.toString()).toBe(
@@ -559,19 +605,23 @@ describe("createAccounting", () => {
 
     await books.postEntry("e1").orThrow();
 
-    const reversal = await books.reverseEntry("e1").orThrow();
+    const reversal = await books.reverseEntry({ entryId: "e1" }).orThrow();
 
     await books
-      .reverseEntry("e1", Temporal.PlainDate.from("2026-02-01"))
+      .reverseEntry({
+        entryId: "e1",
+        entryDate: Temporal.PlainDate.from("2026-02-01"),
+      })
       .orThrow();
 
     const deleted = await books.deleteEntry("e2").orThrow();
     const found = await books.getEntry("e1").orThrow();
     const missing = await books.getEntry("e9").orThrow();
-    const listed = await books.entries("org-1").orThrow();
+    const listed = await books.entries({ organizationId: "org-1" }).orThrow();
 
     await books
-      .entries("org-1", {
+      .entries({
+        organizationId: "org-1",
         journalId: "j1",
         status: "posted",
         since: Temporal.PlainDate.from("2026-01-01"),
@@ -643,9 +693,18 @@ describe("createAccounting", () => {
     const blockers = await books.closeBlockers("p1").orThrow();
     const none = await books.closeBlockers("p2").orThrow();
     const closed = await books.closePeriod("p1").orThrow();
-    const reopened = await books.reopenPeriod("p1", "Late invoice").orThrow();
-    const year = await books.closeFiscalYear("org-1", 2026).orThrow();
-    const empty = await books.closeFiscalYear("org-1", 2025).orThrow();
+
+    const reopened = await books
+      .reopenPeriod({ periodId: "p1", reason: "Late invoice" })
+      .orThrow();
+
+    const year = await books
+      .closeFiscalYear({ organizationId: "org-1", fiscalYear: 2026 })
+      .orThrow();
+
+    const empty = await books
+      .closeFiscalYear({ organizationId: "org-1", fiscalYear: 2025 })
+      .orThrow();
 
     expect(blockers).toEqual(["draft_entries"]);
     expect(none).toEqual([]);
@@ -728,20 +787,28 @@ describe("createAccounting", () => {
     const until = Temporal.PlainDate.from("2026-12-31");
 
     const trial = await books
-      .trialBalance("org-1", {
+      .trialBalance({
+        organizationId: "org-1",
         since,
         until,
         dimensions: { project: "apollo" },
       })
       .orThrow();
 
-    const pnl = await books.profitAndLoss("org-1").orThrow();
-    const sheet = await books.balanceSheet("org-1", { asOf: until }).orThrow();
+    const pnl = await books
+      .profitAndLoss({ organizationId: "org-1" })
+      .orThrow();
 
-    const ledger = await books.generalLedger("a1", { since, until }).orThrow();
+    const sheet = await books
+      .balanceSheet({ organizationId: "org-1", asOf: until })
+      .orThrow();
 
-    await books.balanceSheet("org-1").orThrow();
-    await books.generalLedger("a1").orThrow();
+    const ledger = await books
+      .generalLedger({ accountId: "a1", since, until })
+      .orThrow();
+
+    await books.balanceSheet({ organizationId: "org-1" }).orThrow();
+    await books.generalLedger({ accountId: "a1" }).orThrow();
 
     expect(trial.accounts[0]?.closing).toBe(12_100n);
     expect(trial.totals.closing).toBe(0n);

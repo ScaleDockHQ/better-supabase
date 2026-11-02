@@ -1,8 +1,8 @@
+import type { ExpandInput } from "../../core/recurrence.ts";
 import type { RecordRef } from "../../schema/types.ts";
-import type { ExpandInput } from "./rrule.ts";
 
+import { expandRule } from "../../core/recurrence.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { expandRule } from "./rrule.ts";
 
 export interface ReminderPlanInput {
   readonly id: string;

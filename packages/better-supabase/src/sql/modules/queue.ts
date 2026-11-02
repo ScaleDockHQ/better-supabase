@@ -800,7 +800,7 @@ export const JOBS: BlockSqlDefinition = {
   title: "Job queue",
   description:
     "Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
-  requires: [],
+  requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
   version: 8,

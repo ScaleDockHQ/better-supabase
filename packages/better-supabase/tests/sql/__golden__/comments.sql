@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:8b1265f5a08527cb2ecc562258dd68263dee4f654509908c2dfbf0d8a375138f
+-- @bsb-hash sha256:3799a1ef553b1404dab8fca5e7a1d138241b308314996fac74df333844b48dd8
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,6 +191,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -209,6 +217,14 @@ begin
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -438,7 +454,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:5145f0c8bd1d6c64b407d23ee987fb8d980da077e16770884f7a1cd4087df361
+-- @bsb-hash sha256:1a966f534381c69f99c33b60b9c51152ee0fcb10baee41ddd546267886e367e9
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -645,6 +661,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -664,6 +688,14 @@ begin
     coalesce(create_comment.attachments, '{}')
   );
   perform "better_supabase"."comment_sent"((v_msg ->> 'id')::uuid);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -910,6 +942,14 @@ begin
   if found then
     return v_task;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_assign"(uuid, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
+        using assign_comment.message, assign_comment.assignee;
+    end if;
+  end;
   v_task := ("better_supabase"."create_task"(
     v_msg."tenant_id",
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
@@ -920,6 +960,14 @@ begin
   ) ->> 'id')::uuid;
   insert into "better_supabase"."comment_tasks" ("message_id", "organization_id", "task_id")
   values (v_msg."id", v_msg."tenant_id", v_task);
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_assign"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_task;
+    end if;
+  end;
   return v_task;
 end;
 $$;
@@ -996,7 +1044,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:d23a1f67b52ee27ceb500bef40a15068c073c5357ed3aa4fef1ab5c32da22dc7
+-- @bsb-hash sha256:2dd1a67b085154a76708d52bd490ec2922f4742ee926feb7b498dee88e50634a
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1191,6 +1239,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -1209,6 +1265,14 @@ begin
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "app_private"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -1438,7 +1502,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:93aed80ca5f3f2d3d03c790f19a55edcc873388bb6509cd3e68c0b92f3ff93af
+-- @bsb-hash sha256:9ed04ef5988ab93fef33a339a1c30866f0181e9425a83f54be6decaf227e4cc6
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1628,6 +1692,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -1646,6 +1718,14 @@ begin
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -1967,7 +2047,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:39d385e108aef2c7c8549985b89ead0aefd911c105abe4bd939ed9cf7b09163a
+-- @bsb-hash sha256:8029b2438a0900a1940dcdea6e12be524985bd6d22c499aeb791e660cfe76fd1
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2156,6 +2236,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -2174,6 +2262,14 @@ begin
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;
@@ -2403,7 +2499,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:f4a2c2af4a9df70da016a0b9894331cc3899a6c8c94509b85eb5205477e56b77
+-- @bsb-hash sha256:e0582a3f2ab762501a981c7e5162c656b44f7234513c6d85e13e7ca7f7f22a1f
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2593,6 +2689,14 @@ declare
   v_mentions uuid[];
   v_msg jsonb;
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_comment_create"(uuid, text, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text, $4::text)', v_hook::oid::regproc)
+        using create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body;
+    end if;
+  end;
   v_conv := ("better_supabase"."open_conversation"(
     create_comment.tenant,
     'subject',
@@ -2611,6 +2715,14 @@ begin
     (coalesce(create_comment.attrs, '{}') - 'mentions' - 'broadcast' - 'scheduledFor') || jsonb_build_object('mentions', to_jsonb(v_mentions)),
     coalesce(create_comment.attachments, '{}')
   );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_comment_create"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using (v_msg ->> 'id')::uuid;
+    end if;
+  end;
   return "better_supabase"."comments_json"(array[(v_msg ->> 'id')::uuid]) -> 0;
 end;
 $$;

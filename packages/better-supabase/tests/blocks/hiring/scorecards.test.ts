@@ -35,7 +35,10 @@ describe("hiring scorecards", () => {
     }));
 
     const card = await createHiring({ transport: t })
-      .score("a1", { rating: 4, scores: [{ criterion: "craft", score: 5 }] })
+      .score({
+        applicationId: "a1",
+        card: { rating: 4, scores: [{ criterion: "craft", score: 5 }] },
+      })
       .orThrow();
 
     expect(t.calls).toEqual([
@@ -61,7 +64,10 @@ describe("hiring scorecards", () => {
     const t = transport(() => ({ ...CARD, recommendation: "yes" }));
 
     const card = await createHiring({ transport: t })
-      .score("a1", { rating: 4, recommendation: "yes" })
+      .score({
+        applicationId: "a1",
+        card: { rating: 4, recommendation: "yes" },
+      })
       .orThrow();
 
     expect(t.calls[0]?.[1]).not.toHaveProperty("scores");

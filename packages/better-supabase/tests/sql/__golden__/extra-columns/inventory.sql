@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:cfe6c3051169d42001b95956d072f2a2ddc8a03586b7e50c5c6cd2f196bbe9f2
+-- @bsb-hash sha256:828de9b9013f0366f028125b897784abf72da9ed6574ea37933b331f2d86e2b4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3057,6 +3057,56 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_purchase_requisition"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_purchase_requisition"(uuid) to authenticated, service_role;
+-- The stock page in one call: the level count, the levels at or below their
+-- reorder point (the emptiest first) and the lots that expire soon.
+create or replace function "better_supabase"."inventory_overview"(tenant uuid, row_limit integer default 20, expiry_days integer default 30)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_low jsonb;
+  v_low_count integer;
+  v_level_count integer;
+  v_expiring jsonb;
+begin
+  select count(*)::integer into v_level_count
+  from "better_supabase"."stock_levels" y where y."tenant_id" = inventory_overview.tenant;
+
+  select count(*)::integer into v_low_count
+  from "better_supabase"."stock_levels" y
+  where y."tenant_id" = inventory_overview.tenant
+    and y."reorder_point" is not null and y."available" <= y."reorder_point";
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'variantId', x."variant_id", 'locationId', x."location_id",
+      'onHand', x."on_hand"::text, 'available', x."available"::text,
+      'reorderPoint', x."reorder_point"::text)
+    order by x."available" - x."reorder_point", x."variant_id", x."location_id"), '[]'::jsonb)
+  into v_low
+  from (
+    select * from "better_supabase"."stock_levels" y
+    where y."tenant_id" = inventory_overview.tenant
+      and y."reorder_point" is not null and y."available" <= y."reorder_point"
+    order by y."available" - y."reorder_point", y."variant_id", y."location_id"
+    limit greatest(coalesce(inventory_overview.row_limit, 20), 0)
+  ) x;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'lotId', e ->> 'lotId', 'code', e ->> 'code', 'variantId', e ->> 'variantId',
+      'locationId', e ->> 'locationId', 'expiresOn', e ->> 'expiresOn', 'onHand', e ->> 'onHand')), '[]'::jsonb)
+  into v_expiring
+  from jsonb_array_elements("better_supabase"."expiring_lots"(inventory_overview.tenant,
+    current_date + greatest(coalesce(inventory_overview.expiry_days, 30), 0))) e;
+
+  return jsonb_build_object('levelCount', v_level_count, 'lowStockCount', v_low_count,
+    'lowStock', v_low, 'expiring', v_expiring);
+end;
+$$;
+revoke execute on function "better_supabase"."inventory_overview"(uuid, integer, integer) from public, anon;
+grant execute on function "better_supabase"."inventory_overview"(uuid, integer, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

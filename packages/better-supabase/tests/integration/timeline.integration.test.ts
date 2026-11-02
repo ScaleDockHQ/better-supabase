@@ -78,12 +78,15 @@ describe.skipIf(!live)("activity", () => {
       await s.asRole(member);
 
       const first = await comments
-        .create(subject, { body: "Ready for review" })
+        .create({ subject, comment: { body: "Ready for review" } })
         .orThrow();
 
       await s.asRole(owner);
       await comments
-        .create(subject, { body: "Looks good", parentId: first.id })
+        .create({
+          subject,
+          comment: { body: "Looks good", parentId: first.id },
+        })
         .orThrow();
       await comments.remove(first.id).orThrow();
 
@@ -162,12 +165,12 @@ describe.skipIf(!live)("activity", () => {
       ).toEqual([]);
       await s.asRole(member);
       expect(
-        (await activity.list(subject, { sources: ["event"] }).orThrow()).map(
+        (await activity.list({ subject, sources: ["event"] }).orThrow()).map(
           (entry) => entry.actorId,
         ),
       ).toEqual([owner.id, member.id]);
       expect(
-        (await activity.list(subject, { sources: ["message"] }).orThrow()).map(
+        (await activity.list({ subject, sources: ["message"] }).orThrow()).map(
           (entry) => [entry.type, entry.actorId, entry.summary],
         ),
       ).toEqual([["comment.posted", owner.id, "Looks good"]]);
@@ -206,7 +209,7 @@ describe.skipIf(!live)("activity", () => {
       });
 
       const timeline = await activity
-        .list({ type: "quote", id: quote })
+        .list({ subject: { type: "quote", id: quote } })
         .orThrow();
 
       expect(timeline.map((entry) => entry.type)).toEqual([
@@ -221,7 +224,7 @@ describe.skipIf(!live)("activity", () => {
       expect(timeline[0]!.occurredAt.toString()).toBe("2026-10-06T10:00:00Z");
 
       const page = await activity
-        .list(undefined, {
+        .list({
           cursor: Temporal.Instant.from("2026-10-06T10:30:00Z"),
           limit: 1,
         })
@@ -286,7 +289,7 @@ describe.skipIf(!live)("activity", () => {
       await s.asRole(admin);
 
       const timeline = await activity
-        .list({ type: "quote", id: open!.id })
+        .list({ subject: { type: "quote", id: open!.id } })
         .orThrow();
 
       expect(
@@ -304,7 +307,9 @@ describe.skipIf(!live)("activity", () => {
       });
       // The owner's own quote is hidden from the admin by its policy.
       expect(
-        await activity.list({ type: "quote", id: mine!.id }).orThrow(),
+        await activity
+          .list({ subject: { type: "quote", id: mine!.id } })
+          .orThrow(),
       ).toEqual([]);
 
       const feed = await activity.list().orThrow();
@@ -321,9 +326,11 @@ describe.skipIf(!live)("activity", () => {
 
       await s.asRole(member);
       expect(
-        (await activity.list({ type: "quote", id: open!.id }).orThrow()).map(
-          (item) => item.source,
-        ),
+        (
+          await activity
+            .list({ subject: { type: "quote", id: open!.id } })
+            .orThrow()
+        ).map((item) => item.source),
       ).toEqual(["event"]);
     } finally {
       await s.close();
@@ -392,7 +399,7 @@ describe.skipIf(!live)("activity", () => {
       await s.asRole(owner);
 
       const timeline = await activity
-        .list({ type: "deal", id: open!.id })
+        .list({ subject: { type: "deal", id: open!.id } })
         .orThrow();
 
       expect(timeline.map((item) => `${item.source} ${item.type}`)).toEqual([
@@ -417,15 +424,17 @@ describe.skipIf(!live)("activity", () => {
       expect(
         (
           await activity
-            .list(
-              { type: "deal", id: open!.id },
-              { sources: ["delivery", "event"] },
-            )
+            .list({
+              subject: { type: "deal", id: open!.id },
+              sources: ["delivery", "event"],
+            })
             .orThrow()
         ).map((item) => item.source),
       ).toEqual(["delivery", "event"]);
       expect(
-        await activity.list({ type: "deal", id: mine!.id }).orThrow(),
+        await activity
+          .list({ subject: { type: "deal", id: mine!.id } })
+          .orThrow(),
       ).toEqual([]);
       expect(
         (await activity.list().orThrow()).map((item) => item.source),
@@ -433,9 +442,11 @@ describe.skipIf(!live)("activity", () => {
 
       await s.asRole(admin);
       expect(
-        (await activity.list({ type: "deal", id: open!.id }).orThrow()).map(
-          (item) => item.source,
-        ),
+        (
+          await activity
+            .list({ subject: { type: "deal", id: open!.id } })
+            .orThrow()
+        ).map((item) => item.source),
       ).toEqual(["delivery", "event"]);
 
       await s.asRole(stranger);

@@ -15,6 +15,7 @@
     "funding",
     "ledger",
     "accounting",
+    "periods",
     "banking",
     "tax",
     "orders",
@@ -25,6 +26,9 @@
     "shipments",
     "leases",
     "expenses",
-    "donations"
+    "donations",
+    "commerce",
+    "finance",
+    "procurement"
   ]
 }

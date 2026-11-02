@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@4 managed
--- @bsb-hash sha256:c131b5c9c2729f0ae840e5bae7480b6b6455617e0989a8c301f83c42ade5298d
+-- @bsb-hash sha256:100a1b9fdfaa78488c6950be93ca779dd50db732d323276b86571ef6a0e90f97
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1164,6 +1164,16 @@ drop trigger if exists "bsb_search_work_item_index" on "better_supabase"."work_i
 create trigger "bsb_search_work_item_index"
   after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
   for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.work_items', target_type => 'task', event_prefix => 'task', deferred => true);
+  perform better_supabase.audit('better_supabase.work_projects', target_type => 'project', event_prefix => 'project', deferred => true);
+  perform better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
+  perform better_supabase.audit('better_supabase.work_item_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
+end;
+$$;
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

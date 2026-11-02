@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:6748b5d32a90cfe64061ada731b14c2e746928c984f2a414337abbbe8e550410
+-- @bsb-hash sha256:8bc2e6f80f88a9c1a680488b73602bf94b5523820e70a80ce29b4de0302d41c2
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1920,6 +1920,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_re
 create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.promotions', target_type => 'promotion', event_prefix => 'promotion', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

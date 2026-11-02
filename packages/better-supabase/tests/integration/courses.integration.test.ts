@@ -74,11 +74,14 @@ describe.skipIf(!live)("courses", () => {
       ).toBe("COURSE_EXISTS");
 
       const second = await courses
-        .saveModule(course.id, { title: "Second" })
+        .saveModule({ courseId: course.id, module: { title: "Second" } })
         .orThrow();
 
       const first = await courses
-        .saveModule(course.id, { title: "First", rank: "U" })
+        .saveModule({
+          courseId: course.id,
+          module: { title: "First", rank: "U" },
+        })
         .orThrow();
 
       expect(second.rank > first.rank).toBe(true);
@@ -103,28 +106,37 @@ describe.skipIf(!live)("courses", () => {
       ]);
 
       const intro = await courses
-        .saveLesson(course.id, {
-          moduleId: first.id,
-          title: "Welcome",
-          kind: "content",
-          body: { text: "Hello" },
+        .saveLesson({
+          courseId: course.id,
+          lesson: {
+            moduleId: first.id,
+            title: "Welcome",
+            kind: "content",
+            body: { text: "Hello" },
+          },
         })
         .orThrow();
 
       const extra = await courses
-        .saveLesson(course.id, {
-          moduleId: first.id,
-          title: "Further reading",
-          required: false,
+        .saveLesson({
+          courseId: course.id,
+          lesson: {
+            moduleId: first.id,
+            title: "Further reading",
+            required: false,
+          },
         })
         .orThrow();
 
       const quiz = await courses
-        .saveLesson(course.id, {
-          moduleId: second.id,
-          title: "Check",
-          kind: "quiz",
-          formId: form.id,
+        .saveLesson({
+          courseId: course.id,
+          lesson: {
+            moduleId: second.id,
+            title: "Check",
+            kind: "quiz",
+            formId: form.id,
+          },
         })
         .orThrow();
 
@@ -173,7 +185,7 @@ describe.skipIf(!live)("courses", () => {
         await s.hint("better_supabase.course_lesson($1)", [intro.id]),
       ).toBe("COURSE_NOT_ENROLLED");
 
-      const enrolled = await learner.enroll(course.id).orThrow();
+      const enrolled = await learner.enroll({ courseId: course.id }).orThrow();
 
       expect(enrolled).toMatchObject({
         status: "active",
@@ -204,14 +216,20 @@ describe.skipIf(!live)("courses", () => {
       ).toBe("ENROLLMENTS_INVALID");
 
       const failed = await learner
-        .submitQuiz(quiz.id, { capital: "Lyon", planet: "Venus" })
+        .submitQuiz({
+          lessonId: quiz.id,
+          answers: { capital: "Lyon", planet: "Venus" },
+        })
         .orThrow();
 
       expect(failed.passed).toBe(false);
       expect(failed.progress.status).toBe("active");
 
       const passed = await learner
-        .submitQuiz(quiz.id, { capital: "Paris", planet: "Venus" })
+        .submitQuiz({
+          lessonId: quiz.id,
+          answers: { capital: "Paris", planet: "Venus" },
+        })
         .orThrow();
 
       expect(passed.passed).toBe(true);
@@ -267,16 +285,23 @@ describe.skipIf(!live)("courses", () => {
 
       await s.asRole(owner);
 
-      const learners = await courses.learners(course.id).orThrow();
+      const learners = await courses
+        .learners({ courseId: course.id })
+        .orThrow();
 
       expect(learners.map((row) => row.userId)).toEqual([member.id]);
 
       const added = await courses
-        .saveLesson(course.id, { moduleId: second.id, title: "New material" })
+        .saveLesson({
+          courseId: course.id,
+          lesson: { moduleId: second.id, title: "New material" },
+        })
         .orThrow();
 
       expect(
-        await courses.progress(course.id, member.id).orThrow(),
+        await courses
+          .progress({ courseId: course.id, userId: member.id })
+          .orThrow(),
       ).toMatchObject({ status: "active", totalLessons: 3 });
 
       await s.asRole(member);
@@ -284,7 +309,8 @@ describe.skipIf(!live)("courses", () => {
         "completed",
       );
       expect(
-        (await learner.progress(course.id).orThrow())?.certificate?.code,
+        (await learner.progress({ courseId: course.id }).orThrow())?.certificate
+          ?.code,
       ).toBe(certificate.code);
 
       await s.asRole(owner);
@@ -360,7 +386,7 @@ describe.skipIf(!live)("courses", () => {
         .orThrow();
 
       const module = await courses
-        .saveModule(course.id, { title: "Only" })
+        .saveModule({ courseId: course.id, module: { title: "Only" } })
         .orThrow();
 
       expect(
@@ -376,14 +402,19 @@ describe.skipIf(!live)("courses", () => {
       ).toBe("COURSE_QUIZ_UNAVAILABLE");
 
       const lesson = await courses
-        .saveLesson(course.id, { moduleId: module.id, title: "Read" })
+        .saveLesson({
+          courseId: course.id,
+          lesson: { moduleId: module.id, title: "Read" },
+        })
         .orThrow();
 
-      await courses.enroll(course.id).orThrow();
-      expect((await courses.unenroll(course.id).orThrow()).status).toBe(
-        "cancelled",
-      );
-      expect((await courses.enroll(course.id).orThrow()).status).toBe("active");
+      await courses.enroll({ courseId: course.id }).orThrow();
+      expect(
+        (await courses.unenroll({ courseId: course.id }).orThrow()).status,
+      ).toBe("cancelled");
+      expect(
+        (await courses.enroll({ courseId: course.id }).orThrow()).status,
+      ).toBe("active");
 
       const done = await courses.complete(lesson.id).orThrow();
 

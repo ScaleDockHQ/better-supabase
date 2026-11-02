@@ -267,8 +267,7 @@ export interface Webhooks extends WebhookEndpoints {
   redeliver(deliveryId: string): AsyncResult<string>;
   /** A new signing secret, returned once. */
   rotateSecret(
-    endpointId: string,
-    options?: RotateSecretOptions,
+    input: { endpointId: string } & RotateSecretOptions,
   ): AsyncResult<string>;
   /** Sends due deliveries. Run it from a cron route or a job. */
   deliver(options?: DeliverWebhooksOptions): Promise<DeliverWebhooksResult>;
@@ -343,7 +342,18 @@ export interface CreateWebhookEndpointInput extends WebhookEndpointFields {
   readonly tenant: string;
   readonly url: string;
   readonly eventTypes: readonly string[];
+  /**
+   * Also rotates a first signing secret and returns it once as `secret`. The
+   * endpoint is deleted again when the secret can't be made.
+   */
+  readonly withSecret?: boolean;
 }
+
+/** What `createEndpoint({ withSecret: true })` returns. */
+export type WebhookEndpointWithSecret = WebhookEndpoint & {
+  /** The signing secret; it is not readable again. */
+  readonly secret: string;
+};
 
 /**
  * Endpoint management. Each call checks the module's manage permission
@@ -351,15 +361,23 @@ export interface CreateWebhookEndpointInput extends WebhookEndpointFields {
  * permission (`webhooks.read`); the service role may manage any endpoint.
  */
 export interface WebhookEndpoints {
-  /** Adds an endpoint; rotate a secret for it before it can sign deliveries. */
-  createEndpoint(
-    input: CreateWebhookEndpointInput,
-  ): AsyncResult<WebhookEndpoint>;
+  /**
+   * Adds an endpoint. Without `withSecret`, rotate a secret for it before it
+   * can sign deliveries.
+   */
+  createEndpoint<W extends boolean = false>(
+    input: CreateWebhookEndpointInput & { readonly withSecret?: W },
+  ): AsyncResult<W extends true ? WebhookEndpointWithSecret : WebhookEndpoint>;
+  /** Turns an endpoint on or off; a turned-off endpoint gets no deliveries. */
+  setEnabled(input: {
+    endpointId: string;
+    enabled: boolean;
+  }): AsyncResult<WebhookEndpoint>;
   /** Changes the fields that `changes` names. */
-  updateEndpoint(
-    endpointId: string,
-    changes: WebhookEndpointFields,
-  ): AsyncResult<WebhookEndpoint>;
+  updateEndpoint(input: {
+    endpointId: string;
+    changes: WebhookEndpointFields;
+  }): AsyncResult<WebhookEndpoint>;
   /** The tenant's endpoints, newest first, without their secrets. */
   listEndpoints(tenant: string): AsyncResult<readonly WebhookEndpoint[]>;
   /** Deletes an endpoint with its secrets and deliveries. */

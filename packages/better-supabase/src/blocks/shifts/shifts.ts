@@ -7,12 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -233,93 +233,107 @@ export interface ShiftHours {
 
 export interface Shifts<F extends object = Record<never, never>> {
   /** Needs `shifts.write`. */
-  saveTemplate(
-    organizationId: string,
-    input: ShiftTemplateInput,
-  ): AsyncResult<ShiftTemplate>;
+  saveTemplate(input: {
+    organizationId: string;
+    input: ShiftTemplateInput;
+  }): AsyncResult<ShiftTemplate>;
   /** Needs `shifts.write`. Its shifts stay. */
   archiveTemplate(templateId: string): AsyncResult<ShiftTemplate>;
   /** By name. */
   templates(
-    organizationId: string,
-    options?: { readonly includeArchived?: boolean },
+    input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly ShiftTemplate[]>;
   /**
    * Draft shifts from a template on its weekdays, `from` to `until` (at most 92
    * days). Days that already have the template's shift are skipped. Needs
    * `shifts.write`.
    */
-  generate(
-    organizationId: string,
-    templateId: string,
-    from: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-  ): AsyncResult<readonly Shift<F>[]>;
+  generate(input: {
+    organizationId: string;
+    templateId: string;
+    from: Temporal.PlainDate;
+    until: Temporal.PlainDate;
+  }): AsyncResult<readonly Shift<F>[]>;
   /** A draft shift, or a change to one. Needs `shifts.write`. */
-  upsert(organizationId: string, input: ShiftInput<F>): AsyncResult<Shift<F>>;
+  upsert(input: {
+    organizationId: string;
+    input: ShiftInput<F>;
+  }): AsyncResult<Shift<F>>;
   /** Releases its assignments. Needs `shifts.manage`. */
-  cancel(shiftId: string, reason?: string): AsyncResult<Shift<F>>;
+  cancel(input: {
+    shiftId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Shift<F>>;
   /**
    * Publishes the drafts starting `from` to `until`, for one team or all;
    * returns how many. Needs `shifts.manage`.
    */
   publish(
-    organizationId: string,
-    from: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-    options?: { readonly teamId?: string },
+    input: {
+      organizationId: string;
+      from: Temporal.PlainDate;
+      until: Temporal.PlainDate;
+    } & { readonly teamId?: string },
   ): AsyncResult<number>;
   /**
    * Checks overlap, approved leave, qualifications and rest first. Needs
    * `shifts.write`.
    */
-  assign(shiftId: string, userId: string): AsyncResult<ShiftAssignment>;
+  assign(input: {
+    shiftId: string;
+    userId: string;
+  }): AsyncResult<ShiftAssignment>;
   /** Needs `shifts.write`. */
-  unassign(assignmentId: string, reason?: string): AsyncResult<ShiftAssignment>;
+  unassign(input: {
+    assignmentId: string;
+    reason?: string | undefined;
+  }): AsyncResult<ShiftAssignment>;
   /** Asks for a place on a published open shift. Needs `shifts.request`. */
   requestOpenShift(shiftId: string): AsyncResult<ShiftAssignment>;
   /** Needs `shifts.manage`. */
-  decideRequest(
-    assignmentId: string,
-    approve: boolean,
-  ): AsyncResult<ShiftAssignment>;
+  decideRequest(input: {
+    assignmentId: string;
+    approve: boolean;
+  }): AsyncResult<ShiftAssignment>;
   /** Offers the caller's shift to another member. */
-  requestSwap(
-    assignmentId: string,
-    toUserId: string,
-    note?: string,
-  ): AsyncResult<ShiftSwap>;
+  requestSwap(input: {
+    assignmentId: string;
+    toUserId: string;
+    note?: string | undefined;
+  }): AsyncResult<ShiftSwap>;
   /**
    * Needs `shifts.manage`, except that the member who asked may withdraw
    * (`approve: false`).
    */
   decideSwap(
-    swapId: string,
-    approve: boolean,
-    options?: { readonly approvalId?: string },
+    input: { swapId: string; approve: boolean } & {
+      readonly approvalId?: string;
+    },
   ): AsyncResult<ShiftSwap>;
-  setAvailability(
-    organizationId: string,
-    input: ShiftAvailabilityInput,
-  ): AsyncResult<ShiftAvailability>;
+  setAvailability(input: {
+    organizationId: string;
+    input: ShiftAvailabilityInput;
+  }): AsyncResult<ShiftAvailability>;
   clearAvailability(
-    organizationId: string,
-    onDate: Temporal.PlainDate,
-    options?: { readonly userId?: string },
+    input: { organizationId: string; onDate: Temporal.PlainDate } & {
+      readonly userId?: string;
+    },
   ): AsyncResult<void>;
   /** The caller's own, or everyone's with `shifts.write`. */
   availability(
-    organizationId: string,
-    from: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-    options?: { readonly userId?: string },
+    input: {
+      organizationId: string;
+      from: Temporal.PlainDate;
+      until: Temporal.PlainDate;
+    } & { readonly userId?: string },
   ): AsyncResult<readonly ShiftAvailability[]>;
   /** Members see published shifts; planners also drafts. */
   roster(
-    organizationId: string,
-    from: Temporal.PlainDate,
-    until: Temporal.PlainDate,
-    options?: { readonly teamId?: string },
+    input: {
+      organizationId: string;
+      from: Temporal.PlainDate;
+      until: Temporal.PlainDate;
+    } & { readonly teamId?: string },
   ): AsyncResult<readonly RosterShift<F>[]>;
   /** Default: the next 30 days. */
   myShifts(options?: {
@@ -327,18 +341,42 @@ export interface Shifts<F extends object = Record<never, never>> {
     readonly until?: Temporal.Instant;
   }): AsyncResult<readonly MyShift<F>[]>;
   /** The week from `weekStart`. Needs `shifts.manage`. */
-  hours(
-    organizationId: string,
-    weekStart: Temporal.PlainDate,
-  ): AsyncResult<readonly ShiftHours[]>;
+  hours(input: {
+    organizationId: string;
+    weekStart: Temporal.PlainDate;
+  }): AsyncResult<readonly ShiftHours[]>;
   /**
    * Time entries for assigned shifts that ended (time-tracking block); returns
    * how many. Service role only.
    */
   toTimeEntries(
-    organizationId: string,
-    options?: { readonly until?: Temporal.Instant },
+    input: { organizationId: string } & { readonly until?: Temporal.Instant },
   ): AsyncResult<number>;
+  /**
+   * Generates the shifts of a template between two dates and, with `publish`,
+   * publishes that range. A failed generate publishes nothing.
+   */
+  rollout(input: {
+    organizationId: string;
+    templateId: string;
+    from: Temporal.PlainDate;
+    until: Temporal.PlainDate;
+    publish?: boolean | undefined;
+    teamId?: string | undefined;
+  }): AsyncResult<{
+    readonly shifts: readonly Shift<F>[];
+    readonly published: number;
+  }>;
+  /** Assigns each user to the shift, in order, and stops at the first failure. */
+  fill(input: {
+    shiftId: string;
+    userIds: readonly string[];
+  }): AsyncResult<readonly ShiftAssignment[]>;
+  /** `decideSwap` with `approve: true`. */
+  approveSwap(input: {
+    swapId: string;
+    approvalId?: string | undefined;
+  }): AsyncResult<ShiftSwap>;
 }
 
 const SHIFT_STATUSES: readonly ShiftStatus[] = [
@@ -556,7 +594,7 @@ export function createShifts<
   const fields: BlockFields<F> = blockFields(options.fields, "shift fields");
 
   const client: Shifts<F> = {
-    saveTemplate: (organizationId, input) =>
+    saveTemplate: ({ organizationId, input }) =>
       call(
         "save_shift_template",
         {
@@ -580,7 +618,7 @@ export function createShifts<
         { template_id: templateId },
         one("archive_shift_template", templateOf),
       ),
-    templates: (organizationId, list = {}) =>
+    templates: ({ organizationId, ...list }) =>
       call(
         "list_shift_templates",
         {
@@ -589,7 +627,7 @@ export function createShifts<
         },
         many("list_shift_templates", templateOf),
       ),
-    generate: (organizationId, templateId, from, until) =>
+    generate: ({ organizationId, templateId, from, until }) =>
       call(
         "generate_shifts",
         {
@@ -600,7 +638,7 @@ export function createShifts<
         },
         many("generate_shifts", shiftOf),
       ).andThen(fields.rows),
-    upsert: (organizationId, input) =>
+    upsert: ({ organizationId, input }) =>
       fields
         .args(input.fields)
         .andThen((checked) =>
@@ -622,13 +660,13 @@ export function createShifts<
             one("save_shift", shiftOf),
           ).andThen(fields.row),
         ),
-    cancel: (shiftId, reason) =>
+    cancel: ({ shiftId, reason }) =>
       call(
         "cancel_shift",
         { shift_id: shiftId, reason: reason ?? null },
         one("cancel_shift", shiftOf),
       ).andThen(fields.row),
-    publish: (organizationId, from, until, list = {}) =>
+    publish: ({ organizationId, from, until, ...list }) =>
       call(
         "publish_shifts",
         {
@@ -639,13 +677,13 @@ export function createShifts<
         },
         numberOf,
       ),
-    assign: (shiftId, userId) =>
+    assign: ({ shiftId, userId }) =>
       call(
         "assign_shift",
         { shift_id: shiftId, user_id: userId },
         one("assign_shift", assignmentOf),
       ),
-    unassign: (assignmentId, reason) =>
+    unassign: ({ assignmentId, reason }) =>
       call(
         "unassign_shift",
         { assignment_id: assignmentId, reason: reason ?? null },
@@ -657,13 +695,13 @@ export function createShifts<
         { shift_id: shiftId },
         one("request_open_shift", assignmentOf),
       ),
-    decideRequest: (assignmentId, approve) =>
+    decideRequest: ({ assignmentId, approve }) =>
       call(
         "decide_shift_request",
         { assignment_id: assignmentId, approve },
         one("decide_shift_request", assignmentOf),
       ),
-    requestSwap: (assignmentId, toUserId, note) =>
+    requestSwap: ({ assignmentId, toUserId, note }) =>
       call(
         "request_shift_swap",
         {
@@ -673,13 +711,13 @@ export function createShifts<
         },
         one("request_shift_swap", swapOf),
       ),
-    decideSwap: (swapId, approve, decide = {}) =>
+    decideSwap: ({ swapId, approve, ...decide }) =>
       call(
         "decide_shift_swap",
         { swap_id: swapId, approve, approval_id: decide.approvalId ?? null },
         one("decide_shift_swap", swapOf),
       ),
-    setAvailability: (organizationId, input) =>
+    setAvailability: ({ organizationId, input }) =>
       call(
         "set_shift_availability",
         {
@@ -693,7 +731,7 @@ export function createShifts<
         },
         one("set_shift_availability", availabilityOf),
       ),
-    clearAvailability: (organizationId, onDate, clear = {}) =>
+    clearAvailability: ({ organizationId, onDate, ...clear }) =>
       call(
         "set_shift_availability",
         {
@@ -704,7 +742,7 @@ export function createShifts<
         },
         () => undefined,
       ),
-    availability: (organizationId, from, until, list = {}) =>
+    availability: ({ organizationId, from, until, ...list }) =>
       call(
         "list_shift_availability",
         {
@@ -715,7 +753,7 @@ export function createShifts<
         },
         many("list_shift_availability", availabilityOf),
       ),
-    roster: (organizationId, from, until, list = {}) =>
+    roster: ({ organizationId, from, until, ...list }) =>
       call(
         "roster",
         {
@@ -735,13 +773,13 @@ export function createShifts<
         },
         many("my_shifts", myShiftOf),
       ).andThen(fields.rows),
-    hours: (organizationId, weekStart) =>
+    hours: ({ organizationId, weekStart }) =>
       call(
         "shift_hours",
         { tenant: organizationId, week_start: weekStart.toString() },
         many("shift_hours", hoursOf),
       ),
-    toTimeEntries: (organizationId, list = {}) =>
+    toTimeEntries: ({ organizationId, ...list }) =>
       call(
         "shifts_to_time_entries",
         {
@@ -750,10 +788,52 @@ export function createShifts<
         },
         numberOf,
       ),
+    rollout: ({ organizationId, templateId, from, until, publish, teamId }) =>
+      hooked
+        .generate({ organizationId, templateId, from, until })
+        .andThen(async (shifts) => {
+          if (publish !== true) {
+            return ok({ shifts, published: 0 });
+          }
+
+          return hooked
+            .publish({
+              organizationId,
+              from,
+              until,
+              ...(teamId === undefined ? {} : { teamId }),
+            })
+            .map((published) => ({ shifts, published }));
+        }),
+    fill: ({ shiftId, userIds }) =>
+      AsyncResult.from(async () => {
+        const assignments: ShiftAssignment[] = [];
+
+        for (const userId of userIds) {
+          const assigned = await hooked.assign({ shiftId, userId });
+
+          if (!assigned.ok) {
+            return assigned;
+          }
+
+          assignments.push(assigned.data);
+        }
+
+        return ok(assignments);
+      }),
+    approveSwap: ({ swapId, approvalId }) =>
+      hooked.decideSwap({
+        swapId,
+        approve: true,
+        ...(approvalId === undefined ? {} : { approvalId }),
+      }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  // Helpers call the hooked client, so app hooks see each step.
+  const hooked: Shifts<F> = withBlockHooks(client, options.hooks, {
     block: "shifts",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

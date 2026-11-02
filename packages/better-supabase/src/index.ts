@@ -106,6 +106,20 @@ export type {
 
 export { defineReadSet, isReadSet, readSetTables } from "./core/read-set.ts";
 
+export { blockRead } from "./core/block-reads.ts";
+
+export type {
+  BlockRead,
+  BlockReadMap,
+  BlockReadSpecs,
+} from "./core/block-reads.ts";
+
+export { readTypeSource } from "./core/read-type.ts";
+
+export type { InferReadType, ReadType } from "./core/read-type.ts";
+
+export type { RecordReadOptions, RecordSummaryRead } from "./core/spec.ts";
+
 export type {
   InferReadSetParams,
   ReadSet,

@@ -411,7 +411,7 @@ function documentStore() {
   const rows = new Map<string, { content: string; version: number }>();
 
   const documents: Memory["documents"] = {
-    read: (scope, path) => {
+    read: ({ scopeKey: scope, path }) => {
       const row = rows.get(`${scope}|${path}`);
 
       return AsyncResult.ok(
@@ -420,7 +420,12 @@ function documentStore() {
           : undefined,
       );
     },
-    write: (scope, path, content, { expectedVersion }) => {
+    write: ({
+      scopeKey: scope,
+      path,
+      content,
+      options: { expectedVersion },
+    }) => {
       const key = `${scope}|${path}`;
       const row = rows.get(key);
       const current = row ? String(row.version) : null;
@@ -511,14 +516,14 @@ function fakeMemory() {
       search: vi.fn(() =>
         AsyncResult.ok([{ id: "m1", content: "likes tea", score: 0.9 }]),
       ),
-      upsert: vi.fn((_org: string, content: string) => {
+      upsert: vi.fn(({ content }: { content: string }) => {
         saved.push(content);
 
         return AsyncResult.ok({ id: "m2", content });
       }),
       list: vi.fn(() => AsyncResult.ok([{ id: "m1", content: "likes tea" }])),
-      forget: vi.fn((id: string) => {
-        forgotten.push(id);
+      forget: vi.fn(({ memoryId }: { memoryId: string }) => {
+        forgotten.push(memoryId);
 
         return AsyncResult.ok(true);
       }),
@@ -584,17 +589,19 @@ describe("supabaseMemory", () => {
 
     expect(replay).toEqual(first);
     expect(memory.render).toHaveBeenCalledOnce();
-    expect(memory.archival.search).toHaveBeenCalledWith(
-      ORG,
-      "what do I like?",
-      {
+    expect(memory.archival.search).toHaveBeenCalledWith({
+      organizationId: ORG,
+      query: "what do I like?",
+      ns: {
         scope: "agent",
         agentId: await stableUuid("eve-memory:agent:main"),
         ownerId: USER,
       },
-      { k: 5 },
-    );
-    expect(knowledgeSearch).toHaveBeenCalledWith(ORG, "what do I like?", {
+      k: 5,
+    });
+    expect(knowledgeSearch).toHaveBeenCalledWith({
+      organizationId: ORG,
+      query: "what do I like?",
       k: 5,
       scopes: [{ scope: "organization" }],
     });
@@ -678,12 +685,12 @@ describe("supabaseMemory", () => {
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(null, "op7"));
     expect(extract).toHaveBeenCalledOnce();
-    expect(memory.saveExtracted).toHaveBeenCalledWith(
-      ORG,
-      ["drinks tea"],
-      expect.objectContaining({ ownerId: USER }),
-      { sourceMessageId: "op6" },
-    );
+    expect(memory.saveExtracted).toHaveBeenCalledWith({
+      organizationId: ORG,
+      facts: ["drinks tea"],
+      ns: expect.objectContaining({ ownerId: USER }),
+      sourceMessageId: "op6",
+    });
   });
 
   it("builds remember and forget tools scoped to the user", async () => {
@@ -805,21 +812,29 @@ describe("persistSessions", () => {
     expect(calls[0]).toEqual({
       fn: "create",
       args: [
-        ORG,
-        { id: chatId, ownerId: USER, title: "Support", agentId: "a1" },
+        {
+          organizationId: ORG,
+          input: { id: chatId, ownerId: USER, title: "Support", agentId: "a1" },
+        },
       ],
     });
     expect(calls.find((call) => call.fn === "claim")?.args).toEqual([
-      chatId,
-      "eve:sess_1:t1",
-      { engine: "eve" },
+      { chatId, streamId: "eve:sess_1:t1", engine: "eve" },
     ]);
     expect(calls.find((call) => call.fn === "appendUser")?.args).toEqual([
-      chatId,
-      { id: "t1:1", role: "user", parts: [{ type: "text", text: "hello" }] },
+      {
+        chatId,
+        message: {
+          id: "t1:1",
+          role: "user",
+          parts: [{ type: "text", text: "hello" }],
+        },
+      },
     ]);
     const saved = calls.filter((call) => call.fn === "saveAssistant");
-    expect(saved.map((call) => call.args[1])).toEqual([
+    expect(
+      saved.map((call) => (call.args[0] as { message: unknown }).message),
+    ).toEqual([
       {
         id: "t1:0:2",
         role: "assistant",
@@ -832,7 +847,9 @@ describe("persistSessions", () => {
         parts: [{ type: "text", text: "hi" }],
       },
     ]);
-    expect(saved[0]?.args[2]).toMatchObject({
+    const [first] = saved[0]!.args as [{ options: unknown }];
+
+    expect(first.options).toMatchObject({
       parentId: "m0",
       status: "complete",
       format: "eve",
@@ -840,7 +857,7 @@ describe("persistSessions", () => {
     });
     expect(calls.at(-1)).toEqual({
       fn: "release",
-      args: [chatId, "eve:sess_1:t1", { status: "completed" }],
+      args: [{ chatId, streamId: "eve:sess_1:t1", status: "completed" }],
     });
   });
 
@@ -858,7 +875,16 @@ describe("persistSessions", () => {
       ctx,
     );
     await hooks["turn.cancelled"](event({ turnId: "t3", sequence: 0 }), ctx);
-    expect(calls.map((call) => call.args[2])).toEqual([
+    expect(
+      calls.map((call) => {
+        const { status, error } = call.args[0] as {
+          status: string;
+          error?: string;
+        };
+
+        return error === undefined ? { status } : { status, error };
+      }),
+    ).toEqual([
       { status: "failed", error: "MODEL_ERROR: boom" },
       { status: "cancelled" },
     ]);

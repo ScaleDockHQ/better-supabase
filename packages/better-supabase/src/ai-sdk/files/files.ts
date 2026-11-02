@@ -137,13 +137,16 @@ export function saveGeneratedFiles(
         options.filename?.(file, index) ??
         `generated-${String(index + 1)}.${EXTENSIONS[file.mediaType] ?? "bin"}`;
 
-      const stored = await files.files.store(options.organizationId, {
-        ownerId: options.ownerId,
-        filename,
-        mediaType: file.mediaType,
-        data: file.uint8Array,
-        source: options.source ?? "generated",
-        ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
+      const stored = await files.files.store({
+        organizationId: options.organizationId,
+        file: {
+          ownerId: options.ownerId,
+          filename,
+          mediaType: file.mediaType,
+          data: file.uint8Array,
+          source: options.source ?? "generated",
+          ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
+        },
       });
 
       if (!stored.ok) {
@@ -183,42 +186,44 @@ export function providerFile(
     readonly filename: string;
   }) => Promise<ProviderFileUpload>,
 ): AsyncResult<string> {
-  return files.providerFiles.get(fileId, provider).andThen(async (cached) => {
-    if (cached) {
-      return ok(cached.reference);
-    }
+  return files.providerFiles
+    .get({ fileId, provider })
+    .andThen(async (cached) => {
+      if (cached) {
+        return ok(cached.reference);
+      }
 
-    const read = await files.files.read(fileId);
+      const read = await files.files.read(fileId);
 
-    if (!read.ok) {
-      return err(read.error);
-    }
+      if (!read.ok) {
+        return err(read.error);
+      }
 
-    let uploaded: ProviderFileUpload;
+      let uploaded: ProviderFileUpload;
 
-    try {
-      uploaded = await upload({
-        data: read.data.data,
-        mediaType: read.data.file.mediaType,
-        filename: read.data.file.filename,
+      try {
+        uploaded = await upload({
+          data: read.data.data,
+          mediaType: read.data.file.mediaType,
+          filename: read.data.file.filename,
+        });
+      } catch (cause) {
+        return err(
+          dbError(
+            "network",
+            `The ${provider} upload failed: ${errorText(cause)}`,
+            { hint: "AI_PROVIDER_FILE_UPLOAD" },
+          ),
+        );
+      }
+
+      const saved = await files.providerFiles.upsert({
+        fileId,
+        provider,
+        reference: uploaded.reference,
+        expiresAt: uploaded.expiresAt,
       });
-    } catch (cause) {
-      return err(
-        dbError(
-          "network",
-          `The ${provider} upload failed: ${errorText(cause)}`,
-          { hint: "AI_PROVIDER_FILE_UPLOAD" },
-        ),
-      );
-    }
 
-    const saved = await files.providerFiles.upsert(
-      fileId,
-      provider,
-      uploaded.reference,
-      uploaded.expiresAt,
-    );
-
-    return saved.ok ? ok(uploaded.reference) : err(saved.error);
-  });
+      return saved.ok ? ok(uploaded.reference) : err(saved.error);
+    });
 }

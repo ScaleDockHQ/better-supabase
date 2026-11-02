@@ -113,7 +113,10 @@ export interface LegalEntities {
   /** The first entity of an organization becomes its default. */
   create(input: CreateLegalEntityInput): AsyncResult<LegalEntity>;
   /** Changes the fields present in `input`. */
-  update(id: string, input: LegalEntityInput): AsyncResult<LegalEntity>;
+  update(input: {
+    id: string;
+    input: LegalEntityInput;
+  }): AsyncResult<LegalEntity>;
   /** Makes an active entity the default; the previous default stops being it. */
   setDefault(id: string): AsyncResult<LegalEntity>;
   /** The default cannot be archived. */
@@ -136,8 +139,7 @@ export interface LegalEntities {
    * for typed keys.
    */
   resolveSetting(
-    key: string,
-    options?: { readonly legalEntityId?: string },
+    input: { key: string } & { readonly legalEntityId?: string },
   ): AsyncResult<ResolvedSetting>;
   /**
    * Lists the numbers that block turning `options.on` off: numbers more than
@@ -148,9 +150,13 @@ export interface LegalEntities {
   disableCheck(): AsyncResult<DisableCheck>;
   /** The settings stored on this entity, by key, as JSON. */
   settings(id: string): AsyncResult<Readonly<Record<string, unknown>>>;
-  setSetting(id: string, key: string, value: unknown): AsyncResult<unknown>;
+  setSetting(input: {
+    id: string;
+    key: string;
+    value: unknown;
+  }): AsyncResult<unknown>;
   /** Removes the entity's value, so the organization's applies again. */
-  resetSetting(id: string, key: string): AsyncResult<boolean>;
+  resetSetting(input: { id: string; key: string }): AsyncResult<boolean>;
 }
 
 function fiscalOf(value: unknown): LegalEntityFiscal {
@@ -243,7 +249,7 @@ export function createLegalEntities(
           one("create_legal_entity"),
         ),
       ),
-    update: (id, input) =>
+    update: ({ id, input }) =>
       call(
         "update_legal_entity",
         { legal_entity_id: id, patch: patchOf(input) },
@@ -295,14 +301,14 @@ export function createLegalEntities(
           (value) => (value === null ? undefined : textOf(value)),
         ),
       ),
-    resolveSetting: (key, resolveOptions) =>
+    resolveSetting: ({ key, ...resolveOptions }) =>
       tenant().andThen((organizationId) =>
         call(
           "resolve_setting",
           {
             tenant: organizationId,
             key,
-            legal_entity: resolveOptions?.legalEntityId ?? null,
+            legal_entity: resolveOptions.legalEntityId ?? null,
           },
           (value): ResolvedSetting => {
             const row = recordOf(value, "resolve_setting");
@@ -358,13 +364,13 @@ export function createLegalEntities(
       call("get_legal_entity_settings", { legal_entity_id: id }, (value) =>
         isRecord(value) ? value : {},
       ),
-    setSetting: (id, key, value) =>
+    setSetting: ({ id, key, value }) =>
       call(
         "set_legal_entity_setting",
         { legal_entity_id: id, key, value: { value } },
         (stored) => stored,
       ),
-    resetSetting: (id, key) =>
+    resetSetting: ({ id, key }) =>
       call(
         "reset_legal_entity_setting",
         { legal_entity_id: id, key },

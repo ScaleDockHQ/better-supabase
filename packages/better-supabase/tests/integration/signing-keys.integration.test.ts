@@ -25,18 +25,21 @@ describe.skipIf(!live)("signing-keys module", () => {
       await s.client.query("set local role service_role");
       const keys = createSigningKeys({ transport: sqlTransport(s.sql) });
 
-      const first = await keys.create(OWNER).orThrow();
+      const first = await keys.create({ owner: OWNER }).orThrow();
       const exp = Math.floor(Date.now() / 1000) + 3600;
 
       const token = await keys
-        .signer(OWNER)
+        .signer({ owner: OWNER })
         .signJwt({ sub: "u1", exp })
         .orThrow();
 
-      const second = await keys.rotate(OWNER, "ES256").orThrow();
+      const second = await keys
+        .rotate({ owner: OWNER, alg: "ES256" })
+        .orThrow();
+
       expect(second).toMatchObject({ alg: "ES256", retired: first.kid });
 
-      const jwks = await keys.jwks(OWNER).orThrow();
+      const jwks = await keys.jwks({ owner: OWNER }).orThrow();
       expect(new Set(jwks.keys.map((key) => key.kid))).toEqual(
         new Set([first.kid, second.kid]),
       );

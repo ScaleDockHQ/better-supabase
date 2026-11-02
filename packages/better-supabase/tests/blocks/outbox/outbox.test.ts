@@ -68,11 +68,12 @@ describe("createOutbox", () => {
       schema: "app",
     });
 
-    const result = await outbox.emit(
-      "invoice.paid",
-      { id: 1 },
-      { tenant: "t1", key: "inv-1" },
-    );
+    const result = await outbox.emit({
+      type: "invoice.paid",
+      payload: { id: 1 },
+      tenant: "t1",
+      key: "inv-1",
+    });
 
     expect(result).toMatchObject({
       ok: true,
@@ -105,7 +106,9 @@ describe("createOutbox", () => {
       schema: "events",
     });
 
-    expect((await outbox.emit("invoice.paid", { id: 1 })).data).toBe("e1");
+    expect(
+      (await outbox.emit({ type: "invoice.paid", payload: { id: 1 } })).data,
+    ).toBe("e1");
     expect(calls[0]).toEqual({
       schema: "events",
       fn: "emit_event",
@@ -120,13 +123,13 @@ describe("createOutbox", () => {
     });
     const seen: string[] = [];
     expect(
-      await outbox.consume(
-        "search",
-        (events) => {
+      await outbox.consume({
+        consumer: "search",
+        handler: (events) => {
           seen.push(...events.map((event) => event.type));
         },
-        { owner: "w1" },
-      ),
+        owner: "w1",
+      }),
     ).toEqual({ delivered: 1 });
     expect(seen).toEqual(["organization.created"]);
     expect(calls.slice(1).map((call) => call.args)).toEqual([
@@ -149,16 +152,17 @@ describe("createOutbox", () => {
 
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     expect(
-      await outbox.register("billing", {
+      await outbox.register({
+        consumer: "billing",
         types: ["invoice.*"],
         fromStart: true,
       }),
     ).toMatchObject({ ok: true, data: 0 });
     expect(calls[0]!.args).toEqual(["billing", ["invoice.*"], true]);
-    const purged = await outbox.purge("7 days");
+    const purged = await outbox.purge({ olderThan: "7 days" });
     expect(purged.ok).toBe(false);
     expect(purged.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
-    expect((await outbox.purge(undefined, 500)).data).toBe(3);
+    expect((await outbox.purge({ batch: 500 })).data).toBe(3);
     expect(calls.at(-1)).toEqual({
       fn: "purge_outbox",
       args: [null, 500, null],
@@ -180,11 +184,12 @@ describe("createOutbox", () => {
       typePrefix: "com.crm",
     });
 
-    const result = await outbox.relay(
-      "crm",
-      { send: (events) => void sent.push(...events) },
-      { batch: 2, owner: "w1" },
-    );
+    const result = await outbox.relay({
+      consumer: "crm",
+      sink: { send: (events) => void sent.push(...events) },
+      batch: 2,
+      owner: "w1",
+    });
 
     expect(result).toEqual({ delivered: 3 });
     expect(sent.map((event) => event.id)).toEqual(["1", "2", "3"]);
@@ -213,13 +218,13 @@ describe("createOutbox", () => {
     const seen: OutboxEvent[] = [];
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
 
-    const result = await outbox.consume(
-      "search",
-      async (events) => {
+    const result = await outbox.consume({
+      consumer: "search",
+      handler: async (events) => {
         seen.push(...events);
       },
-      { owner: "w1" },
-    );
+      owner: "w1",
+    });
 
     expect(result).toEqual({ delivered: 1 });
     expect(seen[0]).toMatchObject({
@@ -234,13 +239,13 @@ describe("createOutbox", () => {
       1,
     ]);
 
-    const failed = await outbox.consume(
-      "search",
-      () => {
+    const failed = await outbox.consume({
+      consumer: "search",
+      handler: () => {
         throw new Error("index down");
       },
-      { owner: "w1" },
-    );
+      owner: "w1",
+    });
 
     expect(failed.error?.message).toContain("index down");
   });
@@ -253,15 +258,15 @@ describe("createOutbox", () => {
 
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
 
-    const result = await outbox.relay(
-      "crm",
-      {
+    const result = await outbox.relay({
+      consumer: "crm",
+      sink: {
         send: () => {
           throw new Error("receiver down");
         },
       },
-      { owner: "w1" },
-    );
+      owner: "w1",
+    });
 
     expect(result.delivered).toBe(0);
     expect(result.error?.message).toContain("receiver down");
@@ -282,14 +287,14 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).consume(
-      "billing-seats",
-      () => ({
+    }).consume({
+      consumer: "billing-seats",
+      handler: () => ({
         ok: false,
         error: { kind: "conflict", message: "Seat count changed" },
       }),
-      { owner: "w1" },
-    );
+      owner: "w1",
+    });
 
     expect(result.delivered).toBe(0);
     expect(result.error).toMatchObject({
@@ -309,7 +314,9 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).consume("billing-seats", () => ({ ok: false, error: "offline" }), {
+    }).consume({
+      consumer: "billing-seats",
+      handler: () => ({ ok: false, error: "offline" }),
       owner: "w1",
     });
 
@@ -326,13 +333,15 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).consume(
-      "billing-seats",
-      () => {
+    }).consume({
+      consumer: "billing-seats",
+      handler: () => {
         throw new Error("No such customer");
       },
-      { owner: "w1", maxAttempts: 3, maxBackoff: "1 minute" },
-    );
+      owner: "w1",
+      maxAttempts: 3,
+      maxBackoff: "1 minute",
+    });
 
     expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
     expect(calls.at(-1)).toEqual({
@@ -361,7 +370,7 @@ describe("createOutbox", () => {
     });
 
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
-    const letters = await outbox.deadLetters("crm");
+    const letters = await outbox.deadLetters({ consumer: "crm" });
     expect(letters.data).toHaveLength(1);
     expect(letters.data?.[0]).toMatchObject({
       consumer: "crm",
@@ -372,7 +381,13 @@ describe("createOutbox", () => {
     expect(letters.data?.[0]?.deadAt.toString()).toBe("2026-01-02T00:00:00Z");
     expect(calls[0]).toEqual({ fn: "outbox_dead_letters", args: ["crm", 100] });
     expect(
-      (await outbox.purge("7 days", 100, { ignoreIdle: "30 days" })).data,
+      (
+        await outbox.purge({
+          olderThan: "7 days",
+          batch: 100,
+          ignoreIdle: "30 days",
+        })
+      ).data,
     ).toBe(4);
     expect(calls.at(-1)).toEqual({
       fn: "purge_outbox",
@@ -393,7 +408,7 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).relay("crm", { send: () => undefined });
+    }).relay({ consumer: "crm", sink: { send: () => undefined } });
 
     expect(result.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
   });
@@ -586,8 +601,11 @@ describe("createOutbox subscribers", () => {
 
     const seen: number[] = [];
     expect(
-      await outbox.consume("search", (events) => {
-        seen.push(...events.map((event) => event.position));
+      await outbox.consume({
+        consumer: "search",
+        handler: (events) => {
+          seen.push(...events.map((event) => event.position));
+        },
       }),
     ).toEqual({ delivered: 2, refused: 1 });
     expect(seen).toEqual([1, 3]);
@@ -611,8 +629,11 @@ describe("createOutbox subscribers", () => {
     });
 
     expect(
-      await outbox.consume("search", () => {
-        handled += 1;
+      await outbox.consume({
+        consumer: "search",
+        handler: () => {
+          handled += 1;
+        },
       }),
     ).toEqual({ delivered: 0, refused: 1 });
     expect(handled).toBe(0);
@@ -632,7 +653,11 @@ describe("createOutbox subscribers", () => {
       },
     });
 
-    const result = await outbox.consume("search", () => undefined);
+    const result = await outbox.consume({
+      consumer: "search",
+      handler: () => undefined,
+    });
+
     expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
     expect(result.error?.message).toBe("provider down");
     expect(calls.map((call) => call.fn)).toEqual([

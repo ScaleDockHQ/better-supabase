@@ -124,11 +124,11 @@ export const apiResources = {
         output: toStandardJsonSchema(Role),
         handler: (ctx, { id, data }) =>
           otherOrganization(ctx.context.tenant, String(id)) ??
-          ctx.db.permissions.setOverride(
-            data.roleId,
-            data.permission,
-            data.granted,
-          ),
+          ctx.db.permissions.setOverride({
+            role: data.roleId,
+            permission: data.permission,
+            granted: data.granted,
+          }),
       }),
     },
   },

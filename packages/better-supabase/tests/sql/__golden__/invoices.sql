@@ -3852,7 +3852,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:47ea25c5ff463f2497d7ae602a3839eb79fd0ddad4da76a3d408cd41cc0925d7
+-- @bsb-hash sha256:d9851487f9e642c3443a8da78194752bc928569da554683ae96d5c2024b24a5d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8670,6 +8670,13 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_de
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.invoices', target_type => 'invoice', event_prefix => 'invoice', deferred => true);
+end;
+$$;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

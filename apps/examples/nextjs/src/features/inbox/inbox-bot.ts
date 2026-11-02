@@ -27,10 +27,10 @@ async function handOff(thread: Thread, message: Message): Promise<void> {
   );
   await bsb
     .admin()
-    .inbox.conversations.handoff(
-      conversationIdOf(thread.id),
-      `The help bot received: ${message.text.slice(0, 200)}`,
-    )
+    .inbox.conversations.handoff({
+      conversationId: conversationIdOf(thread.id),
+      reason: `The help bot received: ${message.text.slice(0, 200)}`,
+    })
     .orThrow();
 }
 

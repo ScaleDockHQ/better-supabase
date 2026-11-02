@@ -37,25 +37,24 @@ export interface DriveAccess {
    * who may share the node approve it, and the approval grants the role until
    * the duration ends. Needs `driveSubject({ accessRequests })`.
    */
-  requestAccess(
-    nodeId: string,
-    input?: DriveAccessRequestInput,
-  ): AsyncResult<RecordAccessRequest>;
+  requestAccess(input: {
+    nodeId: string;
+    input?: DriveAccessRequestInput | undefined;
+  }): AsyncResult<RecordAccessRequest>;
   /** The access requests on a node, newest first. */
   accessRequests(
-    nodeId: string,
-    options?: RecordRequestListOptions,
+    input: { nodeId: string } & RecordRequestListOptions,
   ): AsyncResult<readonly RecordAccessRequest[]>;
   /**
    * Gives every item `fromUserId` holds at the top role in the organization to
    * `toUserId`, and the drives they own. Needs `drive.manage`, or the service
    * role.
    */
-  transferOwnership(
-    organizationId: string,
-    fromUserId: string,
-    toUserId: string,
-  ): AsyncResult<DriveTransfer>;
+  transferOwnership(input: {
+    organizationId: string;
+    fromUserId: string;
+    toUserId: string;
+  }): AsyncResult<DriveTransfer>;
 }
 
 interface DriveAccessOptions {
@@ -91,7 +90,7 @@ export function driveAccess(options: DriveAccessOptions): DriveAccess {
   const subjectType = options.subjectType ?? "drive_node";
 
   return {
-    requestAccess: (nodeId, input = {}) =>
+    requestAccess: ({ nodeId, input = {} }) =>
       recordAccess === undefined
         ? AsyncResult.err(noRequests())
         : recordAccess.requestRecord({
@@ -99,11 +98,11 @@ export function driveAccess(options: DriveAccessOptions): DriveAccess {
             subjectId: nodeId,
             ...input,
           }),
-    accessRequests: (nodeId, list) =>
+    accessRequests: ({ nodeId, ...list }) =>
       recordAccess === undefined
         ? AsyncResult.err(noRequests())
-        : recordAccess.records(subjectType, nodeId, list),
-    transferOwnership: (organizationId, fromUserId, toUserId) =>
+        : recordAccess.records({ subjectType, subjectId: nodeId, ...list }),
+    transferOwnership: ({ organizationId, fromUserId, toUserId }) =>
       call(
         "drive_transfer_ownership",
         { tenant: organizationId, from_user: fromUserId, to_user: toUserId },

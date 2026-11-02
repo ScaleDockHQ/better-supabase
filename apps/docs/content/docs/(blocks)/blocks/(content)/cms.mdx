@@ -1,0 +1,54 @@
+---
+title: CMS
+description: Content entries, versions, approvals and attachments served from public media buckets.
+---
+
+Covers a content site: entries by type and locale, versions you can restore, publish approvals and images.
+
+```bash
+better-supabase add cms
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ blocks: { cms: {} } });
+```
+
+`add` lists `cms` in `blocks`, writes the modules of every part and wires the client in `lib/blocks.ts`. Import the manifest from `better-supabase/blocks/cms` when you build the set with [`createBlocks`](/docs/blocks/create-blocks).
+
+```ts
+import { cmsBlock } from "better-supabase/blocks/cms";
+```
+
+## Parts
+
+Installing `cms` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
+
+- [`content`](/docs/blocks/content)
+- [`versions`](/docs/blocks/versions)
+- [`approvals`](/docs/blocks/approvals)
+- [`attachments`](/docs/blocks/attachments)
+
+## Defaults
+
+Attachments are served from a public bucket and do not require a scan, which suits site media. Set `blocks.attachments.options` to change that.
+
+The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/extending/composite-blocks)).
+
+## Helpers
+
+`publishWithVersion`: Keep a named version of the entry, then publish it. A failed snapshot leaves the entry unpublished.
+
+```ts
+await blocks.cms.publishWithVersion({ entryId, subject, label: "Launch" });
+```
+
+The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+
+## Remove
+
+```bash
+better-supabase remove cms
+better-supabase remove cms --with-parts
+```
+
+The first command replaces `cms` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).

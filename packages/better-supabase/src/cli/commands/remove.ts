@@ -8,7 +8,12 @@ import type { PlannedFile } from "../core/files.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
-import { DEFAULT_CONVENTIONS, resolvePreset } from "../../preset/index.ts";
+import {
+  DEFAULT_CONVENTIONS,
+  PRESET_CATALOG,
+  removeComposite,
+  resolvePreset,
+} from "../../preset/index.ts";
 import { renderBlocks } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -24,7 +29,9 @@ import { commandMeta } from "../core/manifest.ts";
 import { templateContextFor } from "../glue.ts";
 import { detectProject } from "../project/detect.ts";
 import { sqlPlan } from "../sql-layout.ts";
+import { isComposite } from "../sql/add.ts";
 import { SQL_ARGS } from "../sql/args.ts";
+import { addBlocksToConfig, addBlocksToJson } from "../sql/config-edit.ts";
 import { layoutFor } from "../sql/providers.ts";
 import {
   removeBlocksFromConfig,
@@ -43,6 +50,11 @@ const REMOVE_ARGS = {
     variadic: true,
     description:
       "Blocks to remove: their config entries, their clients in lib/blocks.ts, and the schema files no other block needs",
+  },
+  "with-parts": {
+    type: "boolean",
+    description:
+      "With a composite block, remove its parts too, except the ones another block still needs. Without it the parts stay as their own blocks",
   },
 } as const;
 
@@ -90,7 +102,33 @@ export async function runRemove(
     );
   }
 
-  const remaining = config.blockNames.filter((name) => !names.includes(name));
+  const composites = names.filter(isComposite);
+
+  if (args["with-parts"] === true && composites.length === 0) {
+    throw new CliError(
+      "usage",
+      "--with-parts applies to a composite block; none of the named blocks is one.",
+    );
+  }
+
+  const installed = { ...DEFAULT_CONVENTIONS, blocks: config.blockNames };
+
+  const released = composites.flatMap((name) => {
+    const removal = removeComposite(
+      installed,
+      name,
+      { withParts: args["with-parts"] === true },
+      PRESET_CATALOG,
+    );
+
+    return removal.blocks.filter((block) => !config.blockNames.includes(block));
+  });
+
+  const remaining = [
+    ...config.blockNames.filter((name) => !names.includes(name)),
+    ...released,
+  ];
+
   const after = resolved(remaining);
 
   const needed = after.blocks.filter((block) => names.includes(block.name));
@@ -129,8 +167,22 @@ export async function runRemove(
     );
   }
 
+  const listed =
+    released.length === 0
+      ? edit
+      : file.endsWith(".json")
+        ? addBlocksToJson(edit.text, released)
+        : addBlocksToConfig(edit.text, released);
+
+  if (!listed.ok) {
+    throw new CliError(
+      "usage",
+      `${display(config.root, file)} wasn't changed: ${listed.reason}. List ${released.join(", ")} in blocks yourself.`,
+    );
+  }
+
   const files: PlannedFile[] = [
-    { path: file, contents: edit.text, policy: "edit" },
+    { path: file, contents: listed.text, policy: "edit" },
   ];
 
   const lines: string[] = [];
@@ -231,6 +283,7 @@ export const removeCommand: AnyCommand = defineCliCommand({
     "dry-run": PLAN_ARGS["dry-run"],
     check: PLAN_ARGS.check,
     force: SQL_ARGS.force,
+    "with-parts": REMOVE_ARGS["with-parts"],
   },
   completions: { block: blockNames },
   run: (args, { config, configFile, paint }) =>

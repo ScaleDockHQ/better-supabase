@@ -10,10 +10,13 @@ export type SessionsSqlOptions = {
    */
   readonly authzVersions?: boolean;
   /**
-   * Wrapper name to `schema.function`; renders
+   * Wrapper name to `schema.function`, or to `{ readSet: "name" }` for the read
+   * set `defineReadSet(db, "name", ...)` installs as `public.rs_name`; renders
    * `better_supabase.bootstrap_<name>`.
    */
-  readonly bootstrap?: Readonly<Record<string, string>>;
+  readonly bootstrap?: Readonly<
+    Record<string, string | { readonly readSet: string }>
+  >;
   readonly exclude?: readonly string[];
   readonly policies?: boolean;
 };
@@ -21,7 +24,7 @@ export type SessionsSqlOptions = {
 export const sessionsSqlOptions: BlockOptionsSchema<SessionsSqlOptions> =
   blockOptions<SessionsSqlOptions>({
     authzVersions: option.boolean({ default: false }),
-    bootstrap: option.unknown<Readonly<Record<string, string>>>(),
+    bootstrap: option.unknown<NonNullable<SessionsSqlOptions["bootstrap"]>>(),
     exclude: option.strings({ default: [] }),
     policies: option.boolean({ default: false }),
   });

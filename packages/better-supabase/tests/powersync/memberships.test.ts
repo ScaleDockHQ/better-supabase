@@ -95,11 +95,11 @@ describe("membershipsRoute", () => {
     });
 
     expect(organizations.leave).toHaveBeenCalledWith("o1");
-    expect(organizations.updateMemberRole).toHaveBeenCalledWith(
-      "o2",
-      "u1",
-      "admin",
-    );
+    expect(organizations.updateMemberRole).toHaveBeenCalledWith({
+      organizationId: "o2",
+      userId: "u1",
+      role: "admin",
+    });
   });
 
   it("refuses an insert and an id that isn't <organization>:<user>", async () => {

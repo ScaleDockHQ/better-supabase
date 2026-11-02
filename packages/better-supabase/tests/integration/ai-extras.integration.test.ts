@@ -27,11 +27,11 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       const cache = createAiCache({ transport: sqlTransport(s.sql) });
 
       const saved = await cache
-        .upsert(
-          "k1",
-          { text: "hi" },
-          { ttl: 3600, organizationId: tenant, model: "openai/gpt-5" },
-        )
+        .upsert({
+          key: "k1",
+          value: { text: "hi" },
+          options: { ttl: 3600, organizationId: tenant, model: "openai/gpt-5" },
+        })
         .orThrow();
 
       expect(
@@ -41,15 +41,19 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       expect(hit).toMatchObject({ value: { text: "hi" }, hits: 1 });
       expect(await cache.get("missing").orThrow()).toBeUndefined();
 
-      const tooBig = await cache.upsert("big", "x".repeat(2 * 1024 * 1024), {
-        ttl: 60,
+      const tooBig = await cache.upsert({
+        key: "big",
+        value: "x".repeat(2 * 1024 * 1024),
+        options: { ttl: 60 },
       });
 
       expect(tooBig.ok).toBe(false);
       const noFilter = await cache.clear({});
       expect(noFilter.ok).toBe(false);
 
-      await cache.upsert("k2", 1, { ttl: 60 }).orThrow();
+      await cache
+        .upsert({ key: "k2", value: 1, options: { ttl: 60 } })
+        .orThrow();
       await s.rows(
         "update better_supabase.ai_cache_entries set expires_at = now() - interval '1 second' where key = 'k2'",
       );
@@ -95,18 +99,21 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
 
       await s.asRole(member);
 
-      const forbidden = await providers.keys.upsert(tenant, {
-        provider: "anthropic",
-        credentialRef: ref,
+      const forbidden = await providers.keys.upsert({
+        organizationId: tenant,
+        key: { provider: "anthropic", credentialRef: ref },
       });
 
       expect(forbidden.ok).toBe(false);
 
       await s.asRole(owner);
 
-      const badRef = await providers.keys.upsert(tenant, {
-        provider: "anthropic",
-        credentialRef: { name: "no-provider" } as never,
+      const badRef = await providers.keys.upsert({
+        organizationId: tenant,
+        key: {
+          provider: "anthropic",
+          credentialRef: { name: "no-provider" } as never,
+        },
       });
 
       expect(badRef.ok).toBe(false);
@@ -119,10 +126,13 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       ).toBe("CREDENTIAL_REF_FOREIGN");
 
       const saved = await providers.keys
-        .upsert(tenant, {
-          provider: "anthropic",
-          credentialRef: ref,
-          settings: { region: "eu" },
+        .upsert({
+          organizationId: tenant,
+          key: {
+            provider: "anthropic",
+            credentialRef: ref,
+            settings: { region: "eu" },
+          },
         })
         .orThrow();
 
@@ -133,7 +143,11 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       expect(await providers.keys.list(tenant).orThrow()).toEqual([]);
 
       await s.service();
-      const resolved = await providers.keys.resolve(tenant).orThrow();
+
+      const resolved = await providers.keys
+        .resolve({ organizationId: tenant })
+        .orThrow();
+
       expect(resolved).toEqual([
         expect.objectContaining({
           provider: "anthropic",
@@ -143,7 +157,10 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       ]);
 
       await providers.keys
-        .upsert(tenant, { provider: "anthropic", credentialRef: backup })
+        .upsert({
+          organizationId: tenant,
+          key: { provider: "anthropic", credentialRef: backup },
+        })
         .orThrow();
       const old = await credentials.getToken(ref, { subject: { type: "app" } });
       expect(old.ok ? "kept" : old.error.kind).toBe("not_found");
@@ -155,7 +172,9 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       });
 
       expect(gone.ok ? "kept" : gone.error.kind).toBe("not_found");
-      expect(await providers.keys.resolve(tenant).orThrow()).toEqual([]);
+      expect(
+        await providers.keys.resolve({ organizationId: tenant }).orThrow(),
+      ).toEqual([]);
     } finally {
       await s.close();
     }
@@ -175,11 +194,14 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       await s.asRole(member);
 
       const batch = await providers.batches
-        .record(tenant, {
-          provider: "openai",
-          reference: { version: 2, id: "batch_1", provider: "openai" },
-          itemCount: 2,
-          userId: other.id,
+        .record({
+          organizationId: tenant,
+          batch: {
+            provider: "openai",
+            reference: { version: 2, id: "batch_1", provider: "openai" },
+            itemCount: 2,
+            userId: other.id,
+          },
         })
         .orThrow();
 
@@ -200,22 +222,28 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       expect(await providers.batches.due().orThrow()).toEqual([]);
 
       await providers.batches
-        .update(batch.id, {
-          status: "completed",
-          counts: { total: 2, completed: 2 },
+        .update({
+          batchId: batch.id,
+          patch: { status: "completed", counts: { total: 2, completed: 2 } },
         })
         .orThrow();
       expect(
         await providers.batches
-          .saveItems(batch.id, [
-            { requestId: "a", status: "succeeded", output: { text: "A" } },
-            { requestId: "b", status: "failed", error: "bad" },
-          ])
+          .saveItems({
+            batchId: batch.id,
+            items: [
+              { requestId: "a", status: "succeeded", output: { text: "A" } },
+              { requestId: "b", status: "failed", error: "bad" },
+            ],
+          })
           .orThrow(),
       ).toBe(2);
 
       const done = await providers.batches
-        .update(batch.id, { resultsSaved: true, nextPollAt: null })
+        .update({
+          batchId: batch.id,
+          patch: { resultsSaved: true, nextPollAt: null },
+        })
         .orThrow();
 
       expect(done.completedAt).toBeDefined();
@@ -223,19 +251,21 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       await s.asRole(member);
 
       const first = await providers.batches
-        .items(batch.id, { limit: 1 })
+        .items({ batchId: batch.id, limit: 1 })
         .orThrow();
 
       expect(first.map((item) => item.requestId)).toEqual(["a"]);
 
       const rest = await providers.batches
-        .items(batch.id, { cursor: "a" })
+        .items({ batchId: batch.id, cursor: "a" })
         .orThrow();
 
       expect(rest).toMatchObject([{ requestId: "b", error: "bad" }]);
 
       await s.asRole(owner);
-      expect(await providers.batches.list(tenant).orThrow()).toHaveLength(1);
+      expect(
+        await providers.batches.list({ organizationId: tenant }).orThrow(),
+      ).toHaveLength(1);
     } finally {
       await s.close();
     }
@@ -255,29 +285,35 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       await s.service();
 
       const idle = await sandboxes
-        .register(tenant, {
-          provider: "vercel",
-          sandboxId: "sbx_idle",
-          chatId,
-          idleSeconds: 60,
+        .register({
+          organizationId: tenant,
+          sandbox: {
+            provider: "vercel",
+            sandboxId: "sbx_idle",
+            chatId,
+            idleSeconds: 60,
+          },
         })
         .orThrow();
 
       const busy = await sandboxes
-        .register(tenant, { provider: "vercel", sandboxId: "sbx_busy" })
+        .register({
+          organizationId: tenant,
+          sandbox: { provider: "vercel", sandboxId: "sbx_busy" },
+        })
         .orThrow();
 
-      const taken = await sandboxes.register(otherTenant, {
-        provider: "vercel",
-        sandboxId: "sbx_idle",
+      const taken = await sandboxes.register({
+        organizationId: otherTenant,
+        sandbox: { provider: "vercel", sandboxId: "sbx_idle" },
       });
 
       expect(taken.ok ? undefined : taken.error.hint).toBe(
         "AI_SANDBOX_FORBIDDEN",
       );
-      expect((await sandboxes.forChat(chatId, "vercel").orThrow())?.id).toBe(
-        idle.id,
-      );
+      expect(
+        (await sandboxes.forChat({ chatId, provider: "vercel" }).orThrow())?.id,
+      ).toBe(idle.id);
 
       await s.rows(
         "update better_supabase.ai_sandboxes set last_used_at = now() - interval '2 hours' where id = $1",
@@ -288,15 +324,17 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       const stopped: string[] = [];
       expect(
         await sandboxes
-          .stopIdle(async (sandbox) => {
-            stopped.push(sandbox.sandboxId);
+          .stopIdle({
+            stop: async (sandbox) => {
+              stopped.push(sandbox.sandboxId);
+            },
           })
           .orThrow(),
       ).toBe(1);
       expect(stopped).toEqual(["sbx_idle"]);
 
       await s.asRole(owner);
-      const listed = await sandboxes.list(tenant).orThrow();
+      const listed = await sandboxes.list({ organizationId: tenant }).orThrow();
       expect(
         Object.fromEntries(listed.map((row) => [row.sandboxId, row.status])),
       ).toEqual({ sbx_idle: "stopped", sbx_busy: "running" });

@@ -54,7 +54,7 @@ export const addSsoDomain = bsb.action(
     permission: "sso.manage",
   },
   async ({ domain }, { tenant, db, auth }) => {
-    const added = await db.sso.addDomain(tenant, domain);
+    const added = await db.sso.addDomain({ organizationId: tenant, domain });
 
     if (!added.ok) {
       return added;
@@ -102,7 +102,10 @@ export const verifySsoDomain = bsb.action(
       return err(dbError("unauthorized", "Sign in to verify a domain"));
     }
 
-    const verified = await admin.verifyDomain(id, { actorId: auth.user.id });
+    const verified = await admin.verifyDomain({
+      domainId: id,
+      options: { actorId: auth.user.id },
+    });
 
     if (!verified.ok) {
       return verified;
@@ -140,7 +143,7 @@ export const updateSsoDomain = bsb.action(
       settings.enforceSso = enforceSso;
     }
 
-    const updated = await db.sso.updateDomain(id, settings);
+    const updated = await db.sso.updateDomain({ domainId: id, settings });
 
     if (!updated.ok) {
       return updated;
@@ -177,11 +180,11 @@ export const addSamlConnection = bsb.action(
       return err(dbError("unauthorized", "Sign in to add a connection"));
     }
 
-    const added = await admin.addSamlProvider(
-      tenant,
-      { metadataUrl, domains },
-      { actorId: auth.user.id },
-    );
+    const added = await admin.addSamlProvider({
+      organizationId: tenant,
+      input: { metadataUrl, domains },
+      actorId: auth.user.id,
+    });
 
     if (!added.ok) {
       return added;
@@ -210,7 +213,8 @@ export const removeSamlConnection = bsb.action(
       return err(dbError("unauthorized", "Sign in to remove a connection"));
     }
 
-    const removed = await admin.removeSamlProvider(id, {
+    const removed = await admin.removeSamlProvider({
+      providerId: id,
       actorId: auth.user.id,
     });
 

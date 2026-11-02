@@ -59,17 +59,19 @@ export type AiSandboxStopper = (sandbox: AiSandbox) => Promise<unknown>;
  */
 export interface AiSandboxes {
   /** Records a sandbox, or marks a known one running and used (service role). */
-  register(
-    organizationId: string,
-    sandbox: NewAiSandbox,
-  ): AsyncResult<AiSandbox>;
+  register(input: {
+    organizationId: string;
+    sandbox: NewAiSandbox;
+  }): AsyncResult<AiSandbox>;
   /** Marks a sandbox used now (service role). `false` when it is not running. */
   touch(sandboxId: string): AsyncResult<boolean>;
   /** The chat's running sandbox at a provider, to reuse it (service role). */
-  forChat(chatId: string, provider: string): AsyncResult<AiSandbox | undefined>;
+  forChat(input: {
+    chatId: string;
+    provider: string;
+  }): AsyncResult<AiSandbox | undefined>;
   list(
-    organizationId: string,
-    options?: { readonly chatId?: string },
+    input: { organizationId: string } & { readonly chatId?: string },
   ): AsyncResult<readonly AiSandbox[]>;
   /**
    * Claims idle and expired sandboxes to stop (service role). A sandbox whose
@@ -83,23 +85,21 @@ export interface AiSandboxes {
    * Records a claimed stop. A stopped harness sandbox stops its session too;
    * `false` when a turn used the sandbox again since the claim.
    */
-  finishStop(
-    sandboxId: string,
-    stopped: boolean,
-    error?: string,
-  ): AsyncResult<boolean>;
+  finishStop(input: {
+    sandboxId: string;
+    stopped: boolean;
+    error?: string | undefined;
+  }): AsyncResult<boolean>;
   /**
    * Claims idle sandboxes, stops each with `stop`, and records the outcome.
    * Returns how many stopped.
    */
   stopIdle(
-    stop: AiSandboxStopper,
-    options?: { readonly batch?: number },
+    input: { stop: AiSandboxStopper } & { readonly batch?: number },
   ): AsyncResult<number>;
   /** A job handler that runs `stopIdle`; schedule it every few minutes. */
   idleStopJob(
-    stop: AiSandboxStopper,
-    options?: { readonly batch?: number },
+    input: { stop: AiSandboxStopper } & { readonly batch?: number },
   ): JobHandler<unknown>;
 }
 
@@ -132,14 +132,18 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
       (value) => recordsOf(value, "idle_ai_sandboxes").map(sandboxOf),
     );
 
-  const finishStop: AiSandboxes["finishStop"] = (sandboxId, stopped, error) =>
+  const finishStop: AiSandboxes["finishStop"] = ({
+    sandboxId,
+    stopped,
+    error,
+  }) =>
     service(
       "finish_ai_sandbox_stop",
       { id: sandboxId, stopped, error },
       (value) => value === true,
     );
 
-  const stopIdle: AiSandboxes["stopIdle"] = (stop, stopOptions = {}) =>
+  const stopIdle: AiSandboxes["stopIdle"] = ({ stop, ...stopOptions }) =>
     idle(stopOptions).andThen((claimed) =>
       Result.from(async () => {
         let stopped = 0;
@@ -153,11 +157,11 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
             error = errorText(cause);
           }
 
-          const finished = await finishStop(
-            sandbox.id,
-            error === undefined,
+          const finished = await finishStop({
+            sandboxId: sandbox.id,
+            stopped: error === undefined,
             error,
-          );
+          });
 
           if (!finished.ok) {
             return finished;
@@ -173,7 +177,7 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
     );
 
   return {
-    register: (organizationId, sandbox) =>
+    register: ({ organizationId, sandbox }) =>
       service(
         "register_ai_sandbox",
         {
@@ -186,11 +190,11 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
       ),
     touch: (sandboxId) =>
       service("touch_ai_sandbox", { id: sandboxId }, (value) => value === true),
-    forChat: (chatId, provider) =>
+    forChat: ({ chatId, provider }) =>
       service("ai_sandbox_for", { chat_id: chatId, provider }, (value) =>
         value === null || value === undefined ? undefined : sandboxOf(value),
       ),
-    list: (organizationId, listOptions = {}) =>
+    list: ({ organizationId, ...listOptions }) =>
       call(
         "list_ai_sandboxes",
         { tenant: organizationId, chat_id: listOptions.chatId },
@@ -199,7 +203,9 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
     idle,
     finishStop,
     stopIdle,
-    idleStopJob: (stop, jobOptions) => async () =>
-      stopIdle(stop, jobOptions).orThrow(),
+    idleStopJob:
+      ({ stop, ...jobOptions }) =>
+      async () =>
+        stopIdle({ stop, ...jobOptions }).orThrow(),
   };
 }

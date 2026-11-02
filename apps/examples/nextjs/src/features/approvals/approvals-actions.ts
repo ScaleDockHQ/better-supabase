@@ -24,10 +24,10 @@ export const requestApproval = bsb.action(
     permission: "approvals.request",
   },
   async ({ subjectId, action, reason }, { db, auth }) => {
-    const requested = await db.approvals.request(
-      { type: APPROVAL_SUBJECT, id: subjectId },
-      { action, reason },
-    );
+    const requested = await db.approvals.request({
+      subject: { type: APPROVAL_SUBJECT, id: subjectId },
+      input: { action, reason },
+    });
 
     if (!requested.ok) {
       return requested;
@@ -59,8 +59,8 @@ export const decideApproval = bsb.action(
 
     const decided =
       decision === "approve"
-        ? await approvals.approve(id, note)
-        : await approvals.reject(id, note);
+        ? await approvals.approve({ id, comment: note })
+        : await approvals.reject({ id, comment: note });
 
     if (!decided.ok) {
       return decided;

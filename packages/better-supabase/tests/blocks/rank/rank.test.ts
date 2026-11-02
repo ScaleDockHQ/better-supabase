@@ -23,10 +23,18 @@ describe("rank block", () => {
     const rank = createRank({ transport });
     expect(
       await rank
-        .move("deal", "d1", { previous: "d2", next: "d3", group: "won" })
+        .move({
+          subjectType: "deal",
+          subjectId: "d1",
+          target: { previous: "d2", next: "d3", group: "won" },
+        })
         .orThrow(),
     ).toBe("VV");
-    expect(await rank.move("deal", "d1", {}).orThrow()).toBe("VV");
+    expect(
+      await rank
+        .move({ subjectType: "deal", subjectId: "d1", target: {} })
+        .orThrow(),
+    ).toBe("VV");
     expect(calls).toEqual([
       {
         fn: "move",
@@ -60,7 +68,11 @@ describe("rank block", () => {
       service: service.transport,
     });
 
-    expect(await rank.rebalance("deal", "org", "won").orThrow()).toBe(3);
+    expect(
+      await rank
+        .rebalance({ subjectType: "deal", tenant: "org", group: "won" })
+        .orThrow(),
+    ).toBe(3);
     await rank.job(
       { subjectType: "note", tenant: null, group: null },
       undefined as never,

@@ -409,7 +409,7 @@ async function taskFor(
     return taskOf(run.data);
   }
 
-  const path = await session.chat.messages.path(run.data.chatId);
+  const path = await session.chat.messages.path({ chatId: run.data.chatId });
 
   return taskOf(run.data, path.ok ? lastAnswer(path.data) : undefined);
 }
@@ -617,9 +617,9 @@ export function createA2AHandler(
 
           chatId = chat.data.id;
         } else {
-          const created = await session.chat.chats.create(
-            session.organizationId,
-          );
+          const created = await session.chat.chats.create({
+            organizationId: session.organizationId,
+          });
 
           if (!created.ok) {
             return rpcError(id, "internal", "The chat could not be created");
@@ -628,10 +628,13 @@ export function createA2AHandler(
           chatId = created.data.id;
         }
 
-        const appended = await session.chat.messages.appendUser(chatId, {
-          id: message["messageId"],
-          role: "user",
-          parts: [{ type: "text", text }],
+        const appended = await session.chat.messages.appendUser({
+          chatId,
+          message: {
+            id: message["messageId"],
+            role: "user",
+            parts: [{ type: "text", text }],
+          },
         });
 
         if (!appended.ok) {

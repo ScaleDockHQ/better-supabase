@@ -33,8 +33,10 @@ function stub(item: Partial<WorkItem> | undefined) {
   );
 
   const repeat = vi.fn(
-    (_id: string, _dueAt: Temporal.Instant): AsyncResult<WorkItem> =>
-      AsyncResult.ok({ id: "w2" } as WorkItem),
+    (_input: {
+      workItemId: string;
+      dueAt: Temporal.Instant;
+    }): AsyncResult<WorkItem> => AsyncResult.ok({ id: "w2" } as WorkItem),
   );
 
   return { get, repeat } satisfies Pick<Tasks, "get" | "repeat">;
@@ -66,7 +68,7 @@ describe("workItemRecurrenceSink", () => {
     ]);
 
     expect(items.repeat).toHaveBeenCalledOnce();
-    expect(items.repeat.mock.calls[0]?.[1].toString()).toBe(
+    expect(items.repeat.mock.calls[0]?.[0].dueAt.toString()).toBe(
       "2026-10-26T09:00:00Z",
     );
   });

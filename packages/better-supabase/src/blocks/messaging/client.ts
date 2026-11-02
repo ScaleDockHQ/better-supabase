@@ -77,21 +77,24 @@ export interface MessagesActions {
    * Sends a message, or a reply in the thread view; a failure is also kept in
    * `error`.
    */
-  readonly send: (
-    body: string,
-    draft?: MessageDraft,
-  ) => Promise<Result<Message>>;
-  readonly edit: (
-    id: string,
-    edition: MessageEdition,
-  ) => Promise<Result<Message>>;
+  readonly send: (input: {
+    body: string;
+    draft?: MessageDraft | undefined;
+  }) => Promise<Result<Message>>;
+  readonly edit: (input: {
+    id: string;
+    edition: MessageEdition;
+  }) => Promise<Result<Message>>;
   /** Deletes a message; it stays as a placeholder. */
   readonly remove: (id: string) => Promise<Result<boolean>>;
-  readonly pin: (id: string, pinned?: boolean) => Promise<Result<Message>>;
-  readonly resolve: (
-    id: string,
-    resolved?: boolean,
-  ) => Promise<Result<Message>>;
+  readonly pin: (input: {
+    id: string;
+    pinned?: boolean | undefined;
+  }) => Promise<Result<Message>>;
+  readonly resolve: (input: {
+    id: string;
+    resolved?: boolean | undefined;
+  }) => Promise<Result<Message>>;
   /** Loads the page before the oldest message shown. */
   readonly loadOlder: () => Promise<void>;
   /** Tells the others the caller is typing, or stopped. */
@@ -167,23 +170,24 @@ export function createMessagesController(
 
       const page = (before?: Message) =>
         threadId === null
-          ? client.list(conversationId ?? "", {
+          ? client.list({
+              conversationId: conversationId ?? "",
               limit,
               ...(before?.sentAt === undefined
                 ? {}
                 : { before: { sentAt: before.sentAt, id: before.id } }),
             })
-          : client.replies(threadId, { limit });
+          : client.replies({ messageId: threadId, limit });
 
       const markRead = async (): Promise<void> => {
         if (conversationId === null) {
           return;
         }
 
-        await client.markRead(
+        await client.markRead({
           conversationId,
-          threadId === null ? {} : { threadId },
-        );
+          ...(threadId === null ? {} : { threadId }),
+        });
       };
 
       const put = (incoming: readonly Message[]): void => {
@@ -306,7 +310,7 @@ export function createMessagesController(
       const actions: MessagesActions = {
         refresh,
         markRead,
-        send: async (body, draft = {}) => {
+        send: async ({ body, draft = {} }) => {
           if (conversationId === null) {
             return err(dbError("invalid_input", "No conversation is open"));
           }
@@ -319,16 +323,20 @@ export function createMessagesController(
           });
 
           return written(
-            await client.send(conversationId, {
-              ...draft,
-              ...(threadId === null || draft.parentId !== undefined
-                ? {}
-                : { parentId: threadId }),
-              body,
+            await client.send({
+              conversationId,
+              message: {
+                ...draft,
+                ...(threadId === null || draft.parentId !== undefined
+                  ? {}
+                  : { parentId: threadId }),
+                body,
+              },
             }),
           );
         },
-        edit: async (id, edition) => written(await client.edit(id, edition)),
+        edit: async ({ id, edition }) =>
+          written(await client.edit({ messageId: id, edition })),
         remove: async (id) => {
           const result = await client.remove(id);
 
@@ -344,9 +352,10 @@ export function createMessagesController(
 
           return result;
         },
-        pin: async (id, pinned = true) => written(await client.pin(id, pinned)),
-        resolve: async (id, resolved = true) =>
-          written(await client.resolve(id, resolved)),
+        pin: async ({ id, pinned = true }) =>
+          written(await client.pin({ messageId: id, pinned })),
+        resolve: async ({ id, resolved = true }) =>
+          written(await client.resolve({ messageId: id, resolved })),
         loadOlder: async () => {
           const oldest = state.get().messages?.[0];
 

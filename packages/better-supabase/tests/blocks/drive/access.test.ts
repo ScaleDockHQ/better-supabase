@@ -75,7 +75,8 @@ describe("drive check-out locks", () => {
     const drive = createDrive({ transport: fake });
 
     const locked = await drive
-      .lock("n1", {
+      .lock({
+        id: "n1",
         until: Temporal.Instant.from("2026-10-01T08:00:00Z"),
         note: "Editing the budget",
       })
@@ -85,7 +86,7 @@ describe("drive check-out locks", () => {
     expect(locked.lockedUntil?.toString()).toBe("2026-10-01T08:00:00Z");
     expect(locked.lockNote).toBe("Editing the budget");
 
-    const unlocked = await drive.unlock("n1", { force: true }).orThrow();
+    const unlocked = await drive.unlock({ id: "n1", force: true }).orThrow();
     expect(unlocked.lockedBy).toBeUndefined();
 
     expect(fake.calls).toEqual([
@@ -109,8 +110,8 @@ describe("drive check-out locks", () => {
 
     const drive = createDrive({ transport: fake });
 
-    await drive.lock("n1").orThrow();
-    await drive.unlock("n1").orThrow();
+    await drive.lock({ id: "n1" }).orThrow();
+    await drive.unlock({ id: "n1" }).orThrow();
 
     expect(fake.calls).toEqual([
       ["drive_lock", { node: "n1", until: null, note: null }],
@@ -137,11 +138,12 @@ describe("drive download blocks", () => {
 
     const drive = createDrive({ transport: fake });
 
-    expect((await drive.blockDownloads("n1").orThrow()).downloadBlocked).toBe(
-      true,
-    );
     expect(
-      (await drive.blockDriveDownloads("d1", true).orThrow()).downloadBlocked,
+      (await drive.blockDownloads({ id: "n1" }).orThrow()).downloadBlocked,
+    ).toBe(true);
+    expect(
+      (await drive.blockDriveDownloads({ id: "d1", blocked: true }).orThrow())
+        .downloadBlocked,
     ).toBe(true);
 
     expect(fake.calls).toEqual([
@@ -170,7 +172,7 @@ describe("drive download blocks", () => {
       },
     });
 
-    const result = await drive.download("n1");
+    const result = await drive.download({ id: "n1" });
 
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.hint).toBe(
@@ -195,7 +197,9 @@ describe("drive download blocks", () => {
       }),
     });
 
-    const view = await createDrive({ transport: fake }).link("t").orThrow();
+    const view = await createDrive({ transport: fake })
+      .link({ token: "t" })
+      .orThrow();
 
     expect(view.link.downloadAllowed).toBe(false);
     expect(view.object).toBeUndefined();
@@ -282,7 +286,7 @@ describe("drive previews", () => {
       renderer: RENDERER,
       maxPages: 2,
     })
-      .render("n1")
+      .render({ nodeId: "n1" })
       .orThrow();
 
     expect(previews?.pages).toBe(2);
@@ -312,7 +316,7 @@ describe("drive previews", () => {
         renderer: RENDERER,
         requireClean,
       })
-        .render("n1")
+        .render({ nodeId: "n1" })
         .orThrow();
 
       expect(previews).toBeUndefined();
@@ -336,7 +340,7 @@ describe("drive previews", () => {
       storage: storage({}).store,
       renderer: RENDERER,
     })
-      .render("n1")
+      .render({ nodeId: "n1" })
       .orThrow();
 
     expect(folder).toBeUndefined();
@@ -352,7 +356,7 @@ describe("drive previews", () => {
       storage: storage({ "o/a1/plan.pdf": new Blob(["text"]) }).store,
       renderer: RENDERER,
     })
-      .render("n1")
+      .render({ nodeId: "n1" })
       .orThrow();
 
     expect(text).toBeUndefined();
@@ -384,7 +388,7 @@ describe("drive previews", () => {
       transport: transport(results),
       storage: readOnly,
       renderer: RENDERER,
-    }).render("n1");
+    }).render({ nodeId: "n1" });
 
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "DRIVE_STORAGE_CLIENT",
@@ -402,7 +406,7 @@ describe("drive previews", () => {
       transport: transport(results),
       storage: failing,
       renderer: RENDERER,
-    }).render("n1");
+    }).render({ nodeId: "n1" });
 
     expect(failed.ok).toBe(false);
   });
@@ -480,7 +484,7 @@ describe("drive previews", () => {
     const files = storage({});
 
     const urls = await createDrive({ transport: fake, storage: files.store })
-      .previewUrls("n1", { expiresIn: 60 })
+      .previewUrls({ id: "n1", expiresIn: 60 })
       .orThrow();
 
     expect(urls).toEqual([
@@ -489,7 +493,7 @@ describe("drive previews", () => {
     ]);
 
     const unsigned = await createDrive({ transport: fake })
-      .previewUrls("n1")
+      .previewUrls({ id: "n1" })
       .orThrow()
       .catch((error: unknown) => error);
 
@@ -506,7 +510,7 @@ describe("drive previews", () => {
     const denied = await createDrive({
       transport: fake,
       storage: refusing,
-    }).previewUrls("n1");
+    }).previewUrls({ id: "n1" });
 
     expect(denied.ok).toBe(false);
   });

@@ -35,7 +35,7 @@ export const POST = bsb.route<{ id: string }, true>(
       );
     }
 
-    const invoice = await db.invoices.issue(params.id);
+    const invoice = await db.invoices.issue({ invoiceId: params.id });
 
     if (!invoice.ok) {
       return invoice;

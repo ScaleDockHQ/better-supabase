@@ -130,10 +130,11 @@ export interface MyAcknowledgementsOptions {
 export interface Acknowledgements {
   /** Asks a member, team or role to acknowledge a record. Idempotent. */
   assign(
-    organizationId: string,
-    record: RecordRef,
-    principal: AcknowledgementPrincipal,
-    options?: AssignAcknowledgementOptions,
+    input: {
+      organizationId: string;
+      record: RecordRef;
+      principal: AcknowledgementPrincipal;
+    } & AssignAcknowledgementOptions,
   ): AsyncResult<AcknowledgementAssignment>;
   /** Removes an assignment. Earlier acknowledgements stay. */
   unassign(assignmentId: string): AsyncResult<AcknowledgementAssignment>;
@@ -143,21 +144,19 @@ export interface Acknowledgements {
   ): AsyncResult<readonly AcknowledgementAssignment[]>;
   /** Records that the caller read and understood the current version. */
   acknowledge(
-    record: RecordRef,
-    options?: AcknowledgeOptions,
+    input: { record: RecordRef } & AcknowledgeOptions,
   ): AsyncResult<Acknowledgement>;
   /** The records the caller is asked to acknowledge in an organization. */
   mine(
-    organizationId: string,
-    options?: MyAcknowledgementsOptions,
+    input: { organizationId: string } & MyAcknowledgementsOptions,
   ): AsyncResult<readonly MyAcknowledgement[]>;
   /** Who acknowledged the current version, and who is pending or overdue. */
   status(record: RecordRef): AsyncResult<AcknowledgementStatus>;
   /** The acknowledgements of a version, the current one by default. */
-  of(
-    record: RecordRef,
-    versionId?: string,
-  ): AsyncResult<readonly Acknowledgement[]>;
+  of(input: {
+    record: RecordRef;
+    versionId?: string | undefined;
+  }): AsyncResult<readonly Acknowledgement[]>;
   /**
    * Notifies each overdue member once per version and emits
    * `acknowledgement.reminded`. Service only; returns the count notified.
@@ -288,7 +287,7 @@ export function createAcknowledgements(
   );
 
   const client: Acknowledgements = {
-    assign: (organizationId, record, principal, assign = {}) =>
+    assign: ({ organizationId, record, principal, ...assign }) =>
       call(
         "assign_acknowledgement",
         {
@@ -316,7 +315,7 @@ export function createAcknowledgements(
             assignmentOf(row, "list_acknowledgement_assignments"),
           ),
       ),
-    acknowledge: (record, acknowledge = {}) =>
+    acknowledge: ({ record, ...acknowledge }) =>
       call(
         "acknowledge",
         {
@@ -327,7 +326,7 @@ export function createAcknowledgements(
         },
         (value) => acknowledgementOf(value, "acknowledge"),
       ),
-    mine: (organizationId, mine = {}) =>
+    mine: ({ organizationId, ...mine }) =>
       call(
         "list_my_acknowledgements",
         { tenant: organizationId, pending_only: mine.pendingOnly ?? true },
@@ -342,7 +341,7 @@ export function createAcknowledgements(
         { subject_type: record.type, subject_id: record.id },
         (value) => statusOf(value, "acknowledgement_status"),
       ),
-    of: (record, versionId) =>
+    of: ({ record, versionId }) =>
       call(
         "acknowledgements_of",
         {

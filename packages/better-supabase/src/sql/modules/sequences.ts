@@ -32,6 +32,12 @@ const NAMES: BlockSqlNames = {
     sequence: { table: "sequences", singular: "sequence", primary: true },
   },
   events: EVENTS,
+  hooks: [
+    "before_sequence_save",
+    "after_sequence_save",
+    "before_sequence_enroll",
+    "after_sequence_enroll",
+  ],
   options: ["maxAttempts", "retryMinutes"],
   tables: {
     sequences: {

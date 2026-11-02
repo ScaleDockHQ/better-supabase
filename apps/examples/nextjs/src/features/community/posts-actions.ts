@@ -46,7 +46,7 @@ export const createPost = bsb.action(
     permission: "posts.write",
   },
   async ({ boardId, title, body }, { db, auth }) => {
-    const post = await db.posts.create(boardId, { title, body });
+    const post = await db.posts.create({ boardId, input: { title, body } });
 
     if (!post.ok) {
       return post;
@@ -66,7 +66,7 @@ export const voteOnPost = bsb.action(
     permission: "posts.read",
   },
   async ({ postId, value }, { db, auth }) => {
-    const tally = await db.posts.vote(postId, value);
+    const tally = await db.posts.vote({ postId, value });
 
     if (!tally.ok) {
       return tally;

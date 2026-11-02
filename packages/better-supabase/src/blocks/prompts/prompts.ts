@@ -66,9 +66,7 @@ export interface Prompts {
    * Versions never change.
    */
   create(
-    name: string,
-    template: string,
-    options?: PromptSaveOptions,
+    input: { name: string; template: string } & PromptSaveOptions,
   ): AsyncResult<PromptVersion>;
   /**
    * The version `label` (default `production`) points at, or an exact
@@ -76,8 +74,7 @@ export interface Prompts {
    * `undefined` when there is none.
    */
   get(
-    name: string,
-    options?: {
+    input: { name: string } & {
       readonly label?: string;
       readonly version?: number;
       readonly organizationId?: string;
@@ -85,15 +82,13 @@ export interface Prompts {
   ): AsyncResult<Prompt | undefined>;
   /** Points `label` at an existing version, to promote or roll back. */
   setLabel(
-    name: string,
-    label: string,
-    version: number,
-    options?: { readonly organizationId?: string },
+    input: { name: string; label: string; version: number } & {
+      readonly organizationId?: string;
+    },
   ): AsyncResult<PromptVersion>;
   /** Every version of `name`, newest first, with its labels. */
   versions(
-    name: string,
-    options?: { readonly organizationId?: string },
+    input: { name: string } & { readonly organizationId?: string },
   ): AsyncResult<readonly PromptVersion[]>;
 }
 
@@ -171,7 +166,7 @@ export function createPrompts(options: PromptOptions): Prompts {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Prompts = {
-    create: (name, template, saveOptions = {}) =>
+    create: ({ name, template, ...saveOptions }) =>
       call(
         "create_prompt_version",
         {
@@ -183,7 +178,7 @@ export function createPrompts(options: PromptOptions): Prompts {
         },
         versionOf,
       ),
-    get: (name, getOptions = {}) =>
+    get: ({ name, ...getOptions }) =>
       call(
         "get_prompt",
         {
@@ -205,13 +200,13 @@ export function createPrompts(options: PromptOptions): Prompts {
           };
         },
       ),
-    setLabel: (name, label, version, labelOptions = {}) =>
+    setLabel: ({ name, label, version, ...labelOptions }) =>
       call(
         "set_prompt_label",
         { name, label, version, tenant: labelOptions.organizationId },
         versionOf,
       ),
-    versions: (name, listOptions = {}) =>
+    versions: ({ name, ...listOptions }) =>
       call(
         "list_prompt_versions",
         { name, tenant: listOptions.organizationId },

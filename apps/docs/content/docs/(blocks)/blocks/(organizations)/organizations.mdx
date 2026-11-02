@@ -629,9 +629,9 @@ to renew its expiry, then edit it. It returns the invitation without its token a
 emits `invitation.updated`. In TypeScript:
 
 ```ts
-await organizations.updateInvitation(invitationId, {
-  role: "admin",
-  prefill: { name: "Ada Lovelace" },
+await organizations.updateInvitation({
+  invitationId,
+  changes: { role: "admin", prefill: { name: "Ada Lovelace" } },
 });
 ```
 
@@ -762,4 +762,19 @@ export async function inviteMember(organizationId: string, email: string) {
   });
   return organizations.invite({ organizationId, email, role: "member" });
 }
+```
+
+## Owner and member roles
+
+`owner(organizationId)` returns the member who holds `options.ownerRole` (default `owner`), or `undefined` when none does. `memberRoles(organizationId)` returns every member's roles by user id, using `roles` when members can hold several. Both read `members`, so its hooks run.
+
+## Organization overview
+
+`overview(organizationId)` reads the organization page in one call from the SQL function `organization_overview`. The result holds the organization's `id`, `name` and `slug`, the caller's `role`, the `members` with their `roles` and `disabledAt`, the open `invitations`, and the billed `seats` (`null` without the `billing` block or when the caller may not read billing). The function runs as the caller and reads through `list_members` and `list_organization_invitations`, so a caller who may not list members gets the same `ORGANIZATION_FORBIDDEN` error. `members(organizationId)` and `invitations(organizationId)` return the same rows one call at a time, typed as `OrganizationMember` and `OrganizationInvitationRow`.
+
+```ts
+const overview = await db.organizations.overview(organizationId).orThrow();
+const admins = overview.members.filter((member) =>
+  member.roles.includes("admin"),
+);
 ```

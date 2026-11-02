@@ -303,7 +303,7 @@ export function MemberTable({
 
   const changeRole = useCallback(
     async (member: Member, role: Role) => {
-      const result = await setRole(member.userId, role);
+      const result = await setRole({ userId: member.userId, role });
 
       if (result.ok) {
         toast.success(t("Role updated"));
@@ -505,7 +505,9 @@ export function MembersTable() {
               accessibilityRole="button"
               accessibilityHint={editable ? `Changes the role to ${next}` : ""}
               disabled={!editable || busy}
-              onPress={() => void setRole(member.userId, next)}
+              onPress={() =>
+                void setRole({ userId: member.userId, role: next })
+              }
             >
               <Text style={{ color: editable ? "#2563eb" : "#737373" }}>
                 {member.role}

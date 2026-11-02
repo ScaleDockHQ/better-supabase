@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@4 managed tasks
--- @bsb-hash sha256:c3bad9da4818d1114bc042bacdb3491a84872ccbd4bb8856a5dd17b7f345105a
+-- @bsb-hash sha256:26b87d076cdd1dcf7b9457540403b3a5f64024d0957e9a857f734dde79533066
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -979,6 +979,14 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.maintenance_requests', target_type => 'task', event_prefix => 'task', deferred => true);
+  perform better_supabase.audit('better_supabase.maintenance_request_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
+end;
+$$;
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

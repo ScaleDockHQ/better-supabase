@@ -14,6 +14,7 @@ import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
+import type { BlockSqlComposition } from "./reads.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 import type { BlockSqlValueMethods } from "./value-maps.ts";
@@ -144,6 +145,17 @@ export interface BlockSqlEntitySubject {
   };
   readonly url?: string;
   readonly cascade?: boolean;
+  /**
+   * Tracks the entity's table for Realtime (`track_realtime`, keyed by the
+   * tenant column) when the `realtime-tables` module is installed, so the
+   * module needs no hand-written `ctx.broadcast` for it.
+   */
+  readonly realtime?: boolean;
+  /**
+   * The entity's logical columns whose changes the `field-history` block keeps
+   * when it is installed, without an entry in `blocks.field-history.on`.
+   */
+  readonly history?: readonly string[];
 }
 
 /**
@@ -168,7 +180,7 @@ export interface BlockSqlEntitySpec {
   readonly subject?: BlockSqlEntitySubject;
 }
 
-export interface BlockSqlNames {
+export interface BlockSqlNames extends BlockSqlComposition {
   readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
   readonly entities?: Readonly<Record<string, BlockSqlEntitySpec>>;
   /**
@@ -188,8 +200,7 @@ export interface BlockSqlNames {
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**
    * Tables and columns the module renamed between versions. `upgrade` renames
-   * them on installs below `from + 1`, after the config's entity and table
-   * renames, so a declared move needs no hand-written upgrade step.
+   * them on installs below `from + 1`, after the config's renames.
    */
   readonly migrations?: readonly BlockSqlNameMigration[];
 }
@@ -1480,10 +1491,4 @@ ${indent}end if;`;
   return context;
 }
 
-/** The contract's argument list with `{id}` resolved, as Postgres prints it. */
-export function contractSignature(
-  fn: BlockSqlContractFunction,
-  idType: string,
-): string {
-  return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");
-}
+export { contractSignature } from "./contract-signature.ts";

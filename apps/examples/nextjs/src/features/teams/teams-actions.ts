@@ -39,11 +39,11 @@ export const createTeam = bsb.action(
     requireTenant: true,
   },
   async ({ name, description }, { tenant, db, auth }) => {
-    const created = await db.teams.create(
-      tenant,
+    const created = await db.teams.create({
+      organizationId: tenant,
       name,
-      description ?? undefined,
-    );
+      description: description ?? undefined,
+    });
 
     if (!created.ok) {
       return created;
@@ -62,8 +62,10 @@ export const updateTeam = bsb.action(
     requireTenant: true,
   },
   async ({ id, name, description }, { tenant, db, auth }) => {
-    const updated = await db.teams.update(id, name, undefined, undefined, {
-      description,
+    const updated = await db.teams.update({
+      id,
+      name,
+      options: { description },
     });
 
     if (!updated.ok) {
@@ -118,8 +120,8 @@ export const setTeamMember = bsb.action(
   },
   async ({ teamId, userId, member }, { tenant, db, auth }) => {
     const changed = member
-      ? await db.teams.addMember(teamId, userId)
-      : await db.teams.removeMember(teamId, userId);
+      ? await db.teams.addMember({ teamId, userId })
+      : await db.teams.removeMember({ teamId, userId });
 
     if (!changed.ok) {
       return changed;

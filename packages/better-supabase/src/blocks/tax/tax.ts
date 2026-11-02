@@ -181,7 +181,10 @@ export interface PrepareTaxReturnInput {
 }
 
 export interface Tax {
-  saveCode(input: TaxCodeInput, codeId?: string): AsyncResult<TaxCode>;
+  saveCode(input: {
+    input: TaxCodeInput;
+    codeId?: string | undefined;
+  }): AsyncResult<TaxCode>;
   codes(options?: {
     readonly includeArchived?: boolean;
     readonly legalEntityId?: string;
@@ -190,18 +193,21 @@ export interface Tax {
    * The rate of a code on a date, in basis points. `undefined` when none covers
    * it.
    */
-  rateOn(codeId: string, onDate: TaxDate): AsyncResult<number | undefined>;
+  rateOn(input: {
+    codeId: string;
+    onDate: TaxDate;
+  }): AsyncResult<number | undefined>;
   /** Totals per tax code and rate: the arithmetic invoices use when they issue. */
   computeDocumentTax(input: TaxComputeInput): AsyncResult<TaxComputation>;
   /** Adds a rate to a code. A rate that starts after the current one ends it. */
-  saveRate(
-    codeId: string,
+  saveRate(input: {
+    codeId: string;
     rate: {
       readonly rateBps: number;
       readonly validFrom?: TaxDate;
       readonly validTo?: TaxDate;
-    },
-  ): AsyncResult<TaxRate>;
+    };
+  }): AsyncResult<TaxRate>;
   /** Builds, or rebuilds until it is filed, the return of a period. */
   prepareReturn(input: PrepareTaxReturnInput): AsyncResult<TaxReturn>;
   fileReturn(returnId: string): AsyncResult<TaxReturn>;
@@ -382,7 +388,7 @@ export function createTax(options: TaxOptions): Tax {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Tax = {
-    saveCode: (input, codeId) =>
+    saveCode: ({ input, codeId }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_tax_code",
@@ -409,7 +415,7 @@ export function createTax(options: TaxOptions): Tax {
             ),
         ),
       ),
-    rateOn: (codeId, onDate) =>
+    rateOn: ({ codeId, onDate }) =>
       call(
         "tax_rate_on",
         { code_id: codeId, on_date: dateText(onDate) },
@@ -436,7 +442,7 @@ export function createTax(options: TaxOptions): Tax {
         (value) => computationOf(value, input.currency, "compute_document_tax"),
       );
     },
-    saveRate: (codeId, rate) =>
+    saveRate: ({ codeId, rate }) =>
       tenant().andThen((organizationId) =>
         call(
           "save_tax_rate",

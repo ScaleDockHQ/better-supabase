@@ -6,6 +6,7 @@ import type {
 } from "./module-types.ts";
 
 import { BLOCK_SCOPES } from "../config/blocks.ts";
+import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { renamedBlock } from "./block-renames.ts";
 import { migrationOptionUses } from "./migration-options.ts";
@@ -82,6 +83,7 @@ import { TARGETS } from "./modules/goals.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
+import { HOUSEKEEPING } from "./modules/housekeeping.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
@@ -120,6 +122,7 @@ import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PASSES } from "./modules/passes.ts";
 import { PAYROLL_EXPORT } from "./modules/payroll-export.ts";
+import { PERIODS } from "./modules/periods.ts";
 import { ACCESS } from "./modules/permissions.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
@@ -136,6 +139,7 @@ import { RATE_LIMIT } from "./modules/rate-limit.ts";
 import { REACTIONS } from "./modules/reactions.ts";
 import { READ_SETS } from "./modules/read-sets.ts";
 import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
+import { RECURRENCE } from "./modules/recurrence.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
@@ -440,6 +444,9 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(RFQS),
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
+      built(PERIODS),
+      built(RECURRENCE),
+      built(HOUSEKEEPING),
       built(E_PRESCRIBING),
       built(AGENT_CHECKOUT),
       built(ADVISORIES),
@@ -461,9 +468,24 @@ function renderPosition(module: BlockSql): number {
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveBlocks });
 
+/** The modules a composite block stands for, through its parts. */
+function compositeModules(name: string): string[] | undefined {
+  const manifest = PRESET_CATALOG.manifests.find((each) => each.name === name);
+
+  if (manifest?.composes === undefined) {
+    return undefined;
+  }
+
+  const parts = manifest.composes.flatMap(
+    (part) => compositeModules(part) ?? [part],
+  );
+
+  return [...manifest.sql, ...parts];
+}
+
 /**
- * The modules to install for `names`, dependencies first. Throws on an unknown
- * name.
+ * The modules to install for `names`, dependencies first. A composite block
+ * stands for the modules of its parts. Throws on an unknown name.
  */
 export function resolveBlocks(
   names: readonly string[],
@@ -504,7 +526,14 @@ export function resolveBlocks(
   };
 
   for (const name of names) {
-    visit(name);
+    if (name in SQL_MODULES) {
+      visit(name);
+      continue;
+    }
+
+    for (const module of compositeModules(name) ?? [name]) {
+      visit(module);
+    }
   }
 
   // Modules that share a position sort by name, so the rendered SQL doesn't

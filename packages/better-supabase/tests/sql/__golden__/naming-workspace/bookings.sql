@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ab1470b330f91351ac17059b79e3e4b43f5031fe830c3850d8b24c3c421698a9
+-- @bsb-hash sha256:484a196ed7a322427acb507abacada95f27fa63143df54210797f066efe6af97
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -780,6 +780,52 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) from public, anon;
 grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) to authenticated, service_role;
+
+-- The tenant's resources, as the caller (the table's policy decides who sees
+-- them). Inactive ones are left out unless include_inactive is set.
+create or replace function "better_supabase"."list_booking_resources"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', rs."id", 'name', rs."name", 'kind', rs."kind",
+    'capacity', rs."capacity", 'tz', rs."tz", 'active', rs."active",
+    'calendarId', rs."calendar_id",
+    'hostUserId', rs."host_user_id"
+  ) order by rs."name", rs."id"), '[]'::jsonb)
+  from "better_supabase"."booking_resources" rs
+  where rs."tenant_id" = list_booking_resources.tenant
+    and (list_booking_resources.include_inactive or rs."active")
+$$;
+revoke execute on function "better_supabase"."list_booking_resources"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_booking_resources"(uuid, boolean) to authenticated, service_role;
+
+-- The tenant's services with their durations as interval text, as the
+-- caller. Inactive ones are left out unless include_inactive is set.
+create or replace function "better_supabase"."list_booking_services"(tenant uuid, include_inactive boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', sv."id", 'name', sv."name",
+    'duration', sv."duration"::text,
+    'bufferBefore', sv."buffer_before"::text,
+    'bufferAfter', sv."buffer_after"::text,
+    'resourceKinds', to_jsonb(sv."resource_kinds"),
+    'active', sv."active"
+  ) order by sv."name", sv."id"), '[]'::jsonb)
+  from "better_supabase"."booking_services" sv
+  where sv."tenant_id" = list_booking_services.tenant
+    and (list_booking_services.include_inactive or sv."active")
+$$;
+revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -62,7 +62,10 @@ export function MessageComposer({
   conversationId: string;
   placeholder: string;
   inputRef?: Ref<HTMLTextAreaElement>;
-  onSend: (body: string, draft: MessageDraft) => Promise<Result<unknown>>;
+  onSend: (input: {
+    body: string;
+    draft: MessageDraft;
+  }) => Promise<Result<unknown>>;
   onTyping: (typing: boolean) => void;
 }) {
   const t = useExtracted("chat");
@@ -137,8 +140,11 @@ export function MessageComposer({
 
     setSending(true);
 
-    const result = await onSend(text, {
-      attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+    const result = await onSend({
+      body: text,
+      draft: {
+        attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+      },
     });
 
     setSending(false);

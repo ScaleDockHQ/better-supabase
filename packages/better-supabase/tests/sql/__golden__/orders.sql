@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:9772ca22ef0a5e050f2166eda7929d90b537ad419b33a074eca0604368b74c10
+-- @bsb-hash sha256:c3b47d34e5766957b441dc27065823f29b345130c7887944a78b8eea5bbed55a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2333,6 +2333,53 @@ $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2610,7 +2657,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:b3790e098b3761475d815562399196ae1879ee5d14eb9dbf02a39012f900660c
+-- @bsb-hash sha256:6c7ed7b59382c2fe9e8ed9d7e5dd2fc8adfc23e591942c982679ea0e7204e2ff
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5169,6 +5216,53 @@ $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5416,6 +5510,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
+-- Row audit for the module's tables (blocks.audit.options.blockTables)
+do $$
+begin
+  perform better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
+  perform better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
+end;
+$$;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5446,7 +5548,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:60c4ef2c14571194c6bb1410520a8d72f7638f2c5b0c3c7bd7db653bebd5e989
+-- @bsb-hash sha256:c7e5a2d00e26deba1584573890ccc880cb5e240ee3c56fad673aced6695faa9a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7783,6 +7885,53 @@ $$;
 revoke execute on function "app_private"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "app_private"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "app_private"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "app_private"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "app_private"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "app_private"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "app_private"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -8060,7 +8209,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:fdfc572f51e3f765f9c66a748718b39351589992a4a00dd8ed305af9d1710d77
+-- @bsb-hash sha256:9663a5561710c7b4fe854b7a8beea7b5854ae9f0408faf6bfce98e490743cf52
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10392,6 +10541,53 @@ $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -10960,6 +11156,15 @@ as $$ select "better_supabase"."order_updated_at"($1) $$;
 revoke execute on function "api"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."order_updated_at"(text) to service_role;
 
+create or replace function "api"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."order_status_board"($1, $2) $$;
+revoke execute on function "api"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "api"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -10990,7 +11195,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:43e6c192b534c9712c8447646760313e3513f30083240f893aae41a789dc0a9a
+-- @bsb-hash sha256:ad45556f3e91b624096831b7cec90c805907a78fb7449fa873ddb34c40dd0d09
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13313,6 +13518,53 @@ $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
 
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."tenant_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."tenant_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -13590,7 +13842,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:c3ede74a03ad4190e11fd966c356a4bdc5b8bedd77cd4a39ad166694f6a0357e
+-- @bsb-hash sha256:1498a115ec6ed87b2f1e75c5c546072c25012ce01899f3bcba30a2526276d682
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15921,6 +16173,53 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."order_updated_at"(text) to service_role;
+
+-- The orders page in one call: a column per status with its count, its totals
+-- per currency and its latest orders. Amounts are text.
+create or replace function "better_supabase"."order_status_board"(tenant uuid, per_status integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
+  from (
+    select
+      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      jsonb_build_object(
+        'status', g.label,
+        'count', g.n,
+        'totals', g.totals,
+        'orders', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'id', x."id", 'number', x."number", 'customerId', x."customer_id",
+            'currency', x."currency", 'total', x."total"::text,
+            'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") order by x."placed_at" desc, x."id")
+          from (
+            select * from "better_supabase"."orders" y
+            where y."org_id" = order_status_board.tenant and y."status" = g.raw
+            order by y."placed_at" desc, y."id"
+            limit greatest(coalesce(order_status_board.per_status, 20), 0)
+          ) x), '[]'::jsonb)
+      ) as col
+    from (
+      select s.raw, s.label, sum(s.n)::integer as n,
+        jsonb_agg(jsonb_build_object('currency', s.currency, 'total', s.total::text, 'paid', s.paid::text) order by s.currency) as totals
+      from (
+        select z."status" as raw, z."status" as label,
+          z."currency" as currency, count(*) as n,
+          sum(z."total") as total, sum(z."paid_total") as paid
+        from "better_supabase"."orders" z
+        where z."org_id" = order_status_board.tenant
+        group by z."status", z."currency"
+      ) s
+      group by s.raw, s.label
+    ) g
+  ) cols
+$$;
+revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

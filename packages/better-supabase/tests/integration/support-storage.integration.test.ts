@@ -739,11 +739,11 @@ create policy bsb_it_revocable_insert on storage.objects for insert to authentic
       tenant: ACME,
     });
 
-    const put = await attachments.put(
-      null,
-      { name: "attachment.txt", mimeType: "text/plain", size: 2 },
-      text("hi"),
-    );
+    const put = await attachments.put({
+      subject: null,
+      attachment: { name: "attachment.txt", mimeType: "text/plain", size: 2 },
+      file: text("hi"),
+    });
 
     expect(put.error).toBeNull();
     expect(called).toEqual(["create_attachment", "confirm_attachment"]);
@@ -825,7 +825,10 @@ describe.skipIf(!live)("attachments in a support session", () => {
     const attachments = attachmentsAs(false);
 
     const upload = await attachments
-      .upload(null, { name: "plan.pdf", mimeType: "application/pdf", size: 3 })
+      .upload({
+        subject: null,
+        attachment: { name: "plan.pdf", mimeType: "application/pdf", size: 3 },
+      })
       .orThrow();
 
     created.push(upload.attachment.id);
@@ -865,10 +868,9 @@ describe.skipIf(!live)("attachments in a support session", () => {
       [ACME],
     );
 
-    const upload = await attachmentsAs(true).upload(null, {
-      name: "plan.pdf",
-      mimeType: "application/pdf",
-      size: 3,
+    const upload = await attachmentsAs(true).upload({
+      subject: null,
+      attachment: { name: "plan.pdf", mimeType: "application/pdf", size: 3 },
     });
 
     expect(upload.ok).toBe(false);

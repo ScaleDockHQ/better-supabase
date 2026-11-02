@@ -224,7 +224,7 @@ describe("createAiChat", () => {
 
   it("creates, reads, lists, updates and removes chats", async () => {
     const { user, server, chat } = fake();
-    const created = await chat.chats.create("o1").orThrow();
+    const created = await chat.chats.create({ organizationId: "o1" }).orThrow();
     expect(created).toMatchObject({
       id: "c1",
       projectId: undefined,
@@ -238,16 +238,19 @@ describe("createAiChat", () => {
     expect(lastArgs(user)).toEqual({ tenant: "o1", fields: {} });
 
     await chat.chats
-      .create("o1", {
-        id: "c1",
-        title: "T",
-        model: null,
-        projectId: "p1",
-        agentId: "a",
-        visibility: "private",
-        pinned: false,
-        temporary: true,
-        ownerId: "u2",
+      .create({
+        organizationId: "o1",
+        input: {
+          id: "c1",
+          title: "T",
+          model: null,
+          projectId: "p1",
+          agentId: "a",
+          visibility: "private",
+          pinned: false,
+          temporary: true,
+          ownerId: "u2",
+        },
       })
       .orThrow();
     expect(lastArgs(server)).toEqual({
@@ -292,13 +295,16 @@ describe("createAiChat", () => {
     });
 
     const updated = await chat.chats
-      .update("c1", {
-        title: "New",
-        model: "m",
-        projectId: null,
-        visibility: "private",
-        pinned: false,
-        archived: true,
+      .update({
+        chatId: "c1",
+        patch: {
+          title: "New",
+          model: "m",
+          projectId: null,
+          visibility: "private",
+          pinned: false,
+          archived: true,
+        },
       })
       .orThrow();
 
@@ -314,7 +320,7 @@ describe("createAiChat", () => {
         archived: true,
       },
     });
-    await chat.chats.update("c1", {}).orThrow();
+    await chat.chats.update({ chatId: "c1", patch: {} }).orThrow();
     expect(await chat.chats.remove("c1").orThrow()).toBe(true);
     expect(await chat.chats.purge(10).orThrow()).toBe(3);
     expect(lastArgs(server)).toEqual({ batch: 10 });
@@ -324,12 +330,15 @@ describe("createAiChat", () => {
     const { user, chat } = fake();
 
     const project = await chat.projects
-      .create("o1", {
-        name: "Research",
-        instructions: "Be brief",
-        defaultModel: null,
-        pinned: true,
-        archived: false,
+      .create({
+        organizationId: "o1",
+        input: {
+          name: "Research",
+          instructions: "Be brief",
+          defaultModel: null,
+          pinned: true,
+          archived: false,
+        },
       })
       .orThrow();
 
@@ -350,7 +359,7 @@ describe("createAiChat", () => {
         archived: false,
       },
     });
-    await chat.projects.update("p1", {}).orThrow();
+    await chat.projects.update({ projectId: "p1", input: {} }).orThrow();
     expect(lastArgs(user)).toEqual({ id: "p1", tenant: null, fields: {} });
     expect(await chat.projects.list("o1").orThrow()).toHaveLength(1);
     expect(await chat.projects.remove("p1").orThrow()).toBe(true);
@@ -358,17 +367,16 @@ describe("createAiChat", () => {
 
   it("appends, saves and reads the message tree", async () => {
     const { user, server, chat } = fake();
-    expect(await chat.messages.appendUser("c1", message).orThrow()).toEqual({
-      messageId: "m1",
-      parentId: undefined,
-      created: true,
-    });
+    expect(
+      await chat.messages.appendUser({ chatId: "c1", message }).orThrow(),
+    ).toEqual({ messageId: "m1", parentId: undefined, created: true });
     await chat.messages
-      .appendUser(
-        "c1",
-        { ...message, metadata: { a: 1 } },
-        { trigger: "regenerate-message", messageId: "m1" },
-      )
+      .appendUser({
+        chatId: "c1",
+        message: { ...message, metadata: { a: 1 } },
+        trigger: "regenerate-message",
+        messageId: "m1",
+      })
       .orThrow();
     expect(lastArgs(user)).toEqual({
       chat: "c1",
@@ -378,10 +386,10 @@ describe("createAiChat", () => {
     });
 
     const saved = await chat.messages
-      .saveAssistant(
-        "c1",
-        { id: "m2", role: "assistant", parts: [] },
-        {
+      .saveAssistant({
+        chatId: "c1",
+        message: { id: "m2", role: "assistant", parts: [] },
+        options: {
           parentId: "m1",
           status: "aborted",
           model: "m",
@@ -389,7 +397,7 @@ describe("createAiChat", () => {
           native: { id: "m2" },
           runId: "r1",
         },
-      )
+      })
       .orThrow();
 
     expect(saved).toEqual({ messageId: "m2", parentId: "m1", created: false });
@@ -404,16 +412,16 @@ describe("createAiChat", () => {
       run: "r1",
     });
     await chat.messages
-      .saveAssistant(
-        "c1",
-        { id: "m2", role: "assistant", parts: [] },
-        { parentId: "m1" },
-      )
+      .saveAssistant({
+        chatId: "c1",
+        message: { id: "m2", role: "assistant", parts: [] },
+        options: { parentId: "m1" },
+      })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({ native: undefined });
 
     const [first, second] = await chat.messages
-      .path("c1", { leafId: "m2", native: true })
+      .path({ chatId: "c1", leafId: "m2", native: true })
       .orThrow();
 
     expect(lastArgs(user)).toEqual({
@@ -440,18 +448,25 @@ describe("createAiChat", () => {
       siblingCount: 1,
       siblingIndex: 0,
     });
-    await chat.messages.path("c1").orThrow();
+    await chat.messages.path({ chatId: "c1" }).orThrow();
 
-    const [sibling] = await chat.messages.siblings("c1", "m1").orThrow();
+    const [sibling] = await chat.messages
+      .siblings({ chatId: "c1", messageId: "m1" })
+      .orThrow();
+
     expect(sibling?.role).toBe("user");
-    expect(await chat.messages.switchBranch("c1", "m1").orThrow()).toBe("m9");
+    expect(
+      await chat.messages
+        .switchBranch({ chatId: "c1", messageId: "m1" })
+        .orThrow(),
+    ).toBe("m9");
   });
 
   it("claims, releases and stops runs", async () => {
     const { user, server, chat } = fake();
     expect(
       await chat.runs
-        .claim("c1", "s1", { model: "m", messageId: "m2" })
+        .claim({ chatId: "c1", streamId: "s1", model: "m", messageId: "m2" })
         .orThrow(),
     ).toEqual({ claimed: true, streamId: "s1", runId: "r1" });
     expect(lastArgs(server)).toEqual({
@@ -463,16 +478,23 @@ describe("createAiChat", () => {
       external_run_id: undefined,
     });
     await chat.runs
-      .claim("c1", "s1", { engine: "workflow", externalRunId: "wrun_1" })
+      .claim({
+        chatId: "c1",
+        streamId: "s1",
+        engine: "workflow",
+        externalRunId: "wrun_1",
+      })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({
       engine: "workflow",
       external_run_id: "wrun_1",
     });
-    await chat.runs.claim("c1", "s1").orThrow();
+    await chat.runs.claim({ chatId: "c1", streamId: "s1" }).orThrow();
     expect(
       await chat.runs
-        .release("c1", "s1", {
+        .release({
+          chatId: "c1",
+          streamId: "s1",
           status: "failed",
           usage: { tokens: 1 },
           generationId: "g",
@@ -490,17 +512,21 @@ describe("createAiChat", () => {
       error: "boom",
       cost_micro_usd: 5,
     });
-    await chat.runs.release("c1", "s1", { status: "cancelled" }).orThrow();
+    await chat.runs
+      .release({ chatId: "c1", streamId: "s1", status: "cancelled" })
+      .orThrow();
     expect(lastArgs(server)).toMatchObject({ status: "cancelled" });
-    await chat.runs.release("c1", "s1").orThrow();
+    await chat.runs.release({ chatId: "c1", streamId: "s1" }).orThrow();
     expect(await chat.runs.stop("c1").orThrow()).toEqual({
       streamId: "s1",
       runId: "r1",
     });
     expect(lastArgs(user)).toEqual({ chat: "c1" });
-    expect(await chat.runs.setCost("g", 7, { tokens: 2 }).orThrow()).toBe(
-      false,
-    );
+    expect(
+      await chat.runs
+        .setCost({ generationId: "g", costMicroUsd: 7, usage: { tokens: 2 } })
+        .orThrow(),
+    ).toBe(false);
 
     const idle = fake({ request_ai_chat_stop: null });
     expect(await idle.chat.runs.stop("c1").orThrow()).toBeUndefined();
@@ -510,7 +536,10 @@ describe("createAiChat", () => {
     const { user, server, chat } = fake();
 
     const pending = await chat.approvals
-      .request("c1", { approvalId: "ap1", tool: "search", toolCallId: "t1" })
+      .request({
+        chatId: "c1",
+        request: { approvalId: "ap1", tool: "search", toolCallId: "t1" },
+      })
       .orThrow();
 
     expect(pending.decision).toBe("pending");
@@ -527,17 +556,24 @@ describe("createAiChat", () => {
       },
     });
     await chat.approvals
-      .request("c1", {
-        approvalId: "ap1",
-        tool: "search",
-        toolCallId: "t1",
-        input: { q: 1 },
-        runId: "r1",
-        messageId: "m2",
-        signature: "s",
+      .request({
+        chatId: "c1",
+        request: {
+          approvalId: "ap1",
+          tool: "search",
+          toolCallId: "t1",
+          input: { q: 1 },
+          runId: "r1",
+          messageId: "m2",
+          signature: "s",
+        },
       })
       .orThrow();
-    const decided = await chat.approvals.decide("ap1", true, "ok").orThrow();
+
+    const decided = await chat.approvals
+      .decide({ approvalId: "ap1", approved: true, reason: "ok" })
+      .orThrow();
+
     expect(decided).toMatchObject({
       decision: "approved",
       decidedBy: "u1",
@@ -550,9 +586,15 @@ describe("createAiChat", () => {
       approved: true,
       reason: "ok",
     });
-    expect(await chat.approvals.list("c1", ["ap1"]).orThrow()).toHaveLength(1);
     expect(
-      await chat.approvals.setPolicy("o1", "search", "ask").orThrow(),
+      await chat.approvals
+        .list({ chatId: "c1", approvalIds: ["ap1"] })
+        .orThrow(),
+    ).toHaveLength(1);
+    expect(
+      await chat.approvals
+        .setPolicy({ organizationId: "o1", tool: "search", policy: "ask" })
+        .orThrow(),
     ).toBe("ask");
     expect(await chat.approvals.policies("o1").orThrow()).toEqual({
       search: "deny",
@@ -561,7 +603,11 @@ describe("createAiChat", () => {
 
   it("opens and answers pending inputs", async () => {
     const { user, server, chat } = fake();
-    const open = await chat.inputs.open("c1", { question: "Which?" }).orThrow();
+
+    const open = await chat.inputs
+      .open({ chatId: "c1", request: { question: "Which?" } })
+      .orThrow();
+
     expect(open).toMatchObject({ answer: null, answeredAt: undefined });
     expect(lastArgs(server)).toEqual({
       chat: "c1",
@@ -573,14 +619,21 @@ describe("createAiChat", () => {
       },
     });
     await chat.inputs
-      .open("c1", {
-        question: "Q",
-        schema: { type: "string" },
-        runId: "r1",
-        toolCallId: "t1",
+      .open({
+        chatId: "c1",
+        request: {
+          question: "Q",
+          schema: { type: "string" },
+          runId: "r1",
+          toolCallId: "t1",
+        },
       })
       .orThrow();
-    const answered = await chat.inputs.answer("i1", "this").orThrow();
+
+    const answered = await chat.inputs
+      .answer({ inputId: "i1", answer: "this" })
+      .orThrow();
+
     expect(answered.answer).toBe("this");
     expect(lastArgs(user)).toEqual({ id: "i1", answer: { value: "this" } });
   });
@@ -589,7 +642,13 @@ describe("createAiChat", () => {
     const { user, chat } = fake();
     expect(
       await chat.feedback
-        .rate("c1", "m2", -1, { reason: "wrong", comment: "no" })
+        .rate({
+          chatId: "c1",
+          messageId: "m2",
+          rating: -1,
+          reason: "wrong",
+          comment: "no",
+        })
         .orThrow(),
     ).toEqual({
       chatId: "c1",
@@ -598,7 +657,9 @@ describe("createAiChat", () => {
       reason: "wrong",
       comment: undefined,
     });
-    await chat.feedback.rate("c1", "m2", 0).orThrow();
+    await chat.feedback
+      .rate({ chatId: "c1", messageId: "m2", rating: 0 })
+      .orThrow();
     expect(lastArgs(user)).toMatchObject({ rating: null });
 
     const cleared = fake({
@@ -606,10 +667,18 @@ describe("createAiChat", () => {
     });
 
     expect(
-      (await cleared.chat.feedback.rate("c1", "m2", 0).orThrow()).rating,
+      (
+        await cleared.chat.feedback
+          .rate({ chatId: "c1", messageId: "m2", rating: 0 })
+          .orThrow()
+      ).rating,
     ).toBe(0);
     const removed = fake({ rate_ai_message: null });
-    expect(await removed.chat.feedback.rate("c1", "m2", 0).orThrow()).toEqual({
+    expect(
+      await removed.chat.feedback
+        .rate({ chatId: "c1", messageId: "m2", rating: 0 })
+        .orThrow(),
+    ).toEqual({
       chatId: "c1",
       messageId: "m2",
       rating: 0,
@@ -620,7 +689,7 @@ describe("createAiChat", () => {
 
   it("shares chats by token", async () => {
     const { chat } = fake();
-    const link = await chat.shares.create("c1").orThrow();
+    const link = await chat.shares.create({ chatId: "c1" }).orThrow();
     expect(link).toMatchObject({ id: "sh1", token: "tok", leafId: "m2" });
     expect(await chat.shares.revoke("sh1").orThrow()).toBe(true);
     const [share] = await chat.shares.list("c1").orThrow();
@@ -642,21 +711,23 @@ describe("createAiChat", () => {
     await chat.models.allowed("o1").orThrow();
     expect(
       await chat.models
-        .upsert([{ id: "openai/gpt-5" }], { prune: true })
+        .upsert({ models: [{ id: "openai/gpt-5" }], prune: true })
         .orThrow(),
     ).toBe(2);
     expect(lastArgs(server)).toEqual({
       models: { models: [{ id: "openai/gpt-5" }] },
       prune: true,
     });
-    await chat.models.upsert([]).orThrow();
+    await chat.models.upsert({ models: [] }).orThrow();
 
     const event = await chat.moderation
       .record({
-        organizationId: "o1",
-        stage: "output",
-        action: "redact",
-        category: "pii",
+        event: {
+          organizationId: "o1",
+          stage: "output",
+          action: "redact",
+          category: "pii",
+        },
       })
       .orThrow();
 
@@ -666,31 +737,40 @@ describe("createAiChat", () => {
     });
     await chat.moderation
       .record({
-        organizationId: "o1",
-        stage: "input",
-        action: "block",
-        chatId: "c1",
-        messageId: "m1",
-        userId: "u1",
-        category: "abuse",
-        score: 1,
+        event: {
+          organizationId: "o1",
+          stage: "input",
+          action: "block",
+          chatId: "c1",
+          messageId: "m1",
+          userId: "u1",
+          category: "abuse",
+          score: 1,
+        },
       })
       .orThrow();
-    const [listed] = await chat.moderation.list("o1", 5).orThrow();
+
+    const [listed] = await chat.moderation
+      .list({ organizationId: "o1", size: 5 })
+      .orThrow();
+
     expect(listed?.score).toBeUndefined();
 
     const blank = fake({
       list_ai_moderation_events: [{ ...moderationRow, category: null }],
     });
 
-    const [none] = await blank.chat.moderation.list("o1").orThrow();
+    const [none] = await blank.chat.moderation
+      .list({ organizationId: "o1" })
+      .orThrow();
+
     expect(none?.category).toBe("");
   });
 
   it("uses the user transport when no service transport is given", async () => {
     const call = vi.fn(async () => 1);
     const chat = createAiChat({ transport: { call }, schema: "api" });
-    expect(await chat.models.upsert([]).orThrow()).toBe(1);
+    expect(await chat.models.upsert({ models: [] }).orThrow()).toBe(1);
     expect(call).toHaveBeenCalledWith("api", "upsert_ai_models", {
       models: { models: [] },
       prune: undefined,
@@ -733,7 +813,12 @@ describe("createAiChat", () => {
     });
 
     const added = await chat.participants
-      .add("c1", "u2", { role: "editor", fields: { note: "hey" } })
+      .add({
+        chatId: "c1",
+        userId: "u2",
+        role: "editor",
+        fields: { note: "hey" },
+      })
       .orThrow();
 
     expect(added).toMatchObject({
@@ -751,7 +836,7 @@ describe("createAiChat", () => {
       fields: { note: "hey" },
     });
 
-    await chat.participants.add("c1", "u2").orThrow();
+    await chat.participants.add({ chatId: "c1", userId: "u2" }).orThrow();
     expect(lastArgs(user)).toEqual({
       chat: "c1",
       participant: "u2",
@@ -761,7 +846,9 @@ describe("createAiChat", () => {
 
     const [listed] = await chat.participants.list("c1").orThrow();
     expect(listed?.role).toBe("viewer");
-    expect(await chat.participants.remove("c1", "u2").orThrow()).toBe(true);
+    expect(
+      await chat.participants.remove({ chatId: "c1", userId: "u2" }).orThrow(),
+    ).toBe(true);
     expect(lastArgs(user)).toEqual({ chat: "c1", participant: "u2" });
   });
 
@@ -773,12 +860,16 @@ describe("createAiChat", () => {
       record_ai_moderation_event: { ...moderationRow, organization_id: null },
     });
 
-    const created = await chat.chats.create(null).orThrow();
+    const created = await chat.chats.create({ organizationId: null }).orThrow();
     expect(created.organizationId).toBeUndefined();
     expect(lastArgs(user)).toEqual({ tenant: null, fields: {} });
 
     const project = await chat.projects
-      .create(null, { name: "Mine" }, { color: "red" })
+      .create({
+        organizationId: null,
+        input: { name: "Mine" },
+        fields: { color: "red" },
+      })
       .orThrow();
 
     expect(project.organizationId).toBeUndefined();
@@ -791,17 +882,17 @@ describe("createAiChat", () => {
     expect(lastArgs(user)).toEqual({ tenant: null });
 
     await chat.messages
-      .appendUser("c1", message, { fields: { thread_kind: "q" } })
+      .appendUser({ chatId: "c1", message, fields: { thread_kind: "q" } })
       .orThrow();
     expect(lastArgs(user)).toMatchObject({
       message: { ...message, fields: { thread_kind: "q" } },
     });
 
     const event = await chat.moderation
-      .record(
-        { stage: "input", action: "flag", category: "pii" },
-        { lang: "en" },
-      )
+      .record({
+        event: { stage: "input", action: "flag", category: "pii" },
+        fields: { lang: "en" },
+      })
       .orThrow();
 
     expect(event.organizationId).toBeUndefined();
@@ -834,25 +925,31 @@ describe("createAiChat", () => {
       metadata: { a: 1 },
     };
 
-    await chat.messages.appendUser("c1", message, { native: raw }).orThrow();
+    await chat.messages
+      .appendUser({ chatId: "c1", message, native: raw })
+      .orThrow();
     expect(lastArgs(user)).toMatchObject({ message: raw });
 
     await chat.messages
-      .appendUser("c1", message, { native: { ...raw, metadata: undefined } })
+      .appendUser({
+        chatId: "c1",
+        message,
+        native: { ...raw, metadata: undefined },
+      })
       .orThrow();
     expect(lastArgs(user)).toMatchObject({
       message: { id: "m1", role: "user", parts: [{ type: "step-start" }] },
     });
 
-    await chat.messages.appendUser("c1", message).orThrow();
+    await chat.messages.appendUser({ chatId: "c1", message }).orThrow();
     expect(lastArgs(user)).toMatchObject({ message });
 
     await chat.messages
-      .saveAssistant(
-        "c1",
-        { ...message, role: "assistant" },
-        { parentId: "m1", native: { ...raw, role: "assistant" } },
-      )
+      .saveAssistant({
+        chatId: "c1",
+        message: { ...message, role: "assistant" },
+        options: { parentId: "m1", native: { ...raw, role: "assistant" } },
+      })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({
       message: { role: "assistant", parts: [{ type: "step-start" }] },
@@ -861,11 +958,11 @@ describe("createAiChat", () => {
     expect(lastArgs(server)).not.toHaveProperty("native");
 
     await chat.messages
-      .saveAssistant(
-        "c1",
-        { ...message, role: "assistant" },
-        { parentId: "m1" },
-      )
+      .saveAssistant({
+        chatId: "c1",
+        message: { ...message, role: "assistant" },
+        options: { parentId: "m1" },
+      })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({ native: undefined });
 
@@ -882,7 +979,10 @@ describe("createAiChat", () => {
       ],
     });
 
-    const [first, second] = await reader.chat.messages.path("c1").orThrow();
+    const [first, second] = await reader.chat.messages
+      .path({ chatId: "c1" })
+      .orThrow();
+
     expect(first).toMatchObject({
       authorId: "u1",
       parts: [],

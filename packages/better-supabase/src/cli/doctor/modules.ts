@@ -36,6 +36,7 @@ import {
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { entitlementsModule } from "./authorization.ts";
+import { linksWithoutRelations } from "./block-links.ts";
 import { onUnknownRecordTypes } from "./block-on.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
@@ -989,6 +990,14 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "A block runs over a table of the app's and adds its own permissive policy there, named `bsb_<table>_<command>` so it never replaces one of the app's. Postgres ORs permissive policies, so when the app has its own policies for that command and none has the same condition (or `true`) for the same roles, the block's policy can let a user reach rows the app's policies keep closed. A block condition that is the app's, or one of its `or` operands, with more `and` operands is narrower and isn't reported, nor is a command the app has no policy for, which is the block's to grant. Doctor compares the conditions as text. When an app policy covers the block's in this sense, `upgrade` leaves the block's policy out. Repeat the block's condition in the app's policy when it is what the app means; otherwise narrow the permission key the block checks, drop the `bsb_` policy in a schema file that runs after the block's, or set `ownTablePolicies: \"app\"` on the block (or in `database.sql`) so the app's policies alone govern the table and the block adds none there.",
     check: widenedAppTablePolicies,
+  },
+  {
+    code: "BS353",
+    severity: "warning",
+    title: "Declared link needs the relations block",
+    description:
+      "A block declares a conversion or relation link to another block that is installed too, but `relations` is not installed. The conversion still works through the source row's `origin_type` and `origin_id` columns, but no `created_from` or `converted_to` link is written, so lineage reads find nothing. Run `better-supabase add relations`.",
+    check: linksWithoutRelations,
   },
   {
     code: "BS348",

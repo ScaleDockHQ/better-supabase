@@ -231,15 +231,25 @@ and exports assessment results (OSCAL 1.2.3).
 
 ```ts
 const imported = await db.compliance
-  .importOscalCatalog(organizationId, catalogJson, { key: "nist-800-53" })
+  .importOscalCatalog({
+    organizationId,
+    catalog: catalogJson,
+    key: "nist-800-53",
+  })
   .orThrow();
 
 await db.compliance
-  .applyOscalProfile(imported.frameworkId, profileJson)
+  .applyOscalProfile({
+    frameworkId: imported.frameworkId,
+    profile: profileJson,
+  })
   .orThrow();
 
 const results = await db.compliance
-  .exportOscalAssessmentResults(imported.frameworkId, { title: "Q3 review" })
+  .exportOscalAssessmentResults({
+    frameworkId: imported.frameworkId,
+    title: "Q3 review",
+  })
   .orThrow();
 ```
 

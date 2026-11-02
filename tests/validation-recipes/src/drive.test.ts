@@ -37,7 +37,10 @@ describe.skipIf(!live)("drive recipe", () => {
       await s.as(owner);
 
       const link = await shareLinks
-        .create({ type: "document", id: subjectId }, "viewer")
+        .create({
+          subject: { type: "document", id: subjectId },
+          options: "viewer",
+        })
         .orThrow();
 
       expect(link.token).not.toBe("");
@@ -47,9 +50,18 @@ describe.skipIf(!live)("drive recipe", () => {
         .orThrow();
 
       await tags
-        .attach({ type: "document", id: subjectId }, label.id)
+        .attach({
+          record: { type: "document", id: subjectId },
+          tagId: label.id,
+        })
         .orThrow();
-      await rank.move("document", subjectId, { group: "archive" }).orThrow();
+      await rank
+        .move({
+          subjectType: "document",
+          subjectId,
+          target: { group: "archive" },
+        })
+        .orThrow();
 
       await watchers.relay();
       expect(await received(s, member, subjectId)).toEqual([

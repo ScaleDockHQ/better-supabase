@@ -9,7 +9,10 @@ describe("integratingModules", () => {
         ["organizations", "entitlements", "tags"],
         ["billing", "organizations"],
       ),
-    ).toEqual([{ name: "entitlements", with: ["billing"] }]);
+    ).toEqual([
+      { name: "organizations", with: ["billing"] },
+      { name: "entitlements", with: ["billing"] },
+    ]);
   });
 
   it("skips modules that were already installed", () => {

@@ -39,28 +39,33 @@ async function salesWorkspace(s: Session) {
   await s.as(owner);
 
   const sales = await pipelines
-    .upsert(organizationId, {
-      subjectType: "deal",
-      key: "sales",
-      name: "Sales",
+    .upsert({
+      organizationId,
+      input: { subjectType: "deal", key: "sales", name: "Sales" },
     })
     .orThrow();
 
   const stages = new Map<StageKey, string>();
 
   for (const stage of STAGES) {
-    const saved = await pipelines.saveStage(sales.id, stage).orThrow();
+    const saved = await pipelines
+      .saveStage({ pipelineId: sales.id, input: stage })
+      .orThrow();
+
     stages.set(stage.key, saved.id);
   }
 
   const stage = (key: StageKey): string => stages.get(key) ?? "";
 
   const deal = await deals
-    .create(organizationId, {
-      name: "Acme renewal",
-      closeOn: Temporal.PlainDate.from("2026-12-31"),
-      pipelineId: sales.id,
-      stageId: stage("lead"),
+    .create({
+      organizationId,
+      input: {
+        name: "Acme renewal",
+        closeOn: Temporal.PlainDate.from("2026-12-31"),
+        pipelineId: sales.id,
+        stageId: stage("lead"),
+      },
     })
     .orThrow();
 
@@ -98,12 +103,16 @@ describe.skipIf(!live)("CRM recipe", () => {
 
       await s.as(owner);
       const deal = { type: "deal", id: dealId };
-      await comments.create(deal, { body: "Sent the renewal quote" }).orThrow();
+      await comments
+        .create({ subject: deal, comment: { body: "Sent the renewal quote" } })
+        .orThrow();
       const hot = await tags.create({ kind: "deal", name: "Hot" }).orThrow();
-      await tags.attach(deal, hot.id).orThrow();
+      await tags.attach({ record: deal, tagId: hot.id }).orThrow();
 
       const moved = await deals
-        .update([{ dealId, field: "stageId", value: stage("qualified") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("qualified") }],
+        })
         .orThrow();
 
       expect(moved.rejected).toEqual([]);
@@ -131,17 +140,22 @@ describe.skipIf(!live)("CRM recipe", () => {
         await salesWorkspace(s);
 
       await pipelines
-        .setTransitions(pipelineId, [
-          { from: stage("lead"), to: stage("qualified") },
-          { from: stage("lead"), to: stage("lost") },
-          { from: stage("qualified"), to: stage("won") },
-          { from: stage("qualified"), to: stage("lost") },
-          { from: stage("lost"), to: stage("lead") },
-        ])
+        .setTransitions({
+          pipelineId,
+          transitions: [
+            { from: stage("lead"), to: stage("qualified") },
+            { from: stage("lead"), to: stage("lost") },
+            { from: stage("qualified"), to: stage("won") },
+            { from: stage("qualified"), to: stage("lost") },
+            { from: stage("lost"), to: stage("lead") },
+          ],
+        })
         .orThrow();
 
       const jump = await deals
-        .update([{ dealId, field: "stageId", value: stage("won") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("won") }],
+        })
         .orThrow();
 
       expect(jump.accepted).toEqual([]);
@@ -149,18 +163,20 @@ describe.skipIf(!live)("CRM recipe", () => {
         "PIPELINE_TRANSITION_INVALID",
       ]);
 
-      const early = await deals.win(dealId);
+      const early = await deals.win({ dealId });
 
       expect(early.ok ? undefined : early.error.hint).toBe(
         "PIPELINE_TRANSITION_INVALID",
       );
 
       const step = await deals
-        .update([{ dealId, field: "stageId", value: stage("qualified") }])
+        .update({
+          changes: [{ dealId, field: "stageId", value: stage("qualified") }],
+        })
         .orThrow();
 
       expect(step.rejected).toEqual([]);
-      expect((await deals.win(dealId).orThrow()).outcome).toBe("won");
+      expect((await deals.win({ dealId }).orThrow()).outcome).toBe("won");
     });
   });
 });

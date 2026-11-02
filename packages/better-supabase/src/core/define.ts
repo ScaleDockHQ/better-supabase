@@ -27,7 +27,7 @@ import type { ReadSet } from "./read-set.ts";
 import type { Db } from "./repository-types.ts";
 import type { Result, ThrowMapper } from "./result.ts";
 import type { SearchInput } from "./search.ts";
-import type { QuerySpec, Specs } from "./spec.ts";
+import type { QuerySpec, ReadSetEntry, Specs } from "./spec.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 import type { RequestTuning } from "./timeout.ts";
 
@@ -55,7 +55,12 @@ import { createRepository } from "./repository.ts";
 import { AsyncResult, err, ok, withErrorMapper } from "./result.ts";
 import { decodeRpcResult, rpcFunction, rpcSelect } from "./rpc-result.ts";
 import { OperationRunner } from "./runner.ts";
-import { createSpecs, isQuerySpec, specTables } from "./spec.ts";
+import {
+  createSpecs,
+  isFunctionSpec,
+  isQuerySpec,
+  specTables,
+} from "./spec.ts";
 import { validate } from "./standard.ts";
 import { StatsRecorder, recordStats } from "./stats.ts";
 import {
@@ -790,8 +795,10 @@ export class BetterSupabase<
             return err(noCaller);
           }
 
+          const tableKeys = keys.filter((key) => !isFunctionSpec(bound[key]));
+
           const result = await many(
-            keys.map((key) => bound[key]),
+            tableKeys.map((key) => bound[key]),
             signal,
             false,
           );
@@ -800,9 +807,35 @@ export class BetterSupabase<
             return result;
           }
 
-          return ok(
-            Object.fromEntries(keys.map((key, i) => [key, result.data[i]])),
-          );
+          const out: Record<string, unknown> = {};
+
+          for (const key of keys) {
+            const entry = bound[key];
+
+            if (isFunctionSpec(entry)) {
+              // SAFETY: $rpc is a function on every db this method builds.
+              const called = await (
+                db["$rpc"] as (
+                  name: string,
+                  args: Readonly<Record<string, unknown>>,
+                  options?: { signal?: AbortSignal; schema?: string },
+                ) => AsyncResult<unknown>
+              )(entry.name, entry.args, {
+                ...(signal ? { signal } : {}),
+                ...(entry.schema === undefined ? {} : { schema: entry.schema }),
+              });
+
+              if (!called.ok) {
+                return called;
+              }
+
+              out[key] = called.data;
+            } else {
+              out[key] = result.data[tableKeys.indexOf(key)];
+            }
+          }
+
+          return ok(out);
         }
 
         const called = await executor.rpc(
@@ -844,7 +877,7 @@ export class BetterSupabase<
     source: DbSource,
     context: RequestContext,
     set: ReadSet,
-    specs: Readonly<Record<string, QuerySpec>>,
+    specs: Readonly<Record<string, ReadSetEntry>>,
     data: unknown,
   ): Promise<Result<Record<string, unknown>>> {
     // SAFETY: the read set function returns one rows and count object per spec key.
@@ -896,6 +929,28 @@ export class BetterSupabase<
     const out: Record<string, unknown> = {};
 
     for (const [key, spec] of Object.entries(specs)) {
+      if (isFunctionSpec(spec)) {
+        if (!Object.hasOwn(payload, key)) {
+          return err(
+            dbError(
+              "unexpected",
+              `${set.functionName}() returned no "${key}". Run \`better-supabase gen\` and migrate.`,
+            ),
+          );
+        }
+
+        const fn = this.meta.functions[spec.name];
+
+        out[key] = decodeRpcResult(
+          this.meta,
+          fn
+            ? rpcFunction(this.meta, spec.name, fn.schema, spec.args)
+            : undefined,
+          payload[key],
+        );
+        continue;
+      }
+
       const entry = payload[key];
 
       if (!entry) {

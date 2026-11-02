@@ -105,11 +105,11 @@ describe.skipIf(!live)("access requests", () => {
       ).toEqual([{ user_id: owner.id }]);
 
       await s.asRole(requester);
-      expect(await approvals.approve(request.approvalId!).then(hint)).toBe(
-        "APPROVAL_FORBIDDEN",
-      );
+      expect(
+        await approvals.approve({ id: request.approvalId! }).then(hint),
+      ).toBe("APPROVAL_FORBIDDEN");
       await s.asRole(owner);
-      await approvals.approve(request.approvalId!).orThrow();
+      await approvals.approve({ id: request.approvalId! }).orThrow();
       const granted = await access.get(request.id).orThrow();
       expect(granted).toMatchObject({
         status: "granted",
@@ -122,7 +122,9 @@ describe.skipIf(!live)("access requests", () => {
       expect(await access.end(request.id).then(hint)).toBe(
         "ACCESS_REQUEST_FORBIDDEN",
       );
-      expect(await access.list(tenant).orThrow()).toEqual([]);
+      expect(await access.list({ organizationId: tenant }).orThrow()).toEqual(
+        [],
+      );
 
       await s.service();
       await s.client.query(
@@ -186,17 +188,21 @@ describe.skipIf(!live)("access requests", () => {
 
       await s.asRole(owner);
       expect(
-        await access.list(tenant, { status: "pending" }).orThrow(),
+        await access
+          .list({ organizationId: tenant, status: "pending" })
+          .orThrow(),
       ).toHaveLength(2);
-      await approvals.reject(rejected.approvalId!).orThrow();
-      await approvals.approve(join.approvalId!).orThrow();
+      await approvals.reject({ id: rejected.approvalId! }).orThrow();
+      await approvals.approve({ id: join.approvalId! }).orThrow();
       const ended = await access.end(join.id).orThrow();
       expect(ended).toMatchObject({ status: "ended" });
 
       await s.asRole(other);
       expect((await access.get(rejected.id).orThrow()).status).toBe("rejected");
       expect(
-        (await access.list(tenant).orThrow()).map((row) => row.id),
+        (await access.list({ organizationId: tenant }).orThrow()).map(
+          (row) => row.id,
+        ),
       ).toEqual([rejected.id]);
 
       await s.service();
@@ -250,7 +256,7 @@ describe.skipIf(!live)("access requests", () => {
         ticket: "OPS-1",
         priority: null,
       });
-      const [listed] = await access.list(tenant).orThrow();
+      const [listed] = await access.list({ organizationId: tenant }).orThrow();
       expect(listed).toMatchObject({ id: request.id, ticket: "OPS-1" });
     } finally {
       await s.close();
@@ -374,7 +380,7 @@ describe.skipIf(!live)("access requests", () => {
       ]);
 
       await s.asRole(lead);
-      await approvals.approve(request.approvalId!).orThrow();
+      await approvals.approve({ id: request.approvalId! }).orThrow();
       expect(await canRead(requester)).toBe(true);
 
       await s.asRole(requester);
@@ -425,17 +431,22 @@ describe.skipIf(!live)("access requests", () => {
       await s.asRole(admin);
       expect(
         await access
-          .reviewEmergency(emergency.id, { verdict: "justified" })
+          .reviewEmergency({
+            id: emergency.id,
+            input: { verdict: "justified" },
+          })
           .then(hint),
       ).toBe("ACCESS_REQUEST_REVIEW_INVALID");
 
       await s.asRole(owner);
-      expect(await access.emergencies(tenant).orThrow()).toHaveLength(1);
+      expect(
+        await access.emergencies({ organizationId: tenant }).orThrow(),
+      ).toHaveLength(1);
 
       const reviewed = await access
-        .reviewEmergency(emergency.id, {
-          verdict: "unjustified",
-          note: "No ward visit that day",
+        .reviewEmergency({
+          id: emergency.id,
+          input: { verdict: "unjustified", note: "No ward visit that day" },
         })
         .orThrow();
 
@@ -444,9 +455,13 @@ describe.skipIf(!live)("access requests", () => {
         note: "No ward visit that day",
         reviewedBy: owner.id,
       });
-      expect(await access.emergencies(tenant).orThrow()).toEqual([]);
       expect(
-        await access.emergencies(tenant, { unreviewed: false }).orThrow(),
+        await access.emergencies({ organizationId: tenant }).orThrow(),
+      ).toEqual([]);
+      expect(
+        await access
+          .emergencies({ organizationId: tenant, unreviewed: false })
+          .orThrow(),
       ).toHaveLength(1);
     } finally {
       await s.close();

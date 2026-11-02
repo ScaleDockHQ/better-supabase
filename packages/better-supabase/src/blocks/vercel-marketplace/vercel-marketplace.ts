@@ -192,7 +192,10 @@ export interface VercelMarketplace {
    * Whether `signature` is the HMAC-SHA1 of the raw body under the client
    * secret.
    */
-  verifyWebhook(body: string, signature: string | null): Promise<boolean>;
+  verifyWebhook(input: {
+    body: string;
+    signature: string | null;
+  }): Promise<boolean>;
   /** Verifies a webhook request and applies it: removals and invoice states. */
   handleWebhook(request: Request): AsyncResult<MarketplaceWebhookResult>;
   /**
@@ -248,7 +251,10 @@ export interface VercelMarketplace {
     configurationId: string,
   ): AsyncResult<MarketplaceInstallation | undefined>;
   /** Seals the installation's access token in Vault. */
-  sealAccessToken(configurationId: string, token: string): AsyncResult<void>;
+  sealAccessToken(input: {
+    configurationId: string;
+    token: string;
+  }): AsyncResult<void>;
   /**
    * Links the app's tenant to an installation; `created` lets removal delete
    * it.
@@ -258,19 +264,19 @@ export interface VercelMarketplace {
     readonly tenant: string;
     readonly created?: boolean;
   }): AsyncResult<MarketplaceInstallation>;
-  resource(
-    configurationId: string,
-    externalId: string,
-  ): AsyncResult<MarketplaceResource | undefined>;
+  resource(input: {
+    configurationId: string;
+    externalId: string;
+  }): AsyncResult<MarketplaceResource | undefined>;
   /** The installation's resources that are not deleted. */
   resources(
     configurationId: string,
   ): AsyncResult<readonly MarketplaceResource[]>;
   /** Marks a resource deleted; the row stays for invoices and audit. */
-  deleteResource(
-    configurationId: string,
-    externalId: string,
-  ): AsyncResult<MarketplaceResource | undefined>;
+  deleteResource(input: {
+    configurationId: string;
+    externalId: string;
+  }): AsyncResult<MarketplaceResource | undefined>;
   /**
    * The Partner API Vercel calls (installations, resources, secret rotation and
    * plans) as one `Request` to `Response` handler, every request checked
@@ -386,10 +392,13 @@ export function createVercelMarketplace(
   const base = options.apiUrl ?? API;
   const keys = jwksSource(options.jwks ?? new URL(JWKS), { rsa: true });
 
-  const verifyWebhook = async (
-    body: string,
-    signature: string | null,
-  ): Promise<boolean> =>
+  const verifyWebhook = async ({
+    body,
+    signature,
+  }: {
+    body: string;
+    signature: string | null;
+  }): Promise<boolean> =>
     signature !== null &&
     timingSafeEqual(
       await sha1Hex(options.clientSecret, body),
@@ -551,7 +560,10 @@ export function createVercelMarketplace(
         const body = await request.text();
 
         if (
-          !(await verifyWebhook(body, request.headers.get(SIGNATURE_HEADER)))
+          !(await verifyWebhook({
+            body,
+            signature: request.headers.get(SIGNATURE_HEADER),
+          }))
         ) {
           return err(
             dbError("invalid_request", "The webhook signature does not match", {
@@ -890,7 +902,7 @@ export function createVercelMarketplace(
         (value) => (isRecord(value) ? installationOf(value) : undefined),
       ),
 
-    sealAccessToken: (configurationId, token) =>
+    sealAccessToken: ({ configurationId, token }) =>
       call(
         "seal_marketplace_access_token",
         { configuration_id: configurationId, access_token: token },
@@ -908,7 +920,7 @@ export function createVercelMarketplace(
         installationOf,
       ),
 
-    resource: (configurationId, externalId) =>
+    resource: ({ configurationId, externalId }) =>
       call(
         "marketplace_resource",
         { configuration_id: configurationId, external_id: externalId },
@@ -922,7 +934,7 @@ export function createVercelMarketplace(
         (value) => recordsOf(value, "marketplace_resources").map(resourceOf),
       ),
 
-    deleteResource: (configurationId, externalId) =>
+    deleteResource: ({ configurationId, externalId }) =>
       call(
         "delete_marketplace_resource",
         { configuration_id: configurationId, external_id: externalId },

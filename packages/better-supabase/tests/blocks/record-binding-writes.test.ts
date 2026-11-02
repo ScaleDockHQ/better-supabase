@@ -86,7 +86,7 @@ describe("binding writes", () => {
     const binding = commentsBlock.record;
 
     expect(await run(binding, "add", { body: "Hi" })).toMatchObject([
-      ["create", subject, { body: "Hi" }],
+      ["create", { subject, comment: { body: "Hi" } }],
     ]);
     expect(await run(binding, "remove", { id: ID })).toEqual([["remove", ID]]);
     expect((await validate(binding, "add", {})).issues).toBeDefined();
@@ -103,10 +103,10 @@ describe("binding writes", () => {
     const binding = tagsBlock.record;
 
     expect(await run(binding, "apply", { tagId: ID })).toEqual([
-      ["attach", subject, ID],
+      ["attach", { record: subject, tagId: ID }],
     ]);
     expect(await run(binding, "remove", { tagId: ID })).toEqual([
-      ["detach", subject, ID],
+      ["detach", { record: subject, tagId: ID }],
     ]);
   });
 
@@ -120,10 +120,15 @@ describe("binding writes", () => {
     });
 
     expect(call?.[0]).toBe("create");
-    expect(call?.[1]).toEqual(subject);
-    expect(call?.[2]).toMatchObject({ role: "viewer", maxUses: 3 });
+    expect(call?.[1]).toMatchObject({
+      subject,
+      options: { role: "viewer", maxUses: 3 },
+    });
+
     // SAFETY: `create` received the options the binding built.
-    const created = call?.[2] as { readonly expiresAt?: Temporal.Instant };
+    const { options: created } = call![1] as {
+      readonly options: { readonly expiresAt?: Temporal.Instant };
+    };
 
     expect(created.expiresAt?.toString()).toBe("2026-11-01T00:00:00Z");
     expect(await run(binding, "revoke", { id: ID })).toEqual([["revoke", ID]]);
@@ -138,9 +143,14 @@ describe("binding writes", () => {
 
     expect(
       await run(binding, "link", { target, kind: "owns", data: { a: 1 } }),
-    ).toEqual([["link", subject, target, { kind: "owns", data: { a: 1 } }]]);
+    ).toEqual([
+      [
+        "link",
+        { source: subject, target, input: { kind: "owns", data: { a: 1 } } },
+      ],
+    ]);
     expect(await run(binding, "unlink", { target, kind: "owns" })).toEqual([
-      ["unlink", subject, target, { kind: "owns" }],
+      ["unlink", { source: subject, target, input: { kind: "owns" } }],
     ]);
   });
 
@@ -148,10 +158,10 @@ describe("binding writes", () => {
     const binding = versionsBlock.record;
 
     expect(await run(binding, "snapshot", { label: "Before import" })).toEqual([
-      ["snapshot", subject, { label: "Before import" }],
+      ["snapshot", { subject, input: { label: "Before import" } }],
     ]);
     expect(await run(binding, "snapshot", {})).toEqual([
-      ["snapshot", subject, {}],
+      ["snapshot", { subject, input: {} }],
     ]);
     expect(binding.writes.restore.permission).toBe("restore");
     expect(await run(binding, "restore", { id: ID })).toEqual([
@@ -162,7 +172,9 @@ describe("binding writes", () => {
   it("creates a share link with only the defaults", async () => {
     const binding = shareLinksBlock.record;
 
-    expect(await run(binding, "create", {})).toEqual([["create", subject, {}]]);
+    expect(await run(binding, "create", {})).toEqual([
+      ["create", { subject, options: {} }],
+    ]);
   });
 
   it("links without data", async () => {
@@ -170,7 +182,7 @@ describe("binding writes", () => {
     const target = { type: "project", id: "p1" };
 
     expect(await run(binding, "link", { target, kind: "relates" })).toEqual([
-      ["link", subject, target, { kind: "relates" }],
+      ["link", { source: subject, target, input: { kind: "relates" } }],
     ]);
   });
 
@@ -178,10 +190,10 @@ describe("binding writes", () => {
     const binding = slaBlock.record;
 
     expect(await run(binding, "start", { priority: "high" })).toEqual([
-      ["start", subject, "high"],
+      ["start", { subject, priority: "high" }],
     ]);
     expect(await run(binding, "start", {})).toEqual([
-      ["start", subject, undefined],
+      ["start", { subject, priority: undefined }],
     ]);
   });
 });
@@ -211,7 +223,11 @@ describe("binding loads", () => {
       expect(result.ok).toBe(true);
       expect(calls[0]?.[0]).toBe(method);
       expect(calls[0]?.[1]).toEqual(
-        name === "tags" ? { on: subject } : subject,
+        name === "tags"
+          ? { on: subject }
+          : ["attachments", "sla"].includes(name)
+            ? subject
+            : { subject },
       );
     },
   );
