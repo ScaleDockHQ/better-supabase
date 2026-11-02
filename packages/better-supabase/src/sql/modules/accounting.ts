@@ -25,7 +25,6 @@ import {
   accountingPostingFunctions,
   accountingTaxReport,
 } from "./accounting-postings.ts";
-import { accountingSeeds } from "./accounting-seeds.ts";
 import {
   RECOGNITION_TABLES,
   recognitionContract,
@@ -34,6 +33,7 @@ import {
   recognitionSources,
   recognitionTables,
 } from "./accounting-recognition.ts";
+import { accountingSeeds } from "./accounting-seeds.ts";
 import { accountingSetupFunctions } from "./accounting-setup.ts";
 import { accountingConfig, ENTRY_RESERVED } from "./accounting-shared.ts";
 import { accountingTables } from "./accounting-tables.ts";
