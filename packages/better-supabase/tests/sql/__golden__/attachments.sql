@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:e057de8b4923b36e205bcb6d7709278fdaec492bb776c47375503bf0c291efb0
+-- @bsb-hash sha256:209148218025be874d7554896aea66463641807dd8a39199ca956412f1dc524f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1136,6 +1136,37 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1258,7 +1289,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:a969fb284a1133680498f53176f27aa12dde91dc42ea5b380e9f167df09b6468
+-- @bsb-hash sha256:be03e2c87e9dc2c17f4944250fdc915b92901ebeae95c31d2ac80f4a1f1c7409
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2535,6 +2566,37 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2664,7 +2726,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:3bd09767de743ff6088d90559514aa86f4ab49f3cab633381c04d9391609d8d6
+-- @bsb-hash sha256:04e75cbd38cb2d440ad7165f70d9154e0d4c3172178d4e24e793d1bf347e1ef3
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3804,6 +3866,37 @@ grant execute on function "app_private"."set_attachment_status"(uuid, text, text
 grant execute on function "app_private"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "app_private"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "app_private"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "app_private"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "app_private"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "app_private"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3926,7 +4019,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:962511ba212a63da484b6dc60c3c4a276689b8438e71d99b2da66fb19563264c
+-- @bsb-hash sha256:6cf73b4c23ffa03aeb4ce8c97b4d0503d2c1d984acb98e0d2692e818dcb43c76
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5061,6 +5154,37 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5346,6 +5470,15 @@ as $$ select "better_supabase"."delete_attachment"($1) $$;
 revoke execute on function "api"."delete_attachment"(uuid) from public, anon;
 grant execute on function "api"."delete_attachment"(uuid) to authenticated, service_role;
 
+create or replace function "api"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_attachments_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_attachments_defaults"(uuid, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5380,7 +5513,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:a0da439a31c8738a1cf449aaf7b053167aadb92c743dab3ad19e350c88976a61
+-- @bsb-hash sha256:aca4a5afb26983e511bf9d43ef711f765b43fe25ccd9444e70d61ee3d63af14a
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6285,6 +6418,37 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -6407,7 +6571,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:9cd9854ffd08b6970e0b73a570c401a095d38571bf8b343b5bd79bfc1c4e98bf
+-- @bsb-hash sha256:42dabb7f13e1f2983bc9d855e64fb09947da5b982f8eb1147af2dccfb1a158ec
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7542,6 +7706,37 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+-- Seeds the rows every organization starts with for attachments. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_attachments_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'report', 'Report', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("org_id", "key", "name", "fields")
+  select p_tenant, 'other', 'Other', '{}'::jsonb
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."org_id" = p_tenant and x."key" is not distinct from 'other');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -59,6 +59,7 @@ import {
   STATUSES,
   updateSet,
 } from "./calendar-rows.ts";
+import { calendarSeeds } from "./calendar-seeds.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { shareLinkRow } from "./share-links.ts";
 
@@ -1053,4 +1054,5 @@ export const CALENDAR: BlockSqlDefinition = {
   names: CALENDAR_NAMES,
   contract,
   build,
+  seeds: calendarSeeds,
 };
