@@ -1,5 +1,6 @@
 import type { Result } from "../../core/result.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -84,13 +85,7 @@ export interface VulnerabilityFeed {
 export function vulnerabilityFeedOf(
   feed: VulnerabilityFeed,
 ): VulnerabilityFeed {
-  const version: unknown = feed.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `advisories feed "${feed.name}" targets vulnerability feed API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the feed for API 1.`,
-    );
-  }
+  portOf(`advisories feed "${feed.name}"`, "vulnerability feed", feed);
 
   if (!/^[a-z][a-z0-9_-]{0,62}$/u.test(feed.name)) {
     throw new TypeError(

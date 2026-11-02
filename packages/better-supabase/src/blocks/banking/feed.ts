@@ -1,6 +1,8 @@
 import type { AsyncResult } from "../../core/result.ts";
 import type { BankDate, BankTransactionInput } from "./statement.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
+
 /** An account a bank feed can read. */
 export interface BankFeedAccount {
   /** The provider's id of the account, passed back to `transactions`. */
@@ -33,13 +35,7 @@ export interface BankFeed {
 
 /** Checks the feed's `apiVersion` before reading from it. */
 export function bankFeedOf(feed: BankFeed): BankFeed {
-  const version: unknown = feed.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `bank feed "${feed.name}" targets bank feed API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the feed for API 1.`,
-    );
-  }
+  portOf(`bank feed "${feed.name}"`, "bank feed", feed);
 
   return feed;
 }

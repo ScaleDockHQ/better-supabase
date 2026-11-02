@@ -1,5 +1,7 @@
 import type { PayrollLine, PayrollRun } from "./payroll-export.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
+
 /** A rendered export: what to save or send to the payroll provider. */
 export interface PayrollExportFile {
   /** A file name without a path, such as `payroll-2026-10.csv`. */
@@ -27,13 +29,11 @@ export interface PayrollExportFormat {
 export function payrollFormatOf(
   format: PayrollExportFormat,
 ): PayrollExportFormat {
-  const version: unknown = format.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `payroll export format "${format.name}" targets payroll export format API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the format for API 1.`,
-    );
-  }
+  portOf(
+    `payroll export format "${format.name}"`,
+    "payroll export format",
+    format,
+  );
 
   return format;
 }

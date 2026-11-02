@@ -6,7 +6,7 @@ import type {
   TaxCodeKind,
 } from "./accounting.ts";
 
-import { bigintOf } from "../../core/block-helpers.ts";
+import { bigintOf, portOf } from "../../core/block-helpers.ts";
 import {
   enumOrThrow,
   optionalText,
@@ -82,13 +82,7 @@ export interface TaxReportFormat {
 
 /** Checks the format's `apiVersion` before rendering with it. */
 export function taxReportFormatOf(format: TaxReportFormat): TaxReportFormat {
-  const version: unknown = format.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `tax report format "${format.name}" targets tax report format API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the format for API 1.`,
-    );
-  }
+  portOf(`tax report format "${format.name}"`, "tax report format", format);
 
   return format;
 }

@@ -3,6 +3,7 @@ import type { AsyncResult } from "../core/result.ts";
 import type { WebhookInput } from "../core/signatures.ts";
 import type { Money } from "./money.ts";
 
+import { portOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { isMoney } from "./money.ts";
 
@@ -148,13 +149,7 @@ export interface PaymentProvider {
 
 /** Checks the provider's `apiVersion` before a block uses it. */
 export function paymentProviderOf(provider: PaymentProvider): PaymentProvider {
-  const version: unknown = provider.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `payments "${provider.name}" targets payment provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  portOf(`payments "${provider.name}"`, "payment provider", provider);
 
   return provider;
 }

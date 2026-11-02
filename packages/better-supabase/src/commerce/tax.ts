@@ -2,6 +2,7 @@ import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 import type { Money } from "./money.ts";
 
+import { portOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import {
@@ -157,13 +158,7 @@ export interface TaxProvider {
 
 /** Checks the provider's `apiVersion` before a block uses it. */
 export function taxProviderOf(provider: TaxProvider): TaxProvider {
-  const version: unknown = provider.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `tax "${provider.name}" targets tax provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  portOf(`tax "${provider.name}"`, "tax provider", provider);
 
   return provider;
 }

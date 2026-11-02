@@ -1,4 +1,6 @@
 /** A place on the map, in decimal degrees (WGS 84). */
+import { portOf } from "../../core/block-helpers.ts";
+
 export interface RoutePoint {
   readonly latitude: number;
   readonly longitude: number;
@@ -42,13 +44,7 @@ export interface RouteOptimizer {
 
 /** Checks the optimizer's `apiVersion` before using it. */
 export function routeOptimizerOf(optimizer: RouteOptimizer): RouteOptimizer {
-  const version: unknown = optimizer.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `route optimizer "${optimizer.name}" targets route optimizer API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the optimizer for API 1.`,
-    );
-  }
+  portOf(`route optimizer "${optimizer.name}"`, "route optimizer", optimizer);
 
   return optimizer;
 }

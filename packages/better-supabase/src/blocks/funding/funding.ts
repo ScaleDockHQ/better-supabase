@@ -22,7 +22,7 @@ import {
   blockCall,
   enumOrThrow,
   errorText,
-  injectableOf,
+  portOf,
   isRecord,
   optionalInstant,
   optionalText,
@@ -318,7 +318,7 @@ export interface FundingClaimContext {
  */
 export interface FundingClaimFormat {
   /** The format contract version. Omitted means 1. */
-  readonly apiVersion?: 1;
+  readonly apiVersion: 1;
   /** The key claims are built with, such as `iwlz-aw319`. */
   readonly key: string;
   render(
@@ -338,7 +338,7 @@ export interface FundingClaimFormat {
  */
 export interface FundingClaimChannel {
   /** The channel contract version. Omitted means 1. */
-  readonly apiVersion?: 1;
+  readonly apiVersion: 1;
   readonly key: string;
   send(
     rendered: FundingRenderedClaim,
@@ -801,13 +801,24 @@ export function createFunding<
 
   const formats = new Map(
     (options.formats ?? []).map((format) => {
-      const checked = injectableOf("funding claim format", format);
+      const checked = portOf(
+        `funding claim format "${format.key}"`,
+        "funding claim format",
+        format,
+      );
 
       return [checked.key, checked] as const;
     }),
   );
 
-  const channel = injectableOf("funding claim channel", options.channel);
+  const channel =
+    options.channel === undefined
+      ? undefined
+      : portOf(
+          `funding claim channel "${options.channel.key}"`,
+          "funding claim channel",
+          options.channel,
+        );
 
   const fields: BlockFields<F> = blockFields(
     options.fields,

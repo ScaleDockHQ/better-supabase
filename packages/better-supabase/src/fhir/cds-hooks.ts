@@ -1,3 +1,4 @@
+import { portOf } from "../core/block-helpers.ts";
 import { isRecord } from "../core/guards.ts";
 
 /** The indicator of a card (CDS Hooks 2.0). */
@@ -61,13 +62,7 @@ export interface CdsService {
 
 /** Checks a service's `apiVersion` before the server uses it. */
 export function cdsServiceOf(service: CdsService): CdsService {
-  const version: unknown = service.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `CDS service "${service.id}" targets CDS service API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the service for API 1.`,
-    );
-  }
+  portOf(`CDS service "${service.id}"`, "CDS service", service);
 
   return service;
 }

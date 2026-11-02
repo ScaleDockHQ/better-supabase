@@ -105,6 +105,7 @@ describe("createClinicalDecisionSupport", () => {
     });
 
     const engine: ClinicalDecisionSupport = {
+      apiVersion: 1,
       key: "drug-db",
       evaluate: (context) => {
         seen.push(context);
@@ -140,6 +141,7 @@ describe("createClinicalDecisionSupport", () => {
       tenant: "org-1",
       engines: [
         {
+          apiVersion: 1,
           key: "broken",
           evaluate: () => {
             throw new Error("down");
@@ -160,7 +162,7 @@ describe("createClinicalDecisionSupport", () => {
     expect(() =>
       createClinicalDecisionSupport({
         ...options,
-        engines: [{ key: "built-in", evaluate: () => [] }],
+        engines: [{ apiVersion: 1, key: "built-in", evaluate: () => [] }],
       }),
     ).toThrow(/built-in/);
 
@@ -252,6 +254,7 @@ describe("createClinicalDecisionSupport", () => {
       tenant: "org-1",
       engines: [
         {
+          apiVersion: 1,
           key: "e",
           evaluate: (context) => {
             seen.push(context);
@@ -316,6 +319,7 @@ describe("testClinicalDecisionSupport", () => {
     let calls = 0;
 
     const drifting: ClinicalDecisionSupport = {
+      apiVersion: 1,
       key: "built-in",
       evaluate: () => {
         calls += 1;
@@ -338,7 +342,7 @@ describe("testClinicalDecisionSupport", () => {
       await expect(
         testClinicalDecisionSupport(
           // @ts-expect-error The drift is the point of the test.
-          { key: "e", evaluate: () => [alert] },
+          { apiVersion: 1, key: "e", evaluate: () => [alert] },
           { context },
         ),
       ).rejects.toBeInstanceOf(ConformanceError);

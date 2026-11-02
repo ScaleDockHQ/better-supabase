@@ -9,6 +9,7 @@ import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DrivePreviews } from "./drive.ts";
 
+import { portOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { eventTypeOf } from "../../events/cloud-event.ts";
@@ -53,13 +54,7 @@ export interface PreviewRenderer {
 
 /** Checks the renderer's `apiVersion` and name before the drive uses it. */
 export function previewRendererOf(renderer: PreviewRenderer): PreviewRenderer {
-  const version: unknown = renderer.apiVersion;
-
-  if (version !== 1) {
-    throw new TypeError(
-      `preview renderer "${renderer.name}" targets preview renderer API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the renderer for API 1.`,
-    );
-  }
+  portOf(`preview renderer "${renderer.name}"`, "preview renderer", renderer);
 
   if (!/^[a-z][a-z0-9_-]{0,62}$/u.test(renderer.name)) {
     throw new TypeError(
