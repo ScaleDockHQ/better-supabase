@@ -528,14 +528,14 @@ one into a purchase bill.
 
 `sendEInvoice` renders an issued invoice with an `EInvoiceFormat`, checks the
 buyer with the channel's `lookup`, hands the document to an `EInvoiceChannel`
-and logs the delivery as `pending` in `invoice_e_deliveries`. Both are
+and logs the delivery as `pending` in `e_invoice_deliveries`. Both are
 versioned ports (`apiVersion: 1`). `peppolBis3Format` is the Peppol BIS
 Billing 3.0 format, and a channel package owns the access point credentials.
 It needs `invoices.send` and a participant id on the buyer's company.
-Drafts and void invoices come back as `EINVOICE_NOT_ISSUED`, a buyer without
-an id as `EINVOICE_NO_RECIPIENT`, an unreachable buyer as
-`EINVOICE_RECIPIENT_UNREACHABLE` and an invoice already sent as
-`EINVOICE_ALREADY_SENT` unless you pass `resend`. A format or channel that
+Drafts and void invoices come back as `E_INVOICE_NOT_ISSUED`, a buyer without
+an id as `E_INVOICE_NO_RECIPIENT`, an unreachable buyer as
+`E_INVOICE_RECIPIENT_UNREACHABLE` and an invoice already sent as
+`E_INVOICE_ALREADY_SENT` unless you pass `resend`. A format or channel that
 throws comes back as an error result.
 
 ```ts

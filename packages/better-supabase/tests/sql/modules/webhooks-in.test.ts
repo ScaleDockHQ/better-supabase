@@ -73,7 +73,7 @@ describe("webhooks-in module", () => {
       })),
       {
         module: "webhooks-in",
-        action: "view",
+        action: "read",
         key: "webhooks.read",
         scope: "tenant",
       },
@@ -90,7 +90,7 @@ describe("webhooks-in module", () => {
       ["create", "hooks.admin"],
       ["update", "hooks.admin"],
       ["delete", "hooks.delete"],
-      ["view", "webhooks.read"],
+      ["read", "webhooks.read"],
     ]);
 
     const sql = moduleBody("webhooks-in", {

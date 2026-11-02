@@ -306,7 +306,7 @@ ${n.has("endpoints", "tenant") ? `create index if not exists ${ctx.naming.rename
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
           "endpoints",
           "bsb_webhook_endpoints_read",
-          { command: "select", using: n.member(d("tenant"), "view") },
+          { command: "select", using: n.member(d("tenant"), "read") },
         )}
 drop policy if exists bsb_webhook_endpoints_write on ${n.table("endpoints")};${policy(
           "endpoints",
@@ -388,7 +388,7 @@ ${lockTable(n.table("deliveries"))}${
 grant select on ${n.table("deliveries")} to authenticated;${policy(
           "deliveries",
           "bsb_webhook_deliveries_read",
-          { command: "select", using: n.member(v("tenant"), "view") },
+          { command: "select", using: n.member(v("tenant"), "read") },
         )}`
       : ""
   }${n.partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(n.table("deliveries"))}` : ""}`;

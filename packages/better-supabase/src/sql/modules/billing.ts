@@ -265,7 +265,7 @@ function build(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or ${ctx.can("tenant", scope, ctx.permission(action, permissions[action]))})`;
 
   const viewAll = ctx.scope.platform(
-    modulePermission(ctx, "viewAll", permissions.viewAll),
+    modulePermission(ctx, "readAll", permissions.readAll),
   );
 
   const webhook = subscriptionSourceOf(ctx) === "webhook";

@@ -18,12 +18,12 @@ export interface HookNames {
   readonly col: (table: string, logical: string) => string;
   readonly has: (table: string, logical: string) => boolean;
   /** A member check on `tenant` (a SQL expression) for a module action. */
-  readonly can: (tenant: string, action: "manage" | "view") => string;
+  readonly can: (tenant: string, action: "manage" | "read") => string;
   /**
    * `tenant in (select tenant_ids_with(...))` for policies: the set is computed
    * once per query instead of a `can()` call per row.
    */
-  readonly member: (tenant: string, action: "manage" | "view") => string;
+  readonly member: (tenant: string, action: "manage" | "read") => string;
   /** Clients read and manage endpoints through RLS. */
   readonly clientAccess: boolean;
   readonly vault: boolean;
@@ -218,7 +218,7 @@ export function hookNames(
         ? expression
         : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
     userMay: userMay(ctx, layout),
-    viewPermission: ctx.permission("view", permissions.view),
+    viewPermission: ctx.permission("read", permissions.read),
     ...(ctx.installed("service-accounts")
       ? {
           principal: (tenant: string) =>
@@ -245,7 +245,7 @@ grant execute on function ${signature} to authenticated, service_role;`
 export function guard(
   n: HookNames,
   tenant: string,
-  action: "manage" | "view",
+  action: "manage" | "read",
 ): string {
   const member = n.has("endpoints", "tenant") ? n.can(tenant, action) : "false";
 

@@ -34,7 +34,7 @@ export type EInvoiceDeliveryState =
   | "received"
   | "unmatched";
 
-/** One row of `invoice_e_deliveries`: a document a channel took or delivered. */
+/** One row of `e_invoice_deliveries`: a document a channel took or delivered. */
 export interface EInvoiceDeliveryRecord {
   readonly id: string;
   readonly organizationId: string;
@@ -256,7 +256,7 @@ export function invoiceEDelivery<F extends object>(
         if (invoice.status === "draft" || invoice.status === "void") {
           return invalid(
             `a ${invoice.status} invoice can't be sent as an e-invoice`,
-            "EINVOICE_NOT_ISSUED",
+            "E_INVOICE_NOT_ISSUED",
           );
         }
 
@@ -274,7 +274,7 @@ export function invoiceEDelivery<F extends object>(
         if (buyer === undefined) {
           return invalid(
             "the buyer has no e-invoice participant id; set one with setEInvoiceEndpoint",
-            "EINVOICE_NO_RECIPIENT",
+            "E_INVOICE_NO_RECIPIENT",
           );
         }
 
@@ -296,7 +296,7 @@ export function invoiceEDelivery<F extends object>(
           ) {
             return invalid(
               "this invoice was already sent; pass resend to send it again",
-              "EINVOICE_ALREADY_SENT",
+              "E_INVOICE_ALREADY_SENT",
             );
           }
         }
@@ -313,7 +313,7 @@ export function invoiceEDelivery<F extends object>(
           if (!reachable) {
             return invalid(
               `${buyer.scheme}:${buyer.id} is not on ${channel.key}`,
-              "EINVOICE_RECIPIENT_UNREACHABLE",
+              "E_INVOICE_RECIPIENT_UNREACHABLE",
             );
           }
         }
@@ -359,7 +359,7 @@ export function invoiceEDelivery<F extends object>(
         if (channel.status === undefined) {
           return invalid(
             `channel ${channel.key} can't report delivery status`,
-            "EINVOICE_CHANNEL_UNSUPPORTED",
+            "E_INVOICE_CHANNEL_UNSUPPORTED",
           );
         }
 
@@ -425,7 +425,7 @@ export function invoiceEDelivery<F extends object>(
         if (channel.receive === undefined) {
           return invalid(
             `channel ${channel.key} can't receive documents`,
-            "EINVOICE_CHANNEL_UNSUPPORTED",
+            "E_INVOICE_CHANNEL_UNSUPPORTED",
           );
         }
 

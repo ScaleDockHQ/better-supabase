@@ -296,7 +296,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     action: "run" | "edit",
   ): string => `(${SERVICE_CALLER}
       or not coalesce((select z.${cd("restricted")} from ${d} z where z.${cd("id")} = ${definition}), false)
-      or (${tenantId} is not null and ${can(tenantId, "admin")})
+      or (${tenantId} is not null and ${can(tenantId, "manage")})
       or exists (
         select 1 from ${g} gr
         where gr.${cg("definition")} = ${definition}
@@ -656,7 +656,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not (${allowed("v_tenant", "edit")} and ${granted("definition", "v_tenant", "edit")}) then
+  if not (${allowed("v_tenant", "write")} and ${granted("definition", "v_tenant", "edit")}) then
     ${forbidden("You may not edit this workflow")}
   end if;
   if trigger is null then
@@ -705,7 +705,7 @@ begin
   delete from ${t} x
   using ${d} y
   where x.${ct("id")} = trigger and y.${cd("id")} = x.${ct("definition")}
-    and ${allowed(`y.${cd("tenant")}`, "edit")}
+    and ${allowed(`y.${cd("tenant")}`, "write")}
     and ${granted(`y.${cd("id")}`, `y.${cd("tenant")}`, "edit")};
   return found;
 end;
@@ -733,7 +733,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such trigger", "P0002")}
   end if;
-  if not (${allowed("v_tenant", "edit")} and ${granted("v_definition", "v_tenant", "edit")}) then
+  if not (${allowed("v_tenant", "write")} and ${granted("v_definition", "v_tenant", "edit")}) then
     ${forbidden("You may not edit this workflow")}
   end if;
   if v_kind <> 'webhook' then
@@ -781,7 +781,7 @@ as $$
 declare
   v_row ${c}%rowtype;
 begin
-  if not ${allowed(credential("tenant"), "admin")} then
+  if not ${allowed(credential("tenant"), "manage")} then
     ${forbidden("You may not manage workflow credentials here")}
   end if;
   ${tenantRefGuard("save_workflow_credential.ref", "save_workflow_credential.tenant")}
@@ -833,7 +833,7 @@ declare
   v_row ${c}%rowtype;
 begin
   delete from ${c} x
-  where x.${cc("id")} = credential and ${allowed(`x.${cc("tenant")}`, "admin")}
+  where x.${cc("id")} = credential and ${allowed(`x.${cc("tenant")}`, "manage")}
   returning * into v_row;
   if not found then
     return null;
@@ -972,7 +972,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not ${allowed("v_tenant", "admin")} then
+  if not ${allowed("v_tenant", "manage")} then
     ${forbidden("You may not manage alerts for this workflow")}
   end if;
   if alert is null then
@@ -1014,7 +1014,7 @@ begin
   delete from ${a} x
   using ${d} y
   where x.${ca("id")} = alert and y.${cd("id")} = x.${ca("definition")}
-    and ${allowed(`y.${cd("tenant")}`, "admin")};
+    and ${allowed(`y.${cd("tenant")}`, "manage")};
   return found;
 end;
 $$;

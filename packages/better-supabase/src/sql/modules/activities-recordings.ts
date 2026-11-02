@@ -72,13 +72,25 @@ export const RECORDING_TABLES = {
       engagement: "activity_id",
       tenant: "tenant_id",
       summary: "summary",
-      actionItems: "action_items",
       model: "model",
       source: "source",
       createdBy: "created_by",
       createdAt: "created_at",
       updatedAt: "updated_at",
     },
+  },
+  // With the tasks block: the tasks a note's action items became.
+  actions: {
+    name: "activity_note_actions",
+    app: {},
+    columns: {
+      id: "id",
+      tenant: "tenant_id",
+      engagement: "activity_id",
+      task: "task_id",
+      createdAt: "created_at",
+    },
+    optional: ["createdAt"],
   },
 } as const;
 
@@ -181,7 +193,6 @@ export function recordingsSql(
       ["engagement", "save_activity_notes.engagement"],
       ["tenant", "v_tenant"],
       ["summary", "v_summary"],
-      ["actionItems", "v_items"],
       ["model", "nullif(save_activity_notes.notes ->> 'model', '')"],
       [
         "source",
@@ -204,8 +215,40 @@ export function recordingsSql(
   const segmentJson = (alias: string): string =>
     `jsonb_build_object('position', ${alias}.${s("position")}, 'speaker', ${field("segments", alias, "speaker")}, 'speakerUserId', ${field("segments", alias, "speakerUser")}, 'startMs', ${alias}.${s("startsMs")}, 'endMs', ${alias}.${s("endsMs")}, 'text', ${alias}.${s("text")}, 'confidence', ${field("segments", alias, "confidence")})`;
 
+  const withTasks = ctx.installed("tasks") && ctx.of("tasks").mode !== "custom";
+  const tasks = withTasks ? ctx.of("tasks") : undefined;
+  const a = (column: string): string => ctx.col("actions", column);
+
+  // The task ids behind a note's action items; empty without the tasks block.
+  const taskIds = (alias: string): string =>
+    withTasks
+      ? `coalesce((select jsonb_agg(ax.${a("task")} order by ax.${a("createdAt")}, ax.${a("id")}) from ${t("actions")} ax where ax.${a("engagement")} = ${alias}.${n("engagement")}), '[]'::jsonb)`
+      : "'[]'::jsonb";
+
+  // One task per action item, as the caller; an item whose title a linked task
+  // already has is skipped, so saving notes again adds nothing twice.
+  const actionTasks =
+    tasks === undefined
+      ? `if jsonb_array_length(v_items) > 0 then
+    ${fail("ACTIVITY_NOTES_INVALID", "actionItems need the tasks block: install it, or save notes without action items", "22023")}
+  end if;`
+      : `for v_item in select i.value from jsonb_array_elements(v_items) i loop
+    if not exists (
+      select 1 from ${t("actions")} ax join ${tasks.table("items")} k on k.${tasks.col("items", "id")} = ax.${a("task")}
+      where ax.${a("engagement")} = save_activity_notes.engagement and k.${tasks.col("items", "title")} = left(btrim(v_item ->> 'text'), 500)
+    ) then
+      v_task := (${tasks.fn("create_task")}(
+        v_tenant,
+        jsonb_strip_nulls(jsonb_build_object('title', left(btrim(v_item ->> 'text'), 500), 'dueAt', v_item ->> 'dueAt')),
+        case when nullif(v_item ->> 'ownerId', '') is null then '{}'::uuid[] else array[(v_item ->> 'ownerId')::uuid] end
+      ) ->> 'id')::uuid;
+      insert into ${t("actions")} (${a("tenant")}, ${a("engagement")}, ${a("task")})
+      values (v_tenant, save_activity_notes.engagement, v_task);
+    end if;
+  end loop;`;
+
   const notesJson = (alias: string): string =>
-    `jsonb_build_object('engagementId', ${alias}.${n("engagement")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionItems', ${alias}.${n("actionItems")}, 'model', ${field("notes", alias, "model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${field("notes", alias, "createdBy")}, 'createdAt', ${field("notes", alias, "createdAt")}, 'updatedAt', ${field("notes", alias, "updatedAt")})`;
+    `jsonb_build_object('engagementId', ${alias}.${n("engagement")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionTaskIds', ${taskIds(alias)}, 'model', ${field("notes", alias, "model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${field("notes", alias, "createdBy")}, 'createdAt', ${field("notes", alias, "createdAt")}, 'updatedAt', ${field("notes", alias, "updatedAt")})`;
 
   const engagementVisible = (column: string): string =>
     `exists (select 1 from ${t("engagements")} ex where ex.${e("id")} = ${column})`;
@@ -259,7 +302,7 @@ create table if not exists ${t("notes")} (
   ${n("engagement")} uuid primary key references ${t("engagements")} (${e("id")}) on delete cascade,
   ${n("tenant")} ${ctx.idType} not null,
   ${n("summary")} text not null check (length(${n("summary")}) between 1 and 20000),
-  ${n("actionItems")} jsonb not null default '[]' check (jsonb_typeof(${n("actionItems")}) = 'array'),${optional("notes", "model", (x) => `${x} text`)}
+${optional("notes", "model", (x) => `${x} text`)}
   ${n("source")} text not null default 'ai' check (${n("source")} in ('ai', 'member'))${[
     "createdBy",
     "createdAt",
@@ -274,7 +317,24 @@ create table if not exists ${t("notes")} (
 );${key("notes", "engagement_key", n("engagement"))}
 ${lockTable(t("notes"), { read: true })}
 ${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(n("engagement")) }), { drop: true, target: t("notes") })}
+${
+  tasks === undefined
+    ? ""
+    : `
+-- The action items of a note: each one is a task, so it is assigned, due and
+-- closed in the tasks block.
+create table if not exists ${t("actions")} (
+  ${a("id")} uuid primary key default gen_random_uuid(),
+  ${a("tenant")} ${ctx.idType} not null,
+  ${a("engagement")} uuid not null references ${t("engagements")} (${e("id")}) on delete cascade,
+  ${a("task")} uuid not null references ${tasks.table("items")} (${tasks.col("items", "id")}) on delete cascade,${ctx.has("actions", "createdAt") ? `\n  ${a("createdAt")} timestamptz not null default now(),` : ""}
+  unique (${a("engagement")}, ${a("task")})
+);${key("actions", "engagement_task", `${a("engagement")}, ${a("task")}`)}
+create index if not exists ${sqlIdent(`${ctx.tableName("actions").name}_task_idx`)} on ${t("actions")} (${a("task")});
+${lockTable(t("actions"), { read: true })}
+${renderPolicy(makePolicy({ table: t("actions"), name: `${ctx.tableName("actions").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(a("engagement")) }), { drop: true, target: t("actions") })}
 `
+}`
     : "";
 
   return `${tables}
@@ -466,7 +526,9 @@ $$;
 ${serviceGrant(`${fn("pending_activity_recordings")}(integer)`)}
 
 -- Saves an engagement's notes: notes { summary, actionItems: [{ text,
--- ownerId, dueAt }], model, source }. Replaces earlier notes.
+-- ownerId, dueAt }], model, source }. Replaces earlier notes. Each action item
+-- becomes a task through the tasks block, unless the engagement already has a
+-- task with that title; without the tasks block action items are refused.
 create or replace function ${fn("save_activity_notes")}(engagement uuid, notes jsonb)
 returns jsonb
 language plpgsql
@@ -480,6 +542,8 @@ declare
   v_items jsonb := coalesce(save_activity_notes.notes -> 'actionItems', '[]'::jsonb);
   v_subjects jsonb;
   v_first jsonb;
+  v_item jsonb;
+  v_task uuid;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
   from ${t("engagements")} x where x.${e("id")} = save_activity_notes.engagement and ${editable("x")};
@@ -498,7 +562,7 @@ begin
   insert into ${t("notes")} (${noted.map(([column]) => n(column)).join(", ")})
   values (${noted.map(([, value]) => value).join(", ")})
   on conflict (${n("engagement")}) do update set
-    ${n("summary")} = excluded.${n("summary")}, ${n("actionItems")} = excluded.${n("actionItems")},
+    ${n("summary")} = excluded.${n("summary")},
     ${[
       ...(ctx.has("notes", "model")
         ? [`${n("model")} = excluded.${n("model")}`]
@@ -506,6 +570,7 @@ begin
       `${n("source")} = excluded.${n("source")}`,
       ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
     ].join(", ")};
+  ${actionTasks}
   ${loadSubjects("save_activity_notes.engagement")}
   ${record("activity.summarized", "save_activity_notes.engagement", "v_type", "v_tenant", "", "'activity.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text)")}
   return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_activity_notes.engagement);

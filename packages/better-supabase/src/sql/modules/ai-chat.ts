@@ -715,7 +715,7 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
       create: ctx.permission("create", permissions.create),
       share: ctx.permission("share", permissions.share),
       moderate: ctx.permission("moderate", permissions.moderate),
-      admin: ctx.permission("admin", permissions.admin),
+      admin: ctx.permission("manage", permissions.manage),
     },
     topic,
     listTopic,

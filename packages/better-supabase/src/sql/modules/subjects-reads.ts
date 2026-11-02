@@ -171,7 +171,7 @@ export function subjectReadsSql(
   const collapse = collapseSeconds(ctx);
   const types = sqlString(`{${audited.map((each) => each.type).join(",")}}`);
   const lead = sqlString(leadRole(recordTeamRoles(ctx)));
-  const viewAudit = audit.permission("view", OPERATIONS["audit.view"]);
+  const viewAudit = audit.permission("read", OPERATIONS["audit.read"]);
 
   const onRecord = (fnName: string): string =>
     `${m("subjectType")} = ${fnName}.subject_type
@@ -291,7 +291,7 @@ $$;
 ${userGrant(`${fn("record_subject_read")}(text, text, text, text, text)`)}
 
 -- Who read a record and when, newest first: the subject.accessed entries of
--- the audit log since \`since\`. The holders of ${OPERATIONS["audit.view"]} in
+-- the audit log since \`since\`. The holders of ${OPERATIONS["audit.read"]} in
 -- its tenant, the record team's leads today, the record's own guest party
 -- and a representative with act authority may ask.
 create or replace function ${fn("subject_access_log")}(subject_type text, subject_id text, since timestamptz default null, max_rows integer default 100)

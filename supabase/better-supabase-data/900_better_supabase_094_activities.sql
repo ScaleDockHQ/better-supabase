@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:5c4e94da7badd3ac752edf9781a0fa1babef2d45d0bd2c3605b7390fb2d2fa74
+-- @bsb-hash sha256:d7bd2f315ab0773c981b53b0505c52decbd7e84390a9f8a11eccfa084b344772
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -91,6 +91,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('activities', 3, 'managed')
+values ('activities', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

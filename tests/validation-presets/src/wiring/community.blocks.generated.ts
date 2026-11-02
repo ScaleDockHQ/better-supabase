@@ -215,20 +215,20 @@ export const permissions = {
     own: "api_keys.own",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   automations: {
     read: "automations.read",
-    edit: "automations.write",
+    write: "automations.write",
     publish: "automations.publish",
-    admin: "automations.manage",
+    manage: "automations.manage",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   channel: {
     read: "messages.read",
@@ -257,7 +257,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   message: {
     read: "messages.read",

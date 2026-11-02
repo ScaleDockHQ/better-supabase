@@ -126,7 +126,7 @@ function webhooksInSql(ctx: BlockSqlContext): string {
   const key = (action: "create" | "update" | "delete") =>
     sqlString(modulePermissionKey(ctx, action, p[action]));
 
-  const view = ctx.permission("view", p.view);
+  const view = ctx.permission("read", p.read);
   const verify = INCOMING_VERIFY.map((mode) => `'${mode}'`).join(", ");
   const maxBody = ctx.number("maxBodyBytes", 1_048_576);
   const vault = secretStorage(ctx);

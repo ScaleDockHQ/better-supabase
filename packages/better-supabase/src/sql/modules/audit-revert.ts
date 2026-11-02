@@ -45,7 +45,7 @@ export function revert(ctx: BlockSqlContext, restricted: boolean): string {
   const key = ctx.permission("revert", OPERATIONS["audit.revert"]);
 
   const mayRead = restricted
-    ? ` and coalesce(better_supabase.member_can(auth.uid(), l.${c("tenant")}, ${ctx.permission("reveal", ctx.permissionKey("view", OPERATIONS["audit.view"]))}), false)`
+    ? ` and coalesce(better_supabase.member_can(auth.uid(), l.${c("tenant")}, ${ctx.permission("reveal", ctx.permissionKey("read", OPERATIONS["audit.read"]))}), false)`
     : "";
 
   const target = `to_regclass(quote_ident(split_part(l.${c("table")}, '.', 1)) || '.' || quote_ident(split_part(l.${c("table")}, '.', 2)))`;

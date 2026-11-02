@@ -130,7 +130,7 @@ function names(ctx: BlockSqlContext): SegmentNames {
     m: (column) => ctx.col("members", column),
     has: (column) => ctx.has("segments", column),
     read: ctx.permission("read", keys.read),
-    edit: ctx.permission("edit", keys.edit),
+    edit: ctx.permission("write", keys.write),
     maxMembers,
     subjects: registeredSubjects(ctx.subjects, ctx.naming).filter(
       (subject) => subject.tenant !== undefined,

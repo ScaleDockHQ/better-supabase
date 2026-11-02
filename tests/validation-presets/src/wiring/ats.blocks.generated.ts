@@ -317,20 +317,20 @@ export const permissions = {
     manage: "attachments.manage",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   automations: {
     read: "automations.read",
-    edit: "automations.write",
+    write: "automations.write",
     publish: "automations.publish",
-    admin: "automations.manage",
+    manage: "automations.manage",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   booking: {
     read: "bookings.read",
@@ -367,7 +367,7 @@ export const permissions = {
   employees: {
     read: "employees.read",
     write: "employees.write",
-    viewSensitive: "employees.read_sensitive",
+    readSensitive: "employees.read_sensitive",
   },
   enrollments: {
     read: "enrollments.read",
@@ -392,7 +392,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   message: {
     read: "messages.read",

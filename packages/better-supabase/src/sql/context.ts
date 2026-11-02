@@ -24,6 +24,7 @@ import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
+import { configuredAction } from "../core/renames.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
@@ -809,6 +810,9 @@ export function createModuleContext(
       ? written
       : `${prefix}_${written}`;
 
+  const permissionKey = (action: string, fallback: string): string =>
+    configuredAction(config.permissions, module, action) ?? ownKey(fallback);
+
   const ownKey = (key: string): string =>
     instanceArea(
       module,
@@ -1290,10 +1294,9 @@ export function createModuleContext(
 
       return config.tables[table] !== null;
     },
-    permissionKey: (action, fallback) =>
-      config.permissions[action] ?? ownKey(fallback),
+    permissionKey,
     permission: (action, fallback) =>
-      sqlString(config.permissions[action] ?? ownKey(fallback)),
+      sqlString(permissionKey(action, fallback)),
     trigger: (name) =>
       sqlIdent(`bsb_${scoped(naming.rename(legacy(name)), name)}`),
     installed(name) {

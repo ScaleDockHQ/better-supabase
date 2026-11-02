@@ -184,20 +184,20 @@ export const permissions = {
     own: "api_keys.own",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   automations: {
     read: "automations.read",
-    edit: "automations.write",
+    write: "automations.write",
     publish: "automations.publish",
-    admin: "automations.manage",
+    manage: "automations.manage",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   connectors: {
     read: "connectors.read",
@@ -212,7 +212,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   notifications: {
     send: "notifications.send",
@@ -242,19 +242,19 @@ export const permissions = {
   },
   "webhooks-out": {
     manage: "webhooks.manage",
-    view: "webhooks.read",
+    read: "webhooks.read",
   },
   "workflow-editor": {
     read: "workflow_editor.read",
     run: "workflow_editor.run",
-    edit: "workflow_editor.write",
+    write: "workflow_editor.write",
     publish: "workflow_editor.publish",
-    admin: "workflow_editor.manage",
+    manage: "workflow_editor.manage",
   },
   workflows: {
     read: "workflows.read",
     run: "workflows.run",
-    admin: "workflows.manage",
+    manage: "workflows.manage",
   },
 } as const;
 

@@ -179,7 +179,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))` }), { drop: true, target: sessions })}
+${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))` }), { drop: true, target: sessions })}
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -248,7 +248,7 @@ ${renderPolicy(
     command: "select",
     roles: ["authenticated"],
     using: `${c("admin")} = (select auth.uid())
-    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))`,
+    or (select ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))`,
   }),
   { drop: true, target: requests },
 )}
@@ -923,7 +923,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))
+      or ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null

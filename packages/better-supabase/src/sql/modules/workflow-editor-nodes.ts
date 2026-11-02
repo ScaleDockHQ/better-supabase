@@ -235,7 +235,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "Workflow definition not found")}
   end if;
-  if not ${allowed(`v_row.${cd("tenant")}`, "admin")} then
+  if not ${allowed(`v_row.${cd("tenant")}`, "manage")} then
     ${forbidden("Changing what a workflow is for needs workflow.admin")}
   end if;
   if coalesce(is_default, false) and purpose <> 'lifecycle' then

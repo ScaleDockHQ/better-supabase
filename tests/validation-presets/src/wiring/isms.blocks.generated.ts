@@ -250,14 +250,14 @@ export const permissions = {
     manage: "attachments.manage",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   case: {
     read: "cases.read",
@@ -323,7 +323,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   notifications: {
     send: "notifications.send",

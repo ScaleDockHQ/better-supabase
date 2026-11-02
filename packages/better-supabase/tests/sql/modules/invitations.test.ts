@@ -593,7 +593,7 @@ describe("invitation_preview_extra", () => {
     );
   });
 
-  it("checks revoke and view with the invite key unless they are set", () => {
+  it("checks revoke and read with the invite key unless they are set", () => {
     const renamed = body({
       invitations: { permissions: { invite: "member.invite" } },
     });
@@ -606,7 +606,7 @@ describe("invitation_preview_extra", () => {
         permissions: {
           invite: "member.invite",
           revoke: "member.revoke",
-          view: "member.view",
+          read: "member.view",
         },
       },
     });

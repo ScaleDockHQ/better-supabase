@@ -169,7 +169,7 @@ describe("sendEInvoice", () => {
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "EINVOICE_NOT_ISSUED",
+      "E_INVOICE_NOT_ISSUED",
     );
     expect(sent).toHaveLength(0);
   });
@@ -185,7 +185,7 @@ describe("sendEInvoice", () => {
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "EINVOICE_NO_RECIPIENT",
+      "E_INVOICE_NO_RECIPIENT",
     );
   });
 
@@ -203,7 +203,7 @@ describe("sendEInvoice", () => {
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "EINVOICE_RECIPIENT_UNREACHABLE",
+      "E_INVOICE_RECIPIENT_UNREACHABLE",
     );
     expect(sent).toHaveLength(0);
   });
@@ -222,7 +222,7 @@ describe("sendEInvoice", () => {
     });
 
     expect(first.ok ? undefined : first.error.hint).toBe(
-      "EINVOICE_ALREADY_SENT",
+      "E_INVOICE_ALREADY_SENT",
     );
 
     const again = await invoices.sendEInvoice({
@@ -351,7 +351,7 @@ describe("syncEInvoices", () => {
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "EINVOICE_CHANNEL_UNSUPPORTED",
+      "E_INVOICE_CHANNEL_UNSUPPORTED",
     );
   });
 });
@@ -469,7 +469,7 @@ describe("error paths", () => {
     }).invoices.sendEInvoice({ invoice: invoice("issued"), format, channel });
 
     expect(pending.ok ? undefined : pending.error.hint).toBe(
-      "EINVOICE_ALREADY_SENT",
+      "E_INVOICE_ALREADY_SENT",
     );
   });
 
@@ -528,7 +528,7 @@ describe("error paths", () => {
     });
 
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "EINVOICE_CHANNEL_UNSUPPORTED",
+      "E_INVOICE_CHANNEL_UNSUPPORTED",
     );
   });
 

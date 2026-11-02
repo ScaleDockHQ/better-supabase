@@ -311,7 +311,7 @@ declare
   v_tenant ${ctx.idType} := list_webhook_endpoints.tenant;
   v_endpoints jsonb;
 begin
-  ${guard(n, "v_tenant", "view")}
+  ${guard(n, "v_tenant", "read")}
   select coalesce(jsonb_agg(${endpointJson(n)} order by d.${d("createdAt")} desc, d.${d("id")}), '[]')
   into v_endpoints
   from ${n.table("endpoints")} d

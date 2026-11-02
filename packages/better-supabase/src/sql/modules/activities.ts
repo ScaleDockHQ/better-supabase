@@ -24,6 +24,7 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { tableMoves } from "../table-renames.ts";
 import { bookingEngagementsSql, logsBookings } from "./activities-bookings.ts";
+import { NOTE_ACTION_ITEMS_TO_TASKS } from "./activities-data.ts";
 import {
   NOTE_COLUMNS,
   NOTE_OPTIONS,
@@ -762,10 +763,12 @@ export const ENGAGEMENTS: BlockSqlDefinition = {
     "queue",
     "bookings",
     "contacts",
+    "tasks",
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
+  upgrades: [NOTE_ACTION_ITEMS_TO_TASKS],
   names: NAMES,
   contract,
   build,

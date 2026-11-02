@@ -341,6 +341,15 @@ const NAMES: BlockSqlNames = {
     eEndpoints: E_ENDPOINTS_TABLE,
     eDeliveries: E_DELIVERIES_TABLE,
   },
+  migrations: [
+    {
+      from: 2,
+      description: "The delivery log is e_invoice_deliveries (ADR 0206).",
+      table: "eDeliveries",
+      was: "invoice_e_deliveries",
+      objects: true,
+    },
+  ],
 };
 
 function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
@@ -821,7 +830,7 @@ export const INVOICES: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,

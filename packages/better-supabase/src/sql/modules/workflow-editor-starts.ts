@@ -70,7 +70,7 @@ export function builderStartsSql(ctx: BlockSqlContext, s: BuilderSql): string {
   if not found or not (${scoped ? `v_src.${cd("scope")} = 'system' or ` : ""}v_src.${cd("tenant")} is not distinct from tenant) then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not ${allowed("tenant", "edit")} then
+  if not ${allowed("tenant", "write")} then
     ${forbidden("You may not edit workflows here")}
   end if;
   if ${scoped ? `v_src.${cd("scope")} = 'tenant' and ` : ""}not ${granted("source", "tenant", "edit")} then
@@ -216,7 +216,7 @@ begin${
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not (${allowed(`v_def.${cd("tenant")}`, "edit")} and ${granted("definition", `v_def.${cd("tenant")}`, "edit")}) then
+  if not (${allowed(`v_def.${cd("tenant")}`, "write")} and ${granted("definition", `v_def.${cd("tenant")}`, "edit")}) then
     ${forbidden("You may not test this workflow")}
   end if;
   if stubs is not null and jsonb_typeof(stubs) <> 'object' then
@@ -291,7 +291,7 @@ begin
   if tenant is null then
     ${fail("WORKFLOW_TENANT_REQUIRED", "Pass the tenant that opts out", "22023")}
   end if;
-  if not ${allowed("tenant", "admin")} then
+  if not ${allowed("tenant", "manage")} then
     ${forbidden("You may not manage workflows here")}
   end if;
   if not exists (
@@ -335,7 +335,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not ${allowed("v_tenant", "admin")} then
+  if not ${allowed("v_tenant", "manage")} then
     ${forbidden("You may not manage access to this workflow")}
   end if;
   if principal_kind is null or principal_kind not in (${sqlList(GRANT_PRINCIPALS)}) then

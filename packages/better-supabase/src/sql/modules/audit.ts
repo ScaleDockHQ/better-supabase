@@ -881,8 +881,8 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
   }
 
   const c = (logical: string) => ctx.col("log", logical);
-  const view = ctx.permission("view", OPERATIONS["audit.view"]);
-  const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
+  const view = ctx.permission("read", OPERATIONS["audit.read"]);
+  const viewAll = modulePermission(ctx, "readAll", OPERATIONS["audit.readAll"]);
 
   const hidden = new Set(
     impersonators(ctx) === "hide"
@@ -899,7 +899,7 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
     ...metadataColumns(ctx).map(([column]) => sqlIdent(column)),
   ];
 
-  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", OPERATIONS["audit.view"])} permission;
+  return `-- Members read their tenant's entries with the ${ctx.permissionKey("read", OPERATIONS["audit.read"])} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
 create or replace function ${ctx.fn("audit_read_tenants")}()

@@ -72,7 +72,7 @@ describe("withBlockSubjects", () => {
     const subjects = withBlockSubjects({}, ["tasks"], {
       tasks: {
         schema: "app",
-        entities: { work_item: { name: "task", url: "/tasks/{identifier}" } },
+        entities: { task: { name: "task", url: "/tasks/{identifier}" } },
       },
     });
 

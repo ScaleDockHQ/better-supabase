@@ -12,9 +12,9 @@ Some actions take their own key when you set one, and fall back otherwise:
 | Key                               | Gates                                                       | Without it                                    |
 | --------------------------------- | ----------------------------------------------------------- | --------------------------------------------- |
 | `permissions.create`              | `create`                                                    | the `write` key                               |
-| `permissions.contractsRead`       | reading contracts                                           | the `viewSensitive` key                       |
-| `permissions.contractsWrite`      | adding, changing and deleting contracts, on its own         | the `write` and `viewSensitive` keys together |
-| `permissions.privateDetailsWrite` | saving someone else's private details, with `viewSensitive` | the `viewSensitive` key alone                 |
+| `permissions.contractsRead`       | reading contracts                                           | the `readSensitive` key                       |
+| `permissions.contractsWrite`      | adding, changing and deleting contracts, on its own         | the `write` and `readSensitive` keys together |
+| `permissions.privateDetailsWrite` | saving someone else's private details, with `readSensitive` | the `readSensitive` key alone                 |
 
 ```bash
 better-supabase add employees

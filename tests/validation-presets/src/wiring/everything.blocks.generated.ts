@@ -1369,7 +1369,7 @@ export const permissions = {
     create: "ai_chat.create",
     share: "ai_chat.share",
     moderate: "ai_chat.moderate",
-    admin: "ai_chat.manage",
+    manage: "ai_chat.manage",
   },
   "ai-files": {
     upload: "ai_files.upload",
@@ -1424,15 +1424,15 @@ export const permissions = {
     manage: "attachments.manage",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   automations: {
     read: "automations.read",
-    edit: "automations.write",
+    write: "automations.write",
     publish: "automations.publish",
-    admin: "automations.manage",
+    manage: "automations.manage",
   },
   bank_account: {
     read: "banking.read",
@@ -1452,7 +1452,7 @@ export const permissions = {
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   booking: {
     read: "bookings.read",
@@ -1666,7 +1666,7 @@ export const permissions = {
   employees: {
     read: "employees.read",
     write: "employees.write",
-    viewSensitive: "employees.read_sensitive",
+    readSensitive: "employees.read_sensitive",
   },
   enrichment: {
     read: "enrichment.read",
@@ -1735,7 +1735,7 @@ export const permissions = {
   },
   impersonation: {
     start: "impersonation.start",
-    view: "impersonation.read",
+    read: "impersonation.read",
     revoke: "impersonation.revoke",
   },
   imports: {
@@ -1782,7 +1782,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   invoice: {
     read: "invoices.read",
@@ -2054,7 +2054,7 @@ export const permissions = {
   },
   segments: {
     read: "segments.read",
-    edit: "segments.write",
+    write: "segments.write",
   },
   sequences: {
     read: "sequences.read",
@@ -2185,11 +2185,11 @@ export const permissions = {
     create: "webhooks.manage",
     update: "webhooks.manage",
     delete: "webhooks.manage",
-    view: "webhooks.read",
+    read: "webhooks.read",
   },
   "webhooks-out": {
     manage: "webhooks.manage",
-    view: "webhooks.read",
+    read: "webhooks.read",
   },
   work_center: {
     read: "manufacturing.read",
@@ -2202,14 +2202,14 @@ export const permissions = {
   "workflow-editor": {
     read: "workflow_editor.read",
     run: "workflow_editor.run",
-    edit: "workflow_editor.write",
+    write: "workflow_editor.write",
     publish: "workflow_editor.publish",
-    admin: "workflow_editor.manage",
+    manage: "workflow_editor.manage",
   },
   workflows: {
     read: "workflows.read",
     run: "workflows.run",
-    admin: "workflows.manage",
+    manage: "workflows.manage",
   },
 } as const;
 

@@ -273,10 +273,10 @@ export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
 
   const key = ctx.permission(
     "reveal",
-    ctx.permissionKey("view", OPERATIONS["audit.view"]),
+    ctx.permissionKey("read", OPERATIONS["audit.read"]),
   );
 
-  const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
+  const viewAll = modulePermission(ctx, "readAll", OPERATIONS["audit.readAll"]);
 
   const fields = (
     [
