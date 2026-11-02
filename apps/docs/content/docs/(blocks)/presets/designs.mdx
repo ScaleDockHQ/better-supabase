@@ -109,9 +109,50 @@ added after the first release (`format`, `options`, `min`, `max`, `comment`,
 table `subject`, `3` for `rollups` or `lookups`, `4` for `events` or subject
 `versions`, `5` for column `access`, `6` for column `encrypted` or table
 `auditReads`, `7` for `preset`, `8` for a preset object with `instances`,
-and `0` otherwise. `DESIGN_FORMAT` is the
+`9` for `seeds`, and `0` otherwise. `DESIGN_FORMAT` is the
 newest format this release reads; a code with a higher `version` fails with a
 message to update better-supabase instead of losing keys.
+
+### Seeds in a design (format 9)
+
+Format 9 adds a `seeds` key that carries what `better-supabase db seed
+--defaults` and `--sample` start from. A design written before format 9 reads
+as it is, because every key of `seeds` is optional.
+
+```json
+{
+  "version": 9,
+  "preset": "crm",
+  "seeds": {
+    "variants": { "pipelines": "b2b-sales" },
+    "locale": "nl",
+    "sample": { "size": "m", "seed": 42 }
+  }
+}
+```
+
+| Key        | Config key                              | Meaning                                                       |
+| ---------- | --------------------------------------- | ------------------------------------------------------------- |
+| `variants` | `database.seed.defaults.variants`       | The starting set each block seeds, keyed by block name        |
+| `locale`   | `database.seed.defaults.locale`         | The language of the defaults and of sample data, such as `nl` |
+| `sample`   | `database.seed.sample.size` and `.seed` | `s`, `m` or `l`, and the whole number that fixes the data     |
+
+`init --preset design.json` and `add --preset` write these keys to the config
+file with the design's other keys. A design's variants win over the ones the
+named preset starts from. `checkProject` reports `unknown_seed_block` and
+`unknown_seed_variant` issues (source `seeds`) for a block or variant the
+catalog doesn't offer, and a design that doesn't parse gets `invalid_seeds`
+with a pointer such as `/seeds/sample/size`.
+
+### Preset seeds
+
+A named preset can start from seed variants. `crm` seeds the `b2b-sales`
+variant of `pipelines`, `ats` seeds `recruiting`, and `erp` seeds the `generic`
+chart of `accounting`. When the config has a `preset`, `expandPreset` writes
+these under `database.seed.defaults.variants`, and the app's own variants and
+locale win key by key. `database.seed.defaults: false` keeps them off. A preset
+never sets the locale, so the tax codes of `erp` follow
+`database.seed.defaults.locale`.
 
 ### Codes from 0.14
 

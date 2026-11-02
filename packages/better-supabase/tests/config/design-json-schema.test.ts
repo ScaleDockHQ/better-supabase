@@ -9,6 +9,14 @@ const VALID: readonly unknown[] = [
   {},
   { version: 5 },
   {
+    version: 9,
+    seeds: {
+      variants: { pipelines: "b2b-sales" },
+      locale: "nl",
+      sample: { size: "m", seed: 42 },
+    },
+  },
+  {
     appTables: {
       projects: {
         columns: {
@@ -28,6 +36,10 @@ const INVALID: readonly unknown[] = [
   "design",
   { tables: {} },
   { version: -1 },
+  { seeds: { sample: { size: "xl", seed: 1 } } },
+  { seeds: { sample: { size: "m", seed: 1.5 } } },
+  { seeds: { sample: { size: "m", seed: -1 } } },
+  { seeds: { sample: { size: "m", seed: 1, extra: true } } },
   { version: 1.5 },
   { positions: { "app.projects": [1] } },
   { positions: { "app.projects": [1, "2"] } },

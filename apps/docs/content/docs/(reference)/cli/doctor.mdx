@@ -1551,6 +1551,31 @@ is not. The conversion still runs through the source row's `origin_type` and
 `origin_id` columns, but no `created_from` or `converted_to` link is written,
 so lineage reads find nothing. Run `better-supabase add relations`.
 
+### BS354
+
+**Warning: declared defaults are not applied to new organizations.** An
+installed block declares tenant defaults, such as the tax codes of a country,
+but the `seeds` block is not installed, `database.seed.defaults` is `false` or
+has `onCreate: false`, or `organizations` is not installed. Nothing calls
+`seed_tenant_defaults` when an organization is created, so new organizations
+start without the defaults. Run `better-supabase add seeds`, turn the config key
+back on, or run `better-supabase db seed --defaults` for each organization.
+
+### BS355
+
+**Warning: seed variant is not declared.** `database.seed.defaults.variants`
+names a block that doesn't exist, or a variant the block doesn't declare.
+`better-supabase blocks` lists the variants each block offers. Use one of them
+or remove the entry.
+
+### BS356
+
+**Info: sample data file outside `database.seed.sample.output`.** A file under
+`supabase/seeds` starts with the comment `better-supabase db seed --sample
+--out` writes, but `database.seed.sample.output` points at another path. The
+next run writes a second file instead of replacing it, and `supabase db reset`
+loads both. Set `database.seed.sample.output` to the file, or delete it.
+
 ### BS401
 
 **Warning: refresh token reuse interval is 0.** With refresh token rotation,
