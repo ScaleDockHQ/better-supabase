@@ -15,6 +15,7 @@ import { inboxDraftFunctions, inboxDraftsDdl } from "./inbox-drafts.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
 import { inboxScheduleFunctions } from "./inbox-schedule.ts";
+import { inboxSeeds } from "./inbox-seeds.ts";
 import { inboxServiceFunctions } from "./inbox-service.ts";
 import {
   inboxDetailsDdl,
@@ -660,4 +661,5 @@ export const INBOX: BlockSqlDefinition = {
 
     return [`${topic}:org:{organizationId}`];
   },
+  seeds: inboxSeeds,
 };
