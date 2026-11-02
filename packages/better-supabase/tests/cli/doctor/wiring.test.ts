@@ -153,3 +153,55 @@ describe("BS508", () => {
     expect(handled).toEqual([]);
   });
 });
+
+describe("BS510", () => {
+  const definition = `create or replace view better_supabase.maintenance_jobs as select 1;
+create or replace function better_supabase.maintenance_schedule(cron_schedule text default '*/5 * * * *') returns text as $$
+begin execute pg_catalog.format('select cron.schedule(%L, %L, %L)', 'a', cron_schedule, 'select better_supabase.maintenance()'); end; $$;
+revoke all on function better_supabase.maintenance_schedule(text) from public;`;
+
+  const sql = (...texts: string[]) =>
+    texts.map((text, index) => ({ path: `f${String(index)}.sql`, text }));
+
+  it("stays quiet without the housekeeping module or without sql files", async () => {
+    expect(await rule("BS510").check(context({}))).toEqual([]);
+    expect(
+      await rule("BS510").check(
+        context({}, { sqlFiles: sql("create table t (id int);") }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports the module when nothing schedules maintenance()", async () => {
+    const findings = await rule("BS510").check(
+      context({}, { sqlFiles: sql(definition) }),
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("accepts a schedule call, a cron line or a tick handler", async () => {
+    for (const parts of [
+      {
+        sqlFiles: sql(
+          definition,
+          "select better_supabase.maintenance_schedule();",
+        ),
+      },
+      {
+        sqlFiles: sql(
+          definition,
+          "select cron.schedule('m', '* * * * *', 'select better_supabase.maintenance()');",
+        ),
+      },
+      {
+        sqlFiles: sql(definition),
+        sources: [
+          { path: "route.ts", text: "maintenanceTick(rpcTransport(a))" },
+        ],
+      },
+    ]) {
+      expect(await rule("BS510").check(context({}, parts))).toEqual([]);
+    }
+  });
+});

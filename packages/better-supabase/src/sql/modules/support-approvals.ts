@@ -81,6 +81,13 @@ export const SUPPORT_REQUEST_SUBJECT = "support_request";
 
 /** What impersonation adds to approvals. */
 export const SUPPORT_CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("expire_support_sessions"),
+      function: own.fn("expire_support_sessions"),
+      every: "5 minutes",
+    },
+  ],
   approvals: (own) =>
     own.hasTable("requests")
       ? [

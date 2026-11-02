@@ -23,6 +23,17 @@ export type {
   ScheduledBlock,
 } from "./block-schedules.ts";
 
+export {
+  MAINTENANCE_TIMER_BLOCK,
+  maintenanceTick,
+  maintenanceTimer,
+} from "./maintenance-tick.ts";
+
+export type {
+  MaintenanceTickOptions,
+  MaintenanceTickResult,
+} from "./maintenance-tick.ts";
+
 export { devDrain, devDrainSecret } from "./dev.ts";
 
 export type { DevDrain, DevDrainOptions } from "./dev.ts";
