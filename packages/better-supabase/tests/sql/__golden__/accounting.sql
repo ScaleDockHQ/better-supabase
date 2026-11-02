@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:660de13c48d73cc46fc08d4a8847f8b4d703c742ee0ead268bdd93a16b1edd5d
+-- @bsb-hash sha256:7e1cc13f8a17b4510848bdd416287f27955a874a603305e0c3389bae341c5895
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,6 +61,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -231,7 +247,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -609,6 +625,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -621,7 +638,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -831,7 +848,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -3088,6 +3105,44 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3423,7 +3478,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:7fa7e8f864136784ac3c1741d868ece7f736fae8bbeb288a3c06611d50c018c8
+-- @bsb-hash sha256:29110e38501cf2dfdb899930fb6aad5251d042a25d7f7982c8b33dfda06e60e6
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3483,6 +3538,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -3653,7 +3724,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -4049,6 +4120,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -4061,7 +4133,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -4271,7 +4343,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -6684,6 +6756,44 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7031,7 +7141,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:956c0f65f81f239c7325f2cc3af19da823bfcf655117a63bce769743a2538790
+-- @bsb-hash sha256:b6c56c7fa73d6ad860a27c9804ea1c3f99033ac32ada09bf86da386a78f54c44
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7091,6 +7201,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
@@ -7266,7 +7392,7 @@ create policy accounting_accounts_read on "app_private"."accounting_accounts"
 
 create table if not exists "app_private"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -7644,6 +7770,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -7656,7 +7783,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "app_private"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -7866,7 +7993,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -10123,6 +10250,44 @@ $$;
 revoke execute on function "app_private"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "app_private"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "app_private"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "app_private"."accounting_recognition_schedules" enable row level security;
+revoke all on "app_private"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "app_private"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "app_private"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "app_private"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_due_idx on "app_private"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "app_private"."accounting_recognition_rows" enable row level security;
+revoke all on "app_private"."accounting_recognition_rows" from anon, authenticated;
+grant all on "app_private"."accounting_recognition_rows" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -10458,7 +10623,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:bfc8f9d99229d790950c9bec3eff090141ab5194e8f45a24ecf8b50bf40b4d22
+-- @bsb-hash sha256:9f089d39f6656b7f41983c5918a254588c584bc9abe826f7b759a2ffc8804900
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10518,6 +10683,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -10688,7 +10869,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -11066,6 +11247,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -11078,7 +11260,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -11288,7 +11470,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -13545,6 +13727,44 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -14351,7 +14571,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:dfdaf74b66d648d18a37d7bef07e67a403c0601150d92281ffa0c79e37194071
+-- @bsb-hash sha256:8d33dd38e688e09da2019f4562de82d3384ecd57b725ff338f534394aca4cf61
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14411,6 +14631,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -14571,7 +14807,7 @@ create policy bsb_accounting_accounts_select on "better_supabase"."accounting_ac
 
 -- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
 alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
@@ -14910,6 +15146,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -14922,7 +15159,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -15132,7 +15369,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -17382,6 +17619,38 @@ $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
 
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+-- better_supabase.accounting_recognition_schedules is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text check (length("source_type") between 1 and 100);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text check (length("source_id") between 1 and 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' check (length("line_ref") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "starts_on" date;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "ends_on" date;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "deferral_entry_id" uuid;
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+-- better_supabase.accounting_recognition_rows is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "schedule_id" uuid references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "due_on" date;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'posted'));
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "entry_id" uuid;
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "posted_at" timestamptz;
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -17717,7 +17986,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:5ce497dba540a6ae37c6de49ab495c0fed5be02371656718c58be0d57f01ce04
+-- @bsb-hash sha256:fa1900b814bd761ab60f111f50a2537a4b1fae9f403c8eb1fc53434ba348827a
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17777,6 +18046,22 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
@@ -17947,7 +18232,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "org_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "role")
@@ -18325,6 +18610,7 @@ begin
       (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false, 'debit'),
       (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true, 'credit'),
       (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false, 'credit'),
+      (setup_accounting.tenant, '2200', 'Deferred revenue', 'liability', 'current_liability', false, 'credit'),
       (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false, 'credit'),
       (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false, 'credit'),
@@ -18337,7 +18623,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false, 'debit');
     insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('deferred_revenue', '2200'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."org_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("org_id", "role") do nothing;
   end if;
@@ -18547,7 +18833,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -20803,6 +21089,44 @@ as $$
 $$;
 revoke execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, integer) to authenticated, service_role;
+
+-- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
+-- one per source line, so scheduling a line twice returns the first schedule.
+create table if not exists "better_supabase"."accounting_recognition_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "source_type" text not null check (length("source_type") between 1 and 100),
+  "source_id" text not null check (length("source_id") between 1 and 200),
+  "line_ref" text not null default '' check (length("line_ref") <= 200),
+  "amount" bigint not null check ("amount" > 0),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "deferral_entry_id" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("org_id", "source_type", "source_id", "line_ref")
+);
+alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_schedules" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_schedules" to service_role;
+
+-- The part of a schedule earned in one month, due on the month's last day (or
+-- the schedule's end). The period close posts pending rows into the books.
+create table if not exists "better_supabase"."accounting_recognition_rows" (
+  "id" uuid primary key default gen_random_uuid(),
+  "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
+  "org_id" uuid not null,
+  "due_on" date not null,
+  "amount" bigint not null check ("amount" > 0),
+  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "entry_id" uuid,
+  "posted_at" timestamptz
+);
+create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("org_id", "due_on") where "status" = 'pending';
+alter table "better_supabase"."accounting_recognition_rows" enable row level security;
+revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
+grant all on "better_supabase"."accounting_recognition_rows" to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

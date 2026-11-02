@@ -24,6 +24,7 @@ export const ACCOUNT_ROLES = [
   "work_in_progress",
   "tax_payable",
   "tax_receivable",
+  "deferred_revenue",
   "retained_earnings",
   "fx_gain",
   "fx_loss",
@@ -148,6 +149,13 @@ export const GENERIC_CHART: readonly ChartAccount[] = [
     type: "liability",
     subtype: "tax",
     role: "tax_payable",
+  },
+  {
+    code: "2200",
+    name: "Deferred revenue",
+    type: "liability",
+    subtype: "current_liability",
+    role: "deferred_revenue",
   },
   { code: "3000", name: "Share capital", type: "equity", subtype: "equity" },
   {
