@@ -405,7 +405,10 @@ describe("transmitter methods", () => {
     await r.transmitter.purge().orThrow();
 
     expect(after).toHaveBeenCalledOnce();
-    expect(logger.error).toHaveBeenCalledOnce();
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
+      "security-events.purge after hook threw",
+      { cause: new Error("after failed") },
+    );
   });
 
   it("answers the default and the custom metadata", async () => {

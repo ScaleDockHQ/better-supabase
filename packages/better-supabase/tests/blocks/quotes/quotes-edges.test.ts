@@ -451,6 +451,9 @@ describe("quote housekeeping", () => {
     });
 
     await quotes.expire().orThrow();
-    expect(error).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "quotes.expire after hook threw",
+      { cause: new Error("after failed") },
+    );
   });
 });
