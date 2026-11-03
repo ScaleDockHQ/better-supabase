@@ -837,6 +837,25 @@ render waits on more sequential waves than that. The warning names
 in one `Promise.all`. The OpenTelemetry plugin sets `better_supabase.db.round_trips` on each
 database span.
 
+### What each stage costs
+
+A customer page that reads the customer list, its notes and tags behind
+`auth.can("customer.read")` measures like this when it follows the stages
+above (the numbers are asserted in `tests/next/customer-reads.test.ts` with a
+fixture PostgREST):
+
+| Stage            | Database calls | Waves | Token verifications | Admin calls |
+| ---------------- | -------------- | ----- | ------------------- | ----------- |
+| 1. Static shell  | 0 at request   | 0     | 0                   | 0           |
+| 2. App Shell     | 1 (bootstrap)  | 1     | 1                   | 0           |
+| 3. Link prefetch | 1 (read set)   | 1     | 0                   | 0           |
+| 4. Navigation    | 1 per tab      | 1     | 0                   | 0           |
+
+A nested scope that takes `cached({ session })` reuses the verification of
+stage 2, so stages 3 and 4 verify 0 times. A cold instance makes no admin
+call while serving a user request; only `bsb.admin()` inside `'use cache'`
+(stage 1, at build time) uses the service role.
+
 Fail CI when a page gets chattier with
 [`expectDbBudget`](/docs/testing#database-budget):
 
