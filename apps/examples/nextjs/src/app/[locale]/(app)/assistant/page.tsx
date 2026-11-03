@@ -1,3 +1,5 @@
+import type { JsonRenderSpec } from "better-supabase/json-render";
+
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
@@ -7,7 +9,22 @@ import {
   ChatListSkeleton,
 } from "@/features/assistant/components/chat-list";
 import { NewChat } from "@/features/assistant/components/new-chat";
+import { SpecView } from "@/features/assistant/components/spec-view";
 import { StoredChatSkeleton } from "@/features/assistant/components/stored-chat";
+
+const SAMPLE_SPEC: JsonRenderSpec = {
+  root: "stack",
+  elements: {
+    stack: { type: "Stack", children: ["title", "body"] },
+    title: { type: "Heading", props: { text: "Specs in chat" } },
+    body: {
+      type: "Text",
+      props: {
+        text: "A model can stream UI as a json-render spec; this card renders one.",
+      },
+    },
+  },
+};
 
 export default function AssistantPage() {
   const t = useExtracted("assistant");
@@ -20,6 +37,7 @@ export default function AssistantPage() {
           "Chats on the ai-chat block. A reload resumes an answer that is still streaming.",
         )}
       />
+      <SpecView spec={SAMPLE_SPEC} />
       <div data-recipe="chat-with-history">
         <Suspense fallback={<StoredChatSkeleton />}>
           <NewChat />
