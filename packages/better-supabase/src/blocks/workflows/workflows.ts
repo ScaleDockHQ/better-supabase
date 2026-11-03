@@ -149,12 +149,6 @@ export interface WorkflowRunRecord<F extends object = Record<never, never>> {
   readonly fields?: Readonly<Record<string, unknown>> & Partial<F>;
 }
 
-/**
- * A run queued before its engine run exists: `externalId` starts with
- * `pending:` and `claimForDispatch` leases it.
- */
-export const PENDING_RUN_PREFIX = "pending:";
-
 export interface WorkflowScheduleInput {
   /** Unique per tenant: creating it again replaces it. */
   readonly name: string;

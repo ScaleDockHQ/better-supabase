@@ -16,7 +16,7 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
 import { unwrap, withContext } from "../blocks/queue/envelope.ts";
-import { PENDING_RUN_PREFIX } from "../blocks/workflows/workflows.ts";
+import { PENDING_RUN_PREFIX } from "../blocks/workflows/pending.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 import { runKeysOf } from "./run-keys.ts";
 
