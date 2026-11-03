@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
--- @bsb-block inbox@8 managed
--- @bsb-hash sha256:21748588f586aeccc7a07d36c67372feedfbade273b350b680915756785b96c8
+-- @bsb-block inbox@10 managed
+-- @bsb-hash sha256:220ffd51b917c62a17f735338ee1631a11754e5ed11741fb0be4168e962ae90c
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -212,6 +212,8 @@ create table if not exists "better_supabase"."inbox_conversations" (
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
+  "last_inbound_at" timestamptz,
+  "active_stream_id" text,
   "last_message_preview" text,
   "first_response_at" timestamptz,
   "resolved_at" timestamptz,
@@ -288,6 +290,9 @@ create table if not exists "better_supabase"."inbox_message_deliveries" (
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
+  "delivered_at" timestamptz,
+  "read_at" timestamptz,
+  "failed_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("message_id", "channel")
 );
@@ -307,6 +312,9 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
+-- attempts counts only starts of processing; available_at delays a retry and
+-- locked_until is the lease of a processing row, after which it is picked
+-- again.
 create table if not exists "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -315,9 +323,11 @@ create table if not exists "better_supabase"."inbox_inbound_events" (
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
+  "available_at" timestamptz not null default now(),
+  "locked_until" timestamptz,
   "received_at" timestamptz not null default now(),
   "processed_at" timestamptz
 );
@@ -599,7 +609,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(x.item || to_jsonb(d) || jsonb_build_object('delivery', case when "better_supabase"."inbox_note_readable"(d."conversation_id") then (
-      select jsonb_build_object('status', l."status", 'channel', l."channel", 'error', l."error", 'updated_at', l."updated_at")
+      select jsonb_build_object('status', l."status", 'channel', l."channel", 'error', l."error", 'updated_at', l."updated_at", 'delivered_at', l."delivered_at", 'read_at', l."read_at", 'failed_at', l."failed_at")
       from "better_supabase"."inbox_message_deliveries" l where l."message_id" = d."message_id"
       order by l."created_at" limit 1
     ) end) order by x.n), '[]'::jsonb)
@@ -828,6 +838,7 @@ begin
     v_reopened := inbox_add_message.direction = 'inbound' and v_conv."status" in ('resolved', 'snoozed');
     update "better_supabase"."inbox_conversations" set
       "last_message_at" = v_at,
+      "last_inbound_at" = case when inbox_add_message.direction = 'inbound' then v_at else "last_inbound_at" end,
       "last_message_preview" = left(v_body, 140),
       "first_response_at" = case
         when "first_response_at" is null and inbox_add_message.direction = 'outbound' and inbox_add_message.author_type in ('agent', 'bot') then v_at
@@ -1110,6 +1121,7 @@ grant execute on function "better_supabase"."create_inbox_attachment"(uuid, text
 create or replace function "better_supabase"."record_inbound"(input jsonb)
 returns jsonb
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -1378,6 +1390,45 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_bot_mode"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."set_bot_mode"(uuid, text, text) to authenticated, service_role;
+
+-- Claims or releases the stream a bot is writing into the conversation, so
+-- staff and the contact see it live. A claim while another stream is active
+-- fails; the same id claims again; a null stream_id releases. The change is
+-- broadcast as 'stream' on the conversation's own topic. Without the table's
+-- active_stream_id column it refuses.
+create or replace function "better_supabase"."set_active_stream"(conversation uuid, stream_id text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = set_active_stream.conversation for update;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false)) then
+    raise exception 'not allowed to change this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if set_active_stream.stream_id is not null
+    and v_conv."active_stream_id" is not null
+    and v_conv."active_stream_id" is distinct from set_active_stream.stream_id then
+    raise exception 'another stream is active in this conversation' using errcode = '55006', hint = 'INBOX_STREAM_ACTIVE';
+  end if;
+  update "better_supabase"."inbox_conversations" set "active_stream_id" = set_active_stream.stream_id where "id" = v_conv."id";
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('conversation_id', v_conv."id", 'stream_id', set_active_stream.stream_id), 'stream', 'messages:' || v_conv."id"::text, true);
+  end if;
+  return "better_supabase"."inbox_conversation_json"(v_conv."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_active_stream"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_active_stream"(uuid, text) to authenticated, service_role;
 
 -- Marks the conversation read for the caller on their core member row. A
 -- contact's read pings the conversation topic, for staff read receipts.
@@ -1662,12 +1713,13 @@ as $$
 declare
   v_row "better_supabase"."inbox_message_deliveries"%rowtype;
 begin
-  insert into "better_supabase"."inbox_message_deliveries" as d ("tenant_id", "message_id", "channel", "external_id", "status", "error", "attempts")
-  select m."tenant_id", m."message_id", record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1
+  insert into "better_supabase"."inbox_message_deliveries" as d ("tenant_id", "message_id", "channel", "external_id", "status", "error", "attempts", "failed_at")
+  select m."tenant_id", m."message_id", record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1, case when coalesce(record_delivery.status, 'sent') = 'failed' then now() end
   from "better_supabase"."inbox_message_details" m where m."message_id" = record_delivery.message
   on conflict ("message_id", "channel") do update set
     "external_id" = coalesce(excluded."external_id", d."external_id"),
     "status" = excluded."status",
+    "failed_at" = case when excluded."status" = 'failed' then now() else d."failed_at" end,
     "error" = excluded."error",
     "attempts" = d."attempts" + 1
   returning * into v_row;
@@ -1692,7 +1744,7 @@ as $$
 declare
   v_count integer;
 begin
-  update "better_supabase"."inbox_message_deliveries" d set "status" = status, "error" = coalesce(error, d."error")
+  update "better_supabase"."inbox_message_deliveries" d set "status" = status, "error" = coalesce(error, d."error"), "delivered_at" = case when status in ('delivered', 'read') then coalesce(d."delivered_at", now()) else d."delivered_at" end, "read_at" = case when status = 'read' then coalesce(d."read_at", now()) else d."read_at" end, "failed_at" = case when status = 'failed' then coalesce(d."failed_at", now()) else d."failed_at" end
   where d."channel" = channel and d."external_id" = external_id
     and (case status when 'failed' then d."status" in ('queued', 'sent')
       else array_position(array['queued', 'sent', 'delivered', 'read'], status)
@@ -1729,7 +1781,11 @@ $$;
 revoke execute on function "better_supabase"."store_inbound_event"(text, text, text, jsonb, uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."store_inbound_event"(text, text, text, jsonb, uuid, uuid) to service_role;
 
-create or replace function "better_supabase"."set_inbound_event_status"(event uuid, status text, error text default null)
+-- Moves an inbound event through its states. 'processing' counts one attempt
+-- and takes a lease of lease seconds, after which pending_inbound_events
+-- offers the row again. 'failed' with retry_in delays the next attempt by that
+-- interval, 'processed' and 'ignored' end it.
+create or replace function "better_supabase"."set_inbound_event_status"(event uuid, status text, error text default null, retry_in interval default null, lease interval default '5 minutes')
 returns boolean
 language plpgsql
 set search_path = ''
@@ -1739,16 +1795,20 @@ begin
   update "better_supabase"."inbox_inbound_events" e set
     "status" = status,
     "error" = error,
-    "attempts" = e."attempts" + 1,
+    "available_at" = case when status = 'failed' then now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, e."attempts"))) else e."available_at" end,
+    "locked_until" = case when status = 'processing' then now() + coalesce(lease, interval '5 minutes') else null end,
+    "attempts" = e."attempts" + case when status = 'processing' then 1 else 0 end,
     "processed_at" = case when status in ('processed', 'ignored') then now() else e."processed_at" end
   where e."id" = event;
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."set_inbound_event_status"(uuid, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."set_inbound_event_status"(uuid, text, text) to service_role;
+revoke execute on function "better_supabase"."set_inbound_event_status"(uuid, text, text, interval, interval) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_inbound_event_status"(uuid, text, text, interval, interval) to service_role;
 
--- Inbound events still waiting, oldest first, for a retry sweep.
+-- Inbound events still waiting, oldest first, for a retry sweep: received or
+-- failed rows whose available_at passed, and processing rows whose lease ran
+-- out, that have fewer than max_attempts attempts.
 create or replace function "better_supabase"."pending_inbound_events"(max integer default 100, max_attempts integer default 5)
 returns jsonb
 language sql
@@ -1758,7 +1818,11 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(e) order by e."received_at"), '[]'::jsonb)
   from (
     select * from "better_supabase"."inbox_inbound_events" x
-    where x."status" in ('received', 'failed') and x."attempts" < coalesce(max_attempts, 5)
+    where x."attempts" < coalesce(max_attempts, 5)
+      and (
+        (x."status" in ('received', 'failed') and x."available_at" <= now())
+        or (x."status" = 'processing' and x."locked_until" < now())
+      )
     order by x."received_at"
     limit least(greatest(coalesce(max, 100), 1), 1000)
   ) e;
@@ -2344,6 +2408,29 @@ drop trigger if exists conversations_broadcast on "better_supabase"."inbox_conve
 create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
+-- A timeline event (assignment, status, hand-off, note) pings the staff topic
+-- and the conversation's own topic with ids only.
+create or replace function "better_supabase"."inbox_event_broadcast"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_payload jsonb := jsonb_build_object('conversation_id', new."conversation_id", 'event_id', new."id", 'type', new."type");
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(v_payload, 'event.created', 'messages:' || new."conversation_id"::text, true);
+    perform realtime.send(v_payload, 'event.created', 'inbox:org:' || new."tenant_id"::text, true);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
+drop trigger if exists "inbox_conversation_events_broadcast" on "better_supabase"."inbox_conversation_events";
+create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
+  for each row execute function "better_supabase"."inbox_event_broadcast"();
+
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
 returns trigger
 language plpgsql
@@ -2776,6 +2863,15 @@ as $$ select "better_supabase"."set_bot_mode"($1, $2, $3) $$;
 revoke execute on function "api"."set_bot_mode"(uuid, text, text) from public, anon;
 grant execute on function "api"."set_bot_mode"(uuid, text, text) to authenticated, service_role;
 
+create or replace function "api"."set_active_stream"(conversation uuid, stream_id text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_active_stream"($1, $2) $$;
+revoke execute on function "api"."set_active_stream"(uuid, text) from public, anon;
+grant execute on function "api"."set_active_stream"(uuid, text) to authenticated, service_role;
+
 create or replace function "api"."mark_conversation_read"(conversation uuid)
 returns timestamptz
 language sql
@@ -2884,14 +2980,14 @@ as $$ select "better_supabase"."store_inbound_event"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."store_inbound_event"(text, text, text, jsonb, uuid, uuid) from public, anon, authenticated;
 grant execute on function "api"."store_inbound_event"(text, text, text, jsonb, uuid, uuid) to service_role;
 
-create or replace function "api"."set_inbound_event_status"(event uuid, status text, error text default null)
+create or replace function "api"."set_inbound_event_status"(event uuid, status text, error text default null, retry_in interval default null, lease interval default '5 minutes')
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_inbound_event_status"($1, $2, $3) $$;
-revoke execute on function "api"."set_inbound_event_status"(uuid, text, text) from public, anon, authenticated;
-grant execute on function "api"."set_inbound_event_status"(uuid, text, text) to service_role;
+as $$ select "better_supabase"."set_inbound_event_status"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_inbound_event_status"(uuid, text, text, interval, interval) from public, anon, authenticated;
+grant execute on function "api"."set_inbound_event_status"(uuid, text, text, interval, interval) to service_role;
 
 create or replace function "api"."pending_inbound_events"(max integer default 100, max_attempts integer default 5)
 returns jsonb

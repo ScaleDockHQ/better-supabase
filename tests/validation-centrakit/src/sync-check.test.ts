@@ -92,6 +92,12 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           !(
             finding.code === "BS235" &&
             finding.message.includes("create_attachment")
+          ) &&
+          // The webhook-inbox 8 to 9 upgrade drops the old fail_webhook
+          // signature; the schema migration that creates the new one isn't
+          // in this project.
+          !(
+            finding.code === "BS235" && finding.message.includes("fail_webhook")
           )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(
@@ -107,13 +113,11 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
       expect(warnings).toEqual({
         // The fixture runs no queue worker, so the reminders timer has no handler.
         "warning BS508": ["reminders.schedule()"],
-        // The notifications 9 to 10 upgrade migration adds a column and a check
-        // to a table the fixture already holds.
-        "warning BS230": [
-          "supabase/migrations/20261102222046_better_supabase_block_upgrade.sql:4",
-        ],
-        "warning BS233": [
-          "supabase/migrations/20261102222046_better_supabase_block_upgrade.sql",
+        // CentraKit's member policies on customers and their contacts allow
+        // update on a read permission; its column groups are not set up.
+        "warning BS362": [
+          "centrakit.customer_contacts.customer_contacts_member",
+          "centrakit.customers.customers_member",
         ],
         // CentraKit grants projects to members for select only, and file nodes
         // are written by the app's own service, never by clients.

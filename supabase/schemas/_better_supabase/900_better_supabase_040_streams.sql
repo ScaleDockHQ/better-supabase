@@ -1,6 +1,6 @@
 -- better-supabase module: streams
--- @bsb-block streams@2 managed
--- @bsb-hash sha256:77b7621c7abe31d712b12334923a85312d38865a4cece598261bd0ab83c403c3
+-- @bsb-block streams@3 managed
+-- @bsb-hash sha256:2334d3365bb2dd9e73f2bd95521ffeb6288c2a0020badf09c6b6aeac49ed47dd
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,6 +98,97 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
   ));
+
+-- A key-value table with the Redis semantics resumable-stream needs from its
+-- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
+-- not an integer makes stream_kv_incr fail with Redis's own error text, which
+-- is how the package learns a stream is DONE. The service role only.
+create table if not exists "better_supabase"."stream_kv" (
+  "key" text primary key check (length("key") between 1 and 400),
+  "value" text not null,
+  "expires_at" timestamptz
+);
+create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
+alter table "better_supabase"."stream_kv" enable row level security;
+revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
+grant all on "better_supabase"."stream_kv" to service_role;
+
+create or replace function "better_supabase"."stream_kv_get"(key text)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select k."value" from "better_supabase"."stream_kv" k
+  where k."key" = stream_kv_get.key
+    and (k."expires_at" is null or k."expires_at" > now());
+$$;
+revoke execute on function "better_supabase"."stream_kv_get"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stream_kv_get"(text) to service_role;
+
+create or replace function "better_supabase"."stream_kv_set"(key text, value text, ex integer default null)
+returns text
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  insert into "better_supabase"."stream_kv" ("key", "value", "expires_at")
+  values (key, value, case when ex is null then null else now() + make_interval(secs => ex) end)
+  on conflict ("key") do update
+    set "value" = excluded."value", "expires_at" = excluded."expires_at";
+  return 'OK';
+end;
+$$;
+revoke execute on function "better_supabase"."stream_kv_set"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."stream_kv_set"(text, text, integer) to service_role;
+
+create or replace function "better_supabase"."stream_kv_incr"(key text)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_value text;
+  v_next bigint;
+begin
+  delete from "better_supabase"."stream_kv" where "key" = stream_kv_incr.key and "expires_at" <= now();
+  insert into "better_supabase"."stream_kv" ("key", "value") values (key, '1')
+  on conflict ("key") do nothing
+  returning "value" into v_value;
+  if found then
+    return 1;
+  end if;
+  select "value" into v_value from "better_supabase"."stream_kv" where "key" = stream_kv_incr.key for update;
+  if v_value !~ '^-?[0-9]{1,18}$' then
+    raise exception 'ERR value is not an integer or out of range' using errcode = '22023';
+  end if;
+  v_next := v_value::bigint + 1;
+  update "better_supabase"."stream_kv" set "value" = v_next::text where "key" = stream_kv_incr.key;
+  return v_next;
+end;
+$$;
+revoke execute on function "better_supabase"."stream_kv_incr"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stream_kv_incr"(text) to service_role;
+
+-- Sends message on a private Realtime topic; the subscriber joins it with a
+-- service-role client. Returns the number of listeners it can't know: 0.
+create or replace function "better_supabase"."stream_kv_publish"(channel text, message text)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is null then
+    raise exception 'stream_kv_publish needs Supabase Realtime (realtime.send)';
+  end if;
+  perform realtime.send(jsonb_build_object('message', message), 'message', channel, true);
+  return 0;
+end;
+$$;
+revoke execute on function "better_supabase"."stream_kv_publish"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stream_kv_publish"(text, text) to service_role;
 
 -- Opens a stream; true when it was created, false when it already existed.
 -- wake = false skips the Realtime ping after each batch, for apps near the
@@ -307,6 +398,7 @@ begin
   )
   delete from "better_supabase"."streams" st using doomed where st."id" = doomed."id";
   get diagnostics v_count = row_count;
+  delete from "better_supabase"."stream_kv" where "expires_at" <= now();
   return v_count;
 end;
 $$;
@@ -390,6 +482,42 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."stream_kv_get"(key text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_kv_get"($1) $$;
+revoke execute on function "api"."stream_kv_get"(text) from public, anon, authenticated;
+grant execute on function "api"."stream_kv_get"(text) to service_role;
+
+create or replace function "api"."stream_kv_set"(key text, value text, ex integer default null)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_kv_set"($1, $2, $3) $$;
+revoke execute on function "api"."stream_kv_set"(text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."stream_kv_set"(text, text, integer) to service_role;
+
+create or replace function "api"."stream_kv_incr"(key text)
+returns bigint
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_kv_incr"($1) $$;
+revoke execute on function "api"."stream_kv_incr"(text) from public, anon, authenticated;
+grant execute on function "api"."stream_kv_incr"(text) to service_role;
+
+create or replace function "api"."stream_kv_publish"(channel text, message text)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_kv_publish"($1, $2) $$;
+revoke execute on function "api"."stream_kv_publish"(text, text) from public, anon, authenticated;
+grant execute on function "api"."stream_kv_publish"(text, text) to service_role;
 
 create or replace function "api"."stream_open"(stream_id text, owner uuid default null, tenant uuid default null, kind text default 'default', ttl interval default '1 day', wake boolean default true)
 returns boolean

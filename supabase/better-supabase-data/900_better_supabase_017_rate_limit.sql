@@ -1,6 +1,6 @@
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -27,6 +27,6 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
