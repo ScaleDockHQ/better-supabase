@@ -54,6 +54,12 @@ export interface SequenceEmailStep {
   readonly templateVersionId?: string;
   /** Tracks opens and clicks when mail-sync tracking is on. Default true. */
   readonly track?: boolean;
+  /**
+   * The consent purpose the email is sent under. With the `consents` block, a
+   * recipient whose record has no consent in force for it is skipped (the step
+   * counts as run, nothing is sent). Without it the step always sends.
+   */
+  readonly consentPurpose?: string;
 }
 
 /** Creates a work item for whoever enrolled the recipient. */
@@ -284,6 +290,9 @@ function stepOf(value: unknown): SequenceStep {
           ? { templateVersionId: row["templateVersionId"] }
           : {}),
         ...(typeof row["track"] === "boolean" ? { track: row["track"] } : {}),
+        ...(typeof row["consentPurpose"] === "string"
+          ? { consentPurpose: row["consentPurpose"] }
+          : {}),
       };
     }
 

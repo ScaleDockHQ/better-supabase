@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:7a2990ddced26cc8e61ea0b8ab19fd8af660c8b56bb2256ceaa295a480a3c680
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:96fbd06080b993f849e4786c1615ab10436118e33c55fac412f67dd3a1043c4c
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -967,6 +967,74 @@ $$;
 revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "better_supabase"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "better_supabase"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."tenant_id" = tenant or x."tenant_id" is null)
+    and x."archived_at" is null
+  order by (x."tenant_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "better_supabase"."consents" x
+    where x."tenant_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "better_supabase"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    return true;
+  end if;
+  return "better_supabase"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "better_supabase"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1083,21 +1151,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:75bbd3251d7271aedc139089507b6011d9694a53e34c5e5b8cc42ccd7a84baf2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:f83a77b38675b8000950a2f575b491ed17887849549a080454285a3876bf06a5
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:b0d3cf095c7f93e7b9e7d65f8487a5845e260dccda77ab425b140c0997a42f65
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2262,6 +2330,84 @@ $$;
 revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "better_supabase"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "better_supabase"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."tenant_id" = tenant or x."tenant_id" is null)
+    and x."archived_at" is null
+  order by (x."tenant_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "better_supabase"."consents" x
+    where x."tenant_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "better_supabase"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or ((v_tenant)::text, (requires_consent.subject_type)::text, (requires_consent.subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
+      or ((v_tenant)::text, (requires_consent.subject_type)::text, (requires_consent.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+      or exists (select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = (v_tenant)::text
+        and r."target_type" = requires_consent.subject_type and r."target_id" = (requires_consent.subject_id)::text
+        and r."data" ->> 'authority' in ('inform', 'act')
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    return true;
+  end if;
+  return "better_supabase"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "better_supabase"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2386,21 +2532,29 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:27d49be5cdda34627a545e29cfe262e1684baa638d6ae3fe6c7ce16c16b662a5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Consent purposes the installed blocks contribute (system purposes).
+insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "legal_basis", "description")
+values (null, 'notification_email', 'Notification email', 'consent', 'Notifications sent by email under a named consent purpose.')
+on conflict do nothing;
+insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "legal_basis", "description")
+values (null, 'outreach_email', 'Outreach email', 'consent', 'Email steps of outreach sequences.')
+on conflict do nothing;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:7ed40d8968eacf1a097b48b0fd010194bafc8b34bd6470f670083e096d8557a4
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:39efa2ef32b87f5778a3fdf0f9b6f2d0693890da67ca12cbda541c0a6233eaf0
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3371,6 +3525,74 @@ $$;
 revoke execute on function "app_private"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "app_private"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "app_private"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "app_private"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."tenant_id" = tenant or x."tenant_id" is null)
+    and x."archived_at" is null
+  order by (x."tenant_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "app_private"."consents" x
+    where x."tenant_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "app_private"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "app_private"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    return true;
+  end if;
+  return "app_private"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "app_private"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "app_private"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3487,21 +3709,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:75bbd3251d7271aedc139089507b6011d9694a53e34c5e5b8cc42ccd7a84baf2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:fa3296df8dfb7e807cce7811ffca6f2a8f0af62697e455ca2c48c03b6eed4641
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:82f076b59ad350545d7bafdda49a5ec1ebc3b728e05530b0577d4e0b44ee39e9
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4467,6 +4689,74 @@ $$;
 revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "better_supabase"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "better_supabase"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."tenant_id" = tenant or x."tenant_id" is null)
+    and x."archived_at" is null
+  order by (x."tenant_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "better_supabase"."consents" x
+    where x."tenant_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "better_supabase"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    return true;
+  end if;
+  return "better_supabase"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "better_supabase"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4570,6 +4860,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as
 -- blocks.consents.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."consent_missing"(uuid, text, text, text);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -4697,6 +4990,15 @@ as $$ select "better_supabase"."list_consent_receipts"($1, $2) $$;
 revoke execute on function "api"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "api"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+create or replace function "api"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."requires_consent"($1, $2, $3) $$;
+revoke execute on function "api"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "api"."requires_consent"(text, text, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4713,21 +5015,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:75bbd3251d7271aedc139089507b6011d9694a53e34c5e5b8cc42ccd7a84baf2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:a2b1a47f021a72559b4d0adf268dc3c9af23a127cd3c21eb3b0a6953abd97d80
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:fee2a3859c911832b55a2a48e6a8abcabb375a3181a4182fd06714e261088fa0
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5695,6 +5997,74 @@ $$;
 revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "better_supabase"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "better_supabase"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."tenant_id" = tenant or x."tenant_id" is null)
+    and x."archived_at" is null
+  order by (x."tenant_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "better_supabase"."consents" x
+    where x."tenant_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "better_supabase"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    return true;
+  end if;
+  return "better_supabase"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "better_supabase"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5811,21 +6181,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:75bbd3251d7271aedc139089507b6011d9694a53e34c5e5b8cc42ccd7a84baf2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
--- @bsb-block consents@2 managed
--- @bsb-hash sha256:d9e86ec12016ac862393f6eb09c116003baf401ebf1a2ecf2627f86e714d14eb
+-- @bsb-block consents@3 managed
+-- @bsb-hash sha256:27c12d7fd945547fd1ba3fe6a809e4f94e55409fcabd4e017f574349af7a57ff
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6791,6 +7161,74 @@ $$;
 revoke execute on function "better_supabase"."list_consent_receipts"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_consent_receipts"(text, text) to authenticated, service_role;
 
+
+-- Whether a send for purpose_key to record subject_type/subject_id of tenant
+-- has to wait: the purpose is a current purpose of the organization (or a
+-- system purpose) whose lawful basis is consent, and no consent is in force.
+-- False for an unknown or archived purpose and for any other lawful basis.
+-- Called by the sends of other blocks, so it is not part of the Data API.
+create or replace function "better_supabase"."consent_missing"(tenant uuid, subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_purpose uuid;
+  v_basis text;
+begin
+  if purpose_key is null or tenant is null then
+    return false;
+  end if;
+  select x."id", x."legal_basis"::text into v_purpose, v_basis from "better_supabase"."consent_purposes" x
+  where x."key" = purpose_key
+    and (x."org_id" = tenant or x."org_id" is null)
+    and x."archived_at" is null
+  order by (x."org_id" is null), x."created_at" desc, x."id"
+  limit 1;
+  if v_purpose is null or v_basis <> 'consent' then
+    return false;
+  end if;
+  return not exists (
+    select 1 from "better_supabase"."consents" x
+    where x."org_id" = tenant and x."purpose_id" = v_purpose
+      and x."subject_type" = subject_type and x."subject_id" = subject_id
+      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."consent_missing"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."consent_missing"(uuid, text, text, text) to service_role;
+
+-- Whether a send for purpose_key to record subject_type/subject_id has to wait
+-- for consent (see consent_missing). True for a caller who can't read the
+-- record's consents, so a gate never opens by mistake.
+create or replace function "better_supabase"."requires_consent"(subject_type text, subject_id text, purpose_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tenant uuid := (null::text)::uuid;
+begin
+  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      or (coalesce(better_supabase.can('tenant', v_tenant, 'consents.read'), false) and coalesce("better_supabase"."can_subject"(requires_consent.subject_type, requires_consent.subject_id, 'read'), false))
+      or false
+      or false
+      or false) then
+    return true;
+  end if;
+  return "better_supabase"."consent_missing"(v_tenant, subject_type, subject_id, purpose_key);
+end;
+$$;
+revoke execute on function "better_supabase"."requires_consent"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."requires_consent"(text, text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -6907,13 +7345,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
--- @bsb-hash sha256:5f7ff09af34614229fbd9dd1e5b96f6262cf6ed2038bed5391a20b2ebb876d5b
+-- @bsb-hash sha256:75bbd3251d7271aedc139089507b6011d9694a53e34c5e5b8cc42ccd7a84baf2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('consents', 2, 'managed')
+values ('consents', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

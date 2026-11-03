@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:f85b61f549cca93bf9620e7d177ecd35475449e677c0c6b9341469b084c83bbd
+-- @bsb-hash sha256:09135dcff3eced3cf9ecc427cbdee0e03cc0be33d3b38033bdc90fd325af984d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2270,6 +2270,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2485,7 +2501,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:aa540e5c62004b23c6935a48b8faf6951cad463081df04ec0e168ee4d22c5ee2
+-- @bsb-hash sha256:baea1a6e5d3164090e5fa818c618a6285938575453631a4773e170fd2e6b82cb
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4903,6 +4919,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5129,7 +5161,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:a323c8f0655fc1a206a44cbad9fff72a44aa02951f76ddc3f1ab2479bf3ab674
+-- @bsb-hash sha256:33d9c88c368af0a8d709b7c3adf62b2f58bf08de559acc2cc436f286e4301204
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7403,6 +7435,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "app_private"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "app_private"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "app_private"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "app_private"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -7618,7 +7666,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:4848501e89511b496231554296ad4b646c067b076f804595b9cd931e36306795
+-- @bsb-hash sha256:3b9cbc29597db311b72b85a56995e9b46d58c0d970bb5c82f271407162c2c06b
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9887,6 +9935,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -10492,6 +10556,15 @@ as $$ select "better_supabase"."discard_inbox_draft"($1) $$;
 revoke execute on function "api"."discard_inbox_draft"(uuid) from public, anon;
 grant execute on function "api"."discard_inbox_draft"(uuid) to authenticated, service_role;
 
+create or replace function "api"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_inbox_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_inbox_defaults"(uuid, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -10522,7 +10595,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:513ca880cc428094fc965dab2497823aad15e7d1d215f338ae1b8c70d4567366
+-- @bsb-hash sha256:49b6ba7f0189b5d94045bcedd549758bea6484929f3fe00192bcbdd5adc25e2a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12791,6 +12864,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("tenant_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."tenant_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -13006,7 +13095,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@8 managed
--- @bsb-hash sha256:fa4034f876b649f9df37b9ae1282479361ac8884a60dae31d3131cad986219fc
+-- @bsb-hash sha256:f325a351895ddf0344d392f5f67a253a9d2b8f29ea4071ef20216ce0890c5000
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15275,6 +15364,22 @@ create policy bsb_inbox_files_read on storage.objects
   end if;
 end;
 $$;
+-- Seeds the rows every organization starts with for inbox. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into "better_supabase"."inboxes" ("org_id", "name", "channel", "bot_mode")
+  select p_tenant, 'Help', 'in_app', 'human'
+  where not exists (select 1 from "better_supabase"."inboxes" x where x."org_id" = p_tenant and x."name" is not distinct from 'Help');
+end;
+$$;
+revoke execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

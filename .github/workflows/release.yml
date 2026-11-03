@@ -119,10 +119,22 @@ jobs:
           npm --version
 
       - name: Publish
+        id: publish
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           # Builds, then runs `changeset publish`.
           script: pnpm run release
+          # The next step writes the releases, because GitHub rejects notes
+          # above 125,000 characters and the action doesn't truncate.
+          create-github-releases: false
+          push-git-tags: true
         env:
           PNPM_CONFIG_PROVENANCE: "true"
           NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Create GitHub releases
+        if: steps.publish.outputs.published == 'true'
+        run: node scripts/github-releases.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED_PACKAGES: ${{ steps.publish.outputs.published-packages }}

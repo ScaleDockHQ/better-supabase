@@ -1046,7 +1046,7 @@ export const SUPPORT_SESSIONS: BlockSqlDefinition = {
   title: "Support sessions",
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
-  requires: ["permissions", "audit"],
+  requires: ["permissions", "audit", "housekeeping"],
   integrates: ["invitations", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],

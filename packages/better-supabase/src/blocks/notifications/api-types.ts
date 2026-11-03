@@ -70,6 +70,11 @@ export interface SendInput<
    * routine activity that only `all` watchers get.
    */
   readonly activity?: "participating" | "all";
+  /**
+   * The consent purpose the notification is sent under. With the `consents`
+   * block, nothing is sent while `subject` has no consent in force for it.
+   */
+  readonly consentPurpose?: string;
   /** Create it already resolved, e.g. for a record of a finished approval. */
   readonly resolved?: boolean;
   /** The actor, when the service sends on a user's behalf. */

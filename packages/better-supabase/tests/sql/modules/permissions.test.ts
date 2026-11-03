@@ -634,3 +634,35 @@ describe("access module with the provider's permissionsFor", () => {
     );
   });
 });
+
+describe("catalog roles", () => {
+  it("adds owner, admin and member to the catalog once", () => {
+    const sql = dataOf({ model: "catalog" });
+
+    expect(sql).toContain(
+      `insert into "better_supabase"."roles" ("key", "scope")`,
+    );
+    expect(sql).toContain(
+      "('owner', 'tenant'), ('admin', 'tenant'), ('member', 'tenant')",
+    );
+    expect(sql).toContain(
+      'where not exists (select 1 from "better_supabase"."roles" x where x."key" = v.k)',
+    );
+    expect(sql.indexOf("insert into")).toBeLessThan(
+      sql.indexOf("naming convention"),
+    );
+  });
+
+  it("follows an adopted roles table without a scope column", () => {
+    const sql = dataOf(CATALOG);
+
+    expect(sql).toContain('insert into "public"."roles" ("key", "scope")');
+  });
+
+  it("adds none for the roles and provider models", () => {
+    expect(dataOf({})).not.toContain("'owner'");
+    expect(
+      dataOf({ model: "provider" }, { accessProvider: PROVIDER }),
+    ).not.toContain("'owner'");
+  });
+});

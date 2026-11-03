@@ -744,3 +744,7 @@ await drive.share({
 });
 const { signedUrl } = await drive.download({ id: upload.node.id }).orThrow();
 ```
+
+## Default document types
+
+Files in the drive take the document types of the `attachments` block. `seed_attachments_defaults` creates `contract`, `invoice`, `receipt`, `identity`, `report` and `other` for each organization; see [default document types](/docs/blocks/attachments#default-document-types).

@@ -56,6 +56,7 @@ import { REMOVED_API_RULES } from "./removed-apis.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
+import { SEED_RULES } from "./seeds.ts";
 import {
   catalogOf,
   exposed,
@@ -146,6 +147,8 @@ export interface DoctorContext {
    * (BS214, BS404, BS407).
    */
   readonly sqlFiles?: readonly TextFile[];
+  /** The `.sql` files under `supabase/seeds` (BS356). */
+  readonly seedFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
@@ -1158,6 +1161,7 @@ export const RULES: readonly Rule[] = [
   ...NOT_VALID_RULES,
   ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
+  ...SEED_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));

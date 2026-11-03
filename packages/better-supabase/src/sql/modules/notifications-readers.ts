@@ -53,7 +53,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'type', p.${p("type")},
     'channel', p.${p("channel")},
-    'enabled', p.${p("enabled")},
+    'enabled', p.${p("enabled")},${n.has("preferences", "cadence") ? `\n    'cadence', p.${p("cadence")},` : ""}
     'tenant', ${t ? `p.${p("tenant")}` : "null"}
   ) order by ${t ? `p.${p("tenant")} nulls first, ` : ""}p.${p("type")}, p.${p("channel")}), '[]')
   from ${n.table("preferences")} p

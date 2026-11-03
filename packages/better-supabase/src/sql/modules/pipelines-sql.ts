@@ -6,6 +6,7 @@ import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
+import { seedFunctionName } from "../seeds.ts";
 import {
   columnsObject,
   extraFieldsArg,
@@ -15,6 +16,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { byType, outcomeCase } from "./pipelines-bindings.ts";
+import { seedableBindings } from "./pipelines-seeds.ts";
 
 /**
  * ` || jsonb_build_object('fields', ...)` for pipeline row `alias`; empty
@@ -77,7 +79,29 @@ export function defaultPipeline(
     ["rank", "x.rank"],
   ]);
 
+  const declaredBindings = new Set(seedableBindings(bindings));
+
+  // An unscoped binding's pipeline is declared in `pipelines.seeds`; the first
+  // use applies the defaults and reads the pipeline back. Two first uses at once
+  // both insert, and the unique index lets one win.
+  const declared = (binding: PipelineBinding): string => `      begin
+        perform ${ctx.fn(seedFunctionName("pipelines"))}(default_pipeline.tenant, ${binding.variant === undefined ? "null" : sqlString(binding.variant)});
+      exception when unique_violation then
+        null;
+      end;
+      select x.${p("id")} into v_id from ${t("pipelines")} x
+      where x.${p("tenant")} = default_pipeline.tenant
+        and x.${p("subjectType")} = default_pipeline.subject_type
+        and x.${p("scope")} is null
+        and x.${p("archivedAt")} is null
+      order by x.${p("isDefault")} desc, x.${p("rank")} collate "C"
+      limit 1;`;
+
   const seed = (binding: PipelineBinding): string => {
+    if (declaredBindings.has(binding)) {
+      return declared(binding);
+    }
+
     const ranks = rankKeys(binding.stages.length);
 
     const rows = binding.stages

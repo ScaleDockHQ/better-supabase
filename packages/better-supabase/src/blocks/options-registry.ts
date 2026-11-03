@@ -26,6 +26,7 @@ import type { CasesSqlOptions } from "./cases/options.ts";
 import type { CatalogSqlOptions } from "./catalog/options.ts";
 import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
+import type { CommissionsSqlOptions } from "./commissions/options.ts";
 import type { ComplianceSqlOptions } from "./compliance/options.ts";
 import type { ConnectorsSqlOptions } from "./connectors/options.ts";
 import type { ContactsSqlOptions } from "./contacts/options.ts";
@@ -105,6 +106,7 @@ import type {
 } from "./queue/options.ts";
 import type { QuotesSqlOptions } from "./quotes/options.ts";
 import type { ReactionsSqlOptions } from "./reactions/options.ts";
+import type { ReferralsSqlOptions } from "./referrals/options.ts";
 import type { RelationsSqlOptions } from "./relations/options.ts";
 import type { RemindersSqlOptions } from "./reminders/options.ts";
 import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
@@ -176,6 +178,7 @@ import { casesSqlOptions } from "./cases/options.ts";
 import { catalogSqlOptions } from "./catalog/options.ts";
 import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
+import { commissionsSqlOptions } from "./commissions/options.ts";
 import { complianceSqlOptions } from "./compliance/options.ts";
 import { connectorsSqlOptions } from "./connectors/options.ts";
 import { contactsSqlOptions } from "./contacts/options.ts";
@@ -255,6 +258,7 @@ import {
 } from "./queue/options.ts";
 import { quotesSqlOptions } from "./quotes/options.ts";
 import { reactionsSqlOptions } from "./reactions/options.ts";
+import { referralsSqlOptions } from "./referrals/options.ts";
 import { relationsSqlOptions } from "./relations/options.ts";
 import { remindersSqlOptions } from "./reminders/options.ts";
 import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
@@ -342,6 +346,7 @@ export interface BlockOptionsRegistry {
   readonly "chat-sdk-state": None;
   readonly collections: CollectionsSqlOptions;
   readonly comments: CommentsSqlOptions;
+  readonly commissions: CommissionsSqlOptions;
   readonly compliance: ComplianceSqlOptions;
   readonly connectors: ConnectorsSqlOptions;
   readonly consents: None;
@@ -374,6 +379,7 @@ export interface BlockOptionsRegistry {
   readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
   readonly housekeeping: None;
+  readonly seeds: None;
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly impersonation: ImpersonationSqlOptions;
@@ -440,6 +446,7 @@ export interface BlockOptionsRegistry {
   readonly "read-sets": None;
   readonly recurrence: None;
   readonly "realtime-tables": None;
+  readonly referrals: ReferralsSqlOptions;
   readonly relations: RelationsSqlOptions;
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
@@ -532,6 +539,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "chat-sdk-state": NO_OPTIONS,
   collections: collectionsSqlOptions,
   comments: commentsSqlOptions,
+  commissions: commissionsSqlOptions,
   compliance: complianceSqlOptions,
   connectors: connectorsSqlOptions,
   consents: NO_OPTIONS,
@@ -564,6 +572,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
   housekeeping: NO_OPTIONS,
+  seeds: NO_OPTIONS,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,
   imports: importsSqlOptions,
@@ -627,6 +636,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "read-sets": NO_OPTIONS,
   recurrence: NO_OPTIONS,
   "realtime-tables": NO_OPTIONS,
+  referrals: referralsSqlOptions,
   relations: relationsSqlOptions,
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,

@@ -251,3 +251,32 @@ await consents
 ```ts
 await db.consents.require({ subject, purposeKey: "research" }).orThrow();
 ```
+
+## Gate a send
+
+`requires_consent(subject_type, subject_id, purpose_key)` answers whether a send
+has to wait. It returns `true` when the caller can't read the subject or when no
+active consent covers the purpose, so a missing answer never lets a send through.
+A purpose whose legal basis is not `consent` (a contract, say) never blocks.
+
+```sql
+select better_supabase.requires_consent('person', 'p1', 'outreach_email');
+```
+
+Blocks that send contribute the purposes they use through `contributes.consents`.
+The consents block inserts them as system purposes (no organization), and
+`on conflict do nothing` keeps a purpose the app already defined.
+
+| Block           | Purpose              | Enforced in                                               |
+| --------------- | -------------------- | --------------------------------------------------------- |
+| `sequences`     | `outreach_email`     | An email step with `consentPurpose` is skipped without it |
+| `notifications` | `notification_email` | `send` with `consentPurpose` returns `null` without it    |
+
+Enrichment and mail-sync don't call the gate yet. A block of your own contributes
+a purpose like this:
+
+```ts
+contributes: {
+  consents: () => [{ key: "newsletter", title: "Newsletter", legalBasis: "consent" }],
+}
+```

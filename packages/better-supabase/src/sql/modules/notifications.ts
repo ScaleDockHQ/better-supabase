@@ -20,6 +20,12 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { subjectCascades, subjectsOption } from "../subjects.ts";
+import {
+  DIGEST_TABLE,
+  digestContract,
+  digestTable,
+  digestUpgrade,
+} from "./notifications-digest.ts";
 import { integerMutations } from "./notifications-items.ts";
 import { functions, notifyNames } from "./notifications-sql.ts";
 import {
@@ -217,12 +223,14 @@ const NAMES: BlockSqlNames = {
         type: "type",
         channel: "channel",
         enabled: "enabled",
+        cadence: "cadence",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["tenant", "updatedAt"],
+      optional: ["tenant", "updatedAt", "cadence"],
       optionalTable: true,
     },
+    digests: DIGEST_TABLE,
     suppressions: {
       name: "notification_suppressions",
       lifecycle: { user: "user" },
@@ -425,7 +433,7 @@ create table if not exists ${n.table("deliveries")} (
     `${c("deliveries", "recipient")} uuid not null references ${n.table("recipients")} (${c("recipients", "id")}) on delete cascade`,
     ...opt("deliveries", "tenant", id),
     `${c("deliveries", "channel")} text not null`,
-    `${c("deliveries", "status")} text not null default 'pending' check (${c("deliveries", "status")} in ('pending', 'sent', 'failed', 'skipped'))`,
+    `${c("deliveries", "status")} text not null default 'pending' check (${c("deliveries", "status")} in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'))`,
     ...opt("deliveries", "provider", "text"),
     ...opt("deliveries", "providerMessageId", "text"),
     ...opt("deliveries", "error", "text"),
@@ -481,6 +489,11 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
             `${c(table, "type")} text not null`,
             `${c(table, "channel")} text not null`,
             `${c(table, "enabled")} boolean not null default true`,
+            ...opt(
+              table,
+              "cadence",
+              `text not null default 'immediate' check (${c(table, "cadence")} in ('immediate', 'daily', 'weekly', 'off'))`,
+            ),
             `${c(table, "createdAt")} timestamptz not null default now()`,
           ];
 
@@ -528,7 +541,11 @@ ${ownRowPolicies({
 })}`);
   }
 
-  parts.push(suppressionsTable(ctx, n), trackingTables(ctx, n));
+  parts.push(
+    suppressionsTable(ctx, n),
+    trackingTables(ctx, n),
+    digestTable(ctx, n),
+  );
 
   return parts.join("\n");
 }
@@ -916,7 +933,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     );
   }
 
-  fns.push(...suppressionContract(ctx), ...trackingContract(ctx));
+  fns.push(
+    ...suppressionContract(ctx),
+    ...trackingContract(ctx),
+    ...digestContract(ctx, notifyNames(ctx, true)),
+  );
 
   return fns;
 }
@@ -927,11 +948,18 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   requires: ["updated-at"],
-  integrates: ["permissions", "profiles", "memberships", "data-lifecycle"],
+  integrates: [
+    "permissions",
+    "profiles",
+    "memberships",
+    "data-lifecycle",
+    "consents",
+    "housekeeping",
+  ],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 9,
+  version: 10,
   names: NAMES,
   contract,
   upgrades: [
@@ -990,8 +1018,34 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("resolve_notifications")}(text, text, text, ${ctx.idType});`,
     },
+    {
+      from: 9,
+      description:
+        "Preferences gain a cadence (immediate, daily, weekly or off); a daily or weekly delivery is held, run_notification_digests (the digest_run job) folds held deliveries into notification_digests, and claim_notification_digests and complete_notification_digest are the sender's pair. set_notification_cadence is new. A notification may name a consent_purpose that the consents block checks.",
+      sql: (ctx) => digestUpgrade(ctx),
+    },
   ],
   build,
+  contributes: {
+    consents: () => [
+      {
+        key: "notification_email",
+        title: "Notification email",
+        description:
+          "Notifications sent by email under a named consent purpose.",
+      },
+    ],
+    housekeeping: (own) =>
+      own.manages && own.hasTable("digests")
+        ? [
+            {
+              job: "digest_run",
+              function: own.fn("run_notification_digests"),
+              every: "1 hour",
+            },
+          ]
+        : [],
+  },
   topics: (ctx) =>
     ctx.text("realtime", "broadcast") === "broadcast"
       ? [ctx.text("topic", "notifications:{userId}")]

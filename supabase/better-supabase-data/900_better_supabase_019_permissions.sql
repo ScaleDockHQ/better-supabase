@@ -1,10 +1,16 @@
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
--- @bsb-hash sha256:6604cde1c8de5f209d18061bf26e3965028560b862bec9c6ef42e3d8af5b059f
+-- @bsb-hash sha256:12a8980796964c6557ba0e85ff5c22a719e65a33f66c64145961d1a533445efe
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The roles every organization can assign: one row each for the database.
+insert into "better_supabase"."roles" ("key", "scope")
+select v.k, v.s
+from (values ('owner', 'tenant'), ('admin', 'tenant'), ('member', 'tenant')) as v (k, s)
+where not exists (select 1 from "better_supabase"."roles" x where x."key" = v.k);
 
 -- Permission keys renamed by the 0.46 naming convention (ADR 0130).
 do $$

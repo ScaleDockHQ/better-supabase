@@ -306,6 +306,12 @@ export default defineConfig({
 The catalog matches keys exactly: `*` and `prefix.*` grant nothing here, so an
 owner role lists every key it holds.
 
+The data step of `permissions` adds the catalog's three tenant roles, `owner`,
+`admin` and `member`, when the roles table has no row with that key. They are
+system rows, one set for the whole database, so they are not per-organization
+defaults: a role you already have keeps its row and id. Your own roles come
+from the table, the Roles page or `blocks.permissions.roles`.
+
 #### A roles page
 
 With the overrides table, the block adds two functions an admin page calls.

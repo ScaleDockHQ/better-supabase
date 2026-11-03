@@ -882,6 +882,11 @@ ${measure({
   if v_amount <= 0 then
     ${invalid("the request covers no working days")}
   end if;${
+    ctx.installed("periods")
+      ? `
+  if not ${ctx.of("periods").fn("period_is_open")}(request_leave.tenant, 'leave_year', request_leave.starts_on) then ${fail("LEAVE_PERIOD_CLOSED", "the leave year of this request is locked or closed", "55000")} end if;`
+      : ""
+  }${
     ctx.has("requests", "note")
       ? ""
       : `

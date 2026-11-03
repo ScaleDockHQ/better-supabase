@@ -23,6 +23,11 @@ import {
 import { platformLists } from "./billing-platform.ts";
 import { BILLING_READS, billingReads } from "./billing-reads.ts";
 import {
+  NATIVE_TABLE,
+  nativeSubscriptionsContract,
+  nativeSubscriptionsSql,
+} from "./billing-subscriptions.ts";
+import {
   subscriptionSourceOf,
   webhookSubscriptions,
 } from "./billing-webhook.ts";
@@ -46,6 +51,7 @@ const NAMES: BlockSqlNames = {
   reads: BILLING_READS,
   options: ["seatRoles", "plans", "tenantKey", "subscriptions"],
   tables: {
+    native: NATIVE_TABLE,
     customers: {
       name: "billing_customers",
       app: {},
@@ -766,7 +772,7 @@ grant execute on function ${fn("link_billing_customer")}(${id}, text) to service
 grant execute on function ${fn("billing_seat_count")}(${id}) to service_role;
 grant execute on function ${fn("billing_subscription_item")}(${id}, text) to service_role;
 grant execute on function ${fn("billing_status")}(${id}) to authenticated, service_role;
-${billingReads(ctx)}`;
+${billingReads(ctx)}${nativeSubscriptionsSql(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -793,6 +799,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     ...webhook,
+    ...nativeSubscriptionsContract(ctx),
     { name: "billing_customer", args: ["{id}"], returns: "text" },
     { name: "billing_customer_tenant", args: ["text"], returns: "{id}" },
     { name: "link_billing_customer", args: ["{id}", "text"], returns: "text" },
@@ -840,10 +847,10 @@ export const BILLING: BlockSqlDefinition = {
   description:
     "Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.",
   requires: ["memberships", "permissions"],
-  integrates: ["organizations", "usage"],
+  integrates: ["ledger", "organizations", "usage"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -856,6 +863,12 @@ export const BILLING: BlockSqlDefinition = {
       from: 2,
       description:
         "billing_customers takes a Stripe Accounts v2 account (stripe_customer_account_id), and stripe_customer_id is null until Stripe creates the account's customer.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "billing_native_subscriptions keeps subscriptions in Postgres, with prorate_change posting to the ledger.",
       sql: () => "",
     },
   ],

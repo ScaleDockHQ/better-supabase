@@ -306,6 +306,8 @@ export const MODULE_PERMISSION_SCOPES: {
   rfqs: { read: "tenant", write: "tenant", manage: "tenant" },
   tills: { read: "tenant", write: "tenant", manage: "tenant" },
   periods: { read: "tenant", write: "tenant", manage: "tenant" },
+  commissions: { read: "tenant", write: "tenant", manage: "tenant" },
+  referrals: { read: "tenant", write: "tenant", manage: "tenant" },
   "agent-checkout": { read: "tenant", write: "tenant", manage: "tenant" },
   "clinical-decision-support": {
     read: "tenant",

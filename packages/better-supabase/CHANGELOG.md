@@ -1,5 +1,42 @@
 # better-supabase
 
+## 0.48.0
+
+### Minor Changes
+
+- [#693](https://github.com/ScaleDockHQ/better-supabase/pull/693) [`e2e2d91`](https://github.com/ScaleDockHQ/better-supabase/commit/e2e2d91f3b7685715776663041f9d24a8ce8840a) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/preset` now exports `BLOCK_CATALOG`: every block with its title, category, description, requirements, events and docs link, generated from the block manifests. `better-supabase/testing` adds `testRouteOptimizer`, the conformance kit for a `RouteOptimizer`. The named presets `cms`, `erp`, `manufacturing`, `care`, `qms`, `isms` and `ai-agents` now include `dam`, `payroll-export`, `periods`, `rfqs`, `e-prescribing`, `clinical-decision-support`, `lims`, `advisories`, `prompts`, `ai-evals` and `ai-guardrails`. A preset only gains blocks, so an app that installed one before can add the new blocks with `better-supabase add`.
+
+- [#694](https://github.com/ScaleDockHQ/better-supabase/pull/694) [`9ce9a78`](https://github.com/ScaleDockHQ/better-supabase/commit/9ce9a78b14975c9f9a8f6963c8da3b2584485799) Thanks [@martijn00](https://github.com/martijn00)! - Remove the deprecated aliases and options that were due, and share helpers that several modules
+  had copied.
+  
+  | Removed or changed                                                       | Use instead                                                           |
+  | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+  | `createOAuthServer` and the `OAuth*` type aliases                        | `createOauthServer` and the `Oauth*` types from `blocks/oauth-server` |
+  | `createRateLimit`, `rateLimited` and `RateLimit*` from `blocks/queue`    | the same names from `better-supabase/rate-limit`                      |
+  | `receiveEInvoices` options `xmlParser` and `FromUblOptions`              | pass `readUbl: (xml) => fromUbl(xml, options)`                        |
+  | outbox `legacyEventTypes` and the `currenttype` extension                | the event type `<prefix>.<entity>.<verb>`                             |
+  | `DbError.legacyHint`                                                     | `DbError.hint`                                                        |
+  | `SequenceEnrollmentEventData`                                            | `EnrollmentEventData` from `blocks/enrollments`                       |
+  | `workItemChecklistBinding`                                               | `taskChecklistBinding`                                                |
+  | `AssistantRunResult.toUIMessageStream`, `totalUsage`, `providerMetadata` | `stream`, `usage` and `finalStep`                                     |
+  
+  New exports: `dbErrorOfStatus` (maps an HTTP status to a `DbError`). The SQL helper
+  `sha256Hex` in `sql/shared` is now `sha256HexSql`. The `maintenance` block calls
+  `better_supabase.rrule_occurrences` and drops `maintenance_rule_starts`; the migration
+  `20261102110000_maintenance_use_core_rrule.sql` applies this.
+
+- [#696](https://github.com/ScaleDockHQ/better-supabase/pull/696) [`5ed3515`](https://github.com/ScaleDockHQ/better-supabase/commit/5ed351576d73ade340854fd69e3fdf758d43324f) Thanks [@mick340](https://github.com/mick340)! - Messaging reads prune record conversations by the record table's own visible rows before the per-row `can_subject` check.
+  
+  - Messaging: a commented subject type whose `permissions.read` names the provider's `rows` renders `subject_id in (select s.<id>::text from <subject table> s)` in the follows branch instead of letting every row reach `can_subject`. The set is a superset of the rows `can_subject` can pass, because `can_subject` already requires the record row to be visible under the same policy, so visibility does not change. It runs once per statement as a hashed subplan, so a conversation in another tenant no longer calls the provider's row function once per row. A commented type without `rows` keeps `true`.
+  - Subjects and permissions: `can_subject` and `can` carry `cost 1000`, so the planner keeps the set check ahead of them.
+  
+  Run `better-supabase upgrade` to rewrite the messaging module's policies and functions.
+
+- [#694](https://github.com/ScaleDockHQ/better-supabase/pull/694) [`93ec4ba`](https://github.com/ScaleDockHQ/better-supabase/commit/93ec4ba0054d81b2955884b60cd80c704f67b60d) Thanks [@martijn00](https://github.com/martijn00)! - Every port an app plugs in now needs `apiVersion: 1`. The prescription gateway, the clinical decision
+  support engine and the funding claim format and channel used to accept a missing `apiVersion`; add
+  `apiVersion: 1` to yours. All ports now share one check, `portOf`, so the error for a wrong version reads
+  the same everywhere.
+
 ## 0.47.0
 
 ### Minor Changes

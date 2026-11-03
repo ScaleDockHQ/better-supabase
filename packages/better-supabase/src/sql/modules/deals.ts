@@ -505,6 +505,7 @@ function contract(): readonly BlockSqlContractFunction[] {
 const dealPipeline = (
   column: (logical: string) => string,
 ): Readonly<Record<string, unknown>> => ({
+  variant: "b2b-sales",
   enteredAt: column("stageEnteredAt"),
   amount: column("amount"),
   currency: column("currency"),

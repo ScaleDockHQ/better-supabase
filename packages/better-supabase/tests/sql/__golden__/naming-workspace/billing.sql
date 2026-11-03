@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
--- @bsb-block billing@3 managed
--- @bsb-hash sha256:c20523b899f1b5978101f49ae22a6bc83615444b257b27e93c4928960366bf45
+-- @bsb-block billing@4 managed
+-- @bsb-hash sha256:1d135deda696baca90f281b4fd2ce99bf4f825452f0c1aab4a97e5da18a65412
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,6 +10,14 @@
 -- the module drops or replaces one and come back at the end.
 do $$
 begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."billing_native_subscriptions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_native_subscriptions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_native_subscriptions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_native_subscriptions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_native_subscriptions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
     drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
@@ -673,6 +681,132 @@ $$;
 revoke execute on function "better_supabase"."billing_overview"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."billing_overview"(uuid, integer) to authenticated, service_role;
 
+-- A subscription kept in Postgres: unit_amount is the price of one unit for one
+-- billing_interval in minor units of currency, and [period_start, period_end)
+-- is the current period.
+create table if not exists "better_supabase"."billing_native_subscriptions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "workspace_id" uuid not null,
+  "plan" text not null check (length("plan") between 1 and 100),
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "billing_interval" text not null default 'month',
+  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "period_start" timestamptz not null,
+  "period_end" timestamptz not null,
+  "canceled_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
+  check ("period_end" > "period_start")
+);
+create index if not exists "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("workspace_id", "status");
+alter table "better_supabase"."billing_native_subscriptions" enable row level security;
+revoke all on "better_supabase"."billing_native_subscriptions" from public, anon, authenticated;
+grant all on "better_supabase"."billing_native_subscriptions" to service_role;
+
+-- Starts a subscription for tenant; its first period begins at started_at
+-- (now by default). Service role only.
+create or replace function "better_supabase"."create_native_subscription"(tenant uuid, plan text, currency text, unit_amount bigint, quantity integer default 1, billing_interval text default 'month', started_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_start timestamptz := coalesce(create_native_subscription.started_at, now());
+  v_row "better_supabase"."billing_native_subscriptions"%rowtype;
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only the service role creates native subscriptions' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."billing_native_subscriptions" ("workspace_id", "plan", "currency", "unit_amount", "quantity", "billing_interval", "period_start", "period_end")
+  values (create_native_subscription.tenant, create_native_subscription.plan, upper(create_native_subscription.currency), create_native_subscription.unit_amount,
+    coalesce(create_native_subscription.quantity, 1), coalesce(create_native_subscription.billing_interval, 'month'), v_start,
+    v_start + ('1 ' || coalesce(create_native_subscription.billing_interval, 'month'))::interval)
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'plan', v_row."plan", 'currency', v_row."currency",
+    'unit_amount', v_row."unit_amount"::text, 'quantity', v_row."quantity", 'interval', v_row."billing_interval",
+    'period_start', v_row."period_start", 'period_end', v_row."period_end");
+exception when check_violation or invalid_text_representation then
+  raise exception 'The subscription is invalid' using errcode = '22023', hint = 'BILLING_SUBSCRIPTION_INVALID';
+end;
+$$;
+
+-- Changes the price or the quantity of a subscription at an instant inside its
+-- current period and returns what the change adds: credit is the unused part
+-- of the old price, charge the remaining part of the new one, and net is
+-- charge minus credit (negative for a downgrade). With the ledger block the
+-- net posts as one transaction (receivable against proration revenue), once
+-- per subscription and instant. Service role only.
+create or replace function "better_supabase"."prorate_change"(subscription_id uuid, unit_amount bigint default null, quantity integer default null, at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."billing_native_subscriptions"%rowtype;
+  v_at timestamptz := coalesce(prorate_change.at, now());
+  v_fraction numeric;
+  v_credit bigint;
+  v_charge bigint;
+  v_net bigint;
+  v_new_amount bigint;
+  v_new_quantity integer;
+  v_tx uuid;
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only the service role prorates subscription changes' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  select * into v_row from "better_supabase"."billing_native_subscriptions" x where x."id" = prorate_change.subscription_id for update;
+  if not found or v_row."status" <> 'active' then
+    raise exception 'The subscription does not exist or is canceled' using errcode = 'P0002', hint = 'BILLING_SUBSCRIPTION_NOT_FOUND';
+  end if;
+  v_new_amount := coalesce(prorate_change.unit_amount, v_row."unit_amount");
+  v_new_quantity := coalesce(prorate_change.quantity, v_row."quantity");
+  if v_new_amount < 0 or v_new_quantity < 0 then
+    raise exception 'The new price or quantity is negative' using errcode = '22023', hint = 'BILLING_SUBSCRIPTION_INVALID';
+  end if;
+  v_fraction := greatest(0, least(1,
+    extract(epoch from v_row."period_end" - v_at) / extract(epoch from v_row."period_end" - v_row."period_start")));
+  v_credit := round(v_row."unit_amount" * v_row."quantity" * v_fraction);
+  v_charge := round(v_new_amount * v_new_quantity * v_fraction);
+  v_net := v_charge - v_credit;
+
+  update "better_supabase"."billing_native_subscriptions" set "unit_amount" = v_new_amount, "quantity" = v_new_quantity
+    where "id" = v_row."id";
+  return jsonb_build_object('subscription_id', v_row."id", 'credit', v_credit::text, 'charge', v_charge::text, 'net', v_net::text,
+    'currency', v_row."currency", 'transaction_id', v_tx);
+end;
+$$;
+
+-- Cancels a subscription. Service role only.
+create or replace function "better_supabase"."cancel_native_subscription"(subscription_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only the service role cancels native subscriptions' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  update "better_supabase"."billing_native_subscriptions" set "status" = 'canceled', "canceled_at" = now()
+    where "id" = cancel_native_subscription.subscription_id and "status" = 'active';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."create_native_subscription"(uuid, text, text, bigint, integer, text, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_native_subscription"(uuid, text, text, bigint, integer, text, timestamptz) to service_role;
+revoke execute on function "better_supabase"."prorate_change"(uuid, bigint, integer, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."prorate_change"(uuid, bigint, integer, timestamptz) to service_role;
+revoke execute on function "better_supabase"."cancel_native_subscription"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."cancel_native_subscription"(uuid) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -726,13 +860,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
--- @bsb-hash sha256:4f71483342cbef4eba9156af3657fd76790c1c0e4d2c4596f41d7a2edb3b3651
+-- @bsb-hash sha256:9192c5a247a10a63b3db4a9a5d145a27c1a3ad52659ca7ef8e067daddb2d51c2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('billing', 3, 'managed')
+values ('billing', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

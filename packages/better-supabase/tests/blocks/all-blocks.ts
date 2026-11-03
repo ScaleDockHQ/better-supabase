@@ -38,6 +38,7 @@ import type { collaborationBlock } from "../../src/blocks/collaboration/manifest
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { commerceBlock } from "../../src/blocks/commerce/manifest.ts";
+import type { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import type { complianceBlock } from "../../src/blocks/compliance/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
 import type { consentsBlock } from "../../src/blocks/consents/manifest.ts";
@@ -142,6 +143,7 @@ import type { reactionsBlock } from "../../src/blocks/reactions/manifest.ts";
 import type { readSetsBlock } from "../../src/blocks/read-sets/manifest.ts";
 import type { realtimeTablesBlock } from "../../src/blocks/realtime-tables/manifest.ts";
 import type { recruitingBlock } from "../../src/blocks/recruiting/manifest.ts";
+import type { referralsBlock } from "../../src/blocks/referrals/manifest.ts";
 import type { relationsBlock } from "../../src/blocks/relations/manifest.ts";
 import type { remindersBlock } from "../../src/blocks/reminders/manifest.ts";
 import type { reservedSlugsBlock } from "../../src/blocks/reserved-slugs/manifest.ts";
@@ -303,6 +305,8 @@ export type AllBlocks = {
   readonly crm: typeof crmBlock;
   readonly tills: typeof tillsBlock;
   readonly periods: typeof periodsBlock;
+  readonly commissions: typeof commissionsBlock;
+  readonly referrals: typeof referralsBlock;
   readonly "agent-checkout": typeof agentCheckoutBlock;
   readonly "clinical-decision-support": typeof clinicalDecisionSupportBlock;
   readonly "e-prescribing": typeof ePrescribingBlock;

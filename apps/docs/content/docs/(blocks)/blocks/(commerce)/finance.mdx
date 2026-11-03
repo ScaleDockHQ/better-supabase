@@ -40,6 +40,17 @@ if (!result.closed) {
 }
 ```
 
+`reconcile({ accountId, minScore, limit })` matches the account's unmatched bank transactions to their best open invoice. It reads `banking.reviewQueue`, then calls `banking.acceptBestMatch` for each transaction whose suggestion scores at least `minScore` (default 1), which records the invoice payment. A transaction that fails to match is listed in `failed` and the run goes on; only a failed queue read returns an error.
+
+```ts
+const run = await blocks.finance
+  .reconcile({ accountId, minScore: 3 })
+  .orThrow();
+
+console.log(run.matched.length, run.unmatched, run.failed);
+await blocks.finance.closePeriod(periodId).orThrow();
+```
+
 ## Remove
 
 ```bash

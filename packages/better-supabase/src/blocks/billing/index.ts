@@ -57,3 +57,13 @@ export type {
 export { billingEvents } from "./events.ts";
 
 export type { BillingEvents } from "./events.ts";
+
+export { createNativeSubscriptions } from "./subscriptions.ts";
+
+export type {
+  NativeSubscription,
+  NativeSubscriptionInput,
+  NativeSubscriptions,
+  Proration,
+  ProrationInput,
+} from "./subscriptions.ts";

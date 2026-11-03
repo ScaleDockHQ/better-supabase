@@ -1,6 +1,6 @@
 {
   "name": "better-supabase",
-  "version": "0.47.0",
+  "version": "0.48.0",
   "description": "Strongly typed Supabase: generated schema, typed repositories, plugins, auth glue, framework integrations and the better-supabase CLI.",
   "keywords": [
     "cli",
@@ -1265,6 +1265,16 @@
       "types": "./dist/blocks/periods/index.d.ts",
       "default": "./dist/blocks/periods/index.js"
     },
+    "./blocks/commissions": {
+      "@better-supabase/source": "./src/blocks/commissions/index.ts",
+      "types": "./dist/blocks/commissions/index.d.ts",
+      "default": "./dist/blocks/commissions/index.js"
+    },
+    "./blocks/referrals": {
+      "@better-supabase/source": "./src/blocks/referrals/index.ts",
+      "types": "./dist/blocks/referrals/index.d.ts",
+      "default": "./dist/blocks/referrals/index.js"
+    },
     "./blocks/agent-checkout": {
       "@better-supabase/source": "./src/blocks/agent-checkout/index.ts",
       "types": "./dist/blocks/agent-checkout/index.d.ts",
@@ -2366,6 +2376,14 @@
       "./blocks/periods": {
         "types": "./dist/blocks/periods/index.d.ts",
         "default": "./dist/blocks/periods/index.js"
+      },
+      "./blocks/commissions": {
+        "types": "./dist/blocks/commissions/index.d.ts",
+        "default": "./dist/blocks/commissions/index.js"
+      },
+      "./blocks/referrals": {
+        "types": "./dist/blocks/referrals/index.d.ts",
+        "default": "./dist/blocks/referrals/index.js"
       },
       "./blocks/agent-checkout": {
         "types": "./dist/blocks/agent-checkout/index.d.ts",

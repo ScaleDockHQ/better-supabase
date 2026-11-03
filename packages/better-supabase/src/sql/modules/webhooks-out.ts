@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { HookNames } from "./webhooks-out-sql.ts";
 
@@ -530,12 +531,23 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) => [
+    {
+      job: own.fnName("purge_webhook_deliveries"),
+      function: own.fn("purge_webhook_deliveries"),
+      every: "1 day",
+    },
+  ],
+};
+
 export const WEBHOOKS_OUT: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "webhooks-out",
   title: "Outgoing webhooks",
   description:
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
-  requires: ["updated-at"],
+  requires: ["updated-at", "housekeeping"],
   integrates: ["permissions", "service-accounts", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",

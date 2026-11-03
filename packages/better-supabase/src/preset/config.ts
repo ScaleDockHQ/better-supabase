@@ -9,13 +9,15 @@ import type {
   BetterSupabaseConfig,
   FlatConfig,
 } from "../config/types/config.ts";
+import type { SeedConfig } from "../config/types/database.ts";
+import type { DesignSeeds } from "./design.ts";
 import type { Preset, PresetInstance } from "./fields.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { asBlocksConfig } from "../config/blocks.ts";
 import { flattenConfig, groupConfig } from "../config/groups.ts";
 import { DEFAULT_TENANT } from "../core/entity-naming.ts";
-import { isPresetName, namedPreset } from "./presets.ts";
+import { isPresetName, namedPreset, namedPresetSeeds } from "./presets.ts";
 import { listNames, resolvePreset } from "./resolve.ts";
 import { presetOfSpec } from "./spec.ts";
 
@@ -314,6 +316,57 @@ function mergedEntities(preset: Entities, own: Entities): Entities {
   );
 }
 
+/**
+ * `database.seed` with a preset's default seeds under it: the app's variants
+ * and locale win key by key, and `defaults: false` keeps defaults off. The
+ * preset's `variants` only name blocks the preset installs (`installed`).
+ */
+export function mergeSeedConfig(
+  preset: DesignSeeds | undefined,
+  own: SeedConfig | undefined,
+  installed: ReadonlySet<string>,
+): SeedConfig | undefined {
+  if (preset === undefined || own?.defaults === false) {
+    return own;
+  }
+
+  const ownDefaults = own?.defaults === true ? {} : own?.defaults;
+
+  const variants = {
+    ...Object.fromEntries(
+      Object.entries(preset.variants ?? {}).filter(([block]) =>
+        installed.has(block),
+      ),
+    ),
+    ...ownDefaults?.variants,
+  };
+
+  const locale = ownDefaults?.locale ?? preset.locale;
+
+  const defaults = {
+    ...ownDefaults,
+    ...(Object.keys(variants).length === 0 ? {} : { variants }),
+    ...(locale === undefined ? {} : { locale }),
+  };
+
+  if (Object.keys(defaults).length === 0 && own?.defaults !== true) {
+    return own;
+  }
+
+  return { ...own, defaults };
+}
+
+/** The named preset's seeds, for `preset` as a name or a `/create` URL. */
+function presetSeedsOf(input: PresetInput): DesignSeeds | undefined {
+  if (typeof input !== "string") {
+    return undefined;
+  }
+
+  const value = /[?&]preset=([^&#]+)/.exec(input)?.[1] ?? input;
+
+  return isPresetName(value) ? namedPresetSeeds(value) : undefined;
+}
+
 /** `expandPreset` on the flat shape `resolveConfig` reads. */
 export function expandFlatPreset(config: FlatConfig): FlatConfig {
   if (config.preset === undefined) {
@@ -352,9 +405,16 @@ export function expandFlatPreset(config: FlatConfig): FlatConfig {
     };
   }
 
+  const seed = mergeSeedConfig(
+    presetSeedsOf(config.preset),
+    config.seed,
+    new Set(resolved.blocks.map((block) => block.name)),
+  );
+
   return {
     ...base,
     ...config,
+    ...(seed === undefined ? {} : { seed }),
     ...(config.sql === undefined && base.sql === undefined
       ? {}
       : { sql: { ...base.sql, ...config.sql } }),

@@ -686,6 +686,10 @@ A table you adopted for `tables.attachments` maps the new columns
 (`documentType`, `source`, `externalId`, `storage`, `sourcePath`) or sets
 them to `null`; the document guard renders only when all five are mapped.
 
+## Default document types
+
+`seed_attachments_defaults` gives each new organization six document types: `contract`, `invoice`, `receipt`, `identity`, `report` and `other`. The first four carry fields, for example `counterparty` (required), `signed_on` and `expires_on` on a contract. A type whose key already exists is kept, so edits to a type survive running the defaults again. The drive uses the same types for its files. Custom mode keeps no types table, so it seeds none.
+
 ## Your own fields
 
 `blocks.attachments.options.extraColumns` adds columns to the `attachments` table,

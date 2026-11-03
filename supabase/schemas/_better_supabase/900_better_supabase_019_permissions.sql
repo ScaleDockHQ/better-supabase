@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:cb1fa88898ec41ecbdfb556b3adddce3fabfe16025a5c3ba2a9d8c8b736ec22a
+-- @bsb-hash sha256:a007a8820bbd58b5dc9d966fc0fc565204c552268cee0d12fa7be935b44a37f2
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -256,6 +256,9 @@ as $$
     when 'comments.create' then 'messages.send'
     when 'comments.moderate' then 'messages.moderate'
     when 'comments.read' then 'messages.read'
+    when 'commissions.manage' then 'commissions.manage'
+    when 'commissions.read' then 'commissions.read'
+    when 'commissions.write' then 'commissions.write'
     when 'compliance.collect' then 'compliance.collect'
     when 'compliance.manage' then 'compliance.manage'
     when 'compliance.read' then 'compliance.read'
@@ -458,6 +461,9 @@ as $$
     when 'reactions.create' then 'reactions.create'
     when 'reactions.manage' then 'reactions.manage'
     when 'reactions.read' then 'reactions.read'
+    when 'referrals.manage' then 'referrals.manage'
+    when 'referrals.read' then 'referrals.read'
+    when 'referrals.write' then 'referrals.write'
     when 'relations.manage' then 'relations.manage'
     when 'relations.read' then 'relations.read'
     when 'reminders.manage' then 'reminders.manage'

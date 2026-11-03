@@ -424,6 +424,10 @@ export function Component(props: { organizationId: string }) {
 }
 ```
 
+## Default data
+
+`inbox` declares tenant defaults: `seed_inbox_defaults` creates a "Help" inbox on the in-app channel with staff answering. Call it through `seed_tenant_defaults` when an organization is created. It keeps an inbox that already has the name, so running it twice changes nothing. Conversation statuses (`open`, `pending`, `snoozed` and `resolved`) are a check constraint and not rows, so there is nothing to seed for them.
+
 ## Block events
 
 With the outbox installed the module emits `inbox_message.received`,

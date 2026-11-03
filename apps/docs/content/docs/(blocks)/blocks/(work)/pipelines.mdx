@@ -274,6 +274,35 @@ await pipelines
 const [deals] = await pipelines.list(organizationId, "deal").orThrow();
 ```
 
+## Declared defaults
+
+A binding without `scope` has one pipeline per organization, and the block
+declares it as a default: `seed_pipelines_defaults(organization, variant)` adds
+the `default` pipeline of each such record type with the stages of its template.
+`default_pipeline()` stays the function a record's trigger calls. It returns the
+type's pipeline, applying the declared defaults first when the organization has
+none, so a new organization needs no setup. A binding with a `scope` (applications
+per job, cases per kind) has a pipeline per scope value, which exists only once a
+record names it, so `default_pipeline()` still creates that one on first use.
+
+A binding can name a `variant`, a set of stage templates a preset refers to. The
+deals block uses `b2b-sales` and the hiring block `recruiting`. Seeding a variant
+adds the pipelines of its bindings plus those without a variant; seeding none adds
+all of them. Your own `on` entries take `variant` as well.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  pipelines: {
+    on: {
+      ticket: { categories: { open: "open", done: "success" }, variant: "support" },
+    },
+  },
+},
+```
+
+`recruiting` is declared but seeds no rows yet, because applications are scoped
+by job.
+
 ## Default and ensure
 
 `default({ organizationId, subjectType, scopeId })` returns the pipeline marked as default for the subject type (and scope), or `undefined`. `ensure({ organizationId, subjectType, key, name, stages })` returns the pipeline with that key, or creates it and its stages in order when it is missing. Calling it again changes nothing.

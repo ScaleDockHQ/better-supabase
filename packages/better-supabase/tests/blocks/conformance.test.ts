@@ -78,6 +78,8 @@ const NO_FIELDS: readonly string[] = [
   // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
   // a comment task only links a message to a work item.
   "comments",
+  // Plans, entries and statements are fixed records the accrual functions write.
+  "commissions",
   // A consent row is evidence of one decision; app data lives on the subject.
   "consents",
   // An entry's fields live in the JSON body its editor writes.
@@ -165,6 +167,8 @@ const NO_FIELDS: readonly string[] = [
   "queue",
   "rate-limit",
   "reactions",
+  // Codes and referrals are fixed records; app data belongs on the invited records.
+  "referrals",
   // Requests, lines, invitations and quotes are fixed records; app data goes
   // on the linked contacts and purchase orders.
   "rfqs",

@@ -103,6 +103,8 @@ Each member has a ledger account per type and year (amounts in hundredths of the
 
 `adjust` writes a grant or a correction for one member. `accrue` grants an amount, or the type's allowance, to every member or to `userIds`; give it an `idempotencyKey` and a member gets that accrual once, so a monthly cron can call it safely. `closePeriod(organizationId, 2026)` carries each member's remaining balance, up to `carryoverMax`, into 2027 and expires the rest. Running it twice writes nothing the second time.
 
+With the [periods](/docs/blocks/periods) block installed, `request` refuses a request that starts in a `leave_year` period the block locked or closed, with the hint `LEAVE_PERIOD_CLOSED`. A year without a period row stays open.
+
 ## Configure
 
 ```ts title="better-supabase.config.ts"
@@ -257,6 +259,7 @@ leave: {
 | `LEAVE_REQUEST_NOT_FOUND` | no request the caller can see has this id                                                           |
 | `LEAVE_REQUEST_CLOSED`    | the request is already cancelled or decided, or only approved leave is split                        |
 | `LEAVE_EMPLOYEE_INVALID`  | no employee has this id, or the caller has no employee record                                       |
+| `LEAVE_PERIOD_CLOSED`     | the periods block locked or closed the leave year the request starts in                             |
 
 ## Events
 

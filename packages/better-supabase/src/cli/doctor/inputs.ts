@@ -64,6 +64,29 @@ export async function sqlFiles(
   return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }
 
+/** The `.sql` files under the seeds folder, sorted by name (BS356). */
+export async function seedFiles(
+  root: string,
+  toml: SupabaseToml | undefined,
+): Promise<TextFile[]> {
+  const folder = `${toml?.dir ?? "supabase"}/seeds`;
+  const directory = resolve(root, folder);
+
+  if (!existsSync(directory)) {
+    return [];
+  }
+
+  return Promise.all(
+    (await readdir(directory))
+      .filter((name) => name.endsWith(".sql"))
+      .toSorted()
+      .map(async (name) => ({
+        path: `${folder}/${name}`,
+        text: await readFile(resolve(directory, name), "utf-8"),
+      })),
+  );
+}
+
 /**
  * The `doctor.sources` globs. Left at the default in a workspace root, they
  * also cover each package's `src`.
