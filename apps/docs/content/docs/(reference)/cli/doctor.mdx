@@ -1540,6 +1540,22 @@ names that end in another word, such as `token_hash` or `secret_id`, are not
 reported. BS352 reports the same columns when field-encryption or credentials
 is installed.
 
+### BS361
+
+**Warning: an app table's check rejects values a block writes.** A block runs
+over one of your tables, and the check constraint or enum on a column the block
+writes rejects a value the block writes into it. The module's own table declares
+the values it writes in a `check (column in (...))` constraint, and the block
+writes them through the column your config maps. A narrower check, such as one
+that predates a new delivery status, makes the block's inserts and updates fail.
+Widen the check constraint to accept every value the block writes, or add the
+values to the enum. Doctor reads simple membership checks (`in (...)` and `=
+any (array[...])`), and leaves a check that also constrains another column, a
+negation or an expression alone. A column with no check accepts every value and
+is not reported. For the notifications block, the delivery `status` check must
+accept `pending`, `sent`, `failed`, `skipped`, `held` and `digested`; see
+[digests](/docs/blocks/notifications#digests).
+
 ## Auth config
 
 ### BS353

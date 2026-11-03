@@ -1001,6 +1001,12 @@ stored by an earlier version under the plain MD5 id keep that id, and a
 keyed send that matches one still returns it instead of notifying twice. A recipient with in-app off for a type still gets a row,
 stored as dismissed, so other channels can deliver it.
 
+Over your own `notification_deliveries`, the `status` check must accept every
+value the block writes: `pending`, `sent`, `failed`, `skipped`, `held` and
+`digested`. A narrower check, such as one that predates digests, rejects a held
+or folded delivery and the send fails. Doctor reports such a check as
+[BS361](/docs/cli/doctor#bs361).
+
 ## Digests
 
 A member picks how often a type reaches them on a channel with a `cadence` on
@@ -1015,8 +1021,9 @@ select better_supabase.set_notification_cadence('comment.created', 'email', 'dai
 
 The `digest_run` housekeeping job calls `run_notification_digests`, which folds
 a member's held deliveries into one `notification_digests` row once the oldest
-is a day (daily) or a week (weekly) old. `createNotificationDigests` sends each
-row as one email through the `mailer` port of the `mail-sync` block.
+is a day (daily) or a week (weekly) old. Each folded delivery gets status
+`digested`. `createNotificationDigests` sends each row as one email through the
+`mailer` port of the `mail-sync` block.
 
 ```ts title="app/api/cron/digests/route.ts"
 import { createNotificationDigests } from "better-supabase/blocks/notifications";
