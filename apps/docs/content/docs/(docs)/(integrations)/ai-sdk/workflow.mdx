@@ -196,6 +196,16 @@ and streams the rest. `resume` defaults to `false`: pass
 Component, so a reload picks up a running answer without a request for
 every chat that has none.
 
+Pass `transportOptions` to `useDurableAssistant` (or the second argument of
+`durableTransport`) to set any
+[`WorkflowChatTransport`](https://ai-sdk.dev/docs/agents/workflow-agent) option
+except `api`: `fetch`, `onChatSendMessage`, `onChatEnd`,
+`maxConsecutiveErrors`, `initialStartIndex` (negative counts back from the
+newest chunk), `prepareSendMessagesRequest` and
+`prepareReconnectToStreamRequest`. Your hooks run after the library's, so the
+approval body and the `config.headers` stay unless you replace them. A
+reconnect that gets `204 No Content` resolves to no stream.
+
 ## Progress and approvals
 
 `runs` on the [chat client](/docs/blocks/ai-chat#durable-runs) reads the
