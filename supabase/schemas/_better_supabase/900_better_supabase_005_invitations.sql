@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:515abb1a00bac97666b2299dd376e8920ba80fa79dd2f5dba272aaf5b2cc5370
+-- @bsb-hash sha256:c59e9f9b08176707195444700965600d4b7cc42807f3beddc907a74d48e22d8f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -786,6 +786,15 @@ begin
 end;
 $$;
 
+create or replace function "better_supabase"."accepting_invitation"()
+returns uuid
+language sql
+stable
+set search_path = ''
+as $$
+  select nullif(current_setting('better_supabase.accepting_invitation', true), '')::uuid
+$$;
+
 -- Accepts with the token for the signed-in user, whose confirmed email must
 -- match, and returns the tenant (null for a platform invitation).
 create or replace function "better_supabase"."accept_invitation"(token text)
@@ -844,9 +853,11 @@ begin
   if (select r."id" from "better_supabase"."roles" r where (r."id"::text = (pinvite."role")::text or r."key" = (pinvite."role")::text) order by (r."id"::text = (pinvite."role")::text) desc limit 1) is null then
     raise exception 'Unknown platform role %', pinvite."role" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', pinvite."id"::text, true);
   insert into "better_supabase"."platform_roles" ("user_id", "role_id")
   values (me, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (pinvite."role")::text or r."key" = (pinvite."role")::text) order by (r."id"::text = (pinvite."role")::text) desc limit 1))
   on conflict do nothing;
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."platform_invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = pinvite."id";
@@ -903,8 +914,10 @@ begin
       and not better_supabase.can_assign_as(invite."invited_by", invite."organization_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "public"."memberships" ("organization_id", "user_id", "role")
   values (invite."organization_id", me, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (invite."role")::text or r."key" = (invite."role")::text) order by (r."id"::text = (invite."role")::text) desc limit 1));
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = invite."id";
@@ -994,9 +1007,11 @@ begin
   if (select r."id" from "better_supabase"."roles" r where (r."id"::text = (pinvite."role")::text or r."key" = (pinvite."role")::text) order by (r."id"::text = (pinvite."role")::text) desc limit 1) is null then
     raise exception 'Unknown platform role %', pinvite."role" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', pinvite."id"::text, true);
   insert into "better_supabase"."platform_roles" ("user_id", "role_id")
   values (me, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (pinvite."role")::text or r."key" = (pinvite."role")::text) order by (r."id"::text = (pinvite."role")::text) desc limit 1))
   on conflict do nothing;
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."platform_invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = pinvite."id";
@@ -1053,8 +1068,10 @@ begin
       and not better_supabase.can_assign_as(invite."invited_by", invite."organization_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "public"."memberships" ("organization_id", "user_id", "role")
   values (invite."organization_id", me, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (invite."role")::text or r."key" = (invite."role")::text) order by (r."id"::text = (invite."role")::text) desc limit 1));
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = invite."id";
@@ -1174,6 +1191,8 @@ revoke execute on function "better_supabase"."decline_invitation_by_id"(uuid) fr
 grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to authenticated;
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
+revoke execute on function "better_supabase"."accepting_invitation"() from public, anon;
+grant execute on function "better_supabase"."accepting_invitation"() to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1339,6 +1358,15 @@ set search_path = ''
 as $$ select "better_supabase"."my_invitations"() $$;
 revoke execute on function "api"."my_invitations"() from public, anon, service_role;
 grant execute on function "api"."my_invitations"() to authenticated;
+
+create or replace function "api"."accepting_invitation"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accepting_invitation"() $$;
+revoke execute on function "api"."accepting_invitation"() from public, anon;
+grant execute on function "api"."accepting_invitation"() to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

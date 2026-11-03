@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:d86fa6e5b9c1b1ed744635daa77d2138220dc45704aeb5e22a96fbdb16aae092
+-- @bsb-hash sha256:15792264abb951d9fbbf083d2286e295b05b83b3a6f059a76c79ef0ad7378c94
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -791,6 +791,15 @@ begin
 end;
 $$;
 
+create or replace function "better_supabase"."accepting_invitation"()
+returns uuid
+language sql
+stable
+set search_path = ''
+as $$
+  select nullif(current_setting('better_supabase.accepting_invitation', true), '')::uuid
+$$;
+
 -- Accepts with the token for the signed-in user, whose confirmed email must
 -- match, and returns the tenant (null for a platform invitation).
 create or replace function "better_supabase"."accept_invitation"(token text)
@@ -848,9 +857,11 @@ begin
   if (select r."id" from "centrakit"."roles" r where (r."id"::text = (pinvite."role_id")::text or r."key"::text = (pinvite."role_id")::text) and (r.scope = 'system') order by (r."id"::text = (pinvite."role_id")::text) desc limit 1) is null then
     raise exception 'Unknown platform role %', pinvite."role_id" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', pinvite."id"::text, true);
   insert into "centrakit"."user_roles" ("user_id", "role_id")
   values (me, (select r."id" from "centrakit"."roles" r where (r."id"::text = (pinvite."role_id")::text or r."key"::text = (pinvite."role_id")::text) and (r.scope = 'system') order by (r."id"::text = (pinvite."role_id")::text) desc limit 1))
   on conflict do nothing;
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "centrakit"."organization_invitations"
   set "accepted_at" = now()
   where "id" = pinvite."id";
@@ -910,8 +921,10 @@ begin
   if (select r."id" from "centrakit"."roles" r where (r."id"::text = (invite."role_id")::text or r."key"::text = (invite."role_id")::text) and (r.scope = 'organization') order by (r."id"::text = (invite."role_id")::text) desc limit 1) is null then
     raise exception 'Unknown role %', invite."role_id" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "centrakit"."organization_users" ("organization_id", "user_id", "role_id")
   values (invite."organization_id", me, (select r."id" from "centrakit"."roles" r where (r."id"::text = (invite."role_id")::text or r."key"::text = (invite."role_id")::text) and (r.scope = 'organization') order by (r."id"::text = (invite."role_id")::text) desc limit 1));
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "centrakit"."organization_invitations"
   set "accepted_at" = now()
   where "id" = invite."id";
@@ -1000,9 +1013,11 @@ begin
   if (select r."id" from "centrakit"."roles" r where (r."id"::text = (pinvite."role_id")::text or r."key"::text = (pinvite."role_id")::text) and (r.scope = 'system') order by (r."id"::text = (pinvite."role_id")::text) desc limit 1) is null then
     raise exception 'Unknown platform role %', pinvite."role_id" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', pinvite."id"::text, true);
   insert into "centrakit"."user_roles" ("user_id", "role_id")
   values (me, (select r."id" from "centrakit"."roles" r where (r."id"::text = (pinvite."role_id")::text or r."key"::text = (pinvite."role_id")::text) and (r.scope = 'system') order by (r."id"::text = (pinvite."role_id")::text) desc limit 1))
   on conflict do nothing;
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "centrakit"."organization_invitations"
   set "accepted_at" = now()
   where "id" = pinvite."id";
@@ -1062,8 +1077,10 @@ begin
   if (select r."id" from "centrakit"."roles" r where (r."id"::text = (invite."role_id")::text or r."key"::text = (invite."role_id")::text) and (r.scope = 'organization') order by (r."id"::text = (invite."role_id")::text) desc limit 1) is null then
     raise exception 'Unknown role %', invite."role_id" using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
   end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "centrakit"."organization_users" ("organization_id", "user_id", "role_id")
   values (invite."organization_id", me, (select r."id" from "centrakit"."roles" r where (r."id"::text = (invite."role_id")::text or r."key"::text = (invite."role_id")::text) and (r.scope = 'organization') order by (r."id"::text = (invite."role_id")::text) desc limit 1));
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "centrakit"."organization_invitations"
   set "accepted_at" = now()
   where "id" = invite."id";
@@ -1183,6 +1200,8 @@ revoke execute on function "better_supabase"."decline_invitation_by_id"(uuid) fr
 grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to authenticated;
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
+revoke execute on function "better_supabase"."accepting_invitation"() from public, anon;
+grant execute on function "better_supabase"."accepting_invitation"() to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
