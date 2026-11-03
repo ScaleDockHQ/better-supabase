@@ -230,7 +230,7 @@ create table centrakit.notification_deliveries (
   created_at timestamptz not null default (now() at time zone 'utc'),
   unique (recipient_id, channel),
   check (channel in ('in_app', 'email', 'push')),
-  check (status in ('pending', 'sent', 'failed', 'skipped'))
+  check (status in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'))
 );
 
 create table centrakit.webhook_destinations (
