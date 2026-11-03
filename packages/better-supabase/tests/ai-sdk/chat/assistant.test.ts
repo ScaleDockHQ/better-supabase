@@ -433,6 +433,25 @@ describe("createAssistant", () => {
     expect((await assistant.resume("c1", context)).status).toBe(403);
   });
 
+  it("passes errors from each block call through", async () => {
+    for (const call of ["allowed", "appendUser", "path", "claim"] as const) {
+      const { assistant, context } = setup(
+        {},
+        fakeChats({
+          models: ["openai/gpt-5"],
+          failAt: { call, error: dbError("forbidden", "no") },
+        }),
+      );
+
+      const created = await assistant.respond(
+        post({ id: "c1", message: userMessage(), model: "openai/gpt-5" }),
+        context,
+      );
+
+      expect([call, created.status >= 400]).toEqual([call, true]);
+    }
+  });
+
   it("stops the running answer", async () => {
     const { assistant, context, fake } = setup();
     expect((await assistant.stop("c1", context)).status).toBe(204);

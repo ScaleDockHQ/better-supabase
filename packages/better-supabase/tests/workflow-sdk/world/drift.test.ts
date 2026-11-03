@@ -1,3 +1,6 @@
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { WORLD_POSTGRES_MIGRATIONS } from "../../../src/sql/modules/workflow-sdk-world-ddl.generated.ts";
@@ -31,5 +34,45 @@ describe("compareMigrations", () => {
 describe("assertWorldMigrations", () => {
   it("passes for the installed @workflow/world-postgres", async () => {
     await expect(assertWorldMigrations()).resolves.toBeUndefined();
+  });
+
+  async function folder(entries: unknown, files: Record<string, string> = {}) {
+    const dir = await mkdtemp(join(tmpdir(), "world-migrations-"));
+
+    await mkdir(join(dir, "meta"));
+    await writeFile(
+      join(dir, "meta", "_journal.json"),
+      JSON.stringify({ entries }),
+    );
+
+    for (const [name, sql] of Object.entries(files)) {
+      await writeFile(join(dir, name), sql);
+    }
+
+    return dir;
+  }
+
+  it("names the migrations that differ", async () => {
+    const dir = await folder([{ tag: "9999_new" }], {
+      "9999_new.sql": "select 1;",
+    });
+
+    await expect(assertWorldMigrations(dir)).rejects.toThrow(
+      /new 9999_new, missing/,
+    );
+  });
+
+  it("skips the check when the journal is unreadable or malformed", async () => {
+    await expect(
+      assertWorldMigrations(await folder({})),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      assertWorldMigrations(await folder([{}])),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      assertWorldMigrations(await folder([{ tag: "missing" }])),
+    ).resolves.toBeUndefined();
   });
 });

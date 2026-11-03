@@ -80,8 +80,11 @@ export function compareMigrations(
  * `workflow-sdk` SQL module's DDL doesn't reproduce, which would leave the
  * tables behind the code that reads them. Resolves without a check when the
  * package's migration files can't be read (a bundled or traced deployment).
+ * `migrationsDir` points the check at another migrations folder.
  */
-export async function assertWorldMigrations(): Promise<void> {
+export async function assertWorldMigrations(
+  migrationsDir?: string,
+): Promise<void> {
   let dir: string;
 
   try {
@@ -89,7 +92,9 @@ export async function assertWorldMigrations(): Promise<void> {
       import.meta.resolve("@workflow/world-postgres"),
     );
 
-    dir = join(dirname(entry), "..", "src", "drizzle", "migrations");
+    dir =
+      migrationsDir ??
+      join(dirname(entry), "..", "src", "drizzle", "migrations");
   } catch {
     return;
   }

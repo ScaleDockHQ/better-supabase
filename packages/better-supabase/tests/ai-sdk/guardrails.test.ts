@@ -132,6 +132,58 @@ describe("guardrailsMiddleware", () => {
     expect(checks.map((check) => check.stage)).toEqual(["input", "output"]);
   });
 
+  it("keeps non-text parts and skips blank text and empty answers", async () => {
+    const { client, checks } = guardrails();
+
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        content: [
+          { type: "text", text: " " },
+          { type: "tool-call", toolCallId: "c1", toolName: "x", input: "{}" },
+        ],
+        finishReason: STOP,
+        usage: USAGE,
+        warnings: [],
+      },
+    });
+
+    const guarded = wrapLanguageModel({
+      model,
+      middleware: guardrailsMiddleware(client, { agent: "a" }),
+    });
+
+    await generateText({
+      model: guarded,
+      messages: [
+        { role: "assistant", content: "earlier" },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "call 12" },
+            {
+              type: "image",
+              image: new Uint8Array([1]),
+              mediaType: "image/png",
+            },
+            { type: "text", text: "and 34" },
+          ],
+        },
+      ],
+    });
+
+    const sent = JSON.stringify(model.doGenerateCalls[0]?.prompt);
+    expect(sent).toContain("[REDACTED:phone]");
+    expect(sent).toContain("image/png");
+    expect(checks.map((check) => check.stage)).toEqual(["input"]);
+
+    await generateText({
+      model: guarded,
+      messages: [{ role: "assistant", content: "only me" }],
+    });
+
+    expect(checks).toHaveLength(1);
+  });
+
   it("replaces a blocked answer with the refusal", async () => {
     const { client } = guardrails();
 

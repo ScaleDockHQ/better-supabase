@@ -645,6 +645,54 @@ describe("createSupabaseWorld", () => {
     await world.close();
   });
 
+  it("dead-letters messages whose body names no run", async () => {
+    const bodies = [
+      Buffer.from("not json").toString("base64"),
+      Buffer.from(JSON.stringify({ runId: 5 })).toString("base64"),
+      Buffer.from(JSON.stringify({ other: true })).toString("base64"),
+    ];
+
+    const { pool } = fakePool({
+      claim_jobs: () =>
+        bodies.map((body, index) => ({
+          id: index + 1,
+          attempts: 73,
+          message: { payload: stored(1, { body }) },
+        })),
+      fail_job: () => [{ fail_job: "dead" }],
+      vault: () => [],
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("no", { status: 500 })),
+    );
+
+    const seen: { runId?: string | undefined }[] = [];
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/f",
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined,
+      },
+      onDeadLetter: (info) => {
+        seen.push(info);
+      },
+    });
+
+    await world.deliverOnce();
+    expect(seen.map((info) => info.runId)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    await world.close();
+  });
+
   it("warns about the transaction pooler and passes the 5.1 options on", async () => {
     const warnings: string[] = [];
 

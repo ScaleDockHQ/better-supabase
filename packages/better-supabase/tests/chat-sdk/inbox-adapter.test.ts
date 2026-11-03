@@ -416,6 +416,16 @@ describe("inboxAdapter", () => {
     );
   });
 
+  it("forgets the oldest threads past its limit", async () => {
+    const { adapter } = setup();
+
+    for (let index = 0; index < 1005; index += 1) {
+      await adapter.fetchMessages(`inbox:i1:c${index}`);
+    }
+
+    await expect(adapter.fetchMessages("inbox:i1:c0")).resolves.toBeDefined();
+  });
+
   it("downloads clean files through download", async () => {
     const bytes = new ArrayBuffer(2);
     const download = vi.fn(async () => bytes);

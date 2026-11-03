@@ -852,6 +852,84 @@ describe("createAiChat", () => {
     expect(lastArgs(user)).toEqual({ chat: "c1", participant: "u2" });
   });
 
+  it("shares with parties, links and summaries", async () => {
+    const participant = {
+      chat_id: "c1",
+      kind: "team",
+      team_id: "t1",
+      role: "viewer",
+    };
+
+    const { user, chat } = fake({
+      add_ai_chat_party: participant,
+      remove_ai_chat_party: true,
+      list_ai_chat_participants: [participant],
+      ai_chat_share_summaries: [
+        {
+          chat_id: "c1",
+          users: [{ user_id: "u2", role: "editor" }, { user_id: "u3" }],
+          team_count: 2,
+          has_link: true,
+        },
+        { chat_id: "c2" },
+      ],
+      create_ai_chat_link: { chat_id: "c1", token: "tok" },
+      rotate_ai_chat_link: { chat_id: "c1", token: "tok2" },
+      revoke_ai_chat_link: true,
+      get_ai_chat_by_link: {
+        chat: { id: "c1", title: "T", created_at: AT },
+        leaf_id: "m1",
+        messages: [],
+      },
+    });
+
+    const parties = [
+      { party: { kind: "team", teamId: "t1" }, value: "t1" },
+      { party: { kind: "customer", userId: "u9" }, value: "u9" },
+      { party: { kind: "external", email: "a@b.c" }, value: "a@b.c" },
+    ] as const;
+
+    for (const { party, value } of parties) {
+      await chat.participants.addParty({ chatId: "c1", party }).orThrow();
+      expect(lastArgs(user)).toMatchObject({
+        party_kind: party.kind,
+        party: value,
+      });
+
+      await chat.participants.removeParty({ chatId: "c1", party }).orThrow();
+      expect(lastArgs(user)).toEqual({
+        chat: "c1",
+        party_kind: party.kind,
+        party: value,
+      });
+    }
+
+    const summaries = await chat.chats.shareSummaries(["c1", "c2"]).orThrow();
+    expect(summaries[0]).toEqual({
+      chatId: "c1",
+      users: [
+        { userId: "u2", role: "editor" },
+        { userId: "u3", role: "viewer" },
+      ],
+      teamCount: 2,
+      hasLink: true,
+    });
+    expect(summaries[1]).toEqual({
+      chatId: "c2",
+      users: [],
+      teamCount: 0,
+      hasLink: false,
+    });
+
+    expect(await chat.links.create("c1").orThrow()).toEqual({
+      chatId: "c1",
+      token: "tok",
+    });
+    expect((await chat.links.rotate("c1").orThrow()).token).toBe("tok2");
+    expect(await chat.links.revoke("c1").orThrow()).toBe(true);
+    expect((await chat.links.get("tok").orThrow()).chat.id).toBe("c1");
+  });
+
   it("works without a tenant and writes extra fields", async () => {
     const { user, server, chat } = fake({
       ...ANSWERS,

@@ -61,6 +61,11 @@ interface FakeOptions {
   readonly models?: readonly string[];
   readonly claimed?: boolean;
   readonly getError?: DbError;
+  /** Fails one block call with this error. */
+  readonly failAt?: {
+    readonly call: "allowed" | "appendUser" | "path" | "claim";
+    readonly error: DbError;
+  };
 }
 
 export interface FakeChats {
@@ -144,7 +149,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       },
     },
     models: {
-      allowed: () => result((options.models ?? []).map((id) => ({ id }))),
+      allowed: () =>
+        options.failAt?.call === "allowed"
+          ? failure(options.failAt.error)
+          : result((options.models ?? []).map((id) => ({ id }))),
     },
     moderation: {
       record: ({ event }: { event: unknown }) => {
@@ -163,6 +171,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         messageId?: string;
         native?: unknown;
       }) => {
+        if (options.failAt?.call === "appendUser") {
+          return failure(options.failAt.error);
+        }
+
         appended.push(opts);
 
         if (opts.trigger === "regenerate-message") {
@@ -187,6 +199,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         });
       },
       path: ({ leafId }: { leafId?: string } = {}) => {
+        if (options.failAt?.call === "path") {
+          return failure(options.failAt.error);
+        }
+
         const byId = new Map(tree.map((entry) => [entry.id, entry]));
         const branch: AiStoredMessage[] = [];
 
@@ -231,6 +247,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     },
     runs: {
       claim: ({ chatId, streamId }: { chatId: string; streamId: string }) => {
+        if (options.failAt?.call === "claim") {
+          return failure(options.failAt.error);
+        }
+
         if (options.claimed === false) {
           return result({
             claimed: false,
