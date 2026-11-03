@@ -1,5 +1,117 @@
 # Changelog
 
+## 0.51.0 (2026-11-03)
+
+- The invitations block adds `accepting_invitation()`, which returns the invitation that `accept_invitation` or `accept_invitation_by_id` is accepting while it inserts the membership or platform role, and null otherwise. Triggers on the membership table can read the invitation's `prefill` through it instead of matching on an email address.
+- Chats can be shared with teams, customers and external people, and by a live link that you can rotate. The `ai-chat` SQL module moves from version 5 to 6, so run `better-supabase upgrade`.
+
+  - Visibility is now `private` (the owner only), `organization` or `shared` (the owner, participants, members of participating teams and the live link). Adding a participant to a private chat makes it `shared`, and the upgrade moves private chats that have participants to `shared`. An organization member who is not a participant can't read a shared chat.
+  - `ai_chat_participants` gets a surrogate `id` and a `kind` (`user`, `team`, `customer`, `external`) with the columns `team_id`, `customer_user_id` and `email`; the upgrade backfills `kind = 'user'`. `AiChatParticipant.userId` is now `string | undefined` and `list` returns the owner first with the role `owner`.
+  - New `participants.addParty` and `removeParty`, `links.create`, `rotate`, `revoke` and `get` (a new `ai_chat_links` table and the SQL functions `add_ai_chat_party`, `remove_ai_chat_party`, `create_ai_chat_link`, `rotate_ai_chat_link`, `revoke_ai_chat_link` and `get_ai_chat_by_link`), and `chats.shareSummaries(ids)`.
+  - The new `teamMembership` option names the function `(team uuid, user uuid) returns boolean`. It defaults to the teams module's members when that module is installed.
+  - Chats take an optional `mode` column on `create` and `update`.
+- `createAgentRuntime` applies the AI Gateway attribution in `prepareCall` and merges it into the call's `providerOptions` (the library's `user` wins, `tags` are the union, other keys keep the call's value) instead of replacing `providerOptions` in `prepareStep`. `createWorkflowAgentRuntime` in `better-supabase/ai-sdk/workflow` builds an AI SDK 7 `WorkflowAgent` from the same options: the tenant's `ask` tools, high-risk operations and your `toolApproval` check run as each tool's `needsApproval`, and `toolApprovalSecret` sets `experimental_toolApprovalSecret`. `agentRuntimeParts` and `mergeGatewayOptions` are exported for custom runtimes.
+- `createAssistant` in `better-supabase/ai-sdk/chat` continues a turn after a tool approval and takes your `UIMessage` type as a generic.
+
+  | Option or field                | AI SDK 7 field                                              |
+  | ------------------------------ | ----------------------------------------------------------- |
+  | `toolApprovalSecret`           | `experimental_toolApprovalSecret` (HMAC-signed approvals)   |
+  | `AssistantRunResult.tools`     | `toUIMessageStream({ tools })`                              |
+  | `AssistantTurn.continuationOf` | `toUIMessageStream({ isContinuation })` through the same id |
+  | `createAssistant<UI_MESSAGE>`  | `safeValidateUIMessages<UI_MESSAGE>`, `onEnd` message type  |
+
+  When the client sends the stored assistant message with `approval-responded` parts, the assistant copies only the `approved` and `reason` fields onto the stored message, rejects a signature that differs from the stored one (403) and a decision with no pending request (409), then saves the answer under the same message id. `assistantBody` in `better-supabase/ai-sdk/react` sends that message after an approval. The `experimental_lowMemory` comment now names `experimental_streamTextLowMemory`.
+- `appTables.<name>.embedding` (or the `@bsb embedding` tag) keeps a vector column current from the table's text columns through pgmq, pg_net and pg_cron. Serve the worker with `embeddingWorker` or `drainEmbeddings` from `better-supabase/ai-sdk/embeddings`; `renderAutoEmbedding` in `better-supabase/sql` renders the same SQL for other tables. `blocks.knowledge.options.autoEmbed` (knowledge module version 7) sends pending chunks to the same worker. Doctor gains BS241 (embedding jobs read five times or more) and BS242 (failed pg_net requests).
+- `durableTransport` and `useDurableAssistant` in `better-supabase/ai-sdk/workflow/react` take every AI SDK 7 `WorkflowChatTransportOptions` field except `api`: `fetch`, `onChatSendMessage`, `onChatEnd`, `maxConsecutiveErrors`, `initialStartIndex`, `prepareSendMessagesRequest` and `prepareReconnectToStreamRequest`. `useDurableAssistant` reads them from `transportOptions`. The library builds the request first (the approval body, `config.headers`), then your `prepareSendMessagesRequest` and `prepareReconnectToStreamRequest` extend or replace it, and its `headers` are honored. A reconnect that gets `204` resolves to no stream.
+- `better-supabase/ai-sdk/workflow` keeps more of the AI SDK 7 answer in a durable chat.
+
+  | Change                                    | AI SDK 7 field                                               |
+  | ----------------------------------------- | ------------------------------------------------------------ |
+  | `DurableTurnAgentResult.error`            | `error` on the `WorkflowAgent` stream result                 |
+  | The save step keeps `data-*` parts        | `data-*` chunks and `message-metadata` of the UI stream      |
+  | `context`, `userId`, `organizationId`     | passed to the agent function as `DurableTurnAgentArgs`       |
+  | `durableChat({ context })`                | typed per app: `durableChat<UI_MESSAGE, CONTEXT>`            |
+  | `resume({ startIndex: -5 })`              | `WorkflowChatTransport` negative `startIndex` for reconnects |
+  | `x-workflow-stream-tail-index` on streams | the World's stream tail index, counted in UI chunks          |
+
+  A result with an `error` ends the turn `failed` and saves the error on the run. `DurableTurnInput`, `DurableTurnAgentArgs`, `DurableTurnDeps` and `DurableChatOptions` take the context type as a generic that defaults to `undefined`, so existing code compiles unchanged.
+- New `embeddingCacheMiddleware` and `rerankHits` in `better-supabase/ai-sdk/embeddings`, and `dimensions` on `embedWith` and the search `Embedder`.
+- AI SDK 7 settings reach more of the library. `createAgentRuntime` sets `telemetry` (`functionId: "agent:<id>"`, `includeRuntimeContext: { organizationId: true }`) so `meterTelemetry` meters agent calls, and takes `telemetry`, `settings` (the other `ToolLoopAgent` settings), `prepareCall`, `prepareStep`, `compact` (`pruneMessages` options) and `toolApprovalSecret` (`experimental_toolApprovalSecret`). `rerankWith` and the memory extraction call pass the tenant, so `rerank` and `generateText` usage is metered. `searchTool` is `strict` and takes `modelOutput: { maxCharacters }`. `connectTools` takes `maxRetries` and `askUnlessReadOnly`. `useAssistant` calls the server's stop endpoint before it stops the local stream, and the completion and object routes settle `onFinish` when the request aborts. `WorkflowAgentRuntimeOptions` omits the options a `WorkflowAgent` has no setting for (`WorkflowOmittedOptions`).
+- `guardrailsMiddleware` in `better-supabase/ai-sdk` is an AI SDK 7 `LanguageModelMiddleware` that runs the ai-guardrails policy around `doGenerate` and `doStream`: a blocked input returns the refusal without calling the model, a redaction rewrites the prompt, and a streamed text block is held until `text-end` and emitted redacted. The text helper that was called `guardrailMiddleware` in `better-supabase/blocks/ai-guardrails` is renamed, because it never was a middleware.
+
+  | Old                                  | New                |
+  | ------------------------------------ | ------------------ |
+  | `guardrailMiddleware` (block export) | `guardText`        |
+  | `GuardrailMiddlewareOptions`         | `GuardTextOptions` |
+- The `Embedder` interface accepts `apiVersion: 2`, whose `embed` returns `{ embeddings, usage?: { tokens } }`; version 1 embedders keep working, and `embedVectors` normalizes both. `embedWith` from `better-supabase/ai-sdk/embeddings` now returns a version 2 embedder that reports the AI SDK 7 `embedMany` `usage.tokens`, so code that called `embedWith(...).embed(values)` directly reads `.embeddings`. `KnowledgeHit` gains `chunkId` and `organizationId`, `createKnowledge` takes `dimensions` (the hint `KNOWLEDGE_DIMENSION_MISMATCH`) and `priorityOrder`, and the memory block accepts the same embedders. The knowledge module is now version 6: `knowledge_search` takes `priority_order` (default true, false ranks by score alone) and returns `chunk_id` and `organization_id`, so run the upgrade migration to replace the function; the earlier signature is dropped.
+- `better-supabase/ai-sdk` keeps the AI SDK 7 tool fields when it converts messages, and the canonical AI message format moves to version 2 (`schemas/ai-message-v2.json`, `SPEC_PINS.aiMessage` is `"2"`). Version 1 messages stay valid and `ai-message-v1.json` stays published.
+
+  | Part            | New field                                                                     | AI SDK 7 field                                                                               |
+  | --------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+  | `tool-call`     | `dynamic`, `title`, `toolMetadata`, `rawInput`, `inputEncoding`, `state`      | `dynamic-tool` part, `title`, `toolMetadata`, `rawInput`, `inputEncoding`, `input-streaming` |
+  | `tool-result`   | `preliminary`                                                                 | `preliminary`                                                                                |
+  | `tool-approval` | `signature`, `isAutomatic`, `requestReason`, `descriptor`, `inputSchemaInput` | the same names on `approval`                                                                 |
+
+  A call the SDK reported as dynamic now comes back from `toUIMessage` as a `dynamic-tool` part instead of `tool-<name>`, and an `input-streaming` call comes back as `input-streaming` instead of `input-available`. `toUIMessage`, `toUIMessages`, `fromUIMessage`, `validUIMessages` and `UIMessageSchemas` take your `UIMessage` type as a type argument.
+- `meterTelemetry` in `better-supabase/ai-sdk` records each row under the source `ai:<functionId>` (for example `ai:inbox.suggest-actions`) instead of `ai:telemetry`, and takes `idempotencyKey(event)`, `actor` and `metadata` options plus a function form of `source`. `rateLimitMiddleware({ rateLimit, scope, key, organizationId })` is a language model middleware that refuses a call before the model runs with a `rate_limited` error (code `AI_RATE_LIMITED`). Set `source: "ai:telemetry"` to keep the old source.
+- New `uploadToProvider` and `providerFileParts` in `better-supabase/ai-sdk/files` send an ai-files file to a provider's Files API and reuse the stored reference.
+- New `postgresMcpEventStore` and `dedupeMcpEvents` (MCP event subscriptions in Vault), `aiTranscriber`, `realtimeTokenRoute` and `toolSearchFrom` in `better-supabase/ai-sdk`.
+- Agent skills carry files and provider references. The `agents` SQL module moves from version 1 to 2, so run `better-supabase upgrade`. New `syncSkill`, `anthropicSkillOptions`, `openaiShellSkills` and `harnessSkills` in `better-supabase/ai-sdk/agents`, and `agents.recordSkillSync`.
+- `meterTelemetry` keys each usage row on `ai-call:<callId>:<responseId>`, the AI SDK 7 `LanguageModelCallEndEvent.responseId`, and falls back to the step index when the provider returns none. It keeps at most 1,000 calls in flight and releases a call on the `onEnd`, `onAbort` and `onError` telemetry hooks, so an aborted stream no longer leaks its tenant.
+- `better-supabase/ai-sdk/workflow` separates permanent from transient step failures and renames two types.
+
+  The durable steps throw a `FatalError` for a database failure a retry can't fix (`forbidden`, `not_found`, `validation`, `conflict` and the other constraint kinds), and a `RetryableError` with the error's `retryAfter` for `rate_limited` and `quota_exceeded`. Other errors keep the step's default retries. `durableStepError(error)` exposes the mapping.
+
+  | Old                  | New                      |
+  | -------------------- | ------------------------ |
+  | `DurableAgentArgs`   | `DurableTurnAgentArgs`   |
+  | `DurableAgentResult` | `DurableTurnAgentResult` |
+
+  `DurableAgent` is the deprecated `@workflow/ai` name. The old names were never released, so no aliases remain.
+- App tables take `columnGroups`: `tables.<name>.columnGroups.<group> = { columns, update }` renders a `before update` trigger that raises `42501` when a caller signed in as `authenticated` or `anon` changes a listed column without the `update` permission in the row's tenant. Doctor adds BS362 for an update policy that checks a permission ending in `.read` or `.view`.
+- Approval requests can ask for several items, each decided on its own. `approvals.request({ subject, input: { action, items } })` files `approval_items` with a permission and `dependsOn` per item, `decideItems` approves or rejects them (an item waits for its dependencies, and the request settles when none is pending), `recordCreated` stores the record an approved item created, and `settle` lets the service role close a request with a system decision that wakes `requestAndWait`. `get` returns `items`, and `decideForSubject` takes `decidedBy`. `approve` and `reject` refuse a request with items. The `approvals` SQL module moves from version 1 to 2, so run `better-supabase upgrade`.
+- Chat SDK webhooks can be received and processed in two steps, WhatsApp replies respect the 24-hour window, and the inbox broadcasts more. The `inbox` SQL module moves from version 8 to 9, so run `better-supabase upgrade`.
+
+  - New `chatWebhookPipeline({ chat, receiveChat, adapter, inbox, retry })` returns `{ receive, process }`. `process` replays with `deduplicate: false` and `propagateHandlerErrors: true`, so a handler error fails the queue job; it throws a `TypeError` when both Chat instances share a state prefix.
+  - `inboundHandler` takes `deduplicate` (`"first-attempt"` by default, `"always"`, `"never"`), `interactive`, `actions` and `onAction`. `ChatInboundEvent` gets `attempt` and `ChatWebhookResult` gets `retryIn`. A webhook-inbox handler may return `{ retryIn }` to pick the retry delay.
+  - Inbound events get a `processing` status, an `available_at` backoff and a lease; a stale lease is picked up again.
+  - New `sendWithinWindowOrTemplate` and `ChatWindowClosedError` (`CHAT_WINDOW_CLOSED`), and `whatsappInteractiveOf` for button, list and quick replies. Conversations get `lastInboundAt` and `activeStreamId`; deliveries get `deliveredAt`, `readAt` and `failedAt`.
+  - New `conversations.setActiveStream({ conversationId, streamId })`, the `INBOX_STREAM_ACTIVE` error, the `event.created` broadcast and the `realtimeColumns` option. `Topic.trigger` takes `columns`.
+- `chat-sdk-state` is now version 2: TTLs are `bigint` milliseconds, list trimming takes an advisory lock, and `createSupabaseState().connect()` fails with a clear error when the module is missing. Re-run `better-supabase add chat-sdk-state` and apply the migration; the upgrade drops the version 1 `int4` functions.
+
+  The scheduler stores its queue under `better-supabase:scheduled` instead of `chat:scheduled`. A value under the old key is read once and moved.
+
+  | Old              | New                         |
+  | ---------------- | --------------------------- |
+  | `chat:scheduled` | `better-supabase:scheduled` |
+
+  Also new in `better-supabase/chat-sdk`: the `ChatInboundStore` port (`inboxStore`, `webhook({ sink })` for the queue block's webhook inbox), `capabilitiesOf` (needs the optional peer `@chat-adapter/catalog`), and `InboxAdapter` support for actions, reactions, stop actions, file upload and `ai_generated` metadata.
+- `db backfill` changes the elements of a jsonb array with `--array <path> --match <json>` and `--delete` or `--merge <json>`. It runs in `ctid` batches, and `--dry-run` prints the number of rows and elements it would change. Doctor adds BS240 for a migration that renames or removes an enum value (`alter type ... rename value`, `delete from pg_enum`), and the `db` docs describe how to remove a value through a new type.
+- New `better-supabase/json-render` applies, collapses and validates json-render specs. `assistant({ parts: { compact } })` rewrites the response before it is saved, and the ai-files document kind `spec` stores a spec (`ai-files` SQL version 3, so run `better-supabase upgrade`).
+- The `queue` block gets leases with a completed state and a bounded wait. The `queue` SQL module moves from version 9 to 10, so run `better-supabase upgrade`.
+
+  - New `createLeases(source)` in `better-supabase/blocks/queue` with `claim({ scope, key, timeoutMs, leaseSeconds })`, which answers `claimed`, `busy` (with `retryAfterMs`) or `completed`, and `withLease(options, fn)`, which extends the lease while `fn` runs, releases it when `fn` throws and marks it completed with `completeFor`.
+  - New SQL functions `claim_lease`, `extend_lease_claim`, `complete_lease` and `release_lease_claim` over a new `job_leases` table. The `idempotency` block's `acquire_lease` family and the `withLease` helper are unchanged.
+  - `startOnce` with a run registry now ends its dispatch claim when the workflow start throws, so the next caller starts the run at once instead of waiting for the 60 second lease.
+- The `rate-limit` SQL module is at version 2: `rate_limit_rules` gets `organization_id`, so a scope has one global rule and one rule per organization. `RateLimit.setRule({ scope, organizationId, max, period })` writes it (`set_organization_rate_limit` in SQL), and `check` and `checkAll` take `organizationId` to apply it. `hit_rate_limit` and `check_rate_limit` take a fifth `organization_id` argument. Run `better-supabase upgrade` to add the column and drop the primary key on `scope`.
+- The `streams` module stores chunks as `bytea` (module version 2, with an upgrade that converts existing text chunks). `StreamStore.append` accepts `string` or `Uint8Array` chunks, the Postgres store adds `readBytes`, and `resumableStreamContext(store)` from `better-supabase/streams` answers the `resumable-stream` context API, so the AI SDK resume route works on Postgres. The `queue` module moves a waiting message earlier when a repeated dedupe key arrives with a shorter delay.
+- Streams work with the `resumable-stream` package and the AI SDK's `consumeSseStream`. The `streams` SQL module moves from version 2 to 3, so run `better-supabase upgrade`.
+
+  - `resumableStreamContext` now matches `resumable-stream`: `resumeExistingStream` resolves `undefined` for a stream that was never created and `null` for one that finished (it replayed the whole text before; pass `replayFinished: true` to keep that), and a new `resumableStream(id, make, skip)` creates the stream or joins the running one.
+  - New `consumeSseStreamInto(store, { streamId, onStreamId, waitUntil })` for `toUIMessageStreamResponse({ consumeSseStream })`.
+  - New `better-supabase/streams/resumable` with `postgresPublisher` and `postgresSubscriber`, so `createResumableStreamContext` from `resumable-stream/generic` runs on Postgres and Realtime without Redis. It uses the new `stream_kv` table and the functions `stream_kv_get`, `stream_kv_set`, `stream_kv_incr` and `stream_kv_publish`. `resumable-stream` is an optional peer.
+  - New `purgeSchedule` and `purgeOlderThan` options schedule `purge_streams` with pg_cron, which also deletes expired keys.
+  - `redisStreamStore({ reader })` hides streams that another `owner` opened from `read`, `status`, `isCancelled` and `cancel`.
+- `usage.setQuota` and `usage.removeQuota` set and remove the quota of an organization or a plan with a service transport, over the new `set_usage_quota` and `remove_usage_quota` functions of the `usage` SQL module (version 8). Run `better-supabase upgrade` to install them.
+- `better-supabase/workflow-sdk` adds `startChild`, which starts a child run with the parent's tenant, actor, ticket and subject. `approvalWaiter.wake` retries a missing hook up to four times, so an approval decided before the run reaches `createHook` still resumes it. `createWorkflows` returns `Workflows<F>`, with the extra run columns from `fields` typed and parsed on `run.fields`. `teeToStore` counts UTF-8 bytes for `flushBytes`.
+- `better-supabase/workflow-sdk/world` follows `@workflow/world` and `@workflow/world-postgres` 5.1 (peer range `>=5.1.0 <5.2`, protocol 5.1.0). The `workflow-sdk` module is version 4: apply its migration before you deploy, because it converts the World timestamps to `timestamptz`. `createWorld()` now returns one World per process, `onDeadLetter`, `enableInvoke` and `streamFlushIntervalMs` are new options, `world.start()` fails with `MigrationDrift` when the installed World migrations differ from the generated ones, and `openHooks()` decodes `metadata_cbor`.
+
+  Release age exception (ADR 0210): the repo owner allowed `@workflow/world@5.1.0`, `@workflow/world-postgres@5.1.0`, `@workflow/world-local@5.2.0` and `@workflow/errors@5.1.0` through `minimumReleaseAgeExclude` before the 1440 minute window closed; remove the list on or after 2026-11-03 22:46 UTC.
+- The `workflows` run registry takes an idempotency key and a dispatch lease (module version 4), accepts run extra columns through `blocks.workflows.options.runExtraColumns`, and installs without schedules, semaphores or start requests when those tables are mapped to `null`. `startOnce` in `better-supabase/workflow-sdk` accepts `registry: workflows.runs` and throws `WorkflowRunKeysMissingError` (`WORKFLOW_RUN_KEYS_MISSING`) when it has neither a registry nor World run keys. The resume route maps a missing hook to 404 and other engine failures to 503 or 500.
+- Tested against ai 7.0.159, @ai-sdk/react 4.0.163 and @ai-sdk/workflow 2.0.91. Adds `@chat-adapter/catalog` (`>=4.43 <5`) as an optional peer for the chat-sdk helpers that read the adapter catalog. Install it only if you use them. The peer ranges for the AI SDK packages are unchanged.
+- `bulkDecide` on the Flags SDK adapter no longer answers `{}` when the flag definitions fail to load. It now answers each flag's `defaultValue`, and throws with the load error for a flag that has none, as `decide` does, so `evaluate([...])` reports an outage instead of serving no value. The Flags SDK docs show `mergeProviderData` for a project that uses this adapter next to Vercel Flags, and the chat UI recipes add a `chat-message-markdown` recipe that renders answers with Streamdown.
+- `record_inbound` now works as a real `service_role`. The `contacts` SQL module moves from version 2 to 3 and grants `resolve_person` to `service_role`, and the `inbox` module moves from version 9 to 10 so `record_inbound` runs as `security definer`. Run `better-supabase upgrade`.
+
 ## 0.50.0 (2026-11-03)
 
 - Doctor reports BS361 when an app table's check constraint or enum rejects a
