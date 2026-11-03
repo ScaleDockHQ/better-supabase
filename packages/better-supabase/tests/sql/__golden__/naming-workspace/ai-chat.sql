@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:fa2837bc56958ca9487afbd8e31ec06500a70fe73520b87bb4c44ad71ca8b3c9
+-- @bsb-hash sha256:eceea0c196599966afb82e7d22895ebb59c4b3ea55533d55b97b47509f0523a4
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -172,7 +172,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;

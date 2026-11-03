@@ -427,7 +427,8 @@ create table if not exists ${t.participants} (${paOpt("id", () => "uuid primary 
   ${participantRule(ctx, names)}
 );
 ${participantKeys(ctx, names)}
-create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${addExtraColumns(t.participants, extras.participants)}
+create index if not exists ${ctx.naming.rename("ai_chat_participants_chat_idx")} on ${t.participants} (${pa.chat});
+create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "customerUser") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_customer_user_idx")} on ${t.participants} (${pa.customerUser});` : ""}${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${addExtraColumns(t.participants, extras.participants)}
 ${lockTable(t.participants)}
 grant select on ${t.participants} to authenticated;
 ${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { drop: true, target: t.participants })}

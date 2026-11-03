@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:7ac4aa9677ba99344b6fedbe83bb74dd2b38a7536040c4db3ff0495b9db8d31a
+-- @bsb-hash sha256:d136a1ff8a286ff4fc2b316a12ea9e71ef8e705333b2e14d2226d66c566767a5
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -172,7 +172,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
@@ -2917,7 +2919,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:c2d7afb2e6a54d746cb82c41433ef2498616446034dca66ac5d455ccc2d1c0b3
+-- @bsb-hash sha256:7db35b5c28060dd430c5f44251a1b403373cb877af38c806ed178d8c4e1c8825
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3088,7 +3090,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
@@ -5914,7 +5918,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:77094857dcae698aacdf095b357e177e30325dec8103e1ad1dd73cf14408ce97
+-- @bsb-hash sha256:6d1d03cbd53ce16fb8927cca9426ef9266525d1379779265b3be8289583cb4eb
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6090,7 +6094,9 @@ create unique index if not exists ai_chat_participants_user_key on "app_private"
 create unique index if not exists ai_chat_participants_team_key on "app_private"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "app_private"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "app_private"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "app_private"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "app_private"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "app_private"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "app_private"."ai_chat_participants" ("added_by");
 alter table "app_private"."ai_chat_participants" enable row level security;
 revoke all on "app_private"."ai_chat_participants" from public, anon, authenticated;
@@ -8835,7 +8841,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:043ce2675b0b38a2c7d0763524d8923de22a2bcb49eb4e6625c66f4e46754f71
+-- @bsb-hash sha256:5342520ebd3d41c0a0d7a2861e6164f7d9099fbda8a7f43de9b49e1f39c1158a
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9006,7 +9012,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
@@ -12324,7 +12332,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:d34ab1c06de794951cafd544769c8503ef020e4a98dde7363dcfabc2c94f6692
+-- @bsb-hash sha256:6b2b2b0da13aa3f64ffa49fbb4b9e13d062409077e4c83e7cb8b458a3f966521
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12499,7 +12507,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -15210,7 +15220,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:d3af4b3e318a9a5290325e0d55abc07a2ad3325231e33df57e78570ed1e1d1dc
+-- @bsb-hash sha256:1e8f74925433234030ec7728cef4e3f2e5dd7107c1101e8897ba6127cdea8d2f
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15381,7 +15391,9 @@ create unique index if not exists ai_chat_participants_user_key on "better_supab
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
 create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
