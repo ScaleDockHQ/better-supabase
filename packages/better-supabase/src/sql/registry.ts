@@ -214,19 +214,16 @@ function built(definition: BlockSqlDefinition): BlockSql {
   };
 }
 
-/**
- * The module's SQL as `layout` renders it, before the tenant and actor guards.
- * `undefined` for a module that is not installed.
- */
 export function moduleSource(
   name: string,
   layout: BlockSqlLayout = {},
+  installed?: readonly string[],
 ): string | undefined {
   const module = SQL_MODULES[name];
 
   return module === undefined
     ? undefined
-    : module.build(moduleContext(name, layout), layout);
+    : module.build(moduleContext(name, layout, installed), layout);
 }
 
 // Outside tenant scope a module checks the caller itself, so the tenant

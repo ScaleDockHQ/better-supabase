@@ -115,7 +115,7 @@ function membership(body: string): CheckValues | undefined {
  * negation, a pattern or an expression.
  */
 export function checkValues(definition: string): CheckValues | undefined {
-  const text = definition.trim();
+  const text = definition.trim().replace(/\s+not\s+valid$/i, "");
   const open = CHECK.exec(text);
 
   if (open === null) {

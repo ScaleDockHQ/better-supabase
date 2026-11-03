@@ -128,4 +128,100 @@ select 1 from ${table} where status = 'held';`,
       ),
     ).toEqual(["it's"]);
   });
+
+  it("reads a before trigger that assigns new.column", () => {
+    expect(
+      writtenValues(
+        `create function public.on_stage() returns trigger language plpgsql as $$
+begin
+  if new.stage = 'won' then
+    new.status := 'closed';
+  else
+    new."status" := 'open';
+  end if;
+  new.note := 'x';
+  return new;
+end;
+$$;
+create trigger t_on_stage before update of stage on ${table} for each row execute function public.on_stage();`,
+        table,
+        "status",
+      ),
+    ).toEqual(["closed", "open"]);
+  });
+
+  it("ignores a trigger function on another table", () => {
+    expect(
+      writtenValues(
+        `create function public.f() returns trigger language plpgsql as $$ begin new.status := 'closed'; return new; end; $$;
+create trigger t before insert on public.other for each row execute function public.f();`,
+        table,
+        "status",
+      ),
+    ).toEqual([]);
+  });
+
+  it("stops an update at the end of its statement", () => {
+    expect(
+      writtenValues(
+        `update ${table} set status = 'held'; insert into public.other (x) select 'digested' from y;`,
+        table,
+        "status",
+      ),
+    ).toEqual(["held"]);
+  });
+
+  it("stops an insert select at the end of its statement", () => {
+    expect(
+      writtenValues(
+        `insert into ${table} (status) select 'held'; perform f('digested') from z;`,
+        table,
+        "status",
+      ),
+    ).toEqual(["held"]);
+  });
+
+  it("reads an insert with a table alias", () => {
+    expect(
+      writtenValues(
+        `insert into ${table} as d (status) values ('held');`,
+        table,
+        "status",
+      ),
+    ).toEqual(["held"]);
+  });
+
+  it("reads an uppercase do update set", () => {
+    expect(
+      writtenValues(
+        `insert into ${table} (id, status) values ('a', 'pending') ON CONFLICT (id) DO UPDATE SET status = 'sent';`,
+        table,
+        "status",
+      ),
+    ).toEqual(["pending", "sent"]);
+  });
+
+  it("does not pair a trigger with the next statement's table", () => {
+    expect(
+      writtenValues(
+        `create function public.f() returns trigger language plpgsql as $$ begin new.status := 'closed'; return new; end; $$;
+select format('create trigger t before insert on %s for each row', 'x');
+create trigger t2 before insert on ${table} for each row execute function public.g();
+create trigger t3 before insert on public.other for each row execute function public.f();`,
+        table,
+        "status",
+      ),
+    ).toEqual([]);
+  });
+
+  it("ignores an after trigger", () => {
+    expect(
+      writtenValues(
+        `create function public.f() returns trigger language plpgsql as $$ begin new.status := 'closed'; return new; end; $$;
+create trigger t after insert on ${table} for each row execute function public.f();`,
+        table,
+        "status",
+      ),
+    ).toEqual([]);
+  });
 });

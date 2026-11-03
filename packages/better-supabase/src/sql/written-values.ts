@@ -8,12 +8,27 @@ import {
 } from "./schema-scan.ts";
 
 const INSERT = /* @__PURE__ */ new RegExp(
-  String.raw`\binsert\s+into\s+(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
+  String.raw`\binsert\s+into\s+(${NAME}(?:\s*\.\s*${NAME})?)(?:\s+as\s+${NAME})?\s*\(`,
   "gi",
 );
 
 const UPDATE = /* @__PURE__ */ new RegExp(
   String.raw`\bupdate\s+(?:only\s+)?(${NAME}(?:\s*\.\s*${NAME})?)`,
+  "gi",
+);
+
+const TRIGGER = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+${NAME}\s+(?:before|instead\s+of)\b[^;]*?\bon\s+(${NAME}(?:\s*\.\s*${NAME})?)[^;]*?\bexecute\s+(?:function|procedure)\s+(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
+  "gi",
+);
+
+const FUNCTION = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?function\s+(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
+  "gi",
+);
+
+const NEW_ASSIGNMENT = /* @__PURE__ */ new RegExp(
+  String.raw`\bnew\s*\.\s*(${NAME})\s*:=`,
   "gi",
 );
 
@@ -37,7 +52,6 @@ function skipSpace(text: string, start: number): number {
   return at;
 }
 
-/** The index of `word` at parenthesis depth 0 and outside a string. */
 function topLevelIndexOf(text: string, word: string, start: number): number {
   const lower = word.toLowerCase();
   let depth = 0;
@@ -82,7 +96,6 @@ function topLevelIndexOf(text: string, word: string, start: number): number {
   return -1;
 }
 
-/** The index of a top-level `char`. */
 function topLevelChar(text: string, char: string, start: number): number {
   let depth = 0;
   let quote: string | undefined;
@@ -127,7 +140,6 @@ function statementEnd(text: string, start: number): number {
   return end === -1 ? text.length : end;
 }
 
-/** The last identifier of `text`, unquoted. */
 function lastName(text: string): string | undefined {
   const names = text.match(new RegExp(NAME, "g"));
   const last = names?.at(-1);
@@ -135,7 +147,6 @@ function lastName(text: string): string | undefined {
   return last === undefined ? undefined : unquote(last);
 }
 
-/** `text` without `better_supabase.value_unsupported(...)` calls. */
 function withoutUnsupported(text: string): string {
   let out = text;
 
@@ -169,7 +180,6 @@ function collect(expression: string, found: string[]): void {
   }
 }
 
-/** `text` without the literals it compares a column with. */
 function withoutComparisons(text: string): string {
   return text
     .replaceAll(/(?:<>|!=|=)\s*(?:\(\s*)?'(?:[^']|'')*'(?:\s*\))?/g, "")
@@ -177,7 +187,6 @@ function withoutComparisons(text: string): string {
     .replaceAll(/\b(?:not\s+in|in|like|ilike)\s*'(?:[^']|'')*'/gi, "");
 }
 
-/** The literals the `set` list from `start` writes into `column`. */
 function assignments(
   text: string,
   start: number,
@@ -188,8 +197,7 @@ function assignments(
     .map((word) => topLevelIndexOf(text, word, start))
     .filter((index) => index !== -1);
 
-  const end =
-    stops.length === 0 ? statementEnd(text, start) : Math.min(...stops);
+  const end = Math.min(statementEnd(text, start), ...stops);
 
   for (const part of splitTopLevel(text.slice(start, end))) {
     const equals = topLevelChar(part, "=", 0);
@@ -202,12 +210,57 @@ function assignments(
   }
 }
 
-/**
- * The string literals `sql` writes into `column` of `table`, from the `insert
- * into` column lists with `values` or `select`, the `update ... set`
- * assignments and the `do update set` of an upsert. Values that arrive as a
- * parameter, and literals only compared or declared, are not written.
- */
+function functionBody(text: string, name: string): string | undefined {
+  for (const match of text.matchAll(FUNCTION)) {
+    if (qualified(match[1]!) !== name) {
+      continue;
+    }
+
+    const rest = text.slice(match.index + match[0].length);
+    const open = /\$([A-Za-z_]*)\$/.exec(rest);
+
+    if (open === null) {
+      return undefined;
+    }
+
+    const start = open.index + open[0].length;
+    const close = rest.indexOf(open[0], start);
+
+    return close === -1 ? undefined : rest.slice(start, close);
+  }
+
+  return undefined;
+}
+
+function triggerWrites(
+  text: string,
+  target: string,
+  column: string,
+  found: string[],
+): void {
+  for (const match of text.matchAll(TRIGGER)) {
+    if (qualified(match[1]!) !== target) {
+      continue;
+    }
+
+    const body = functionBody(text, qualified(match[2]!));
+
+    if (body === undefined) {
+      continue;
+    }
+
+    for (const assignment of body.matchAll(NEW_ASSIGNMENT)) {
+      if (unquote(assignment[1]!) !== column) {
+        continue;
+      }
+
+      const start = assignment.index + assignment[0].length;
+
+      collect(body.slice(start, statementEnd(body, start)), found);
+    }
+  }
+}
+
 export function writtenValues(
   sql: string,
   table: string,
@@ -270,7 +323,11 @@ export function writtenValues(
       }
     } else if (/^select\b/i.test(text.slice(at))) {
       const from = topLevelIndexOf(text, "from", at);
-      const end = from === -1 ? statementEnd(text, at) : from;
+
+      const end =
+        from === -1
+          ? statementEnd(text, at)
+          : Math.min(from, statementEnd(text, at));
 
       const list = text
         .slice(at + "select".length, end)
@@ -288,7 +345,7 @@ export function writtenValues(
 
     if (conflict !== -1) {
       const doUpdate = close + conflict;
-      const set = text.indexOf("set", doUpdate);
+      const set = text.toLowerCase().indexOf("set", doUpdate);
 
       if (set !== -1) {
         assignments(text, set + "set".length, column, found);
@@ -325,6 +382,8 @@ export function writtenValues(
 
     assignments(text, at + "set".length, column, found);
   }
+
+  triggerWrites(text, target, column, found);
 
   return found;
 }
