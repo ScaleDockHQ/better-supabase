@@ -1,5 +1,56 @@
 # better-supabase
 
+## 0.49.0
+
+### Minor Changes
+
+- [#700](https://github.com/ScaleDockHQ/better-supabase/pull/700) [`6de0854`](https://github.com/ScaleDockHQ/better-supabase/commit/6de0854a5097a5461883a814aeeb070c0c08a761) Thanks [@martijn00](https://github.com/martijn00)! - Finish the renames that the naming convention left open, and give each block manifest a
+  `description`.
+  
+  | Old                                                                   | New                                                           |
+  | --------------------------------------------------------------------- | ------------------------------------------------------------- |
+  | operation actions `view`, `viewAll`, `edit`, `admin`, `viewSensitive` | `read`, `readAll`, `write`, `manage`, `readSensitive`         |
+  | `EngagementNotes.actionItems` and the column `action_items`           | `actionTaskIds` and the table `activity_note_actions` (tasks) |
+  | table `invoice_e_deliveries`                                          | `e_invoice_deliveries`                                        |
+  | hint codes `EINVOICE_*`                                               | `E_INVOICE_*`                                                 |
+  
+  Run `better-supabase upgrade` to rename the table and to copy stored action items into tasks
+  (the `tasks` block must be installed). Old operation action names in delegated tokens still
+  resolve. `parseScaled` is exported from `commerce/money` and shared with the audit file readers.
+  Every block manifest takes a `description`, which the block catalog reads. ADR 0206 records
+  `invoice_e_endpoints` as the one naming exception.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - Add the `commissions` and `referrals` blocks. Commissions keeps plans (flat or
+  marginal tiers) per seller, accrues commissions on the ledger from sold records
+  or, with the `invoices` option, from paid invoices, builds statements per period
+  and pays them out, and exposes `commission_payroll_lines` for payroll. It
+  contributes a `commission_period` kind to the periods block. Referrals keeps
+  codes per member, attributes signups (and accepted invitations with the
+  `invitations` option) and posts a reward once to the ledger when a referral
+  qualifies.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - `pipelines`, `accounting` and `permissions` declare their defaults. `pipelines` declares the default pipeline and stage template of every record type without a `scope` as `seed_pipelines_defaults`, with the named variants `b2b-sales` (deals) and `recruiting` (applications) that a binding picks through `on.<type>.variant`; `default_pipeline()` keeps its name and signature and applies the declared defaults on first use, and scoped bindings are still created on first use. `accounting` declares its dimensions, the `generic` chart (also the default) and a new `nl-rgs` Dutch chart with its account roles and journals as `seed_accounting_defaults`; `setup_accounting` calls it for an organization with no accounts. The `permissions` data step adds the catalog roles `owner`, `admin` and `member` when the roles table lacks them. `SeedTable` gains `defaultVariant`, and a seed reference can match a null column.
+
+- [#703](https://github.com/ScaleDockHQ/better-supabase/pull/703) [`9016190`](https://github.com/ScaleDockHQ/better-supabase/commit/9016190b0f9cddb4638f221782c67b5be428bcdf) Thanks [@mick340](https://github.com/mick340)! - `drive_transfer_ownership` (`drive.transferOwnership`) no longer lets a member with `drive.manage` take another member's items. A member hands over only their own items. Moving someone else's items, as `driveOffboardingSink` does when a member leaves, needs the service role. Before, a member with `drive.manage` could transfer another member's private files to themselves and read them.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - Maintenance can run without pg_cron: `maintenanceTimer` and `maintenanceTick` in `better-supabase/blocks/queue` run `better_supabase.maintenance()` from the `block_ticks` queue, and skip the run when pg_cron already has it. `support` (expired sessions), `usage` (idempotency keys and computed meters) and `webhooks-out` (the delivery log) now register their cleanups with the `housekeeping` module, which becomes a requirement of those three modules. `leave` refuses a request that starts in a `leave_year` period the periods block locked or closed, with the hint `LEAVE_PERIOD_CLOSED`. `finance.reconcile` matches an account's unmatched bank transactions to their best open invoice. `doctor` reports BS510 when the housekeeping module is installed and nothing schedules `maintenance()`.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - `billing` keeps subscriptions in Postgres: `billing_native_subscriptions` holds a plan, a price in minor units, a quantity and the period, independent of Stripe. `create_native_subscription`, `prorate_change` and `cancel_native_subscription` are service-role functions, and `createNativeSubscriptions` in `better-supabase/blocks/billing` calls them. `prorate_change` returns the credit, charge and net of a mid-period change and, with the `ledger` block installed, posts the net as one `billing.proration` transaction. Existing apps run `better-supabase db diff` to pick up the new table and functions.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - `notifications` gets digests: `notification_preferences` has a `cadence` (`immediate`, `daily`, `weekly` or `off`), a daily or weekly delivery is held, the `digest_run` housekeeping job folds held deliveries into `notification_digests`, and `createNotificationDigests` sends each as one email through the `mail-sync` mailer. `set_notification_cadence` sets the choice. The `consents` block adds `requires_consent(subject_type, subject_id, purpose_key)` and a `consents` contribution key for system purposes. `sequences` email steps take `consentPurpose` and `send` in `notifications` takes `consentPurpose`; both skip a send while the subject has no consent. Existing apps run `better-supabase db diff` to pick up the new column, table and functions.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - `accounting` can recognize revenue over time. With `options.recognition: true`, `schedule_revenue_recognition` splits an amount over the months of a service period, books the deferral against the new `deferred_revenue` account (`2200` in the generic chart) and `list_revenue_recognition` reads the rows. The `revenue_recognition` period kind posts each month's row when that month closes. The two `accounting_recognition_*` tables always exist, so existing apps run `better-supabase db diff` to pick them up.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - Named presets can start from seed variants, a Create design can carry seeds, and doctor checks them.
+  
+  - `crm` seeds the `b2b-sales` variant of `pipelines`, `ats` the `recruiting` variant, and `erp` the `generic` chart of `accounting`. `expandPreset` writes them under `database.seed.defaults.variants`, and the app's own variants and locale win.
+  - Design format 9 `seeds` takes `sample: { size, seed }` next to `variants` and `locale`. `init --preset` and `add --preset` write all of it to the config, and `schemas/design-v1.json` describes it.
+  - New doctor checks: BS354 (declared defaults that new organizations don't receive), BS355 (a configured variant the block doesn't declare) and BS356 (a generated sample file outside `database.seed.sample.output`).
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - Three more blocks declare tenant default seeds, applied by `seed_tenant_defaults`. `inbox` creates a "Help" inbox on the in-app channel. `attachments` creates the document types `contract`, `invoice`, `receipt`, `identity`, `report` and `other` (the drive uses the same types). `calendar` creates a "Public holidays" calendar for the locales `nl`, `de`, `fr`, `en-gb` and `en-us`, with an all-day event per holiday for the years 2026 to 2030, each with a stable `uid` so running the defaults again keeps existing events. Apply the new functions to an existing app with `better-supabase db diff`, then call `seed_tenant_defaults` for the organizations that should get them.
+
+- [#701](https://github.com/ScaleDockHQ/better-supabase/pull/701) [`62c5e4a`](https://github.com/ScaleDockHQ/better-supabase/commit/62c5e4a3d73ae3b154dfcbb4429cbaa77832404c) Thanks [@martijn00](https://github.com/martijn00)! - The `organizations` block now installs a `seeds` module with `seed_tenant_defaults(tenant, variants, locale)`, which calls the `seed_<block>_defaults` function of every installed block that declares rows, in install order. `create_organization` calls it for the new organization unless `database.seed.defaults` is `false` or its `onCreate` is `false`, and the configured `locale` and `variants` become the function's defaults. The `developer-api` preset now also installs `housekeeping`, which runs notification digests.
+
 ## 0.48.0
 
 ### Minor Changes
