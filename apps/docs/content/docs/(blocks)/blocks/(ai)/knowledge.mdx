@@ -44,12 +44,13 @@ A new document is `user` scoped unless you pass `scope`.
 Rename the keys with `blocks.knowledge.permissions.read`, `.write`
 and `.manage`.
 
-| Option       | Default           | Sets                                                                     |
-| ------------ | ----------------- | ------------------------------------------------------------------------ |
-| `dimensions` | `1536`            | The embedding size; 384 for `gte-small` in Edge Functions                |
-| `type`       | `vector`          | `vector` or `halfvec`, as in [vector search](/docs/blocks/vector-search) |
-| `textSearch` | `simple`          | The text search configuration of the `tsv` column, such as `english`     |
-| `embedQueue` | `knowledge_embed` | The [jobs](/docs/blocks/queue) queue a new document is enqueued on       |
+| Option       | Default           | Sets                                                                                                                             |
+| ------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `dimensions` | `1536`            | The embedding size; 384 for `gte-small` in Edge Functions                                                                        |
+| `type`       | `vector`          | `vector` or `halfvec`, as in [vector search](/docs/blocks/vector-search)                                                         |
+| `textSearch` | `simple`          | The text search configuration of the `tsv` column, such as `english`                                                             |
+| `embedQueue` | `knowledge_embed` | The [jobs](/docs/blocks/queue) queue a new document is enqueued on                                                               |
+| `autoEmbed`  | `false`           | A pg_cron job posts pending chunks to an [embedding worker](/docs/integrations/ai-sdk/embeddings#embed-table-rows-automatically) |
 
 ## Server
 

@@ -864,6 +864,37 @@ stops until they are there. Install them as dev dependencies:
 pnpm add -D @supabase/pg-delta @supabase/pg-topo
 ```
 
+### BS240
+
+**Warning: enum value renamed or removed.** A migration that isn't applied yet
+runs `alter type ... rename value` or deletes from `pg_enum`. Rows and app code
+that still use the old value break once it runs, and Postgres can't drop a
+value from a type a column uses. Editing `pg_enum` by hand corrupts indexes and
+stored data. Create the new type, move the column with
+`alter column ... type ... using`, then drop the old type. The steps are in
+[removing an enum value](/docs/cli/db#removing-an-enum-value).
+
+### BS241
+
+**Warning: embedding jobs read too often.** An app table with `embedding`
+queues each changed row on the pgmq queue `<table>_embed`, and the drain reads a
+message again after 60 seconds until the worker applies it. A message read five
+times or more is a job the worker can't finish: the embedder refuses the text, or
+the worker URL or token is wrong. The row keeps no vector. BS241 lists the queues
+that hold such messages. Fix the cause, then delete the message with
+`select pgmq.delete('<queue>', <msg_id>)`. BS241 needs a database, so a saved
+snapshot skips it.
+
+### BS242
+
+**Warning: embedding worker requests fail.** The drain posts each batch to the
+worker with pg_net, which keeps the answers in `net._http_response` for six
+hours. BS242 counts the responses of the last hour that have an error or a
+status of 400 or more, when an app table has `embedding` or
+`blocks.knowledge.options.autoEmbed` is on. Check that the Vault secrets
+`embedding_worker_url` and `embedding_worker_token` match the deployed worker.
+BS242 needs a database, so a saved snapshot skips it.
+
 ## Drift
 
 ### BS301
@@ -1555,6 +1586,18 @@ negation or an expression alone. A column with no check accepts every value and
 is not reported. For the notifications block, the delivery `status` check must
 accept `pending`, `sent`, `failed`, `skipped`, `held` and `digested`; see
 [digests](/docs/blocks/notifications#digests).
+
+### BS362
+
+**Warning: update policy checks a read permission.** A permissive policy for
+`update` (or `all`) calls `better_supabase.can(...)` or
+`better_supabase.tenant_ids_with(...)` with a key that ends in `.read` or
+`.view`. Anyone who may read the row can then change every column of it. Check
+a write permission in the policy. When only some columns need a stricter
+permission, list them in
+[`tables.<name>.columnGroups`](/docs/repository/tables#column-groups): the generated
+trigger raises `42501` when a caller without the group's permission changes one
+of them.
 
 ## Auth config
 

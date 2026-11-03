@@ -114,3 +114,17 @@ const { object, submit, isLoading } = useAssistantObject({
 4. Streams the text. After it ended, `onFinish` gets the input, the whole
    text, the model and the usage, through `waitUntil`; without `waitUntil`
    it doesn't run.
+
+## Transcribe recordings
+
+`aiTranscriber({ model })` is a `Transcriber` for the activities block over the SDK's `transcribe`.
+Segments become speaker turns in milliseconds; a model that returns no segments gives one turn for
+the whole recording.
+
+## Realtime tokens
+
+`realtimeTokenRoute({ identify, mint, rateLimit, record })` is the Fetch handler for the realtime
+setup endpoint. It answers 401 without a caller, 429 with `Retry-After` past the rate limit, mints
+the short-lived token with your `mint` function (for example
+`gateway.experimental_realtime.getToken`) and calls `record` once per token for an audit or usage
+row.

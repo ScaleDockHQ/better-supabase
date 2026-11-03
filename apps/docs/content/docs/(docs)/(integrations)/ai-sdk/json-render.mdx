@@ -1,0 +1,28 @@
+---
+title: json-render
+description: Store and validate UI specs that a model streams with json-render.
+---
+
+`better-supabase/json-render` handles the `data-spec` parts of
+[json-render](https://json-render.dev). It is typed structurally and imports no package, so the
+optional peer `@json-render/core` is only needed when you also use its catalog.
+
+```ts
+import {
+  collapseSpecParts,
+  specOfMessage,
+  validateSpec,
+} from "better-supabase/json-render";
+```
+
+- `applySpecPatch(spec, patch)` applies a JSON Patch list and refuses `__proto__`, `constructor` and
+  `prototype` keys.
+- `collapseSpecParts(message)` folds the streamed patches of a message into one `data-spec` part.
+  Use it as `assistant({ parts: { compact: collapseSpecParts } })`.
+- `specOfMessage(message)` returns the final spec.
+- `validateSpec(catalog, spec)` reports `root_not_found`, `missing_child` and `orphaned_element`,
+  then asks your catalog (`catalog.validate`).
+- `specDocumentContent` and `parseSpecDocument` store a spec as an `ai-files` document of kind
+  `spec` (`ai-files` SQL version 3).
+
+Render the spec in React with `@json-render/react`; the Next.js example does.

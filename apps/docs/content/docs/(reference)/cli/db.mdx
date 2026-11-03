@@ -228,6 +228,7 @@ Side effects: Writes files, writes to the database with `--apply`, writes to the
 ```bash
 pnpm better-supabase db backfill invoices.organization_id --from projects.organization_id via project_id
 pnpm better-supabase db backfill invoices.currency --value "'EUR'" --dry-run
+pnpm better-supabase db backfill projects.settings --array tags --match '{"name":"old"}' --delete --dry-run
 ```
 
 `db backfill` fills the null values of a column that a migration added to a
@@ -250,10 +251,51 @@ stay null; the result counts them in `remaining`.
 | `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                  |
 | `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`. |
 | `--value <literal>`  | Writes this SQL literal instead of `--from`.                                       |
+| `--array <path>`     | Changes the elements of the jsonb array at this key path instead of filling nulls. |
+| `--match <json>`     | With `--array`: the JSON object an element must contain to change.                 |
+| `--delete`           | With `--array`: removes the matching elements.                                     |
+| `--merge <json>`     | With `--array`: merges this JSON object into each matching element.                |
 | `--batch-size <n>`   | Rows per statement (default 1000).                                                 |
-| `--dry-run`          | Counts the rows it would fill and writes nothing.                                  |
+| `--dry-run`          | Counts the rows (and elements) it would change and writes nothing.                 |
 | `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).  |
 | `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                  |
+
+### Array elements
+
+`--array` changes the elements inside a `jsonb` column instead of filling nulls,
+for the data step of removing an enum value or renaming a key. `--array tags`
+reads the array at `tags` in the column, `--array settings.tags` reads
+`settings` then `tags`, and `--array .` reads the column itself. An element
+matches when it contains the `--match` object (`jsonb @>`). Pass exactly one of
+`--delete`, which removes the matching elements, or `--merge '{"name":"new"}'`,
+which merges an object into each of them (`jsonb ||`) and keeps the order of
+the array. Rows whose value at the path isn't an array are left alone, and
+`--from`, `via` and `--value` don't combine with `--array`.
+
+It runs in `ctid` batches like the fill mode, only reads rows that still have an
+element to change, and a merge only counts the elements it would alter, so a
+second run changes nothing. `--dry-run` prints the rows and elements it would
+change, and the JSON envelope returns `data.rows`, `data.elements`,
+`data.batches` and `data.remaining`.
+
+### Removing an enum value
+
+Postgres has no `alter type ... drop value`, and a schema diff that removes a
+value plans a type drop that fails while a column uses the type.
+[`doctor`](/docs/cli/doctor#bs240) reports `alter type ... rename value` and
+`delete from pg_enum` in an unapplied migration. Remove a value in three
+steps, each its own migration:
+
+1. Move the rows off the value (`update`, or `db backfill --array` for values
+   stored in a `jsonb` array).
+2. Create the new type without the value, change the column with
+   `alter table ... alter column ... type new_type using column::text::new_type`,
+   and drop the old type.
+3. Rename the new type back if you need the old name.
+
+A table rewrite holds an access exclusive lock, so run step 2 with
+`set lock_timeout` ([BS233](/docs/cli/doctor#bs233)) in a quiet window, or add a
+new column and backfill it.
 
 A table name without a schema means `public`. The command connects like
 [`db query`](#query), and against a database that is not local, an agent

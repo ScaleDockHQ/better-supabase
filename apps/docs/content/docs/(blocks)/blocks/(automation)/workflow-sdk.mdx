@@ -321,7 +321,9 @@ their `bsb.key` attribute. A World without run keys looks the key up in
 
 With the [workflows](/docs/blocks/workflows) run registry, pass `registry:
 workflows.runs` and `startOnce` records a queued run under the key, lets one
-caller lease it, starts the run, and records the engine's run id. Without a
+caller lease it, starts the run, and records the engine's run id. When the
+start throws, the lease ends at once, so the next caller starts the run instead
+of waiting for the lease to run out. Without a
 registry or World run keys it throws `WorkflowRunKeysMissingError` (code
 `WORKFLOW_RUN_KEYS_MISSING`) instead of starting twice.
 

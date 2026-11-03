@@ -295,6 +295,15 @@ through your server action when a broadcast arrives; `useConversation` and
 `useInboxWidget` fetch only the pinged message through `get` and reload the
 whole thread only after a reconnect.
 
+Set `blocks.inbox.options.realtimeColumns` (for example `["status",
+"botMode"]`) to add the new values of those columns, under `columns`, to the
+conversation broadcast, and to skip updates that change none of them. New
+timeline events broadcast `event.created` with `{ conversation_id, event_id,
+type }`. `conversations.setActiveStream({ conversationId, streamId })` marks
+the stream that is writing a bot reply, like `runs.claim` in ai-chat: a
+second stream is refused with `INBOX_STREAM_ACTIVE`, and `streamId: null`
+releases it. Subscribers receive a `stream` ping.
+
 ```tsx title="components/conversation-list.tsx"
 "use client";
 
@@ -438,15 +447,16 @@ the conversation, organization, inbox, contact, assignee and status.
 
 ## Options
 
-| Option                               | Default          | Meaning                                                 |
-| ------------------------------------ | ---------------- | ------------------------------------------------------- |
-| `blocks.inbox.options.topic`         | `inbox`          | The prefix of the organization topic                    |
-| `blocks.inbox.options.bucket`        | `inbox-files`    | Where files from before 0.14 live, for imports          |
-| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                                |
-| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                           |
-| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries                    |
-| `blocks.inbox.options.scheduleQueue` | `inbox_schedule` | The job queue for snooze wake-ups and scheduled replies |
-| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions              |
+| Option                                 | Default          | Meaning                                                 |
+| -------------------------------------- | ---------------- | ------------------------------------------------------- |
+| `blocks.inbox.options.topic`           | `inbox`          | The prefix of the organization topic                    |
+| `blocks.inbox.options.bucket`          | `inbox-files`    | Where files from before 0.14 live, for imports          |
+| `blocks.inbox.options.maxBodyLength`   | `20000`          | The longest message body                                |
+| `blocks.inbox.options.botQueue`        | `inbox_bot`      | The job queue for bot replies                           |
+| `blocks.inbox.options.outboundQueue`   | `inbox_outbound` | The job queue for channel deliveries                    |
+| `blocks.inbox.options.scheduleQueue`   | `inbox_schedule` | The job queue for snooze wake-ups and scheduled replies |
+| `blocks.inbox.options.realtimeColumns` | none             | Conversation columns to broadcast with `columns`        |
+| `blocks.inbox.options.notify`          | `true`           | Notifications for assignments and mentions              |
 
 ## Example
 

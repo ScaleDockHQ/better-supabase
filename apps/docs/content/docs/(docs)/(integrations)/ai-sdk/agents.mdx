@@ -295,3 +295,30 @@ returns a verdict with an `action` and a `category`, or nothing. Every
 verdict is recorded in the [AI chat](/docs/blocks/ai-chat) moderation log.
 A `block` verdict throws `ModerationBlockedError` before the model runs, or
 after it answers; in a stream it ends the stream with an error part.
+
+## Skills
+
+An agent skill can carry files (`files`), a `contentHash` and the provider references of earlier
+uploads (`providerRefs`). `syncSkill` uploads the files with the SDK's `uploadSkill` when the hash
+changed and records the reference with `recordSkillSync`. `anthropicSkillOptions` and
+`openaiShellSkills` turn the references into provider options, and `harnessSkills` builds inline
+skills for a harness agent.
+
+```ts
+import {
+  syncSkill,
+  anthropicSkillOptions,
+} from "better-supabase/ai-sdk/agents";
+
+await syncSkill({
+  skill,
+  agents,
+  api: anthropic.skills,
+  provider: "anthropic",
+  read,
+});
+
+const providerOptions = anthropicSkillOptions(skills);
+```
+
+The `agents` SQL module moves to version 2, so run `better-supabase upgrade`.

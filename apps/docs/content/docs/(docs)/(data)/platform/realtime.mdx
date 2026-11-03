@@ -287,6 +287,11 @@ all topics. A two-level lookup costs two queries per row.
 
 `when: { changed }` sends an update only when one of the listed columns
 differs between the old and the new row. Inserts and deletes always send.
+`columns` sends the listed columns instead of only the key: it broadcasts
+`{ operation, table, id, columns }` with the new values and implies
+`when: { changed: columns }`. It replaces `when` and `payload`, so setting
+either with `columns` throws a `TypeError`.
+
 On a trigger for updates alone (`events: ["update"]`) the filter becomes the
 trigger's `when` clause, so Postgres skips the function entirely; with more
 events the function returns early instead:

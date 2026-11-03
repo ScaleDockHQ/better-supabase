@@ -96,7 +96,7 @@ may be your own enum or domain.
   - `better_supabase.agents`: `id`, `organization_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
   - `better_supabase.agent_installs`: `agent_id`, `user_id`, `organization_id`
   - `better_supabase.agent_ratings`: `agent_id`, `user_id`, `rating`
-  - `better_supabase.agent_skills`: `id`, `agent_id`, `provider`, `reference`
+  - `better_supabase.agent_skills`: `id`, `agent_id`, `provider`, `reference`, `name`, `files`, `content_hash`, `latest_version`, `provider_refs`
 - `ai-cache`
   - `better_supabase.ai_cache_entries`: `key`, `organization_id`, `kind`, `value`, `expires_at`; typed: `kind`
 - `ai-chat`
@@ -153,6 +153,7 @@ may be your own enum or domain.
 - `approvals`
   - `better_supabase.approval_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `action`, `status`, `requested_by`, `created_at`; typed: `status`
   - `better_supabase.approval_decisions`: `id`, `request_id`, `tenant_id`, `step`, `approver`, `decision`, `created_at`; typed: `decision`
+  - `better_supabase.approval_items`: `id`, `request_id`, `tenant_id`, `key`, `label`, `payload`, `permission`, `depends_on`, `status`, `created_type`, `created_id`, `decided_by`, `decided_at`, `created_at`
   - `better_supabase.approval_policies`: `id`, `tenant_id`, `subject_type`, `action`, `name`, `mode`, `steps`, `self_approval`, `enabled`, `created_at`; typed: `mode`
 - `assets`
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
@@ -651,6 +652,7 @@ may be your own enum or domain.
   - `better_supabase.qualifications`: `id`, `tenant_id`, `type_id`, `holder_type`, `holder_id`, `granted_on`, `expires_on`, `revoked_at`, `evidence_attachment_id`, `source`, `source_id`, `notified_status`
 - `queue`
   - `better_supabase.job_messages`: `id`, `queue`, `message`, `attempts`, `enqueued_at`, `visible_at`, `archived_at`, `dead`, `dedupe_key`, `max_attempts`
+  - `better_supabase.job_leases`: `scope`, `key`, `holder`, `state`, `expires_at`
   - `better_supabase.job_schedules`: `job_name`, `schedule`, `timezone`, `queue`, `payload`, `next_run`, `last_run`, `locked_until`, `created_at`, `tenant`, `first_after`
 - `quotes`
   - `better_supabase.quotes`: `id`, `tenant_id`, `number`, `identifier`, `revision`, `title`, `owner_user_id`, `currency`, `status`, `valid_until`, `token_hash`, `sent_at`, `decided_at`, `decided_by`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`
@@ -659,7 +661,7 @@ may be your own enum or domain.
   - `better_supabase.quote_version_lines`: `id`, `tenant_id`, `version_id`, `position`, `description`, `quantity`, `unit_amount`; typed: `product_type`
   - `better_supabase.quote_tax_lines`: `id`, `tenant_id`, `parent_id`, `tax_rate_bps`, `net`, `tax`, `gross`
 - `rate-limit`
-  - `better_supabase.rate_limit_rules`: `scope`, `max_requests`, `period`, `key_claim`
+  - `better_supabase.rate_limit_rules`: `scope`, `max_requests`, `period`, `key_claim`, `organization_id`
   - `better_supabase.rate_limits`: `scope`, `key`, `window_start`, `hits`, `period`
 - `reactions`
   - `better_supabase.reactions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `actor`, `user_id`, `kind`, `emoji`, `value`; typed: `kind`
@@ -752,6 +754,7 @@ may be your own enum or domain.
 - `streams`
   - `better_supabase.streams`: `id`, `tenant_id`, `owner_id`, `closed_at`, `cancel_requested_at`, `expires_at`
   - `better_supabase.stream_chunks`: `stream_id`, `idx`, `data`
+  - `better_supabase.stream_kv`: `key`, `value`, `expires_at`
 - `subjects`
   - `better_supabase.subject_members`: `id`, `tenant_id`, `subject_type`, `subject_id`, `user_id`, `team_id`, `role`, `starts_on`, `ends_on`, `emergency`, `reason`, `created_by`, `created_at`
 - `tags`

@@ -130,3 +130,25 @@ number of streams deleted.
 Chunks are stored as `bytea`. `append` accepts strings or `Uint8Array` values, and `readBytes(id, fromIdx)` on the Postgres store returns them exactly as written. The Redis store keeps text only and rejects a `Uint8Array` with the hint `STREAM_TEXT_ONLY`.
 
 `resumableStreamContext(store, { waitUntil })` from `better-supabase/streams` implements the `createNewResumableStream`, `resumeExistingStream` and `hasExistingStream` methods the AI SDK resume route calls, so a reconnecting client continues from its character offset without Redis.
+
+## resumable-stream on Postgres
+
+To use the `resumable-stream` package itself, `better-supabase/streams/resumable` provides a publisher and a subscriber that run on the `stream_kv` functions and Realtime broadcasts, so a deployment with Supabase needs no Redis.
+
+```ts
+import { createResumableStreamContext } from "resumable-stream/generic";
+import {
+  postgresPublisher,
+  postgresSubscriber,
+} from "better-supabase/streams/resumable";
+
+const context = createResumableStreamContext({
+  waitUntil: after,
+  publisher: postgresPublisher({
+    transport: sqlTransport(postgres.asService()),
+  }),
+  subscriber: postgresSubscriber({ realtime: serviceClient }),
+});
+```
+
+The publisher needs a service-role transport, because the key-value functions are service-only. The subscriber takes a service-role Supabase client and joins the topic `<topic>:kv:<channel>` (`blocks.streams.options.topic`, default `stream`).
