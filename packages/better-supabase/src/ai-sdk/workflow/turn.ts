@@ -17,7 +17,7 @@ import { fromModelMessages } from "../model-messages.ts";
  * What `durableChat` starts the turn's workflow with. Every field is
  * serializable.
  */
-export interface DurableTurnInput {
+export interface DurableTurnInput<CONTEXT = undefined> {
   readonly chatId: string;
   /** Missing for a chat outside a tenant. */
   readonly organizationId?: string;
@@ -36,6 +36,12 @@ export interface DurableTurnInput {
   readonly streamId: string;
   readonly messages: ModelMessage[];
   readonly providerOptions: { readonly gateway: GatewayOptions };
+  /**
+   * What the app's `context(request, turn)` returned (`durableChat`). It must
+   * be JSON-serializable, because it travels through the workflow's event log,
+   * and reaches the agent as `args.context`.
+   */
+  readonly context?: CONTEXT;
 }
 
 /** The hook payload that continues a turn once its approvals are decided. */
@@ -52,8 +58,13 @@ export interface DurableStop {
 }
 
 /** What the agent function gets for one segment. */
-export interface DurableAgentArgs {
+export interface DurableAgentArgs<CONTEXT = undefined> {
   readonly chatId: string;
+  readonly userId: string;
+  /** Missing for a chat outside a tenant. */
+  readonly organizationId?: string;
+  /** The turn's `context`, as `durableChat` built it. */
+  readonly context?: CONTEXT;
   /** The segment's `ai_runs` row, for progress in `ai_run_steps`. */
   readonly runId: string;
   readonly messages: ModelMessage[];
@@ -72,6 +83,12 @@ export interface DurableAgentResult {
     readonly providerMetadata?: unknown;
   }[];
   readonly totalUsage?: Partial<LanguageModelUsage>;
+  /**
+   * The error of a pass that ended in one (`streamText` and the Workflow SDK's
+   * agent return it instead of throwing). The turn then ends `failed` and the
+   * run keeps the message.
+   */
+  readonly error?: unknown;
 }
 
 /** An approval the agent asked for, to record in `ai_tool_approvals`. */
@@ -97,6 +114,14 @@ export interface DurableSaveInput {
   readonly model: string;
   readonly runId: string;
   readonly status: AiStoredMessageStatus;
+  /**
+   * Where the segments' streams are, so the save step can add what only the UI
+   * stream carries: `data-*` parts and message metadata.
+   */
+  readonly streams?: {
+    readonly workflowRunId: string;
+    readonly streamIds: readonly string[];
+  };
 }
 
 export interface DurableApprovalsInput {
@@ -167,7 +192,7 @@ export type DurableStep = <K extends DurableStepName>(
 export type DurableHook<T> = PromiseLike<T> & AsyncIterable<T>;
 
 /** What `durableTurn` runs on; the workflow passes the Workflow SDK's functions. */
-export interface DurableTurnDeps {
+export interface DurableTurnDeps<CONTEXT = undefined> {
   /** `getWorkflowMetadata().workflowRunId`. */
   readonly runId: string;
   /** `createHook`. */
@@ -186,7 +211,9 @@ export interface DurableTurnDeps {
     attributes: Record<string, string | undefined>,
   ) => Promise<void>;
   /** Runs the agent for one segment: `(args) => agent.stream(args)`. */
-  readonly agent: (args: DurableAgentArgs) => Promise<DurableAgentResult>;
+  readonly agent: (
+    args: DurableAgentArgs<CONTEXT>,
+  ) => Promise<DurableAgentResult>;
   readonly step: DurableStep;
 }
 
@@ -265,9 +292,9 @@ function sourcesOf(result: DurableAgentResult): ModelSource[] {
  * take; it reads them back from the database rather than from the hook payload.
  * The stop hook (`durableStopToken`) aborts it.
  */
-export async function durableTurn(
-  input: DurableTurnInput,
-  deps: DurableTurnDeps,
+export async function durableTurn<CONTEXT = undefined>(
+  input: DurableTurnInput<CONTEXT>,
+  deps: DurableTurnDeps<CONTEXT>,
 ): Promise<DurableTurnResult> {
   const abort = new AbortController();
 
@@ -288,6 +315,7 @@ export async function durableTurn(
   const historyLength = input.messages.length;
   const approvals = new Map<string, ModelApproval>();
   const sources: ModelSource[] = [];
+  const streamIds: string[] = [input.streamId];
   let conversation = input.messages;
   let segment: DurableResume = { streamId: input.streamId, runId: input.runId };
   let segments = 0;
@@ -304,6 +332,11 @@ export async function durableTurn(
     try {
       const result = await deps.agent({
         chatId: input.chatId,
+        userId: input.userId,
+        ...(input.organizationId === undefined
+          ? {}
+          : { organizationId: input.organizationId }),
+        ...(input.context === undefined ? {} : { context: input.context }),
         runId: segment.runId,
         messages: conversation,
         writable: deps.getWritable({ namespace: segment.streamId }),
@@ -311,6 +344,11 @@ export async function durableTurn(
         model: input.model,
         providerOptions: input.providerOptions,
       });
+
+      if ("error" in result && result.error !== undefined) {
+        status = "failed";
+        error = messageOf(result.error);
+      }
 
       conversation = result.messages;
       sources.push(...sourcesOf(result));
@@ -356,6 +394,7 @@ export async function durableTurn(
           : status === "cancelled"
             ? "aborted"
             : "error",
+      streams: { workflowRunId: deps.runId, streamIds: [...streamIds] },
     });
 
     if (requests.length > 0) {
@@ -449,5 +488,6 @@ export async function durableTurn(
       },
     ];
     segment = next;
+    streamIds.push(next.streamId);
   }
 }

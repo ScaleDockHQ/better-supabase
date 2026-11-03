@@ -84,6 +84,32 @@ The model is a gateway string such as `"openai/gpt-5-mini"`: the agent
 passes it to a step, so it has to be serializable. `args` also carries the
 chat id and the segment's `ai_runs` id for tools that record progress.
 
+`args` also has `userId`, `organizationId` and `context`. Build the context
+in `durableChat({ context })`; it is stored in the workflow's event log, so
+it must be JSON-serializable:
+
+```ts
+const chat = durableChat({
+  assistant,
+  workflow: assistantTurn,
+  streams,
+  context: async (_body, turn) => ({ projectId: turn.chat.projectId }),
+});
+```
+
+Type the workflow with `DurableTurnInput<{ projectId: string }>`, and
+`durableChat<MyUIMessage, { projectId: string }>` carries your UI message
+type to the context builder. Return a `Response` from `context` to refuse the
+turn.
+
+When the agent's result has an `error`, the turn ends `failed` and the run
+keeps the error message.
+
+The save step also reads each segment's UI stream, so the answer keeps its
+persistent `data-*` parts and its message metadata. The data parts follow the
+text and tool parts in the saved message. If the stream can't be read, the
+answer is saved from the model messages alone.
+
 `durableTurn` runs the agent and saves the answer after each pass, always
 under the same message id, so a retried step updates the message instead
 of adding one. When the agent asks for approvals it stores them in
@@ -129,7 +155,10 @@ Every streaming response has the `x-workflow-run-id` header
 segment, converted with `normalizeUIMessageStreamParts`; a copy goes to the
 [stream store](/docs/blocks/streams), which answers a reconnect when the
 World's stream can't be read. `startIndex` counts UI chunks from the start
-of the segment; a negative index isn't supported.
+of the segment. A negative index counts back from the newest chunk, so `-5`
+replays the last five. Every stream response also has the
+`x-workflow-stream-tail-index` header, the index of the newest UI chunk
+written when the response opened.
 
 Errors are RFC 9457 problem details with a `code`:
 
