@@ -2039,6 +2039,7 @@
       "applyWebHeaders",
       "fastifyGuard",
       "guard",
+      "keepAliveFetch",
       "koaGuard",
       "problemErrorHandler",
       "sendWebResponse",
@@ -2056,11 +2057,13 @@
       "FastifyHook",
       "FastifyReplyLike",
       "FastifyRequestLike",
+      "KeepAliveFetchOptions",
       "KoaContextLike",
       "KoaMiddleware",
       "NodeHeaderTarget",
       "RouteGuardOptions",
       "ToNodeOptions",
+      "UndiciModule",
       "WebRequestOptions"
     ]
   },
