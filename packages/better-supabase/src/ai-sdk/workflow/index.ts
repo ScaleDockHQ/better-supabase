@@ -1,4 +1,9 @@
 export {
+  createWorkflowAgentRuntime,
+  type WorkflowAgentRuntimeOptions,
+} from "./agent.ts";
+
+export {
   type DurableApprovalDecision,
   type DurableChat,
   type DurableChatContext,

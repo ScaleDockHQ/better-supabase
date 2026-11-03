@@ -1,4 +1,5 @@
 import type {
+  JSONValue,
   LanguageModel,
   LanguageModelMiddleware,
   StopCondition,
@@ -282,10 +283,81 @@ export interface AgentRuntimeOptions {
   };
 }
 
-/** A `ToolLoopAgent` from an agent row. */
-export function createAgentRuntime(
+type ProviderOptionsMap = NonNullable<
+  ToolLoopAgentSettings<never, ToolSet>["providerOptions"]
+>;
+
+const stringTags = (value: JSONValue | undefined): string[] =>
+  Array.isArray(value)
+    ? value.filter((tag): tag is string => typeof tag === "string")
+    : [];
+
+/**
+ * The library's `providerOptions.gateway` merged into the call's own: the
+ * library's `user` always wins, `tags` are the union (library first), and every
+ * other key, nested under `gateway` or under another provider, keeps the call's
+ * value over the library's.
+ */
+export function mergeGatewayOptions(
+  call: ProviderOptionsMap | undefined,
+  library: { readonly gateway: GatewayOptions } | undefined,
+): ProviderOptionsMap | undefined {
+  if (library === undefined) {
+    return call;
+  }
+
+  const own: Record<string, JSONValue | undefined> = call?.["gateway"] ?? {};
+  const base: Record<string, JSONValue | undefined> = { ...library.gateway };
+
+  for (const [key, value] of Object.entries(own)) {
+    if (key === "tags" || (key === "user" && base["user"] !== undefined)) {
+      continue;
+    }
+
+    base[key] = value;
+  }
+
+  const tags = [
+    ...new Set([
+      ...stringTags(library.gateway["tags"]),
+      ...stringTags(own["tags"]),
+    ]),
+  ];
+
+  if (tags.length > 0) {
+    base["tags"] = tags;
+  }
+
+  return { ...call, gateway: base };
+}
+
+/** What `createAgentRuntime` and the workflow runtime share. */
+export interface AgentRuntimeParts {
+  readonly tools: ToolSet;
+  /**
+   * The tools the tenant's policy or the provider's risk makes wait for the
+   * user.
+   */
+  readonly ask: Readonly<Record<string, "user-approval">>;
+  readonly instructions: string;
+  readonly run: AgentRunContext;
+  readonly operation: (name: string) => AgentToolOperation;
+  /** The tool-call check as `ToolLoopAgent`'s `toolApproval`. */
+  readonly toolApproval:
+    | AgentToolApprovalFunction
+    | Record<string, "user-approval">;
+  /** The call's `providerOptions` with the gateway attribution merged in. */
+  readonly withGateway: (
+    providerOptions: ProviderOptionsMap | undefined,
+  ) => ProviderOptionsMap | undefined;
+  /** Refuses the run when the app's model check says so. */
+  readonly checkModel: (model: LanguageModel) => Promise<void>;
+}
+
+/** The tools, approvals, context and attribution of an agent row. */
+export function agentRuntimeParts(
   options: AgentRuntimeOptions,
-): ToolLoopAgent<never, ToolSet> {
+): AgentRuntimeParts {
   const { agent } = options;
 
   const tools = agentTools(
@@ -369,10 +441,12 @@ export function createAgentRuntime(
 
   const { authorizeModel } = options;
 
-  return new ToolLoopAgent({
-    id: agent.id,
-    model: options.model(agent.model),
+  return {
     tools,
+    ask,
+    instructions,
+    run,
+    operation,
     toolApproval:
       options.toolApproval === undefined &&
       options.authorizeTool === undefined &&
@@ -386,19 +460,45 @@ export function createAgentRuntime(
             operation,
             run,
           }),
-    ...(instructions === "" ? {} : { instructions }),
-    stopWhen: options.stopWhen ?? isStepCount(20),
-    runtimeContext: run,
-    prepareCall: (call) => ({
-      ...call,
-      runtimeContext: { ...call.runtimeContext, ...run },
-    }),
-    prepareStep: async ({ model }) => {
+    withGateway: (providerOptions) =>
+      mergeGatewayOptions(providerOptions, gateway),
+    checkModel: async (model) => {
       if (authorizeModel !== undefined) {
         await assertModelAllowed(authorizeModel, model, run);
       }
+    },
+  };
+}
 
-      return gateway === undefined ? undefined : { providerOptions: gateway };
+/** A `ToolLoopAgent` from an agent row. */
+export function createAgentRuntime(
+  options: AgentRuntimeOptions,
+): ToolLoopAgent<never, ToolSet> {
+  const { agent } = options;
+  const parts = agentRuntimeParts(options);
+  const { run } = parts;
+
+  return new ToolLoopAgent({
+    id: agent.id,
+    model: options.model(agent.model),
+    tools: parts.tools,
+    toolApproval: parts.toolApproval,
+    ...(parts.instructions === "" ? {} : { instructions: parts.instructions }),
+    stopWhen: options.stopWhen ?? isStepCount(20),
+    runtimeContext: run,
+    prepareCall: (call) => {
+      const providerOptions = parts.withGateway(call.providerOptions);
+
+      return {
+        ...call,
+        runtimeContext: { ...call.runtimeContext, ...run },
+        ...(providerOptions === undefined ? {} : { providerOptions }),
+      };
+    },
+    prepareStep: async ({ model }) => {
+      await parts.checkModel(model);
+
+      return {};
     },
   });
 }

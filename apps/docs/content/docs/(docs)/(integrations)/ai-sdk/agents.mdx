@@ -208,6 +208,34 @@ const runtime = createAgentRuntime({
 });
 ```
 
+The attribution is applied in `prepareCall`, merged into the call's own
+`providerOptions`: the library's `user` always wins, `tags` are the union, and
+any other gateway key you set keeps your value.
+
+## Workflow agent
+
+`createWorkflowAgentRuntime` from `better-supabase/ai-sdk/workflow` builds a
+`WorkflowAgent` from the same options: the same tools, instructions, runtime
+context, gateway attribution and `authorizeModel` check. `WorkflowAgent` has
+no `toolApproval` setting, so the tenant's `ask` tools, high-risk operations
+and your `toolApproval` check run as each tool's `needsApproval`: a call that
+asks waits for the user and a denied call throws. `toolApprovalSecret`
+(`{ environmentVariable }`) signs the approval requests with AI SDK 7's
+`experimental_toolApprovalSecret`.
+
+```ts
+import { createWorkflowAgentRuntime } from "better-supabase/ai-sdk/workflow";
+
+const agent = createWorkflowAgentRuntime({
+  agent: row,
+  model,
+  tools,
+  policies,
+  caller,
+  toolApprovalSecret: { environmentVariable: "AI_APPROVAL_SECRET" },
+});
+```
+
 ## Moderation
 
 ```ts
