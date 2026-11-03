@@ -1,5 +1,7 @@
 import type { UIMessage } from "ai";
 
+import { isToolUIPart } from "ai";
+
 /** What a transport factory gets from `useAssistant`. */
 export interface AssistantTransportConfig {
   readonly api: string;
@@ -8,7 +10,10 @@ export interface AssistantTransportConfig {
   readonly headers?: Readonly<Record<string, string>> | undefined;
 }
 
-/** The body `useAssistant` sends for the user's newest message. */
+/**
+ * The body `useAssistant` sends: the user's newest message, or the assistant's
+ * after an approval.
+ */
 export function assistantBody(
   config: AssistantTransportConfig,
   request: {
@@ -19,7 +24,16 @@ export function assistantBody(
     readonly messageId?: string | undefined;
   },
 ): Record<string, unknown> {
-  const message = request.messages.findLast((entry) => entry.role === "user");
+  const newest = request.messages.at(-1);
+
+  // After a tool approval the newest message is the assistant's own, with the decision on it.
+  const message =
+    newest?.role === "assistant" &&
+    newest.parts.some(
+      (part) => isToolUIPart(part) && part.state === "approval-responded",
+    )
+      ? newest
+      : request.messages.findLast((entry) => entry.role === "user");
 
   return {
     ...config.body,

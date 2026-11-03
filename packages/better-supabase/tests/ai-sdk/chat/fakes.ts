@@ -67,6 +67,11 @@ export interface FakeChats {
   readonly chats: AiChat;
   readonly raw: Map<string, AiChatRecord>;
   readonly tree: AiStoredMessage[];
+  readonly seed: (
+    message: AiMessage,
+    parentId: string | undefined,
+    extra?: Partial<AiStoredMessage>,
+  ) => void;
   readonly released: unknown[];
   readonly saved: unknown[];
   readonly appended: unknown[];
@@ -83,6 +88,12 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     parentId: string | undefined,
     extra: Partial<AiStoredMessage> = {},
   ) => {
+    const at = tree.findIndex((entry) => entry.id === message.id);
+
+    if (at !== -1) {
+      tree.splice(at, 1);
+    }
+
     tree.push({
       ...message,
       parentId,
@@ -175,7 +186,21 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           created: true,
         });
       },
-      path: () => result([...tree]),
+      path: ({ leafId }: { leafId?: string } = {}) => {
+        const byId = new Map(tree.map((entry) => [entry.id, entry]));
+        const branch: AiStoredMessage[] = [];
+
+        for (
+          let node = leafId === undefined ? tree.at(-1) : byId.get(leafId);
+          node;
+          node =
+            node.parentId === undefined ? undefined : byId.get(node.parentId)
+        ) {
+          branch.unshift(node);
+        }
+
+        return result(branch);
+      },
       saveAssistant: ({
         chatId,
         message,
@@ -190,6 +215,12 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           format: opts.format ?? "canonical",
           native: opts.native,
         });
+
+        const owner = chats.get(chatId);
+
+        if (owner) {
+          chats.set(chatId, { ...owner, leafId: message.id });
+        }
 
         return result({
           messageId: message.id,
@@ -247,6 +278,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     chats: api as unknown as AiChat,
     raw: chats,
     tree,
+    seed: store,
     released,
     saved,
     appended,
