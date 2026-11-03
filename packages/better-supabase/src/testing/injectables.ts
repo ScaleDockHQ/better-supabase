@@ -41,6 +41,7 @@ import type { RouteOptimizer, RouteRequest } from "../core/route-optimizer.ts";
 import type { EveDocumentBackend } from "../eve/eve.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 
+import { embedVectors } from "../blocks/knowledge/knowledge.ts";
 import { toFhirPrescription } from "../fhir/prescriptions.ts";
 import {
   CARE_ALERT_KINDS,
@@ -49,11 +50,17 @@ import {
 } from "../sql/modules/clinical-decision-support-values.ts";
 import { conform, expect, same } from "./conformance.ts";
 
-const hasApiVersion = (subject: { readonly apiVersion?: unknown }): Check => [
-  "has apiVersion 1",
+const hasApiVersion = (
+  subject: { readonly apiVersion?: unknown },
+  accepted: readonly unknown[] = [1],
+): Check => [
+  `has apiVersion ${accepted.join(" or ")}`,
   () => {
     const version: unknown = subject.apiVersion;
-    expect(version === 1, `apiVersion is ${String(version)}, not 1`);
+    expect(
+      accepted.includes(version),
+      `apiVersion is ${String(version)}, not ${accepted.join(" or ")}`,
+    );
   },
 ];
 
@@ -84,7 +91,7 @@ export function testEmbedder(
   const values = options.values ?? ["The first text.", "A second text."];
 
   return conform(`Embedder "${embedder.model}"`, [
-    hasApiVersion(embedder),
+    hasApiVersion(embedder, [1, 2]),
     [
       "names its model",
       () => {
@@ -97,14 +104,14 @@ export function testEmbedder(
     [
       "embeds nothing to nothing",
       async () => {
-        const vectors = await embedder.embed([]);
+        const { embeddings: vectors } = await embedVectors(embedder, []);
         expect(vectors.length === 0, `got ${vectors.length} vectors`);
       },
     ],
     [
       "returns one finite vector per value, of one length",
       async () => {
-        const first = await embedder.embed(values);
+        const { embeddings: first } = await embedVectors(embedder, values);
         expect(
           first.length === values.length,
           `got ${first.length} vectors for ${values.length} values`,
@@ -117,7 +124,11 @@ export function testEmbedder(
           ),
           "vectors must share one length and hold finite numbers",
         );
-        const [again] = await embedder.embed(values.slice(0, 1));
+
+        const {
+          embeddings: [again],
+        } = await embedVectors(embedder, values.slice(0, 1));
+
         expect(again?.length === size, "a second call changed the length");
       },
     ],

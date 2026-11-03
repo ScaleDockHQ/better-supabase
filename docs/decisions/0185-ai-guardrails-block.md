@@ -16,7 +16,7 @@ patterns for OWASP LLM01 on input, PII detection with Luhn and IBAN checksums, t
 tool depth limit. A decision is `allow`, `redact` or `block`. The log stores a SHA-256 hash of the text
 and never the text. A block records the `guardrail.blocked` event through the outbox.
 
-`guardrailMiddleware` wraps one model step as text in and text out, so it needs no AI SDK import. It
+`guardText` wraps one model step as text in and text out, so it needs no AI SDK import. It
 never changes a repository `Result` (invariant 5), and a failed log write never changes the decision.
 A check that cannot run blocks unless the caller sets `failOpen`. Heuristics are not a complete
 defence, and the docs say so.

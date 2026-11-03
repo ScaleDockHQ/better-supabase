@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { HookNotFoundError } from "workflow/errors";
 
 import { signWebhook } from "../../src/core/signatures.ts";
 
@@ -86,7 +87,7 @@ describe("resumeHookFromWebhook", () => {
 
     expect(bad.status).toBe(401);
 
-    resumeHook.mockRejectedValueOnce(new Error("not found"));
+    resumeHook.mockRejectedValueOnce(new HookNotFoundError("tok"));
     const headers = await signWebhook(secret, { id: "msg_2", body });
 
     const missing = await resumeHookFromWebhook({ headers, body }, "tok", {
@@ -95,5 +96,38 @@ describe("resumeHookFromWebhook", () => {
     });
 
     expect(missing.status).toBe(404);
+  });
+
+  it("answers 503 when the World is unreachable and 500 otherwise", async () => {
+    const body = "{}";
+    const onError = vi.fn();
+
+    const send = async (id: string): Promise<Response> =>
+      resumeHookFromWebhook(
+        { headers: await signWebhook(secret, { id, body }), body },
+        "tok",
+        { provider: "standard-webhooks", secrets: secret, onError },
+      );
+
+    resumeHook.mockRejectedValueOnce(
+      Object.assign(new Error("down"), { code: "ECONNREFUSED" }),
+    );
+
+    const unavailable = await send("msg_3");
+
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toMatchObject({
+      code: "WORKFLOW_UNAVAILABLE",
+    });
+
+    resumeHook.mockRejectedValueOnce(new Error("boom"));
+
+    const failed = await send("msg_4");
+
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).toMatchObject({
+      code: "WORKFLOW_RESUME_FAILED",
+    });
+    expect(onError).toHaveBeenCalledTimes(2);
   });
 });

@@ -15,7 +15,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral } from "../../core/search.ts";
-import { checkVectors } from "../knowledge/knowledge.ts";
+import { checkVectors, embedVectors } from "../knowledge/knowledge.ts";
 import {
   applyTemporal,
   blockCall,
@@ -112,7 +112,7 @@ export function createMemory(options: MemoryOptions): Memory {
     options.mappers,
   );
 
-  const embedder = injectableOf("embedder", options.embedder);
+  const embedder = injectableOf("embedder", options.embedder, [1, 2]);
   const maxRender = options.maxRender ?? 8000;
   const threshold = options.dedupeThreshold ?? 0.92;
 
@@ -122,9 +122,15 @@ export function createMemory(options: MemoryOptions): Memory {
   ): AsyncResult<string | undefined> =>
     embedder
       ? run(() =>
-          embedder.embed([text], signal === undefined ? undefined : { signal }),
-        ).map((vectors) =>
-          vectors[0] === undefined ? undefined : vectorLiteral(vectors[0]),
+          embedVectors(
+            embedder,
+            [text],
+            signal === undefined ? undefined : { signal },
+          ),
+        ).map(({ embeddings }) =>
+          embeddings[0] === undefined
+            ? undefined
+            : vectorLiteral(embeddings[0]),
         )
       : AsyncResult.ok(undefined);
 
@@ -477,7 +483,9 @@ export function createMemory(options: MemoryOptions): Memory {
         let embeddings: readonly (string | undefined)[] = [];
 
         if (embedder) {
-          const vectors = await run(() => embedder.embed(contents));
+          const vectors = await run(
+            async () => (await embedVectors(embedder, contents)).embeddings,
+          );
 
           if (!vectors.ok) {
             return vectors;
@@ -548,13 +556,17 @@ export function createMemory(options: MemoryOptions): Memory {
                 return ok(0);
               }
 
-              const vectors = await run(() =>
-                embedder.embed(
-                  rows.map((row) => textOf(row["content"])),
-                  embedOptions.signal === undefined
-                    ? undefined
-                    : { signal: embedOptions.signal },
-                ),
+              const vectors = await run(
+                async () =>
+                  (
+                    await embedVectors(
+                      embedder,
+                      rows.map((row) => textOf(row["content"])),
+                      embedOptions.signal === undefined
+                        ? undefined
+                        : { signal: embedOptions.signal },
+                    )
+                  ).embeddings,
               );
 
               if (!vectors.ok) {

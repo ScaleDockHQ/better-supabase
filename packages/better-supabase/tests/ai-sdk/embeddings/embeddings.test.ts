@@ -26,6 +26,8 @@ const hit = (documentId: string, index: number, score = 1): KnowledgeHit => ({
   metadata: {},
   title: `Doc ${documentId}`,
   score,
+  chunkId: `${documentId}#${String(index)}`,
+  organizationId: undefined,
 });
 
 const call: ToolExecutionOptions<unknown> = {
@@ -61,11 +63,14 @@ describe("embedWith", () => {
     const embedder = embedWith(model, { providerOptions: { openai: {} } });
     expect(embedder.model).toBe("openai/text-embedding-3-small");
     const signal = new AbortController().signal;
-    expect(await embedder.embed(["ab", "abc"], { signal })).toEqual([
+    expect(embedder.apiVersion).toBe(2);
+    expect(
+      (await embedder.embed(["ab", "abc"], { signal })).embeddings,
+    ).toEqual([
       [2, 0],
       [3, 0],
     ]);
-    expect(await embedder.embed([])).toEqual([]);
+    expect((await embedder.embed([])).embeddings).toEqual([]);
     expect(model.doEmbedCalls).toHaveLength(1);
     expect(embedWith(model, { name: "custom" }).model).toBe("custom");
     expect(modelName("openai/text-embedding-3-large")).toBe(
@@ -97,6 +102,34 @@ describe("rerankWith", () => {
     ]);
     const one = [hit("a", 0)];
     expect(await rerankWith(model)("q", one)).toBe(one);
+  });
+});
+
+describe("searchTool model output", () => {
+  it("is strict and can send the model only ids and trimmed text", async () => {
+    const { knowledge } = fakeKnowledge([hit("a", 0)]);
+    const plain = searchTool(knowledge, "org");
+
+    const trimmed = searchTool(knowledge, "org", {
+      modelOutput: { maxCharacters: 3 },
+    });
+
+    expect(plain.strict).toBe(true);
+    expect(plain.toModelOutput).toBeUndefined();
+
+    const output = await trimmed.execute?.({ query: "q" }, call);
+
+    const modelOutput = await trimmed.toModelOutput?.({
+      toolCallId: "c",
+      input: { query: "q" },
+      // SAFETY: the tool's own result, which `execute` returned.
+      output: output as never,
+    });
+
+    expect(modelOutput).toEqual({
+      type: "json",
+      value: { results: [{ id: "a#0", content: "a c" }] },
+    });
   });
 });
 
@@ -143,7 +176,9 @@ describe("searchTool", () => {
     );
 
     expect(output).toMatchObject({ results: [{ id: "b#0" }, { id: "a#0" }] });
-    expect(reverse).toHaveBeenCalledWith("q", expect.any(Array), undefined);
+    expect(reverse).toHaveBeenCalledWith("q", expect.any(Array), {
+      organizationId: "org",
+    });
 
     const { knowledge: failing } = fakeKnowledge("fail");
     await expect(

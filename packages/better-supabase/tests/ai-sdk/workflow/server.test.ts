@@ -21,6 +21,7 @@ import {
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { redisStreamStore } from "../../../src/streams/redis/index.ts";
+import { STREAM_TAIL_INDEX_HEADER } from "../../../src/workflow-sdk/runs.ts";
 import { fakeRedis } from "../../streams/fakes.ts";
 import { record } from "../chat/fakes.ts";
 
@@ -28,12 +29,17 @@ const api = vi.hoisted(() => ({
   start: vi.fn(),
   getRun: vi.fn(),
   resumeHook: vi.fn(),
+  uiStarts: [] as (number | undefined)[],
 }));
 
 vi.mock("workflow/api", () => api);
 
 vi.mock("@ai-sdk/workflow", () => ({
-  createModelCallToUIChunkTransform: () => new TransformStream(),
+  createModelCallToUIChunkTransform: (options?: { uiStartIndex?: number }) => {
+    api.uiStarts.push(options?.uiStartIndex);
+
+    return new TransformStream();
+  },
   async *normalizeUIMessageStreamParts(source: AsyncIterable<unknown>) {
     yield* source;
   },
@@ -491,6 +497,41 @@ describe("durableChat resume", () => {
     expect(response.headers.get(WORKFLOW_RUN_ID_HEADER)).toBe("wrun");
     expect(await response.text()).toContain('"delta":"Hi"');
     expect(names(s.calls)).toContain("runs.get");
+  });
+
+  it("counts a negative startIndex back from the newest UI chunk", async () => {
+    api.uiStarts.length = 0;
+
+    api.getRun.mockReturnValue({
+      getReadable: () =>
+        Object.assign(readable(), { getTailIndex: async () => 4 }),
+    });
+
+    const s = setup({ chat: record("c1", { activeRunId: "run1" }) });
+
+    const response = await s.durable.resume("c1", s.context, {
+      startIndex: -2,
+    });
+
+    expect(response.headers.get(STREAM_TAIL_INDEX_HEADER)).toBe("4");
+    expect(api.uiStarts).toContain(3);
+    await response.text();
+  });
+
+  it("sends the tail header when it starts a turn", async () => {
+    api.start.mockResolvedValue({ runId: "wrun" });
+
+    api.getRun.mockReturnValue({
+      getReadable: () =>
+        Object.assign(readable(), { getTailIndex: async () => 0 }),
+    });
+
+    const s = setup();
+
+    const response = await s.durable.respond(post({ id: "c1" }), s.context);
+
+    expect(response.headers.get(STREAM_TAIL_INDEX_HEADER)).toBe("0");
+    await response.text();
   });
 
   it("falls back to the stream store when the World fails", async () => {

@@ -61,12 +61,22 @@ interface FakeOptions {
   readonly models?: readonly string[];
   readonly claimed?: boolean;
   readonly getError?: DbError;
+  /** Fails one block call with this error. */
+  readonly failAt?: {
+    readonly call: "allowed" | "appendUser" | "path" | "claim";
+    readonly error: DbError;
+  };
 }
 
 export interface FakeChats {
   readonly chats: AiChat;
   readonly raw: Map<string, AiChatRecord>;
   readonly tree: AiStoredMessage[];
+  readonly seed: (
+    message: AiMessage,
+    parentId: string | undefined,
+    extra?: Partial<AiStoredMessage>,
+  ) => void;
   readonly released: unknown[];
   readonly saved: unknown[];
   readonly appended: unknown[];
@@ -83,6 +93,12 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     parentId: string | undefined,
     extra: Partial<AiStoredMessage> = {},
   ) => {
+    const at = tree.findIndex((entry) => entry.id === message.id);
+
+    if (at !== -1) {
+      tree.splice(at, 1);
+    }
+
     tree.push({
       ...message,
       parentId,
@@ -133,7 +149,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       },
     },
     models: {
-      allowed: () => result((options.models ?? []).map((id) => ({ id }))),
+      allowed: () =>
+        options.failAt?.call === "allowed"
+          ? failure(options.failAt.error)
+          : result((options.models ?? []).map((id) => ({ id }))),
     },
     moderation: {
       record: ({ event }: { event: unknown }) => {
@@ -152,6 +171,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         messageId?: string;
         native?: unknown;
       }) => {
+        if (options.failAt?.call === "appendUser") {
+          return failure(options.failAt.error);
+        }
+
         appended.push(opts);
 
         if (opts.trigger === "regenerate-message") {
@@ -175,7 +198,25 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           created: true,
         });
       },
-      path: () => result([...tree]),
+      path: ({ leafId }: { leafId?: string } = {}) => {
+        if (options.failAt?.call === "path") {
+          return failure(options.failAt.error);
+        }
+
+        const byId = new Map(tree.map((entry) => [entry.id, entry]));
+        const branch: AiStoredMessage[] = [];
+
+        for (
+          let node = leafId === undefined ? tree.at(-1) : byId.get(leafId);
+          node;
+          node =
+            node.parentId === undefined ? undefined : byId.get(node.parentId)
+        ) {
+          branch.unshift(node);
+        }
+
+        return result(branch);
+      },
       saveAssistant: ({
         chatId,
         message,
@@ -191,6 +232,12 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           native: opts.native,
         });
 
+        const owner = chats.get(chatId);
+
+        if (owner) {
+          chats.set(chatId, { ...owner, leafId: message.id });
+        }
+
         return result({
           messageId: message.id,
           parentId: opts.parentId,
@@ -200,6 +247,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     },
     runs: {
       claim: ({ chatId, streamId }: { chatId: string; streamId: string }) => {
+        if (options.failAt?.call === "claim") {
+          return failure(options.failAt.error);
+        }
+
         if (options.claimed === false) {
           return result({
             claimed: false,
@@ -247,6 +298,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     chats: api as unknown as AiChat,
     raw: chats,
     tree,
+    seed: store,
     released,
     saved,
     appended,

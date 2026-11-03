@@ -1,6 +1,7 @@
 import type { Run } from "workflow/api";
 
 import { getRun, resumeHook } from "workflow/api";
+import { HookNotFoundError } from "workflow/errors";
 
 import type { VerifyOptions, WebhookInput } from "../core/signatures.ts";
 
@@ -118,12 +119,45 @@ export interface ResumeHookFromWebhookOptions extends Pick<
   readonly provider: WebhookProvider;
   /** One secret, or several while you rotate them. */
   readonly secrets: string | readonly string[];
+  /** Called with the cause of a 503 or 500 answer, so the app can log it. */
+  readonly onError?: (cause: unknown) => void;
+}
+
+const UNAVAILABLE_CODES = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EPIPE",
+]);
+
+function isUnavailable(cause: unknown): boolean {
+  if (typeof cause !== "object" || cause === null) {
+    return false;
+  }
+
+  const code = "code" in cause ? cause.code : undefined;
+
+  if (typeof code === "string") {
+    // 08xxx is a Postgres connection exception, 57P0x an operator shutdown.
+    return (
+      UNAVAILABLE_CODES.has(code) ||
+      code.startsWith("08") ||
+      code.startsWith("57P")
+    );
+  }
+
+  const status = "status" in cause ? cause.status : undefined;
+
+  return typeof status === "number" && status >= 500;
 }
 
 /**
  * Verifies a signed webhook, then resumes the hook `token` with its JSON
  * payload. Responds 401 for a bad signature, 409 for a replay `seen` caught,
- * 404 when no run waits on the token, and 202 once the run resumes.
+ * 404 when no run waits on the token, 503 `WORKFLOW_UNAVAILABLE` when the World
+ * or its storage can't be reached, 500 `WORKFLOW_RESUME_FAILED` for any other
+ * error, and 202 once the run resumes.
  */
 export async function resumeHookFromWebhook(
   input: WebhookInput,
@@ -148,11 +182,26 @@ export async function resumeHookFromWebhook(
 
   try {
     await resumeHook(token, verified.data.payload);
-  } catch {
+  } catch (cause) {
+    if (HookNotFoundError.is(cause)) {
+      return problemResponse(
+        dbError("not_found", "No workflow run waits on this hook", {
+          code: "WORKFLOW_HOOK_NOT_FOUND",
+        }),
+        { expose: true },
+      );
+    }
+
+    options.onError?.(cause);
+
     return problemResponse(
-      dbError("not_found", "No workflow run waits on this hook", {
-        code: "WORKFLOW_HOOK_NOT_FOUND",
-      }),
+      isUnavailable(cause)
+        ? dbError("network", "The workflow World is unavailable", {
+            code: "WORKFLOW_UNAVAILABLE",
+          })
+        : dbError("unexpected", "The workflow run could not be resumed", {
+            code: "WORKFLOW_RESUME_FAILED",
+          }),
       { expose: true },
     );
   }

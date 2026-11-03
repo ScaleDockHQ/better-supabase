@@ -1,0 +1,5 @@
+/.swc
+
+# @workflow/vitest artifacts
+/.workflow-data/
+/.workflow-vitest/

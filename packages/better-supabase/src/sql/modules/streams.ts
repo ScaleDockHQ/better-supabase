@@ -109,7 +109,7 @@ grant execute on function %s to service_role;`;
     service.replaceAll("%s", signature);
 
   return `${schemaPreamble(ctx)}
--- Durable output streams: a writer appends ordered text chunks and any reader
+-- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table if not exists ${s} (
@@ -132,7 +132,7 @@ ${renderPolicy(makePolicy({ table: s, name: "streams_owner_read", command: "sele
 create table if not exists ${c} (
   ${cc("stream")} text not null references ${s} (${cs("id")}) on delete cascade,
   ${cc("idx")} integer not null check (${cc("idx")} >= 0),
-  ${cc("data")} text not null,
+  ${cc("data")} bytea not null,
   primary key (${cc("stream")}, ${cc("idx")})
 );${chunksKey}
 alter table ${c} enable row level security;
@@ -177,7 +177,7 @@ ${serviceOnly(`${fn("stream_open")}(text, uuid, ${id}, text, interval, boolean)`
 -- Appends chunks from from_idx on. A retried batch is a no-op for the indexes
 -- already stored, so a writer can resend after a timeout. Returns
 -- { next, cancelled } so the writer learns of a stop without another call.
-create or replace function ${fn("stream_append")}(stream_id text, from_idx integer, chunks text[])
+create or replace function ${fn("stream_append")}(stream_id text, from_idx integer, chunks bytea[])
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -204,7 +204,7 @@ begin
   end if;
   insert into ${c} (${cc("stream")}, ${cc("idx")}, ${cc("data")})
   select stream_append.stream_id, from_idx + (n.ord - 1)::integer, n.chunk
-  from unnest(coalesce(chunks, '{}'::text[])) with ordinality as n(chunk, ord)
+  from unnest(coalesce(chunks, '{}'::bytea[])) with ordinality as n(chunk, ord)
   on conflict do nothing;
   v_next := greatest(v_next, from_idx + coalesce(cardinality(chunks), 0));
   v_wake := ${wakes("v_stream.")} and coalesce(cardinality(chunks), 0) > 0;
@@ -212,7 +212,7 @@ begin
   return jsonb_build_object('next', v_next, 'cancelled', v_stream.${cs("cancelRequestedAt")} is not null);
 end;
 $$;
-${serviceOnly(`${fn("stream_append")}(text, integer, text[])`)}
+${serviceOnly(`${fn("stream_append")}(text, integer, bytea[])`)}
 
 -- Up to max chunks from from_idx: { found, chunks, next, done, cancelled }.
 -- done is true once the stream is closed and every chunk was read. Runs as the
@@ -234,7 +234,7 @@ begin
   if not found then
     return jsonb_build_object('found', false, 'chunks', '[]'::jsonb, 'next', greatest(coalesce(from_idx, 0), 0), 'done', true, 'cancelled', false);
   end if;
-  select coalesce(array_agg(r.${cc("data")} order by r.${cc("idx")}), '{}'::text[]) into v_chunks
+  select coalesce(array_agg(replace(encode(r.${cc("data")}, 'base64'), E'\n', '') order by r.${cc("idx")}), '{}'::text[]) into v_chunks
   from (
     select ${cc("data")}, ${cc("idx")} from ${c}
     where ${cc("stream")} = stream_read.stream_id and ${cc("idx")} >= greatest(coalesce(from_idx, 0), 0)
@@ -385,7 +385,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "stream_append",
-      args: ["text", "integer", "text[]"],
+      args: ["text", "integer", "bytea[]"],
       returns: "jsonb",
     },
     {
@@ -408,11 +408,26 @@ export const STREAMS: BlockSqlDefinition = {
   name: "streams",
   title: "Durable streams",
   description:
-    "Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.",
+    "Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.",
   requires: [],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Chunks are bytea: stream_append takes bytea[] and stream_read returns base64 text, so binary frames survive.",
+      sql: (ctx) => `do $bsb$
+begin
+  if (select a.atttypid from pg_attribute a where a.attrelid = ${sqlString(ctx.table("chunks"))}::regclass and a.attname = ${sqlString(ctx.col("chunks", "data").replaceAll('"', ""))}) = 'text'::regtype then
+    alter table ${ctx.table("chunks")} alter column ${ctx.col("chunks", "data")} type bytea using convert_to(${ctx.col("chunks", "data")}, 'UTF8');
+  end if;
+end
+$bsb$;
+drop function if exists ${ctx.fn("stream_append")}(text, integer, text[]);`,
+    },
+  ],
   names: NAMES,
   contract,
   build,

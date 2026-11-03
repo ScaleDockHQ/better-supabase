@@ -38,6 +38,8 @@ type UIPart = UIMessage["parts"][number];
 
 type ToolPart = ToolUIPart | DynamicToolUIPart;
 
+type ToolMetadata = NonNullable<DynamicToolUIPart["toolMetadata"]>;
+
 type Metadata = Readonly<Record<string, unknown>>;
 
 /** A message as the chat tree returns it with `native: true`. */
@@ -71,18 +73,65 @@ export function isUIMessage(value: unknown): value is UIMessage {
   );
 }
 
+/** The approval fields the AI SDK 7 adds next to `id`, `approved` and `reason`. */
+function approvalExtras(approval: {
+  readonly signature?: string;
+  readonly isAutomatic?: boolean;
+  readonly requestReason?: string;
+  readonly descriptor?: unknown;
+  readonly inputSchemaInput?: unknown;
+}): Partial<AiToolApprovalPart> {
+  return {
+    ...(approval.signature === undefined
+      ? {}
+      : { signature: approval.signature }),
+    ...(approval.isAutomatic === undefined
+      ? {}
+      : { isAutomatic: approval.isAutomatic }),
+    ...(approval.requestReason === undefined
+      ? {}
+      : { requestReason: approval.requestReason }),
+    ...(approval.descriptor === undefined
+      ? {}
+      : { descriptor: approval.descriptor }),
+    ...(approval.inputSchemaInput === undefined
+      ? {}
+      : { inputSchemaInput: approval.inputSchemaInput }),
+  };
+}
+
+function dynamicOf(part: ToolPart): { readonly dynamic?: boolean } {
+  if (part.type !== "dynamic-tool") {
+    return {};
+  }
+
+  return { dynamic: part.dynamic ?? true };
+}
+
 function toolParts(part: ToolPart): AiMessagePart[] {
   const toolName =
     part.type === "dynamic-tool" ? part.toolName : part.type.slice(5);
+
+  const streaming = part.state === "input-streaming";
 
   const call: AiToolCallPart = {
     type: "tool-call",
     toolCallId: part.toolCallId,
     toolName,
-    input: part.input ?? {},
+    input: part.input ?? (streaming ? null : {}),
     ...(part.providerExecuted === undefined
       ? {}
       : { providerExecuted: part.providerExecuted }),
+    ...dynamicOf(part),
+    ...(part.title === undefined ? {} : { title: part.title }),
+    ...(isRecord(part.toolMetadata) ? { toolMetadata: part.toolMetadata } : {}),
+    ...(streaming ? { state: "streaming" as const } : {}),
+    ...(part.state === "input-streaming" && part.rawInput !== undefined
+      ? { rawInput: part.rawInput }
+      : {}),
+    ...(part.state === "input-streaming" && part.inputEncoding !== undefined
+      ? { inputEncoding: part.inputEncoding }
+      : {}),
     ...meta(part.callProviderMetadata),
   };
 
@@ -104,6 +153,7 @@ function toolParts(part: ToolPart): AiMessagePart[] {
       approvalId: approval.id,
       state,
       ...(approval.reason === undefined ? {} : { reason: approval.reason }),
+      ...approvalExtras(approval),
     });
   }
 
@@ -111,18 +161,27 @@ function toolParts(part: ToolPart): AiMessagePart[] {
     output: unknown,
     isError: boolean,
     metadata?: unknown,
+    preliminary?: boolean,
   ): AiToolResultPart => ({
     type: "tool-result",
     toolCallId: part.toolCallId,
     toolName,
     output,
     ...(isError ? { isError } : {}),
+    ...(preliminary === undefined ? {} : { preliminary }),
     ...meta(metadata),
   });
 
   switch (part.state) {
     case "output-available": {
-      parts.push(result(part.output, false, part.resultProviderMetadata));
+      parts.push(
+        result(
+          part.output,
+          false,
+          part.resultProviderMetadata,
+          part.preliminary,
+        ),
+      );
       break;
     }
 
@@ -259,7 +318,9 @@ function fromPart(part: UIPart): AiMessagePart[] {
  * then a `tool-approval` and a `tool-result` as far as the call got; parts with
  * no canonical counterpart become `data` parts named `ui.<type>`.
  */
-export function fromUIMessage(message: UIMessage): AiMessage {
+export function fromUIMessage<UI_MESSAGE extends UIMessage = UIMessage>(
+  message: UI_MESSAGE,
+): AiMessage {
   return {
     id: message.id,
     role: message.role,
@@ -274,39 +335,95 @@ interface ToolState {
   result?: AiToolResultPart;
 }
 
+/** The approval object of a UI part, with every field the SDK knows. */
+function uiApproval(approval: AiToolApprovalPart): {
+  id: string;
+  isAutomatic?: boolean;
+  signature?: string;
+  requestReason?: string;
+  descriptor?: unknown;
+  inputSchemaInput?: unknown;
+} {
+  return { id: approval.approvalId, ...approvalExtras(approval) };
+}
+
+const reasonOf = (approval: AiToolApprovalPart): { reason?: string } =>
+  approval.reason === undefined ? {} : { reason: approval.reason };
+
+function toolMetadataOf(call: AiToolCallPart): { toolMetadata?: ToolMetadata } {
+  // SAFETY: a stored toolMetadata came from a JSON object of the SDK.
+  return call.toolMetadata === undefined
+    ? {}
+    : { toolMetadata: call.toolMetadata as ToolMetadata };
+}
+
 function toToolPart({ call, approval, result }: ToolState): UIPart {
-  const base = {
-    type: `tool-${call.toolName}` as const,
+  const header = {
     toolCallId: call.toolCallId,
-    input: call.input,
     ...(call.providerExecuted === undefined
       ? {}
       : { providerExecuted: call.providerExecuted }),
+    ...(call.title === undefined ? {} : { title: call.title }),
+    ...toolMetadataOf(call),
     ...(isProviderMetadata(call.providerMetadata)
       ? { callProviderMetadata: call.providerMetadata }
       : {}),
   };
 
-  const reason =
-    approval?.reason === undefined ? {} : { reason: approval.reason };
+  const base =
+    call.dynamic === undefined
+      ? { ...header, type: `tool-${call.toolName}` as const, input: call.input }
+      : {
+          ...header,
+          type: "dynamic-tool" as const,
+          toolName: call.toolName,
+          input: call.input,
+          ...(call.dynamic ? {} : { dynamic: false as const }),
+        };
+
+  if (call.state === "streaming" && result === undefined) {
+    return {
+      ...base,
+      state: "input-streaming",
+      ...(call.input === null ? { input: undefined } : {}),
+      ...(call.rawInput === undefined ? {} : { rawInput: call.rawInput }),
+      ...(call.inputEncoding === undefined
+        ? {}
+        : { inputEncoding: call.inputEncoding }),
+    };
+  }
 
   if (approval?.state === "denied") {
     return result === undefined
       ? {
           ...base,
           state: "approval-responded",
-          approval: { id: approval.approvalId, approved: false, ...reason },
+          approval: {
+            ...uiApproval(approval),
+            ...reasonOf(approval),
+            approved: false,
+          },
         }
       : {
           ...base,
           state: "output-denied",
-          approval: { id: approval.approvalId, approved: false, ...reason },
+          approval: {
+            ...uiApproval(approval),
+            ...reasonOf(approval),
+            approved: false,
+          },
         };
   }
 
   const approved =
     approval?.state === "approved"
-      ? { approval: { id: approval.approvalId, approved: true as const } }
+      ? {
+          approval: {
+            ...uiApproval(approval),
+            ...reasonOf(approval),
+            approved: true as const,
+          },
+        }
       : {};
 
   if (result !== undefined) {
@@ -331,6 +448,9 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       ...base,
       ...approved,
       ...resultMeta,
+      ...(result.preliminary === undefined
+        ? {}
+        : { preliminary: result.preliminary }),
       state: "output-available",
       output: result.output,
     };
@@ -340,7 +460,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
     return {
       ...base,
       state: "approval-requested",
-      approval: { id: approval.approvalId },
+      approval: uiApproval(approval),
     };
   }
 
@@ -348,7 +468,11 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
     return {
       ...base,
       state: "approval-responded",
-      approval: { id: approval.approvalId, approved: true, ...reason },
+      approval: {
+        ...uiApproval(approval),
+        ...reasonOf(approval),
+        approved: true,
+      },
     };
   }
 
@@ -506,22 +630,26 @@ function nativeOf(message: AiMessage): UIMessage | undefined {
  * tree kept one (`format: "ai-sdk-ui"`), otherwise a conversion. A `tool`
  * message becomes an assistant message.
  */
-export function toUIMessage(message: AiMessage): UIMessage {
+export function toUIMessage<UI_MESSAGE extends UIMessage = UIMessage>(
+  message: AiMessage,
+): UI_MESSAGE {
   const native = nativeOf(message);
 
   if (native !== undefined) {
-    return native;
+    // SAFETY: the app picks UI_MESSAGE to match the messages it stored; validUIMessages checks them.
+    return native as UI_MESSAGE;
   }
 
   const parts: UIPart[] = [];
   render(message.parts, new Map(), parts, new Map());
 
+  // SAFETY: as above; the parts follow the AI SDK's UIMessage shape.
   return {
     id: message.id,
     role: message.role === "tool" ? "assistant" : message.role,
     parts,
     ...(message.metadata === undefined ? {} : { metadata: message.metadata }),
-  };
+  } as UI_MESSAGE;
 }
 
 /**
@@ -529,7 +657,9 @@ export function toUIMessage(message: AiMessage): UIMessage {
  * `tool` messages of other SDKs, update the tool part of the assistant message
  * that made the call.
  */
-export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
+export function toUIMessages<UI_MESSAGE extends UIMessage = UIMessage>(
+  messages: readonly AiMessage[],
+): UI_MESSAGE[] {
   const out: UIMessage[] = [];
   const tools = new Map<string, ToolState>();
   let owner: { parts: UIPart[]; slots: Map<string, number> } | undefined;
@@ -560,12 +690,13 @@ export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
     owner = message.role === "user" ? undefined : { parts, slots };
   }
 
-  return out;
+  // SAFETY: the app picks UI_MESSAGE to match its history; validUIMessages checks it.
+  return out as UI_MESSAGE[];
 }
 
 /** The schemas `validUIMessages` checks a history against. */
-export type UIMessageSchemas = Omit<
-  Parameters<typeof safeValidateUIMessages<UIMessage>>[0],
+export type UIMessageSchemas<UI_MESSAGE extends UIMessage = UIMessage> = Omit<
+  Parameters<typeof safeValidateUIMessages<UI_MESSAGE>>[0],
   "messages"
 >;
 
@@ -576,12 +707,12 @@ export type UIMessageSchemas = Omit<
  * `validation` (`AI_MESSAGES_INVALID`), so the app can start a new branch
  * instead of sending the model a call it can't read.
  */
-export function validUIMessages(
+export function validUIMessages<UI_MESSAGE extends UIMessage = UIMessage>(
   messages: readonly AiMessage[],
-  schemas: UIMessageSchemas = {},
-): AsyncResult<UIMessage[]> {
+  schemas: UIMessageSchemas<UI_MESSAGE> = {},
+): AsyncResult<UI_MESSAGE[]> {
   return AsyncResult.from(async () => {
-    const checked = await safeValidateUIMessages({
+    const checked = await safeValidateUIMessages<UI_MESSAGE>({
       ...schemas,
       messages: toUIMessages(messages),
     });

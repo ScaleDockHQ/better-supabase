@@ -61,6 +61,9 @@ function epochOf(expiresAt: Temporal.Instant | string): number {
   return epoch;
 }
 
+const WAKE_ATTEMPTS = 4;
+const WAKE_RETRY_MS = 150;
+
 /** `wait` and `wake` for approvals that pause a workflow run. */
 export const approvalWaiter: ApprovalWaiter = Object.freeze({
   async wait<P = unknown>(
@@ -93,7 +96,25 @@ export const approvalWaiter: ApprovalWaiter = Object.freeze({
     }
   },
   async wake(token: string, payload: unknown = null): Promise<void> {
-    await resumeHook(tokenOf(token), payload);
+    const key = tokenOf(token);
+
+    // The approver can decide before the run reaches `createHook`, so a missing
+    // hook is retried a few times before it counts as "nobody waits".
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await resumeHook(key, payload);
+
+        return;
+      } catch (cause) {
+        if (!HookNotFoundError.is(cause) || attempt >= WAKE_ATTEMPTS) {
+          throw cause;
+        }
+
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, WAKE_RETRY_MS * attempt);
+        });
+      }
+    }
   },
 });
 

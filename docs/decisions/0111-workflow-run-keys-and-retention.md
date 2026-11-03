@@ -49,3 +49,11 @@ claim and the run holds the key for five minutes, and a concurrent start
 waits up to five seconds before it gives up. Purged runs are gone from the
 World; the copies in `workflow_runs` follow the workflows block's own
 retention.
+
+## Amendment (0209)
+
+`startOnce` no longer falls back to the best-effort `bsb.key` lookup. It needs
+the World's run keys or a `registry` (the `workflows` block's runs), and throws
+`WorkflowRunKeysMissingError` (`WORKFLOW_RUN_KEYS_MISSING`) with neither.
+`startFor` keeps the lookup for callers that accept a best-effort key. See
+[0209](0209-start-once-on-the-run-registry.md).

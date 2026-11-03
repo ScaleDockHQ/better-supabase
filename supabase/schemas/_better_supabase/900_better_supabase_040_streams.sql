@@ -1,7 +1,7 @@
 -- better-supabase module: streams
--- @bsb-block streams@1 managed
--- @bsb-hash sha256:84d3128c8616bb7bf8d8366158aeef03344ee9205710089f105c3321098dea7a
--- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
+-- @bsb-block streams@2 managed
+-- @bsb-hash sha256:77b7621c7abe31d712b12334923a85312d38865a4cece598261bd0ab83c403c3
+-- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -55,7 +55,7 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Durable output streams: a writer appends ordered text chunks and any reader
+-- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table if not exists "better_supabase"."streams" (
@@ -84,7 +84,7 @@ create policy streams_owner_read on "better_supabase"."streams"
 create table if not exists "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
-  "data" text not null,
+  "data" bytea not null,
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
@@ -124,7 +124,7 @@ grant execute on function "better_supabase"."stream_open"(text, uuid, uuid, text
 -- Appends chunks from from_idx on. A retried batch is a no-op for the indexes
 -- already stored, so a writer can resend after a timeout. Returns
 -- { next, cancelled } so the writer learns of a stop without another call.
-create or replace function "better_supabase"."stream_append"(stream_id text, from_idx integer, chunks text[])
+create or replace function "better_supabase"."stream_append"(stream_id text, from_idx integer, chunks bytea[])
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -151,7 +151,7 @@ begin
   end if;
   insert into "better_supabase"."stream_chunks" ("stream_id", "idx", "data")
   select stream_append.stream_id, from_idx + (n.ord - 1)::integer, n.chunk
-  from unnest(coalesce(chunks, '{}'::text[])) with ordinality as n(chunk, ord)
+  from unnest(coalesce(chunks, '{}'::bytea[])) with ordinality as n(chunk, ord)
   on conflict do nothing;
   v_next := greatest(v_next, from_idx + coalesce(cardinality(chunks), 0));
   v_wake := v_stream."wake" and coalesce(cardinality(chunks), 0) > 0;
@@ -162,8 +162,8 @@ begin
   return jsonb_build_object('next', v_next, 'cancelled', v_stream."cancel_requested_at" is not null);
 end;
 $$;
-revoke execute on function "better_supabase"."stream_append"(text, integer, text[]) from public, anon, authenticated;
-grant execute on function "better_supabase"."stream_append"(text, integer, text[]) to service_role;
+revoke execute on function "better_supabase"."stream_append"(text, integer, bytea[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."stream_append"(text, integer, bytea[]) to service_role;
 
 -- Up to max chunks from from_idx: { found, chunks, next, done, cancelled }.
 -- done is true once the stream is closed and every chunk was read. Runs as the
@@ -185,7 +185,8 @@ begin
   if not found then
     return jsonb_build_object('found', false, 'chunks', '[]'::jsonb, 'next', greatest(coalesce(from_idx, 0), 0), 'done', true, 'cancelled', false);
   end if;
-  select coalesce(array_agg(r."data" order by r."idx"), '{}'::text[]) into v_chunks
+  select coalesce(array_agg(replace(encode(r."data", 'base64'), E'
+', '') order by r."idx"), '{}'::text[]) into v_chunks
   from (
     select "data", "idx" from "better_supabase"."stream_chunks"
     where "stream_id" = stream_read.stream_id and "idx" >= greatest(coalesce(from_idx, 0), 0)
@@ -399,14 +400,14 @@ as $$ select "better_supabase"."stream_open"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."stream_open"(text, uuid, uuid, text, interval, boolean) from public, anon, authenticated;
 grant execute on function "api"."stream_open"(text, uuid, uuid, text, interval, boolean) to service_role;
 
-create or replace function "api"."stream_append"(stream_id text, from_idx integer, chunks text[])
+create or replace function "api"."stream_append"(stream_id text, from_idx integer, chunks bytea[])
 returns jsonb
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stream_append"($1, $2, $3) $$;
-revoke execute on function "api"."stream_append"(text, integer, text[]) from public, anon, authenticated;
-grant execute on function "api"."stream_append"(text, integer, text[]) to service_role;
+revoke execute on function "api"."stream_append"(text, integer, bytea[]) from public, anon, authenticated;
+grant execute on function "api"."stream_append"(text, integer, bytea[]) to service_role;
 
 create or replace function "api"."stream_read"(stream_id text, from_idx integer default 0, max integer default 1000)
 returns jsonb

@@ -19,6 +19,7 @@ const manifest: {
 const INTEGRATIONS = [
   "@ai-sdk/anthropic",
   "@ai-sdk/sandbox-vercel",
+  "@chat-adapter/catalog",
   "@openfeature/server-sdk",
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",

@@ -146,6 +146,12 @@ function generationRoute<INPUT>(
       let text = "";
       const { promise: done, resolve: ended } = Promise.withResolvers<void>();
 
+      // An aborted or cancelled stream never reaches `flush`; settle then too,
+      // so usage is recorded and `waitUntil` doesn't hang.
+      abort.signal.addEventListener("abort", () => {
+        ended();
+      });
+
       const textStream = result.textStream.pipeThrough(
         new TransformStream<string, string>({
           transform(chunk, controller) {

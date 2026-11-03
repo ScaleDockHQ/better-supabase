@@ -44,19 +44,34 @@ const messages = toUIMessages(path); // UIMessage[] for useChat
 wrote the message, so nothing is lost on the round trip. A message another
 SDK wrote is converted from its parts:
 
-| Canonical part                 | UI message part                         |
-| ------------------------------ | --------------------------------------- |
-| `text`, `reasoning`, `file`    | the same part                           |
-| `source` (`url` or `document`) | `source-url` or `source-document`       |
-| `tool-call`, `tool-result`     | one `tool-<name>` part with its `state` |
-| `tool-approval`                | the `approval` of that tool part        |
-| `step`                         | `step-start`                            |
-| `data`                         | `data-<name>`                           |
+| Canonical part                 | UI message part                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| `text`, `reasoning`, `file`    | the same part                                                                                 |
+| `source` (`url` or `document`) | `source-url` or `source-document`                                                             |
+| `tool-call`, `tool-result`     | one `tool-<name>` part with its `state`, or one `dynamic-tool` part when the call was dynamic |
+| `tool-approval`                | the `approval` of that tool part                                                              |
+| `step`                         | `step-start`                                                                                  |
+| `data`                         | `data-<name>`                                                                                 |
 
 A `tool` message's results join the tool parts of the assistant message
 before it, the way `useChat` expects them. A UI part with no canonical
 counterpart is stored as a `data` part (`ui.custom` or `ui.reasoning-file`)
 and comes back unchanged.
+
+The tool parts keep the AI SDK 7 fields, so a message deep-equals itself after a
+round trip through the stored form:
+
+- A `tool-call` carries `dynamic`, `title`, `toolMetadata`, and, while the input
+  is still arriving, `state: "streaming"` with `rawInput` and `inputEncoding`.
+  A call stored with `dynamic: true` comes back as a `dynamic-tool` part.
+- A `tool-result` carries `preliminary` for an interim output.
+- A `tool-approval` carries `signature`, `isAutomatic`, `requestReason`,
+  `descriptor` and `inputSchemaInput` next to `reason`.
+
+`toUIMessage`, `toUIMessages`, `fromUIMessage` and `validUIMessages` take your
+`UIMessage` type as a type argument, for example `toUIMessages<MyMessage>(path)`.
+These fields are part of version 2 of the message format
+(`schemas/ai-message-v2.json`); stored v1 messages are still valid.
 
 ## AI Gateway
 

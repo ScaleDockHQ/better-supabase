@@ -88,3 +88,6 @@ doctor.sarif
 
 # per-user agent hook state
 .cursor/hooks/state/
+
+# @workflow/vitest build output
+.workflow-vitest/

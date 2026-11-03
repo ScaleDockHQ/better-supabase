@@ -20,6 +20,11 @@ export {
 } from "./gateway.ts";
 
 export {
+  guardrailsMiddleware,
+  type GuardrailsMiddlewareOptions,
+} from "./guardrails.ts";
+
+export {
   AI_SDK_UI_FORMAT,
   DENIED_TOOL_OUTPUT,
   fromUIMessage,

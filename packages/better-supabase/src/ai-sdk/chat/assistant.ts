@@ -12,6 +12,7 @@ import type {
 
 import {
   convertToModelMessages,
+  isToolUIPart,
   JsonToSseTransformStream,
   safeValidateUIMessages,
   toUIMessageStream,
@@ -25,6 +26,7 @@ import type {
   AiUserMessageTrigger,
 } from "../../blocks/ai-chat/ai-chat.ts";
 import type { AiMessage } from "../../blocks/ai-chat/message.ts";
+import type { AiStoredMessage } from "../../blocks/ai-chat/records.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { StreamStore } from "../../streams/store.ts";
 import type {
@@ -48,6 +50,7 @@ import {
   AI_SDK_UI_FORMAT,
   fromUIMessage,
   isUIMessage,
+  toUIMessage,
   toUIMessages,
 } from "../messages.ts";
 
@@ -72,32 +75,44 @@ export interface AssistantContext {
 }
 
 /** What `run` gets to generate one answer. */
-export interface AssistantRunArgs {
+export interface AssistantRunArgs<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly chat: AiChatRecord;
   /** The model the request may use, after the catalog check. */
   readonly model: string;
   readonly messages: ModelMessage[];
   /** The history the model sees, as UI messages. */
-  readonly uiMessages: UIMessage[];
+  readonly uiMessages: UI_MESSAGE[];
   /** Aborted by `stop()`; pass it to `streamText` or `agent.stream`. */
   readonly abortSignal: AbortSignal;
   /** Spend attribution for the AI Gateway (`gatewayOptions`). */
   readonly providerOptions: { readonly gateway: GatewayOptions };
+  /**
+   * The app's `toolApprovalSecret`, for `experimental_toolApprovalSecret` of
+   * `streamText` or the agent, so a replayed approval is verified.
+   */
+  readonly toolApprovalSecret?: string | Uint8Array;
+  /**
+   * The assistant message this turn continues after a tool approval,
+   * `undefined` for a new user turn.
+   */
+  readonly continuationOf?: string;
   readonly context: AssistantContext;
 }
 
 /** The options the assistant passes to `toUIMessageStream`. */
-interface UIStreamOptions extends AssistantStreamOptions {
-  originalMessages: UIMessage[];
+interface UIStreamOptions<
+  UI_MESSAGE extends UIMessage,
+> extends AssistantStreamOptions<UI_MESSAGE> {
+  originalMessages: UI_MESSAGE[];
   generateMessageId: () => string;
-  onEnd: UIMessageStreamOnEndCallback<UIMessage>;
+  onEnd: UIMessageStreamOnEndCallback<UI_MESSAGE>;
   onError?: (error: unknown) => string;
 }
 
 /**
  * The part of a `streamText` or `agent.stream` result the assistant reads. A
- * result of `streamText({ experimental_lowMemory: true })` fits too; it has no
- * `finalStep`, so the gateway's cost and generation id stay unknown.
+ * result of `streamText({ experimental_streamTextLowMemory: true })` fits too;
+ * it has no `finalStep`, so the gateway's cost and generation id stay unknown.
  */
 export interface AssistantRunResult {
   /** The full stream; the assistant turns it into UI message chunks. */
@@ -106,6 +121,12 @@ export interface AssistantRunResult {
   readonly usage?: PromiseLike<LanguageModelUsage>;
   /** The last step, whose `providerMetadata` carries the gateway's cost. */
   readonly finalStep?: PromiseLike<{ readonly providerMetadata?: unknown }>;
+  /**
+   * The tools of the run. `toUIMessageStream` reads them to mark a call
+   * `dynamic` and to set its `title`, so pass `agent.tools` or the `streamText`
+   * tools.
+   */
+  readonly tools?: ToolSet;
 }
 
 /** The verdict of a moderation hook. */
@@ -116,9 +137,9 @@ export interface AssistantModeration {
 }
 
 /** What `onFinish` gets once the answer is stored. */
-export interface AssistantFinish {
+export interface AssistantFinish<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly chat: AiChatRecord;
-  readonly message: UIMessage;
+  readonly message: UI_MESSAGE;
   readonly status: AiRunStatus;
   readonly model: string;
   readonly usage: AiUsage | undefined;
@@ -130,23 +151,25 @@ export interface AssistantFinish {
  * beside the text. `originalMessages`, `generateMessageId` and the end
  * callbacks stay with the assistant, which stores the answer.
  */
-export type AssistantStreamOptions = Pick<
-  UIMessageStreamOptions<UIMessage>,
-  | "messageMetadata"
-  | "sendReasoning"
-  | "sendSources"
-  | "sendStart"
-  | "sendFinish"
->;
+export type AssistantStreamOptions<UI_MESSAGE extends UIMessage = UIMessage> =
+  Pick<
+    UIMessageStreamOptions<UI_MESSAGE>,
+    | "messageMetadata"
+    | "sendReasoning"
+    | "sendSources"
+    | "sendStart"
+    | "sendFinish"
+  >;
 
 /**
  * The schemas `safeValidateUIMessages` checks the user's message against before
  * it is stored. A message that fails answers 422.
  */
-export type AssistantValidation = Pick<
-  Parameters<typeof safeValidateUIMessages<UIMessage>>[0],
-  "metadataSchema" | "dataSchemas" | "tools"
->;
+export type AssistantValidation<UI_MESSAGE extends UIMessage = UIMessage> =
+  Pick<
+    Parameters<typeof safeValidateUIMessages<UI_MESSAGE>>[0],
+    "metadataSchema" | "dataSchemas" | "tools"
+  >;
 
 /** What `assistantMetadata` attaches to an answer. */
 export interface AssistantMessageMetadata {
@@ -161,30 +184,35 @@ export interface AssistantMessageMetadata {
  * A `stream` option that sends the model and start time with the first chunk
  * and the finish reason and usage with the last, as message metadata.
  */
-export function assistantMetadata(
-  args: Pick<AssistantRunArgs, "model">,
-): AssistantStreamOptions {
-  return {
-    messageMetadata: ({ part }): AssistantMessageMetadata | undefined => {
-      if (part.type === "start") {
-        return { model: args.model, createdAt: new Date().toISOString() };
-      }
+export function assistantMetadata<UI_MESSAGE extends UIMessage = UIMessage>(
+  args: Pick<AssistantRunArgs<UI_MESSAGE>, "model">,
+): AssistantStreamOptions<UI_MESSAGE> {
+  const messageMetadata = ({
+    part,
+  }: {
+    part: TextStreamPart<ToolSet>;
+  }): AssistantMessageMetadata | undefined => {
+    if (part.type === "start") {
+      return { model: args.model, createdAt: new Date().toISOString() };
+    }
 
-      if (part.type === "finish") {
-        return { finishReason: part.finishReason, usage: part.totalUsage };
-      }
+    if (part.type === "finish") {
+      return { finishReason: part.finishReason, usage: part.totalUsage };
+    }
 
-      return undefined;
-    },
+    return undefined;
   };
+
+  // SAFETY: the app's metadata type is expected to accept AssistantMessageMetadata, as the docs say.
+  return { messageMetadata } as AssistantStreamOptions<UI_MESSAGE>;
 }
 
-export interface AssistantOptions {
+export interface AssistantOptions<UI_MESSAGE extends UIMessage = UIMessage> {
   /** Where the answer's stream is kept, so a reload resumes it. */
   readonly streams: StreamStore;
   /** Starts the generation: `agent.stream(...)` or `streamText(...)`. */
   readonly run: (
-    args: AssistantRunArgs,
+    args: AssistantRunArgs<UI_MESSAGE>,
   ) => AssistantRunResult | PromiseLike<AssistantRunResult>;
   /** The model when neither the request nor the chat names an allowed one. */
   readonly defaultModel: string;
@@ -206,7 +234,9 @@ export interface AssistantOptions {
     payload: CostBackfillPayload,
   ) => Promise<unknown>;
   /** Called after the answer is stored, such as to record usage. */
-  readonly onFinish?: (finish: AssistantFinish) => void | Promise<void>;
+  readonly onFinish?: (
+    finish: AssistantFinish<UI_MESSAGE>,
+  ) => void | Promise<void>;
   /**
    * What the stream is kept for: seconds or a Postgres interval. Defaults to
    * one day.
@@ -224,19 +254,36 @@ export interface AssistantOptions {
    * `sendReasoning: false`. A function gets the run's arguments.
    */
   readonly stream?:
-    | AssistantStreamOptions
-    | ((args: AssistantRunArgs) => AssistantStreamOptions);
+    | AssistantStreamOptions<UI_MESSAGE>
+    | ((
+        args: AssistantRunArgs<UI_MESSAGE>,
+      ) => AssistantStreamOptions<UI_MESSAGE>);
   /** Checks the user's message against schemas before it is stored. */
-  readonly validate?: AssistantValidation;
+  readonly validate?: AssistantValidation<UI_MESSAGE>;
+  /**
+   * The secret the run signs tool approvals with
+   * (`experimental_toolApprovalSecret` of `streamText` or the agent). The
+   * assistant passes it to `run` and refuses an approval continuation whose
+   * `signature` differs from the stored one; the AI SDK verifies the HMAC
+   * itself when the history is replayed.
+   */
+  readonly toolApprovalSecret?: string | Uint8Array;
   /** Makes message and stream ids. Defaults to `crypto.randomUUID()`. */
   readonly generateId?: () => string;
 }
 
 /** The body `useAssistant` sends. */
-export interface AssistantRequestBody {
+export interface AssistantRequestBody<
+  UI_MESSAGE extends UIMessage = UIMessage,
+> {
   /** The chat id; the client may make it, and the chat is created on first use. */
   readonly id: string;
-  readonly message: UIMessage;
+  /**
+   * The user's message, or, to continue after a tool approval, the stored
+   * assistant message with `approval-responded` parts. Only the decisions are
+   * read from that one.
+   */
+  readonly message: UI_MESSAGE;
   readonly trigger?: AiUserMessageTrigger;
   /** For `regenerate-message`, the answer to write again. */
   readonly messageId?: string;
@@ -244,20 +291,26 @@ export interface AssistantRequestBody {
 }
 
 /** A checked and stored user turn, ready for a model: what `prepare` returns. */
-export interface AssistantTurn {
+export interface AssistantTurn<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly chat: AiChatRecord;
   /** The model the request may use, after the catalog check. */
   readonly model: string;
   /** The stored user message, which the answer is saved under. */
   readonly parentId: string;
+  /**
+   * The assistant message this turn continues after a tool approval. The answer
+   * is saved under the same id, so the approval and the output end up in one
+   * message.
+   */
+  readonly continuationOf?: string;
   /** The history the model sees, as UI messages. */
-  readonly uiMessages: UIMessage[];
+  readonly uiMessages: UI_MESSAGE[];
   readonly messages: ModelMessage[];
   /** Spend attribution for the AI Gateway (`gatewayOptions`). */
   readonly providerOptions: { readonly gateway: GatewayOptions };
 }
 
-export interface Assistant {
+export interface Assistant<UI_MESSAGE extends UIMessage = UIMessage> {
   /** Stores the user's message, starts the answer and streams it (SSE). */
   respond(request: Request, context: AssistantContext): Promise<Response>;
   /**
@@ -269,7 +322,7 @@ export interface Assistant {
   prepare(
     body: unknown,
     context: AssistantContext,
-  ): Promise<AssistantTurn | Response>;
+  ): Promise<AssistantTurn<UI_MESSAGE> | Response>;
   /** The running answer of `chatId` from the start, or 204 when none runs. */
   resume(
     chatId: string,
@@ -296,7 +349,19 @@ const TRIGGERS: ReadonlySet<unknown> = new Set([
   "regenerate-message",
 ]);
 
-function parseBody(value: unknown): AssistantRequestBody | string {
+/**
+ * Whether the message answers a tool approval: an assistant message with a
+ * decision.
+ */
+const respondsToApproval = (message: UIMessage): boolean =>
+  message.role === "assistant" &&
+  message.parts.some(
+    (part) => isToolUIPart(part) && part.state === "approval-responded",
+  );
+
+function parseBody<UI_MESSAGE extends UIMessage>(
+  value: unknown,
+): AssistantRequestBody<UI_MESSAGE> | string {
   if (!isRecord(value)) {
     return "Expected a JSON object.";
   }
@@ -311,8 +376,11 @@ function parseBody(value: unknown): AssistantRequestBody | string {
   const last: unknown = Array.isArray(messages) ? messages.at(-1) : undefined;
   const message = value["message"] ?? last;
 
-  if (!isUIMessage(message) || message.role !== "user") {
-    return "Expected the user's message.";
+  if (
+    !isUIMessage(message) ||
+    (message.role !== "user" && !respondsToApproval(message))
+  ) {
+    return "Expected the user's message or an approval decision.";
   }
 
   if (trigger !== undefined && !TRIGGERS.has(trigger)) {
@@ -321,11 +389,86 @@ function parseBody(value: unknown): AssistantRequestBody | string {
 
   return {
     id,
-    message,
+    // SAFETY: options.validate checks the message against the app's UI_MESSAGE schemas when set.
+    message: message as UI_MESSAGE,
     ...(trigger === "regenerate-message" ? { trigger } : {}),
     ...(typeof messageId === "string" ? { messageId } : {}),
     ...(typeof model === "string" ? { model } : {}),
   };
+}
+
+/**
+ * Copies the approval decisions of `sent` onto the stored assistant message
+ * `stored`. Nothing else the client sent is used, so a forged output or input
+ * changes nothing. With a `secret`, a decision must carry the signature the
+ * stored request has.
+ */
+function decide(
+  stored: UIMessage,
+  sent: UIMessage,
+  secret: string | Uint8Array | undefined,
+): UIMessage | DbError {
+  const decisions = sent.parts.filter(isToolUIPart);
+  const outcome = { applied: 0, forged: false };
+
+  const parts = stored.parts.map((part) => {
+    if (!isToolUIPart(part) || part.approval === undefined) {
+      return part;
+    }
+
+    const { approval } = part;
+
+    const match = decisions.find(
+      (candidate) =>
+        candidate.toolCallId === part.toolCallId &&
+        candidate.state === "approval-responded" &&
+        candidate.approval.id === approval.id,
+    );
+
+    if (match?.state !== "approval-responded") {
+      return part;
+    }
+
+    if (
+      secret !== undefined &&
+      match.approval.signature !== approval.signature
+    ) {
+      outcome.forged = true;
+
+      return part;
+    }
+
+    if (part.state !== "approval-requested") {
+      return part;
+    }
+
+    outcome.applied += 1;
+
+    // SAFETY: only the decision and its reason change; the part keeps its tool, input and signature.
+    return {
+      ...part,
+      state: "approval-responded" as const,
+      approval: {
+        ...approval,
+        approved: match.approval.approved,
+        ...(match.approval.reason === undefined
+          ? {}
+          : { reason: match.approval.reason }),
+      },
+    };
+  });
+
+  if (outcome.forged) {
+    return dbError("forbidden", "The approval does not match its request.", {
+      code: "AI_APPROVAL_SIGNATURE",
+    });
+  }
+
+  return outcome.applied === 0
+    ? dbError("conflict", "No pending approval matches the decision.", {
+        code: "AI_APPROVAL_NOT_PENDING",
+      })
+    : { ...stored, parts };
 }
 
 const settle = async <T>(
@@ -338,13 +481,17 @@ const settle = async <T>(
   }
 };
 
-const uiChunksOf = (
+const uiChunksOf = <UI_MESSAGE extends UIMessage>(
   result: AssistantRunResult,
-  options: UIStreamOptions,
+  options: UIStreamOptions<UI_MESSAGE>,
 ): ReadableStream<UIMessageChunk> | undefined =>
   result.stream === undefined
     ? undefined
-    : toUIMessageStream({ stream: result.stream, ...options });
+    : toUIMessageStream({
+        stream: result.stream,
+        ...(result.tools === undefined ? {} : { tools: result.tools }),
+        ...options,
+      });
 
 /**
  * A chat route for the AI SDK on the `ai-chat` block: `respond` stores the
@@ -353,12 +500,14 @@ const uiChunksOf = (
  * store; the answer and its usage are stored when it ends, even after the
  * client left. `resume` replays it after a reload, `stop` ends it.
  */
-export function createAssistant(options: AssistantOptions): Assistant {
+export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
+  options: AssistantOptions<UI_MESSAGE>,
+): Assistant<UI_MESSAGE> {
   const newId = options.generateId ?? (() => crypto.randomUUID());
 
   async function chatOf(
     context: AssistantContext,
-    body: AssistantRequestBody,
+    body: AssistantRequestBody<UI_MESSAGE>,
   ): Promise<AiChatRecord | Response> {
     const found = await context.chats.chats.get(body.id);
 
@@ -453,18 +602,131 @@ export function createAssistant(options: AssistantOptions): Assistant {
       : undefined;
   }
 
+  const historyOf = (path: readonly AiStoredMessage[]): UI_MESSAGE[] => {
+    const repaired = new Map(
+      repairDanglingToolCalls(pathToHistory(path)).map((message) => [
+        message.id,
+        message,
+      ]),
+    );
+
+    return toUIMessages<UI_MESSAGE>(
+      path.map((stored) =>
+        stored.format === AI_SDK_UI_FORMAT || stored.format === "native"
+          ? stored
+          : (repaired.get(stored.id) ?? stored),
+      ),
+    );
+  };
+
+  async function turnOf(
+    context: AssistantContext,
+    chat: AiChatRecord,
+    model: string,
+    parentId: string,
+    uiMessages: UI_MESSAGE[],
+    continuationOf?: string,
+  ): Promise<AssistantTurn<UI_MESSAGE>> {
+    return {
+      chat,
+      model,
+      parentId,
+      ...(continuationOf === undefined ? {} : { continuationOf }),
+      uiMessages,
+      messages: await convertToModelMessages(uiMessages, {
+        ignoreIncompleteToolCalls: true,
+      }),
+      providerOptions: gatewayOptions({
+        userId: context.userId,
+        ...tenantOf(chat),
+        chatId: chat.id,
+        feature: options.feature ?? "chat",
+      }),
+    };
+  }
+
+  /**
+   * Continues the stored assistant message `body.message` after a tool
+   * approval.
+   */
+  async function approved(
+    body: AssistantRequestBody<UI_MESSAGE>,
+    context: AssistantContext,
+  ): Promise<AssistantTurn<UI_MESSAGE> | Response> {
+    const found = await context.chats.chats.get(body.id);
+
+    if (!found.ok) {
+      return problemResponse(found.error);
+    }
+
+    const chat = found.data;
+    const model = await modelOf(context, chat, body.model);
+
+    if (model instanceof Response) {
+      return model;
+    }
+
+    if (options.quota && chat.organizationId !== undefined) {
+      const exceeded = await options.quota(chat.organizationId);
+
+      if (exceeded) {
+        return problem429(exceeded);
+      }
+    }
+
+    const path = await context.chats.messages.path({
+      chatId: chat.id,
+      leafId: body.message.id,
+      native: true,
+    });
+
+    if (!path.ok) {
+      return problemResponse(path.error);
+    }
+
+    const stored = path.data.at(-1);
+
+    if (
+      stored?.id !== body.message.id ||
+      stored.role !== "assistant" ||
+      stored.parentId === undefined
+    ) {
+      return badRequest("The message to continue is not a stored answer.");
+    }
+
+    const decided = decide(
+      toUIMessage(stored),
+      body.message,
+      options.toolApprovalSecret,
+    );
+
+    if ("kind" in decided) {
+      return problemResponse(decided);
+    }
+
+    return turnOf(
+      context,
+      chat,
+      model,
+      stored.parentId,
+      // SAFETY: a stored message is the app's UI_MESSAGE; decide only changed approval states.
+      [...historyOf(path.data.slice(0, -1)), decided as UI_MESSAGE],
+      stored.id,
+    );
+  }
+
   async function prepare(
     value: unknown,
     context: AssistantContext,
-  ): Promise<AssistantTurn | Response> {
-    const body = parseBody(value);
+  ): Promise<AssistantTurn<UI_MESSAGE> | Response> {
+    const body = parseBody<UI_MESSAGE>(value);
 
     if (typeof body === "string") {
       return badRequest(body);
     }
 
     if (options.validate !== undefined) {
-      const checked = await safeValidateUIMessages({
+      const checked = await safeValidateUIMessages<UI_MESSAGE>({
         messages: [body.message],
         ...options.validate,
       });
@@ -477,6 +739,10 @@ export function createAssistant(options: AssistantOptions): Assistant {
           }),
         );
       }
+    }
+
+    if (body.message.role === "assistant") {
+      return approved(body, context);
     }
 
     const chat = await chatOf(context, body);
@@ -530,36 +796,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return problemResponse(path.error);
     }
 
-    const repaired = new Map(
-      repairDanglingToolCalls(pathToHistory(path.data)).map((message) => [
-        message.id,
-        message,
-      ]),
-    );
-
-    const uiMessages = toUIMessages(
-      path.data.map((stored) =>
-        stored.format === AI_SDK_UI_FORMAT || stored.format === "native"
-          ? stored
-          : (repaired.get(stored.id) ?? stored),
-      ),
-    );
-
-    return {
-      chat,
-      model,
-      parentId,
-      uiMessages,
-      messages: await convertToModelMessages(uiMessages, {
-        ignoreIncompleteToolCalls: true,
-      }),
-      providerOptions: gatewayOptions({
-        userId: context.userId,
-        ...tenantOf(chat),
-        chatId: chat.id,
-        feature: options.feature ?? "chat",
-      }),
-    };
+    return turnOf(context, chat, model, parentId, historyOf(path.data));
   }
 
   async function respond(
@@ -575,7 +812,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     const { chat, model, parentId, uiMessages } = turn;
 
     const streamId = newId();
-    const assistantId = newId();
+    const assistantId = turn.continuationOf ?? newId();
 
     const claim = await context.chats.runs.claim({
       chatId: chat.id,
@@ -606,13 +843,19 @@ export function createAssistant(options: AssistantOptions): Assistant {
         ...runRelease(status, usage, error),
       });
 
-    const runArgs: AssistantRunArgs = {
+    const runArgs: AssistantRunArgs<UI_MESSAGE> = {
       chat,
       model,
       messages: turn.messages,
       uiMessages,
       abortSignal: abort.signal,
       providerOptions: turn.providerOptions,
+      ...(options.toolApprovalSecret === undefined
+        ? {}
+        : { toolApprovalSecret: options.toolApprovalSecret }),
+      ...(turn.continuationOf === undefined
+        ? {}
+        : { continuationOf: turn.continuationOf }),
       context,
     };
 
@@ -636,7 +879,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
 
     let finished: Promise<void> | undefined;
 
-    const onEnd: UIMessageStreamOnEndCallback<UIMessage> = (event) => {
+    const onEnd: UIMessageStreamOnEndCallback<UI_MESSAGE> = (event) => {
       finished = (async () => {
         const stopped = event.isAborted || abort.signal.aborted;
         const status: AiRunStatus = stopped ? "cancelled" : "completed";

@@ -1,14 +1,17 @@
+import type { ExtraFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { Result } from "../../core/result.ts";
 import type { RunState } from "../../core/run-state.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
+import { blockFields, extraFieldsArg } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { assertCron, nextCronRun } from "../../core/cron.ts";
-import { err, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -55,7 +58,8 @@ export interface WorkflowPrincipal {
 export type WorkflowRunMode = "live" | "test";
 
 /** A run of any engine, as the `workflows` module records it. */
-export interface WorkflowRun {
+/** `F` is the extra run columns `options.fields` describes. */
+export interface WorkflowRun<F extends object = Record<never, never>> {
   readonly id: string;
   /** The engine that runs it, e.g. `workflow-sdk`. */
   readonly engine: string;
@@ -80,6 +84,12 @@ export interface WorkflowRun {
   readonly mode: WorkflowRunMode;
   /** The trigger node it started from, in a graph with several. */
   readonly triggerNode: string | undefined;
+  /** The key a start claimed for the tenant; one run holds a key. */
+  readonly idempotencyKey: string | undefined;
+  /** Until when a process holds the run's dispatch lease. */
+  readonly dispatchUntil: Temporal.Instant | undefined;
+  /** The extra columns `options.runExtraColumns` adds, by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 export interface WorkflowSchedule {
@@ -112,7 +122,7 @@ export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
 }
 
 /** What an engine reports about a run (service role). */
-export interface WorkflowRunRecord {
+export interface WorkflowRunRecord<F extends object = Record<never, never>> {
   readonly engine: string;
   readonly externalId: string;
   readonly definition: string;
@@ -130,6 +140,13 @@ export interface WorkflowRunRecord {
   /** Set by the first report (default `live`). */
   readonly mode?: WorkflowRunMode;
   readonly triggerNode?: string;
+  /**
+   * One run per tenant and key: a second report with a key another run holds
+   * returns that run's id and records nothing.
+   */
+  readonly idempotencyKey?: string;
+  /** Values for the extra run columns, validated by `options.fields`. */
+  readonly fields?: Readonly<Record<string, unknown>> & Partial<F>;
 }
 
 export interface WorkflowScheduleInput {
@@ -204,7 +221,9 @@ export interface WorkflowStartTicket {
   readonly status: "pending" | "dropped";
 }
 
-export interface WorkflowsOptions extends BlockTemporalOptions {
+export interface WorkflowsOptions<
+  S extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -216,32 +235,57 @@ export interface WorkflowsOptions extends BlockTemporalOptions {
    * `withBlockHooks` hooks around the methods of each group, such as a rule on
    * who may create a schedule: `{ schedules: { create: { before } } }`.
    */
-  readonly hooks?: WorkflowsHooks;
+  readonly hooks?: NoInfer<WorkflowsHooks<FieldsOf<S>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
+  /**
+   * A Standard Schema for the extra run columns `record` sets. A write the
+   * schema rejects is a `validation` error and sends nothing.
+   */
+  readonly fields?: S;
 }
 
 /** Hooks for the methods of each group of `Workflows`. */
-export interface WorkflowsHooks {
-  readonly runs?: BlockHooks<Workflows["runs"]>;
-  readonly schedules?: BlockHooks<Workflows["schedules"]>;
-  readonly semaphores?: BlockHooks<Workflows["semaphores"]>;
-  readonly admission?: BlockHooks<Workflows["admission"]>;
+export interface WorkflowsHooks<F extends object = Record<never, never>> {
+  readonly runs?: BlockHooks<Workflows<F>["runs"]>;
+  readonly schedules?: BlockHooks<Workflows<F>["schedules"]>;
+  readonly semaphores?: BlockHooks<Workflows<F>["semaphores"]>;
+  readonly admission?: BlockHooks<Workflows<F>["admission"]>;
 }
 
-export interface Workflows {
+/** `F` is the extra run columns `options.fields` describes. */
+export interface Workflows<F extends object = Record<never, never>> {
   readonly runs: {
     /** The runs the caller may read, newest first. */
-    list(query?: WorkflowRunsQuery): AsyncResult<readonly WorkflowRun[]>;
+    list(query?: WorkflowRunsQuery): AsyncResult<readonly WorkflowRun<F>[]>;
     /** A run by its id or its engine's id. */
-    get(run: string): AsyncResult<WorkflowRun | undefined>;
+    get(run: string): AsyncResult<WorkflowRun<F> | undefined>;
     /**
      * Marks a run for cancellation: the actor, `workflows.manage` in its
      * tenant, or the service role. The engine does the cancelling.
      */
-    requestCancel(run: string): AsyncResult<WorkflowRun | undefined>;
+    requestCancel(run: string): AsyncResult<WorkflowRun<F> | undefined>;
     /** Creates or updates a run (service role; engines call it). */
-    record(run: WorkflowRunRecord): AsyncResult<string>;
+    record(run: WorkflowRunRecord<F>): AsyncResult<string>;
+    /**
+     * Leases a queued run that has no engine run yet for `lease` seconds
+     * (default 60; service role). Resolves `undefined` when the run is gone,
+     * already started, or leased by another caller.
+     */
+    claimForDispatch(input: {
+      readonly run: string;
+      readonly lease?: number;
+    }): AsyncResult<WorkflowRun<F> | undefined>;
+    /**
+     * Records the engine's run id on a queued run and ends its lease (service
+     * role). When the engine already reported the run, that row keeps its id
+     * and takes the key.
+     */
+    setEngine(input: {
+      readonly run: string;
+      readonly engine: string;
+      readonly externalId: string;
+    }): AsyncResult<WorkflowRun<F> | undefined>;
     /** Deletes finished runs older than `olderThan` seconds (default 30 days). */
     purge(options?: {
       readonly olderThan?: number;
@@ -341,7 +385,7 @@ function principalOf(
     : undefined;
 }
 
-/** A run from the jsonb the module returns. */
+/** A run from the jsonb the module returns, with its extra columns unparsed. */
 export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
   const attributes = row["attributes"];
 
@@ -364,6 +408,9 @@ export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
     principal: principalOf(row),
     mode: row["mode"] === "test" ? "test" : "live",
     triggerNode: optionalText(row["triggerNode"]),
+    idempotencyKey: optionalText(row["idempotencyKey"]),
+    dispatchUntil: optionalInstant(row["dispatchUntil"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -389,9 +436,6 @@ const subjectField = (
 ): { readonly subject?: WorkflowSubject } =>
   subject === undefined ? {} : { subject };
 
-const optionalRun = (value: unknown): WorkflowRun | undefined =>
-  isRecord(value) ? workflowRunOf(value) : undefined;
-
 /**
  * The `workflows` module's runs, schedules, semaphores and start admission, for
  * any engine. Run with the user's transport to read what RLS allows; the ticks
@@ -402,10 +446,36 @@ const optionalRun = (value: unknown): WorkflowRun | undefined =>
  * const runs = await workflows.runs.list({ tenant: orgId }).orThrow();
  * ```
  */
-export function createWorkflows(options: WorkflowsOptions): Workflows {
+export function createWorkflows<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: WorkflowsOptions<S>): Workflows<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const now = (): Temporal.Instant => temporal().Now.instant();
+  const fields = blockFields<F>(options.fields, "workflow run fields");
+
+  const parsedRun = async (raw: Record<string, unknown>) => {
+    const run = workflowRunOf(raw);
+    const parsed = await fields.read(run.fields);
+
+    if (!parsed.ok) {
+      return parsed;
+    }
+
+    return ok<WorkflowRun<F>>({
+      ...run,
+      fields: { ...run.fields, ...parsed.data },
+    });
+  };
+
+  const rawValue = (value: unknown): unknown => value;
+
+  const optionalRun = (
+    value: unknown,
+  ): Promise<Result<WorkflowRun<F> | undefined>> =>
+    isRecord(value) ? parsedRun(value) : Promise.resolve(ok(undefined));
 
   const tick = (
     claimFn: string,
@@ -444,7 +514,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
       return ok({ started, failed });
     });
 
-  const client: Workflows = {
+  const client: Workflows<F> = {
     runs: {
       list: (query = {}) =>
         call(
@@ -459,33 +529,64 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
             subject_id: query.subject?.id,
             mode: query.mode === "all" ? null : (query.mode ?? "live"),
           },
-          (value) => recordsOf(value, "workflow_runs_list").map(workflowRunOf),
-        ),
-      get: (run) => call("workflow_run_get", { run }, optionalRun),
+          (value) => recordsOf(value, "workflow_runs_list"),
+        ).andThen(async (rows) => {
+          const runs: WorkflowRun<F>[] = [];
+
+          for (const row of rows) {
+            const parsed = await parsedRun(row);
+
+            if (!parsed.ok) {
+              return parsed;
+            }
+
+            runs.push(parsed.data);
+          }
+
+          return ok(runs);
+        }),
+      get: (run) =>
+        call("workflow_run_get", { run }, rawValue).andThen(optionalRun),
       requestCancel: (run) =>
-        call("request_workflow_cancel", { run }, optionalRun),
-      record: (run) =>
+        call("request_workflow_cancel", { run }, rawValue).andThen(optionalRun),
+      claimForDispatch: ({ run, lease = 60 }) =>
+        call("claim_workflow_run_dispatch", { run, lease }, rawValue).andThen(
+          optionalRun,
+        ),
+      setEngine: ({ run, engine, externalId }) =>
         call(
-          "record_workflow_run",
-          {
-            engine: run.engine,
-            external_id: run.externalId,
-            definition: run.definition,
-            status: run.status,
-            tenant: run.tenant,
-            actor: run.actor,
-            attributes: run.attributes,
-            error: run.error,
-            started_at: instantArg(run.startedAt),
-            completed_at: instantArg(run.completedAt),
-            subject_type: run.subject?.type,
-            subject_id: run.subject?.id,
-            principal_kind: run.principal?.kind,
-            principal_id: run.principal?.id,
-            mode: run.mode,
-            trigger_node: run.triggerNode,
-          },
-          textOf,
+          "set_workflow_run_engine",
+          { run, engine, external_id: externalId },
+          rawValue,
+        ).andThen(optionalRun),
+      record: (run) =>
+        AsyncResult.from(() =>
+          extraFieldsArg(fields, run.fields ?? {}),
+        ).andThen((more) =>
+          call(
+            "record_workflow_run",
+            {
+              engine: run.engine,
+              external_id: run.externalId,
+              definition: run.definition,
+              status: run.status,
+              tenant: run.tenant,
+              actor: run.actor,
+              attributes: run.attributes,
+              error: run.error,
+              started_at: instantArg(run.startedAt),
+              completed_at: instantArg(run.completedAt),
+              subject_type: run.subject?.type,
+              subject_id: run.subject?.id,
+              principal_kind: run.principal?.kind,
+              principal_id: run.principal?.id,
+              mode: run.mode,
+              trigger_node: run.triggerNode,
+              idempotency_key: run.idempotencyKey,
+              ...more,
+            },
+            textOf,
+          ),
         ),
       purge: (purge = {}) =>
         call(

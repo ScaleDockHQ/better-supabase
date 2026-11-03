@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OutboxEvent } from "../../src/blocks/outbox/outbox.ts";
+import type { StartOnceRegistry } from "../../src/workflow-sdk/index.ts";
+
+import { AsyncResult, ok } from "../../src/core/result.ts";
 
 const start = vi.fn(
   async (_workflow: unknown, _args: unknown[], _options: unknown) => ({
@@ -36,8 +39,10 @@ const {
   HookForbiddenError,
   hookMetadata,
   protectWebHandler,
+  startChild,
   startFor,
   startOnce,
+  WorkflowRunKeysMissingError,
   startOnEvent,
   workflowContext,
   workflowStarter,
@@ -110,6 +115,21 @@ describe("context", () => {
     expect(() =>
       workflowContext({ ...user, claims: { act: { kind: "root", sub: "a" } } }),
     ).toThrow(TypeError);
+  });
+});
+
+describe("startChild", () => {
+  it("copies the context and the parent's subject to the child run", async () => {
+    await startChild(user, approve, ["i1"], {
+      parentSubject: { type: "deal", id: "d1" },
+    });
+    expect(start.mock.calls.at(-1)?.[2]).toEqual({
+      attributes: {
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.subject": "deal/d1",
+      },
+    });
   });
 });
 
@@ -298,6 +318,128 @@ describe("run keys", () => {
     expect(() =>
       startOnce(user, approve, ["i1"], { key: "k".repeat(501) }),
     ).toThrow(TypeError);
+  });
+});
+
+interface FakeRow {
+  id: string;
+  externalId: string;
+  key: string;
+  leased: boolean;
+}
+
+/** An in-memory run registry with the semantics of the module's functions. */
+function fakeRegistry(): { registry: StartOnceRegistry; rows: FakeRow[] } {
+  const rows: FakeRow[] = [];
+
+  const wrap = <T>(value: T): AsyncResult<T> =>
+    AsyncResult.from(async () => ok(value));
+
+  const run = (row: FakeRow | undefined): never =>
+    (row === undefined
+      ? undefined
+      : {
+          id: row.id,
+          externalId: row.externalId,
+          idempotencyKey: row.key,
+        }) as never;
+
+  const registry = {
+    record: (input: { externalId: string; idempotencyKey?: string }) => {
+      const held = rows.find((row) => row.key === input.idempotencyKey);
+
+      if (held !== undefined) {
+        return wrap(held.id);
+      }
+
+      const row = {
+        id: `r${rows.length + 1}`,
+        externalId: input.externalId,
+        key: input.idempotencyKey ?? "",
+        leased: false,
+      };
+
+      rows.push(row);
+
+      return wrap(row.id);
+    },
+    claimForDispatch: ({ run: id }: { run: string }) => {
+      const row = rows.find((candidate) => candidate.id === id);
+
+      const open =
+        row !== undefined &&
+        row.externalId.startsWith("pending:") &&
+        !row.leased;
+
+      if (open) {
+        row.leased = true;
+      }
+
+      return wrap(run(open ? row : undefined));
+    },
+    get: (id: string) => wrap(run(rows.find((row) => row.id === id))),
+    setEngine: (input: { run: string; externalId: string }) => {
+      const row = rows.find((candidate) => candidate.id === input.run);
+
+      if (row !== undefined) {
+        row.externalId = input.externalId;
+        row.leased = false;
+      }
+
+      return wrap(run(row));
+    },
+  };
+
+  return { registry, rows };
+}
+
+describe("startOnce on the run registry", () => {
+  it("starts once and records the engine run", async () => {
+    const { registry, rows } = fakeRegistry();
+
+    const run = await startOnce(user, approve, ["i1"], { key: "k1", registry });
+
+    expect(run.runId).toBe("wrun_new");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.externalId).toBe("wrun_new");
+  });
+
+  it("starts one run for concurrent starts with one key", async () => {
+    const { registry, rows } = fakeRegistry();
+
+    const runs = await Promise.all(
+      [1, 2, 3].map(() =>
+        startOnce(user, approve, ["i1"], { key: "k1", registry }),
+      ),
+    );
+
+    expect(start).toHaveBeenCalledOnce();
+    expect(runs.map((run) => run.runId)).toEqual([
+      "wrun_new",
+      "wrun_new",
+      "wrun_new",
+    ]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("leaves the lease to expire when the start fails", async () => {
+    start.mockRejectedValueOnce(new Error("down"));
+
+    const { registry, rows } = fakeRegistry();
+
+    await expect(
+      startOnce(user, approve, ["i1"], { key: "k1", registry }),
+    ).rejects.toThrow("down");
+    expect(rows[0]?.externalId.startsWith("pending:")).toBe(true);
+  });
+
+  it("throws a typed error without a registry or run keys", async () => {
+    await expect(
+      startOnce(user, approve, ["i1"], { key: "k1" }),
+    ).rejects.toMatchObject({ code: "WORKFLOW_RUN_KEYS_MISSING" });
+    await expect(
+      startOnce(user, approve, ["i1"], { key: "k1" }),
+    ).rejects.toBeInstanceOf(WorkflowRunKeysMissingError);
   });
 });
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:5ec01f0801ce793db8343491478a467203f7ca282b26746d79bc7a816b5775f4
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:14723dae864ddf81dcacc6804d76ff5b099af469445e6aaf582e5e8a82a88a1c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -92,6 +93,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -543,7 +548,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
+-- @bsb-hash sha256:94769a101017afd9f5617d6959745f12e5ec73b28978bbdaf60a9130bb1496bc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -555,14 +560,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 8, 'managed')
+values ('queue', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:2128a6f59d709b195646667c6820ac632aad766f6eed14bed5990cc79ac633bf
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:fc5c54300553ce3ed4b98f5d853ef4ad58571f202b04ad3f240fba3a707a6b58
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,7 +634,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -653,6 +659,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -1108,7 +1118,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
+-- @bsb-hash sha256:94769a101017afd9f5617d6959745f12e5ec73b28978bbdaf60a9130bb1496bc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1120,7 +1130,7 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 8, 'managed')
+values ('queue', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1129,8 +1139,8 @@ on conflict (name) do update
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:4dcd792495bdeb7ca364b141363197b1abba8f540dfb30e733e77cb5d91b1ad1
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:a728da0775e6c85c118b808ab2eb1eca6915bf66792f88b2abda3a578de54df3
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1197,7 +1207,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -1221,6 +1232,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -1858,7 +1873,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
+-- @bsb-hash sha256:94769a101017afd9f5617d6959745f12e5ec73b28978bbdaf60a9130bb1496bc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1870,14 +1885,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 8, 'managed')
+values ('queue', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:5ec01f0801ce793db8343491478a467203f7ca282b26746d79bc7a816b5775f4
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:14723dae864ddf81dcacc6804d76ff5b099af469445e6aaf582e5e8a82a88a1c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1944,7 +1959,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -1968,6 +1984,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -2419,7 +2439,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
+-- @bsb-hash sha256:94769a101017afd9f5617d6959745f12e5ec73b28978bbdaf60a9130bb1496bc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2431,14 +2451,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 8, 'managed')
+values ('queue', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:5ec01f0801ce793db8343491478a467203f7ca282b26746d79bc7a816b5775f4
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:14723dae864ddf81dcacc6804d76ff5b099af469445e6aaf582e5e8a82a88a1c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2505,7 +2525,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -2529,6 +2550,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -2980,7 +3005,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
+-- @bsb-hash sha256:94769a101017afd9f5617d6959745f12e5ec73b28978bbdaf60a9130bb1496bc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2992,6 +3017,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 8, 'managed')
+values ('queue', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

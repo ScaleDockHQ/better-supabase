@@ -3,9 +3,9 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { isRecord } from "../shared.ts";
 
-/** `$id` of `schemas/ai-message-v1.json`, the JSON Schema of `AiMessage`. */
+/** `$id` of `schemas/ai-message-v2.json`, the JSON Schema of `AiMessage`. */
 export const AI_MESSAGE_SCHEMA_ID =
-  "https://unpkg.com/better-supabase/schemas/ai-message-v1.json";
+  "https://unpkg.com/better-supabase/schemas/ai-message-v2.json";
 
 type ProviderMetadata = Readonly<Record<string, unknown>>;
 
@@ -45,6 +45,19 @@ export interface AiToolCallPart extends PartBase {
   readonly input: unknown;
   /** The provider ran the tool itself (web search on the model's side). */
   readonly providerExecuted?: boolean;
+  /**
+   * `true` for a tool the app didn't declare at compile time (`dynamic-tool` in
+   * the AI SDK), `false` for a static call the SDK normalized to one.
+   */
+  readonly dynamic?: boolean;
+  readonly title?: string;
+  /** Free-form JSON the tool attached to its call. */
+  readonly toolMetadata?: Readonly<Record<string, unknown>>;
+  /** The input text received so far while `state` is `streaming`. */
+  readonly rawInput?: string;
+  readonly inputEncoding?: "json" | "text";
+  /** `streaming` while the input is still arriving. */
+  readonly state?: "streaming" | "done";
 }
 
 export interface AiToolResultPart extends PartBase {
@@ -53,6 +66,8 @@ export interface AiToolResultPart extends PartBase {
   readonly toolName: string;
   readonly output: unknown;
   readonly isError?: boolean;
+  /** An interim output of a tool that streams several. */
+  readonly preliminary?: boolean;
 }
 
 export interface AiToolApprovalPart extends PartBase {
@@ -61,6 +76,14 @@ export interface AiToolApprovalPart extends PartBase {
   readonly approvalId: string;
   readonly state: "requested" | "approved" | "denied";
   readonly reason?: string;
+  /** The HMAC the SDK signed the request with (`toolApprovalSecret`). */
+  readonly signature?: string;
+  /** The policy approved the call without asking. */
+  readonly isAutomatic?: boolean;
+  readonly requestReason?: string;
+  /** What the approval asked about, as the tool described it. */
+  readonly descriptor?: unknown;
+  readonly inputSchemaInput?: unknown;
 }
 
 export interface AiSourcePart extends PartBase {
@@ -109,7 +132,7 @@ export type AiMessagePartType = AiMessagePart["type"];
 
 export type AiMessageRole = "system" | "user" | "assistant" | "tool";
 
-/** A message in the SDK-neutral format `ai_messages.parts` stores (version 1). */
+/** A message in the SDK-neutral format `ai_messages.parts` stores (version 2). */
 export interface AiMessage {
   readonly id: string;
   readonly role: AiMessageRole;
@@ -151,12 +174,19 @@ const FIELDS: {
     toolName: text,
     input: { kind: "any", required: true },
     providerExecuted: { kind: "boolean" },
+    dynamic: { kind: "boolean" },
+    title: optionalText,
+    toolMetadata: { kind: "object" },
+    rawInput: optionalText,
+    inputEncoding: { kind: "string", values: ["json", "text"] },
+    state,
   },
   "tool-result": {
     toolCallId: text,
     toolName: text,
     output: { kind: "any", required: true },
     isError: { kind: "boolean" },
+    preliminary: { kind: "boolean" },
   },
   "tool-approval": {
     toolCallId: text,
@@ -167,6 +197,11 @@ const FIELDS: {
       values: ["requested", "approved", "denied"],
     },
     reason: optionalText,
+    signature: optionalText,
+    isAutomatic: { kind: "boolean" },
+    requestReason: optionalText,
+    descriptor: { kind: "any" },
+    inputSchemaInput: { kind: "any" },
   },
   source: {
     sourceType: { kind: "string", required: true, values: ["url", "document"] },
@@ -326,7 +361,7 @@ function checkMessage(value: unknown): readonly Issue[] {
 }
 
 /**
- * A Standard Schema for `AiMessage`, matching `schemas/ai-message-v1.json`.
+ * A Standard Schema for `AiMessage`, matching `schemas/ai-message-v2.json`.
  * Pass it to `validate()` or any library that takes a Standard Schema.
  */
 export const aiMessageSchema: StandardSchemaV1<unknown, AiMessage> = {

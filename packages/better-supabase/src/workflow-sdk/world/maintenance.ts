@@ -5,6 +5,9 @@ import type {
 } from "../run-keys.ts";
 
 import { optionalTemporal, TEMPORAL_MISSING } from "../../core/temporal.ts";
+import { decodeHookMetadata } from "./metadata.ts";
+
+type RunKey = (runId: string) => Promise<Uint8Array | undefined>;
 
 type Call = <T>(fn: string, args: readonly unknown[]) => Promise<T[]>;
 
@@ -21,6 +24,7 @@ interface HookRow {
   readonly tenant_id: string | null;
   readonly actor_id: string | null;
   readonly metadata: unknown;
+  readonly metadata_cbor: Uint8Array | null;
   readonly created_at: Date | string;
 }
 
@@ -36,20 +40,29 @@ function instantOf(value: Date | string): Temporal.Instant {
   );
 }
 
-function hookOf(row: HookRow): OpenWorkflowHook {
+async function hookOf(row: HookRow, keyFor: RunKey): Promise<OpenWorkflowHook> {
+  const decoded = await decodeHookMetadata(
+    row.metadata_cbor,
+    await keyFor(row.run_id),
+  );
+
   return {
     hookId: row.hook_id,
     runId: row.run_id,
     workflowName: row.workflow,
     tenantId: row.tenant_id ?? undefined,
     actorId: row.actor_id ?? undefined,
-    metadata: row.metadata,
+    // metadata is the jsonb column 5.0 runs wrote before metadata_cbor.
+    metadata: decoded ?? row.metadata ?? null,
     createdAt: instantOf(row.created_at),
   };
 }
 
 /** The run keys, purge and open hooks of the World, over its pool. */
-export function createMaintenance(call: Call): WorkflowMaintenance {
+export function createMaintenance(
+  call: Call,
+  keyFor: RunKey,
+): WorkflowMaintenance {
   return {
     runKeys: {
       async claim(key) {
@@ -97,7 +110,7 @@ export function createMaintenance(call: Call): WorkflowMaintenance {
         options.limit ?? 50,
       ]);
 
-      return rows.map(hookOf);
+      return Promise.all(rows.map((row) => hookOf(row, keyFor)));
     },
   };
 }

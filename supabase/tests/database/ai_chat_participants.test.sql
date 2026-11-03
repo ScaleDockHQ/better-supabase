@@ -1,4 +1,5 @@
--- Chat participants: the owner adds viewers and editors to a private chat.
+-- Chat participants: the owner adds viewers and editors to a chat, which
+-- becomes shared.
 -- Viewers read it, editors also write to it, and the tenant scope still keeps
 -- out a participant from another tenant. Acme (…0001) has the owner …a1 and
 -- the member …a2; …a3 belongs to Globex only (supabase/seed.sql).
@@ -84,13 +85,13 @@ set local role authenticated;
 select is(
   api.get_ai_chat((select id from ids where name = 'chat')) ->> 'title',
   'Plans',
-  'a viewer reads the private chat'
+  'a viewer reads the shared chat'
 );
 
 select is(
   jsonb_array_length(api.list_ai_chat_participants((select id from ids where name = 'chat'))),
-  2,
-  'a viewer lists the participants'
+  3,
+  'a viewer lists the owner and the participants'
 );
 
 select throws_ok(

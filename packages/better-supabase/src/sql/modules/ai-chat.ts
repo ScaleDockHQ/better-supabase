@@ -9,7 +9,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { AiChatTable } from "./ai-chat-tables.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { schemaPreamble } from "../shared.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
@@ -20,6 +20,7 @@ import {
   upgradeSandboxes,
 } from "./ai-chat-sandboxes.ts";
 import { AI_CHAT_CONTRIBUTES } from "./ai-chat-shares.ts";
+import { upgradeSharing } from "./ai-chat-sharing.ts";
 import {
   AI_CHAT_EXTRA_OPTIONS,
   aiChatTables,
@@ -49,6 +50,7 @@ const CHATS = {
   title: "title",
   model: "model",
   visibility: "visibility",
+  mode: "mode",
   pinned: "pinned",
   archivedAt: "archived_at",
   temporary: "is_temporary",
@@ -238,11 +240,23 @@ const HARNESS = {
 } as const;
 
 const PARTICIPANTS = {
+  id: "id",
   chat: "chat_id",
   user: "user_id",
+  kind: "kind",
+  team: "team_id",
+  customerUser: "customer_user_id",
+  email: "email",
   role: "role",
   addedBy: "added_by",
   createdAt: "created_at",
+} as const;
+
+const LINKS = {
+  chat: "chat_id",
+  salt: "salt",
+  createdBy: "created_by",
+  rotatedAt: "rotated_at",
 } as const;
 
 const EVENTS: BlockSqlEvents<AiChatEvents> = {
@@ -293,6 +307,7 @@ const NAMES: BlockSqlNames = {
     "outputMeter",
     "tenant",
     "messages",
+    "teamMembership",
     ...Object.values(AI_CHAT_EXTRA_OPTIONS),
   ],
   tables: {
@@ -305,7 +320,7 @@ const NAMES: BlockSqlNames = {
     },
     chats: {
       app: {},
-      optional: ["agent", "pinned", "archivedAt", "createdAt"],
+      optional: ["agent", "mode", "pinned", "archivedAt", "createdAt"],
       typed: ["visibility"],
       name: "ai_chats",
       columns: CHATS,
@@ -313,11 +328,26 @@ const NAMES: BlockSqlNames = {
     },
     participants: {
       app: {},
-      optional: ["addedBy", "createdAt"],
-      typed: ["role"],
+      optional: [
+        "id",
+        "kind",
+        "team",
+        "customerUser",
+        "email",
+        "addedBy",
+        "createdAt",
+      ],
+      typed: ["role", "kind"],
       name: "ai_chat_participants",
       columns: PARTICIPANTS,
       lifecycle: { user: "user" },
+    },
+    links: {
+      app: {},
+      optional: ["rotatedAt"],
+      name: "ai_chat_links",
+      columns: LINKS,
+      lifecycle: { user: "createdBy", omit: ["salt"] },
     },
     messages: {
       app: {},
@@ -456,6 +486,7 @@ export interface AiChatColumns {
   readonly sources: Columns<typeof SOURCES>;
   readonly feedback: Columns<typeof FEEDBACK>;
   readonly shares: Columns<typeof SHARES>;
+  readonly links: Columns<typeof LINKS>;
   readonly models: Columns<typeof MODELS>;
   readonly moderation: Columns<typeof MODERATION>;
   readonly steps: Columns<typeof STEPS>;
@@ -487,6 +518,12 @@ export interface AiChatNames {
   /** `options.tenant: false`: chats and projects may have no tenant. */
   readonly tenantless: boolean;
   readonly messages: AiChatMessageMode;
+  /**
+   * `(team, user) returns boolean`: the app's function, or the teams module's
+   * members table; `undefined` when neither exists, which refuses team
+   * participants.
+   */
+  readonly teamMember: (team: string, user: string) => string | undefined;
 }
 
 /** How `options.messages` stores the messages. */
@@ -598,6 +635,7 @@ const CHAT_KEYS: readonly string[] = [
   "title",
   "model",
   "visibility",
+  "mode",
   "pinned",
   "archived_at",
   "is_temporary",
@@ -660,6 +698,37 @@ function sandboxIdleAfter(ctx: BlockSqlContext): number {
   return value;
 }
 
+const FUNCTION_NAME = /^[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?$/;
+
+/**
+ * Whether a user belongs to a team: `options.teamMembership` names the app's
+ * function, and without it the teams module's members table answers.
+ */
+function teamMember(ctx: BlockSqlContext): AiChatNames["teamMember"] {
+  const named = ctx.option("teamMembership");
+
+  if (named !== undefined && named !== null) {
+    if (typeof named !== "string" || !FUNCTION_NAME.test(named)) {
+      throw new TypeError(
+        'blocks.ai-chat.options.teamMembership must be a function name such as "public.is_team_member"',
+      );
+    }
+
+    const name = named.split(".").map(sqlIdent).join(".");
+
+    return (team, user) => `${name}(${team}, ${user})`;
+  }
+
+  if (!ctx.installed("teams") || ctx.of("teams").mode === "custom") {
+    return () => undefined;
+  }
+
+  const teams = ctx.of("teams");
+
+  return (team, user) =>
+    `exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = ${team}::text and tm.${teams.col("members", "user")} = ${user})`;
+}
+
 function namesOf(ctx: BlockSqlContext): AiChatNames {
   const permissions = moduleOperations("ai-chat");
   const topic = topicOption(ctx, "topic", "ai-chat");
@@ -686,6 +755,7 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
       sources: columnsOf(ctx, "sources", SOURCES),
       feedback: columnsOf(ctx, "feedback", FEEDBACK),
       shares: columnsOf(ctx, "shares", SHARES),
+      links: columnsOf(ctx, "links", LINKS),
       models: columnsOf(ctx, "models", MODELS),
       moderation: columnsOf(ctx, "moderation", MODERATION),
       steps: columnsOf(ctx, "steps", STEPS),
@@ -704,6 +774,7 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
       sources: ctx.table("sources"),
       feedback: ctx.table("feedback"),
       shares: ctx.table("shares"),
+      links: ctx.table("links"),
       models: ctx.table("models"),
       moderation: ctx.table("moderation"),
       steps: ctx.table("steps"),
@@ -726,6 +797,7 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
     extras,
     tenantless: !ctx.flag("tenant", true),
     messages: messageMode(ctx),
+    teamMember: teamMember(ctx),
   };
 }
 
@@ -817,6 +889,13 @@ function contract(): readonly BlockSqlContractFunction[] {
     fn("add_ai_chat_participant", ["uuid", "uuid", "text", "jsonb"]),
     fn("remove_ai_chat_participant", ["uuid", "uuid"], "boolean"),
     fn("list_ai_chat_participants", ["uuid"]),
+    fn("add_ai_chat_party", ["uuid", "text", "text", "text"]),
+    fn("remove_ai_chat_party", ["uuid", "text", "text"], "boolean"),
+    fn("ai_chat_share_summaries", ["uuid[]"]),
+    fn("create_ai_chat_link", ["uuid"]),
+    fn("rotate_ai_chat_link", ["uuid"]),
+    fn("revoke_ai_chat_link", ["uuid"], "boolean"),
+    fn("get_ai_chat_by_link", ["text"]),
     fn("append_ai_user_message", ["uuid", "jsonb", "text", "text"]),
     fn("save_ai_assistant_message", [
       "uuid",
@@ -899,11 +978,12 @@ export const AI_CHAT: BlockSqlDefinition = {
     "ai-keys",
     "approvals",
     "data-lifecycle",
+    "teams",
     "usage",
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   names: NAMES,
   upgrades: [
     {
@@ -930,6 +1010,12 @@ export const AI_CHAT: BlockSqlDefinition = {
       description:
         "Adds ai_chat_participants (viewers and editors besides the owner), an author_id on messages, options.tenant: false for chats outside a tenant, options.messages (uuid keys, a linear list, the SDK's own parts) and extra columns on every table. The message key and shape can't change on an existing install.",
       sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "Chats are private (owner only), organization or shared (owner, participants, teams and the live link). A private chat that has participants becomes shared. Participants have a surrogate id and a kind (user, team, customer or external), the live link is rotatable (ai_chat_links) and chats take an optional mode column. options.teamMembership names the function that tells whether a user belongs to a team.",
+      sql: (ctx) => upgradeSharing(ctx, namesOf(ctx)),
     },
   ],
   contract,

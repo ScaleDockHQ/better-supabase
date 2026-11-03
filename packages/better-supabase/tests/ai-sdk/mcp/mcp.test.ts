@@ -549,6 +549,34 @@ describe("connectTools", () => {
     expect(tuned.protocolVersionDiscovery).toBe(false);
   });
 
+  it("passes maxRetries and asks for tools that aren't read-only", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+
+    const plain = await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+    }).orThrow();
+
+    const asking = await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+      maxRetries: 2,
+      askUnlessReadOnly: true,
+    }).orThrow();
+
+    const [first, second] = mcp.createMCPClient.mock.calls.map(
+      ([options]) => options,
+    );
+
+    expect(first).not.toHaveProperty("maxRetries");
+    expect(second.maxRetries).toBe(2);
+    expect(plain.tools["search"]).not.toHaveProperty("needsApproval");
+    expect(asking.tools["search"]).toHaveProperty("needsApproval", true);
+  });
+
   it("lets connectAll set the transport options per server", async () => {
     fakeClient();
     const fake = fakeConnectors();

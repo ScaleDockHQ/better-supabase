@@ -1,7 +1,6 @@
 import type { WorkflowsEvents } from "../../blocks/workflows/events.ts";
 import type {
   BlockSqlContext,
-  BlockSqlContractFunction,
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
@@ -17,13 +16,19 @@ import {
   pageSize,
   fail,
   ensureCheck,
+  addExtraColumns,
+  extraFieldsJson,
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { workflowsContract } from "./workflows-contract.ts";
+import { dispatchSql } from "./workflows-dispatch.ts";
 import {
   principalColumnsSql,
+  PENDING_EXTERNAL_PREFIX,
   principalJson,
   recordWorkflowRunSql,
+  RUN_KEYS,
   WORKFLOW_RUN_STATUSES,
 } from "./workflows-record.ts";
 import { semaphoreSql } from "./workflows-semaphore.ts";
@@ -84,6 +89,7 @@ const NAMES: BlockSqlNames = {
     "before_workflow_start_request",
     "after_workflow_start_request",
   ],
+  options: ["runExtraColumns"],
   tables: {
     runs: {
       name: "workflow_runs",
@@ -110,6 +116,8 @@ const NAMES: BlockSqlNames = {
         principalId: "principal_id",
         mode: "mode",
         triggerNode: "trigger_node",
+        idempotencyKey: "idempotency_key",
+        dispatchUntil: "dispatch_until",
       },
       optional: [
         "subjectType",
@@ -118,11 +126,14 @@ const NAMES: BlockSqlNames = {
         "principalId",
         "mode",
         "triggerNode",
+        "idempotencyKey",
+        "dispatchUntil",
       ],
       typed: ["status", "mode"],
     },
     schedules: {
       name: "workflow_schedules",
+      optionalTable: true,
       app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
@@ -144,6 +155,7 @@ const NAMES: BlockSqlNames = {
     },
     semaphores: {
       name: "workflow_semaphores",
+      optionalTable: true,
       app: {},
       columns: {
         key: "key",
@@ -154,6 +166,7 @@ const NAMES: BlockSqlNames = {
     },
     startRequests: {
       name: "workflow_start_requests",
+      optionalTable: true,
       app: {},
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
@@ -181,6 +194,8 @@ const NAMES: BlockSqlNames = {
 
 const TERMINAL = "('completed', 'failed', 'cancelled')";
 
+/** The keys a run read returns next to its extra columns. */
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -189,9 +204,15 @@ function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const r = ctx.table("runs");
-  const s = ctx.table("schedules");
-  const m = ctx.table("semaphores");
-  const q = ctx.table("startRequests");
+  const schedulesOn = ctx.hasTable("schedules");
+  const semaphoresOn = ctx.hasTable("semaphores");
+  const requestsOn = ctx.hasTable("startRequests");
+  const s = schedulesOn ? ctx.table("schedules") : "";
+  const m = semaphoresOn ? ctx.table("semaphores") : "";
+  const q = requestsOn ? ctx.table("startRequests") : "";
+  const keyed = ctx.has("runs", "idempotencyKey");
+  const leased = keyed && ctx.has("runs", "dispatchUntil");
+  const extras = ctx.extraColumns("runs", RUN_KEYS, "runExtraColumns");
   const cr = (column: string): string => ctx.col("runs", column);
   const cs = (column: string): string => ctx.col("schedules", column);
   const cm = (column: string): string => ctx.col("semaphores", column);
@@ -211,11 +232,12 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const app = ctx.appOwned.includes("runs");
 
   const queued =
+    requestsOn &&
     ctx.has("startRequests", "subjectType") &&
     ctx.has("startRequests", "subjectId");
 
   const lastRun = ctx.has("schedules", "lastRunAt");
-  const ownSchedules = ctx.owns("schedules");
+  const ownSchedules = schedulesOn && ctx.owns("schedules");
 
   // A parameter of create_workflow_schedule. Over the app's table its upsert
   // names the key columns, which a same-named parameter would shadow.
@@ -245,7 +267,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'subjectId', ${subjectOf(alias, "subjectId")},
     ${principalJson(ctx, alias)},
     'mode', ${moded ? `${alias}.${cr("mode")}` : "'live'"},
-    'triggerNode', ${nodded ? `${alias}.${cr("triggerNode")}` : `${alias}.${cr("attributes")} ->> 'bsb.trigger_node'`}
+    'triggerNode', ${nodded ? `${alias}.${cr("triggerNode")}` : `${alias}.${cr("attributes")} ->> 'bsb.trigger_node'`},
+    'idempotencyKey', ${keyed ? `${alias}.${cr("idempotencyKey")}` : "null::text"}${extraFieldsJson(alias, extras)}
   )`;
 
   const scheduleJson = (alias: string): string => `jsonb_build_object(
@@ -323,6 +346,20 @@ alter table ${r} add column if not exists ${cr("subjectId")} text check (length(
 `
     : ""
 }${principalColumnsSql(ctx)}${moded ? `\nalter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));` : ""}${nodded ? `\nalter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);` : ""}${
+    keyed
+      ? `
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- ${PENDING_EXTERNAL_PREFIX}; dispatch_until leases it to the process that starts it.
+alter table ${r} add column if not exists ${cr("idempotencyKey")} text check (length(${cr("idempotencyKey")}) between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on ${r} (${cr("tenant")}, ${cr("idempotencyKey")}) nulls not distinct where ${cr("idempotencyKey")} is not null;${
+          leased
+            ? `
+alter table ${r} add column if not exists ${cr("dispatchUntil")} timestamptz;`
+            : ""
+        }`
+      : ""
+  }${addExtraColumns(r, extras)}${
     linked
       ? `${app ? "" : `\n${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}`}
 create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;`
@@ -341,7 +378,9 @@ ${renderPolicy(
   { drop: true, target: r },
 )}
 
--- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
+${
+  schedulesOn
+    ? `-- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
 create table if not exists ${s} (
@@ -364,17 +403,21 @@ ${
   ${cs("createdAt")} timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct (${cs("tenant")}, ${cs("name")})
 );${
-    ownSchedules
-      ? ""
-      : `
+        ownSchedules
+          ? ""
+          : `
 create unique index if not exists ${sqlIdent(`${ctx.tableName("schedules").name}_${ctx.colName("schedules", "tenant")}_${ctx.colName("schedules", "name")}_key`.slice(0, 63))} on ${s} (${cs("tenant")}, ${cs("name")}) nulls not distinct;`
-  }
+      }
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
 ${lockModuleTable(ctx, "schedules", { read: true })}
 ${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: s })}
-
--- Counting semaphores: at most limit holders per key, each until it releases
+`
+    : ""
+}
+${
+  semaphoresOn
+    ? `-- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists ${m} (
   ${cm("key")} text not null check (length(${cm("key")}) between 1 and 200),
@@ -384,8 +427,12 @@ create table if not exists ${m} (
   primary key (${cm("key")}, ${cm("holder")})
 );
 ${lockModuleTable(ctx, "semaphores")}
-
--- Admission control for starts: a request waits here until its key has room
+`
+    : ""
+}
+${
+  requestsOn
+    ? `-- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
 create table if not exists ${q} (
@@ -413,6 +460,9 @@ alter table ${q} add column if not exists ${cq("subjectId")} text check (length(
 ${ctx.owns("startRequests") ? `${ensureCheck(q, "workflow_start_requests_subject_check", `(${cq("subjectType")} is null) = (${cq("subjectId")} is null)`)}\n` : ""}`
     : ""
 }${lockModuleTable(ctx, "startRequests")}
+`
+    : ""
+}
 
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
@@ -455,8 +505,9 @@ drop trigger if exists ${statusTrigger} on ${r};
 create trigger ${statusTrigger} after insert or update of ${cr("status")} on ${r}
   for each row execute function ${fn("workflow_runs_changed")}();
 
-${recordWorkflowRunSql(ctx)}
+${recordWorkflowRunSql(ctx, extras)}
 
+${dispatchSql(ctx, runJson)}
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
@@ -560,21 +611,26 @@ begin
     limit greatest(coalesce(batch, 1000), 1)
   )
   delete from ${r} x using doomed where x.${cr("id")} = doomed.${cr("id")};
-  get diagnostics v_runs = row_count;
+  get diagnostics v_runs = row_count;${
+    requestsOn
+      ? `
   with doomed as (
     select ${cq("id")} from ${q}
     where ${cq("status")} <> 'pending'
       and ${cq("createdAt")} < now() - coalesce(older_than, interval '30 days')
     limit greatest(coalesce(batch, 1000), 1)
   )
-  delete from ${q} x using doomed where x.${cq("id")} = doomed.${cq("id")};
-  delete from ${m} where ${cm("expiresAt")} < now();
+  delete from ${q} x using doomed where x.${cq("id")} = doomed.${cq("id")};`
+      : ""
+  }${semaphoresOn ? `\n  delete from ${m} where ${cm("expiresAt")} < now();` : ""}
   return v_runs;
 end;
 $$;
 ${serviceGrant(`${fn("purge_workflow_runs")}(interval, integer)`)}
 
--- Creates a schedule, or replaces the one with the same tenant and name.
+${
+  schedulesOn
+    ? `-- Creates a schedule, or replaces the one with the same tenant and name.
 -- The service role, or workflow.admin in tenant. payload is { input }: the
 -- workflow's arguments.
 create or replace function ${fn("create_workflow_schedule")}(
@@ -706,10 +762,14 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("advance_workflow_schedule")}(uuid, timestamptz, timestamptz)`)}
+`
+    : ""
+}
+${semaphoresOn ? semaphoreSql(ctx) : ""}
 
-${semaphoreSql(ctx)}
-
--- Whether a start request with key is active: waiting, leased, or started
+${
+  requestsOn
+    ? `-- Whether a start request with key is active: waiting, leased, or started
 -- with a run that hasn't finished (a run no engine reports counts for a day).
 create or replace function ${fn("workflow_admission_active")}(key text)
 returns integer
@@ -755,13 +815,13 @@ as $$
 declare
   v_id uuid;
 begin${
-    linked && queued
-      ? ""
-      : `
+        linked && queued
+          ? ""
+          : `
   if subject_type is not null or subject_id is not null then
     ${fail("WORKFLOW_SUBJECT_UNSUPPORTED", "this workflow runs table has no subject columns", "22023")}
   end if;`
-  }
+      }
   ${ctx.hook("before_workflow_start_request", [
     ["text", "request_workflow_start.key"],
     ["text", "request_workflow_start.workflow"],
@@ -847,6 +907,9 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("mark_workflow_start_request")}(uuid, text)`)}
+`
+    : ""
+}
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
@@ -883,123 +946,17 @@ end;
 $$;`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
-  return [
-    {
-      name: "record_workflow_run",
-      args: [
-        "text",
-        "text",
-        "text",
-        "text",
-        "{id}",
-        "uuid",
-        "jsonb",
-        "text",
-        "timestamptz",
-        "timestamptz",
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-      ],
-      returns: "uuid",
-    },
-    {
-      name: "workflow_runs_list",
-      args: [
-        "{id}",
-        "text",
-        "text",
-        "integer",
-        "timestamptz",
-        "text",
-        "text",
-        "text",
-      ],
-      returns: "jsonb",
-    },
-    { name: "workflow_run_get", args: ["text"], returns: "jsonb" },
-    { name: "request_workflow_cancel", args: ["text"], returns: "jsonb" },
-    {
-      name: "purge_workflow_runs",
-      args: ["interval", "integer"],
-      returns: "integer",
-    },
-    {
-      name: "create_workflow_schedule",
-      args: ["text", "text", "text", "timestamptz", "jsonb", "text", "{id}"],
-      returns: "jsonb",
-    },
-    { name: "workflow_schedules_list", args: ["{id}"], returns: "jsonb" },
-    {
-      name: "pause_workflow_schedule",
-      args: ["uuid", "boolean"],
-      returns: "boolean",
-    },
-    { name: "remove_workflow_schedule", args: ["uuid"], returns: "boolean" },
-    {
-      name: "claim_due_workflow_schedules",
-      args: ["integer", "integer"],
-      returns: "jsonb",
-    },
-    {
-      name: "advance_workflow_schedule",
-      args: ["uuid", "timestamptz", "timestamptz"],
-      returns: "boolean",
-    },
-    {
-      name: "acquire_workflow_semaphore",
-      args: ["text", "text", "integer", "interval"],
-      returns: "boolean",
-    },
-    {
-      name: "release_workflow_semaphore",
-      args: ["text", "text"],
-      returns: "boolean",
-    },
-    {
-      name: "request_workflow_start",
-      args: [
-        "text",
-        "text",
-        "jsonb",
-        "{id}",
-        "uuid",
-        "integer",
-        "interval",
-        "boolean",
-        "text",
-        "text",
-      ],
-      returns: "jsonb",
-    },
-    {
-      name: "claim_workflow_start_requests",
-      args: ["integer", "integer"],
-      returns: "jsonb",
-    },
-    {
-      name: "mark_workflow_start_request",
-      args: ["uuid", "text"],
-      returns: "boolean",
-    },
-  ];
-}
-
 export const WORKFLOWS: BlockSqlDefinition = {
   name: "workflows",
   scopes: ["tenant"],
   title: "Workflows",
   description:
-    "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
+    "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
   requires: ["memberships", "permissions"],
   integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -1013,9 +970,15 @@ export const WORKFLOWS: BlockSqlDefinition = {
         "purge_workflow_runs keeps runs for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
     },
+    {
+      from: 3,
+      description:
+        "workflow_runs gains idempotency_key (unique per tenant) and dispatch_until; record_workflow_run takes an idempotency_key and the run's extra fields; claim_workflow_run_dispatch and set_workflow_run_engine start a queued run once; schedules, semaphores and start requests can be left out with tables: null.",
+      sql: () => "",
+    },
   ],
   names: NAMES,
-  contract,
+  contract: workflowsContract,
   build,
   topics: () => ["workflow-run:{runId}", "workflow-runs:{tenant}"],
 };

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@5 managed
--- @bsb-hash sha256:c733a21e565aef8e283e51e2acf1e78e9213711ff6d7180094f91bc29d7d6fb9
+-- @bsb-block knowledge@6 managed
+-- @bsb-hash sha256:1d10b7c645611edb4f1134555204186ae04bbb583cf5b7a063b209ce0e4f3a4e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -593,9 +593,13 @@ grant execute on function "better_supabase"."delete_knowledge_document"(uuid) to
 -- list of {"scope", "id"} objects ({"scope": "subject", "type", "id"} for a
 -- record), or {"items": list}; null searches every scope. collections limits it to those collections. System documents count
 -- in every tenant, disabled collections in none, and a collection with a
--- higher priority ranks its chunks first. Returns a JSON array of
--- {document_id, idx, content, metadata, title, score}.
+-- higher priority ranks its chunks first, or ranks them by score alone when
+-- priority_order is false. Returns a JSON array of {document_id, idx,
+-- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
+-- the document id and idx joined by '#', and organization_id is null for a
+-- system document.
 drop function if exists "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb);
+drop function if exists "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[]);
 create or replace function "better_supabase"."knowledge_search"(
   tenant uuid,
   query_embedding extensions.vector default null,
@@ -603,7 +607,8 @@ create or replace function "better_supabase"."knowledge_search"(
   scopes jsonb default null,
   k integer default 8,
   filter jsonb default null,
-  collections uuid[] default null
+  collections uuid[] default null,
+  priority_order boolean default true
 )
 returns jsonb
 language plpgsql
@@ -619,7 +624,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."workspace_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."workspace_id" = knowledge_search.tenant or x."workspace_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -658,22 +663,23 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.priority, f.score
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
+      case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
     join docs on docs.id = f.document_id
-    order by docs.priority desc, f.score desc, f.document_id, f.idx
+    order by rank_priority desc, f.score desc, f.document_id, f.idx
     limit least(greatest(knowledge_search.k, 1), 100)
   ) r;
   perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[]) from public, anon;
-grant execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[], boolean) to authenticated, service_role;
 
 -- The chunks of a document still waiting for an embedding, for the worker,
 -- with the md5 of each content it passes back to set_knowledge_embeddings.
@@ -861,13 +867,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
+-- @bsb-hash sha256:3f13f31c5c7b941b26fb88f737ed1d1413bf1a46b5f012b865b9d0bda15adaf7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 5, 'managed')
+values ('knowledge', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

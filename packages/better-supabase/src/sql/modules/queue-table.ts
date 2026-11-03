@@ -69,7 +69,8 @@ alter table ${messages} enable row level security;
 ${revokeTable(messages)}
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -96,6 +97,11 @@ begin
       and (enqueue_job.dedupe_running or m.${c("attempts")} = 0)
     limit 1;
     if existing is not null then
+      -- A message no worker has claimed moves earlier when this enqueue is
+      -- due sooner, never later.
+      update ${messages} m
+      set ${c("visibleAt")} = least(m.${c("visibleAt")}, clock_timestamp() + make_interval(secs => greatest(delay, 0)))
+      where m.${c("id")} = existing and m.${c("attempts")} = 0;
       return existing;
     end if;
   end if;

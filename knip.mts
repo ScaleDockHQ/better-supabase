@@ -50,6 +50,10 @@ const config: KnipConfig = {
         "src/*/*/index.ts",
         "src/react/{server,session}.ts",
         "scripts/*.ts",
+        // The @workflow/vitest runtime suite has its own config and runs through
+        // `pnpm test:workflow`.
+        "vitest.workflow.config.ts",
+        "tests/workflow-vitest/**/*.ts",
       ],
       ignore: [
         "tests/fixtures/generated*.ts",

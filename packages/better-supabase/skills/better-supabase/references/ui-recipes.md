@@ -5937,6 +5937,83 @@ export function AssistantChat({
 }
 ```
 
+## Chat message as Markdown
+
+An assistant answer rendered as Markdown with Streamdown: a caret while it streams, static once stored, and only safe elements and links. It loads its data on the server through the block's client; the [ai-chat block](https://bettersupabase.com/blocks/ai-chat) must be installed (`npx better-supabase add ai-chat`). Page: https://bettersupabase.com/recipes/chat-message-markdown.
+
+Web, with no shadcn components.
+
+```tsx title="apps/examples/nextjs/src/features/assistant/components/message-text.tsx"
+"use client";
+
+import { code } from "@streamdown/code";
+import { Streamdown } from "streamdown";
+
+/**
+ * Model output is untrusted: only these elements render (no images, raw HTML or
+ * forms), and a link must be http, https or mailto.
+ */
+const ALLOWED_ELEMENTS = [
+  "p",
+  "br",
+  "hr",
+  "strong",
+  "em",
+  "del",
+  "a",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "code",
+  "pre",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+];
+
+const SAFE_URL = /^(https?:|mailto:|#)/i;
+
+const safeUrl = (url: string): string => (SAFE_URL.test(url) ? url : "");
+
+const PLUGINS = { code };
+
+/**
+ * An answer's text as Markdown. While it streams, the caret follows the last
+ * word; a stored answer renders once, in static mode.
+ */
+export function MessageText({
+  text,
+  animating,
+}: {
+  text: string;
+  animating: boolean;
+}) {
+  return (
+    <Streamdown
+      mode={animating ? "streaming" : "static"}
+      plugins={PLUGINS}
+      isAnimating={animating}
+      caret="block"
+      allowedElements={ALLOWED_ELEMENTS}
+      urlTransform={safeUrl}
+      linkSafety={{ enabled: true }}
+    >
+      {text}
+    </Streamdown>
+  );
+}
+```
+
 ## Knowledge base upload
 
 A form that adds a document to the knowledge base, which chunks and embeds it for search. It loads its data on the server through the block's client; the [knowledge block](https://bettersupabase.com/blocks/knowledge) must be installed (`npx better-supabase add knowledge`). Page: https://bettersupabase.com/recipes/knowledge-upload.

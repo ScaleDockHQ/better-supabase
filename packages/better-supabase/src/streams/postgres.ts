@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { BlockTransport } from "../core/block-transport.ts";
 import type { ErrorMapper } from "../core/errors.ts";
-import type { StreamPage, StreamStatus, StreamStore } from "./store.ts";
+import type {
+  StreamPage,
+  StreamReadOptions,
+  StreamStatus,
+  StreamStore,
+} from "./store.ts";
 
 import {
   blockCall,
@@ -41,6 +46,30 @@ export interface PostgresStreamStoreOptions {
   /** Chunks per read. Defaults to 1000. */
   readonly batch?: number;
 }
+
+const encoder = new TextEncoder();
+
+const hexOf = (chunk: string | Uint8Array): string => {
+  const bytes = typeof chunk === "string" ? encoder.encode(chunk) : chunk;
+  let out = "\\x";
+
+  for (const byte of bytes) {
+    out += byte.toString(16).padStart(2, "0");
+  }
+
+  return out;
+};
+
+const bytesOf = (base64: string): Uint8Array => {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    out[i] = binary.codePointAt(i) ?? 0;
+  }
+
+  return out;
+};
 
 function statusOf(value: unknown): StreamStatus | undefined {
   if (!isRecord(value)) {
@@ -87,6 +116,32 @@ export function postgresStreamStore(
   const status: StreamStore["status"] = (id) =>
     call("stream_status", { stream_id: id }, statusOf);
 
+  const readBytes = (
+    id: string,
+    fromIdx = 0,
+    read: StreamReadOptions = {},
+  ): ReadableStream<Uint8Array> =>
+    pollingRead<Uint8Array>({
+      from: fromIdx,
+      pollMs,
+      signal: read.signal,
+      ...(subscribe ? { subscribe: subscribe(id) } : {}),
+      fetch: (from) =>
+        call(
+          "stream_read",
+          { stream_id: id, from_idx: from, max: batch },
+          (value): StreamPage<Uint8Array> => {
+            const row = recordOf(value, "stream_read");
+
+            return {
+              chunks: stringsOf(row["chunks"]).map(bytesOf),
+              next: Number(row["next"]),
+              done: row["done"] === true,
+            };
+          },
+        ),
+    });
+
   return {
     apiVersion: 1,
     name: "postgres",
@@ -106,7 +161,7 @@ export function postgresStreamStore(
     append: (id, fromIdx, chunks) =>
       call(
         "stream_append",
-        { stream_id: id, from_idx: fromIdx, chunks: [...chunks] },
+        { stream_id: id, from_idx: fromIdx, chunks: chunks.map(hexOf) },
         (value) => {
           const row = recordOf(value, "stream_append");
 
@@ -117,26 +172,14 @@ export function postgresStreamStore(
         },
       ),
     read: (id, fromIdx = 0, read = {}) =>
-      pollingRead({
-        from: fromIdx,
-        pollMs,
-        signal: read.signal,
-        ...(subscribe ? { subscribe: subscribe(id) } : {}),
-        fetch: (from) =>
-          call(
-            "stream_read",
-            { stream_id: id, from_idx: from, max: batch },
-            (value): StreamPage => {
-              const row = recordOf(value, "stream_read");
-
-              return {
-                chunks: stringsOf(row["chunks"]),
-                next: Number(row["next"]),
-                done: row["done"] === true,
-              };
-            },
-          ),
-      }),
+      readBytes(id, fromIdx, read).pipeThrough(
+        new TransformStream<Uint8Array, string>({
+          transform(chunk, controller) {
+            controller.enqueue(new TextDecoder().decode(chunk));
+          },
+        }),
+      ),
+    readBytes,
     status,
     isCancelled: (id) => status(id).map((state) => state?.cancelled === true),
     close: (id) =>

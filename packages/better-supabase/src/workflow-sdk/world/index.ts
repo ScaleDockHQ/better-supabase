@@ -4,7 +4,10 @@ export {
   createSupabaseWorld,
   createWorld,
   type SupabaseWorld,
+  usesTransactionPooler,
 } from "./world.ts";
+
+export { assertWorldMigrations, type MigrationDrift } from "./drift.ts";
 
 export { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
 
@@ -19,6 +22,10 @@ export {
 
 export { resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
 
-export { type SupabaseWorldOptions, WORKFLOW_WORLD_PROTOCOL } from "./types.ts";
+export {
+  type DeadLetter,
+  type SupabaseWorldOptions,
+  WORKFLOW_WORLD_PROTOCOL,
+} from "./types.ts";
 
 export default createWorld;

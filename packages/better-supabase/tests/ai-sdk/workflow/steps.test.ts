@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { FatalError, RetryableError } from "workflow";
 
 import type { AiChat } from "../../../src/blocks/ai-chat/index.ts";
 
 import { AI_SDK_UI_FORMAT } from "../../../src/ai-sdk/index.ts";
 import {
+  durableStepError,
   durableSteps,
   runDurableStep,
 } from "../../../src/ai-sdk/workflow/index.ts";
+import { DbException } from "../../../src/core/db-exception.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 
@@ -225,5 +228,56 @@ describe("durable steps", () => {
       error: "down",
     });
     expect(enqueueCostBackfill).not.toHaveBeenCalled();
+  });
+});
+
+describe("durableStepError", () => {
+  it("makes permanent failures fatal", () => {
+    for (const kind of ["forbidden", "not_found", "conflict"] as const) {
+      expect(
+        durableStepError(new DbException(dbError(kind, "no"))),
+      ).toBeInstanceOf(FatalError);
+    }
+  });
+
+  it("retries rate limits after retryAfter", () => {
+    const mapped = durableStepError(
+      new DbException(dbError("rate_limited", "slow", { retryAfter: 3 })),
+    );
+
+    expect(mapped).toBeInstanceOf(RetryableError);
+    expect((mapped as RetryableError).retryAfter.getTime()).toBeGreaterThan(
+      Date.now() + 2000,
+    );
+  });
+
+  it("leaves other errors to the default retries", () => {
+    const network = new DbException(dbError("network", "down"));
+
+    expect(durableStepError(network)).toBe(network);
+
+    const plain = new Error("x");
+
+    expect(durableStepError(plain)).toBe(plain);
+  });
+
+  it("maps a failing step", async () => {
+    const chats = {
+      messages: {
+        saveAssistant: () =>
+          AsyncResult.from(async () => err(dbError("forbidden", "no"))),
+      },
+    } as unknown as AiChat;
+
+    await expect(
+      runDurableStep(chats, "save", {
+        chatId: "c",
+        message: { id: "m", role: "assistant", parts: [] },
+        parentId: "u",
+        status: "completed",
+        model: "x",
+        runId: "r",
+      } as never),
+    ).rejects.toBeInstanceOf(FatalError);
   });
 });

@@ -6,13 +6,19 @@ const body = (options: Record<string, unknown> = {}) =>
   moduleBody("ai-chat", { modules: { "ai-chat": { options } } })!;
 
 describe("ai-chat participants", () => {
-  it("owns ai_chat_participants, keyed by chat and user", () => {
+  it("owns ai_chat_participants, with one unique key per kind", () => {
     const sql = body();
 
     expect(sql).toContain(
       'create table if not exists "better_supabase"."ai_chat_participants" (',
     );
-    expect(sql).toContain('primary key ("chat_id", "user_id")');
+    expect(sql).toContain('"id" uuid primary key default gen_random_uuid()');
+    expect(sql).toContain(
+      'ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = \'user\'',
+    );
+    expect(sql).toContain("ai_chat_participants_team_key");
+    expect(sql).toContain("ai_chat_participants_customer_key");
+    expect(sql).toContain('lower("email")) where "kind" = \'external\'');
     expect(sql).toContain("check (\"role\" in ('viewer', 'editor'))");
     expect(sql).toContain("ai_chat_participants_own_read");
   });
@@ -21,7 +27,7 @@ describe("ai-chat participants", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id"',
+      '"better_supabase"."ai_chats"."visibility" <> \'private\' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id"',
     );
     expect(sql).toContain("pa.\"role\"::text in ('editor')");
     expect(
@@ -45,7 +51,7 @@ describe("ai-chat participants", () => {
     expect(sql).toContain("'participant.added'");
     expect(sql).toContain("'participant.removed'");
     expect(sql).toContain(
-      'on conflict ("chat_id", "user_id") do update set "role" = excluded."role"',
+      'on conflict ("chat_id", "user_id") where "kind" = \'user\' do update set "role" = excluded."role"',
     );
   });
 

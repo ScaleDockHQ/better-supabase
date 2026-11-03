@@ -37,7 +37,7 @@ export const SPEC_PINS: {
   readonly openfeature: "0.9.0";
   readonly scim: "2.0";
   readonly supabaseSdkCapabilities: "1.14.0";
-  readonly aiMessage: "1";
+  readonly aiMessage: "2";
   /** The PowerSync sync streams config edition `powersync streams` writes. */
   readonly powersyncSyncStreams: "3";
   readonly aiSdkUiMessageStream: "v1";
@@ -288,7 +288,7 @@ export const SPEC_PINS: {
   openfeature: "0.9.0",
   scim: "2.0",
   supabaseSdkCapabilities: "1.14.0",
-  aiMessage: "1",
+  aiMessage: "2",
   powersyncSyncStreams: "3",
   aiSdkUiMessageStream: "v1",
   anthropicMemoryTool: "20250818",

@@ -700,9 +700,13 @@ ${userGrant(`${fn("delete_knowledge_document")}(uuid)`)}
 -- list of {"scope", "id"} objects ({"scope": "subject", "type", "id"} for a
 -- record), or {"items": list}; null searches every scope. collections limits it to those collections. System documents count
 -- in every tenant, disabled collections in none, and a collection with a
--- higher priority ranks its chunks first. Returns a JSON array of
--- {document_id, idx, content, metadata, title, score}.
+-- higher priority ranks its chunks first, or ranks them by score alone when
+-- priority_order is false. Returns a JSON array of {document_id, idx,
+-- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
+-- the document id and idx joined by '#', and organization_id is null for a
+-- system document.
 drop function if exists ${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb);
+drop function if exists ${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb, uuid[]);
 create or replace function ${fn("knowledge_search")}(
   tenant ${id},
   query_embedding ${embedding.type} default null,
@@ -710,7 +714,8 @@ create or replace function ${fn("knowledge_search")}(
   scopes jsonb default null,
   k integer default 8,
   filter jsonb default null,
-  collections uuid[] default null
+  collections uuid[] default null,
+  priority_order boolean default true
 )
 returns jsonb
 language plpgsql
@@ -726,7 +731,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x.${d.id} as id, x.${d.title} as title, ${collected ? collectionPriority(ctx, `x.${d.collection}`) : "0"} as priority from ${documents} x
+    select x.${d.id} as id, x.${d.tenant} as doc_tenant, x.${d.title} as title, ${collected ? collectionPriority(ctx, `x.${d.collection}`) : "0"} as priority from ${documents} x
     where (x.${d.tenant} = knowledge_search.tenant or x.${d.tenant} is null)${
       collected
         ? `
@@ -775,21 +780,22 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t.${c.content} as content, ${chunk("metadata") ? `t.${c.metadata}` : "'{}'::jsonb"} as metadata, docs.title, docs.priority, f.score
+    select f.document_id, f.idx, t.${c.content} as content, ${chunk("metadata") ? `t.${c.metadata}` : "'{}'::jsonb"} as metadata, docs.title, docs.doc_tenant,
+      case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join ${chunks} t on t.${c.document} = f.document_id and t.${c.index} = f.idx
     join docs on docs.id = f.document_id
-    order by docs.priority desc, f.score desc, f.document_id, f.idx
+    order by rank_priority desc, f.score desc, f.document_id, f.idx
     limit least(greatest(knowledge_search.k, 1), 100)
   ) r;
   perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb, uuid[])`)}
+${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb, uuid[], boolean)`)}
 
 -- The chunks of a document still waiting for an embedding, for the worker,
 -- with the md5 of each content it passes back to set_knowledge_embeddings.
@@ -943,7 +949,7 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat", "ai-files", "queue", "subjects", "teams"],
   target: "schema",
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -971,6 +977,12 @@ export const KNOWLEDGE: BlockSqlDefinition = {
       description:
         "Collection grants gain the collection's tenant (organization_id, filled from the collection), and team_id takes the teams id type when teams is installed.",
       sql: upgradeCollectionGrants,
+    },
+    {
+      from: 5,
+      description:
+        "knowledge_search takes priority_order (default true; false ranks by score alone) and returns chunk_id and organization_id in each hit; the earlier signature is dropped.",
+      sql: () => "",
     },
   ],
   names: NAMES,

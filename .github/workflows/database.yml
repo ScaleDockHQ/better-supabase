@@ -14,6 +14,8 @@ on:
       - ".github/workflows/database.yml"
       - ".github/actions/supabase-stack/**"
       - "pnpm-workspace.yaml"
+      - "packages/better-supabase/src/workflow-sdk/world/**"
+      - "packages/better-supabase/tests/workflow-sdk/world/**"
   pull_request:
     branches: [main]
     paths:
@@ -27,6 +29,8 @@ on:
       - ".github/workflows/database.yml"
       - ".github/actions/supabase-stack/**"
       - "pnpm-workspace.yaml"
+      - "packages/better-supabase/src/workflow-sdk/world/**"
+      - "packages/better-supabase/tests/workflow-sdk/world/**"
 
 permissions:
   contents: read
@@ -81,6 +85,25 @@ jobs:
 
       - name: pgTAP
         run: pnpm exec supabase test db
+
+      - name: World conformance
+        # Runs the @workflow/world-testing suite against the Supabase World (ADR 0210). The
+        # peer range allows 5.1.x only, so the catalog pin is both ends of the range.
+        # The stack's connection string comes from the dotenv file at the repo root.
+        run: >-
+          pnpm exec dotenv -e .env.development.local --
+          pnpm --filter better-supabase exec vitest run --project integration
+          tests/integration/workflow-world.integration.test.ts
+          --reporter=default --reporter=junit --outputFile.junit=world-conformance.xml
+
+      - name: Upload the conformance report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: world-conformance
+          path: packages/better-supabase/world-conformance.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Lint SQL
         # `extensions` holds third-party code (PostGIS for the assets block),

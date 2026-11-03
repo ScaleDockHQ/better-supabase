@@ -1,10 +1,12 @@
 import type { AiMessage, AiMessagePart, AiMessageRole } from "./message.ts";
 import type {
   AiChatInput,
+  AiChatLink,
   AiChatParticipant,
   AiChatPatch,
   AiChatRecord,
   AiChatShare,
+  AiChatShareSummary,
   AiFeedback,
   AiModel,
   AiModerationEvent,
@@ -50,9 +52,10 @@ export function chatOf(value: unknown): AiChatRecord {
     model: optionalText(row["model"]),
     visibility: oneOf(
       row["visibility"],
-      ["private", "organization"],
+      ["private", "organization", "shared"],
       "private",
     ),
+    mode: optionalText(row["mode"]),
     pinned: row["pinned"] === true,
     archivedAt: optionalInstant(row["archived_at"]),
     temporary: row["is_temporary"] === true,
@@ -293,6 +296,10 @@ export function chatFields(input: AiChatInput): Record<string, unknown> {
     fields["visibility"] = input.visibility;
   }
 
+  if (input.mode !== undefined) {
+    fields["mode"] = input.mode;
+  }
+
   if (input.pinned !== undefined) {
     fields["pinned"] = input.pinned;
   }
@@ -325,6 +332,10 @@ export function patchFields(patch: AiChatPatch): Record<string, unknown> {
 
   if (patch.visibility !== undefined) {
     fields["visibility"] = patch.visibility;
+  }
+
+  if (patch.mode !== undefined) {
+    fields["mode"] = patch.mode;
   }
 
   if (patch.pinned !== undefined) {
@@ -388,9 +399,14 @@ export function participantOf(value: unknown): AiChatParticipant {
   const row = recordOf(value, "ai_chat_participant");
 
   return {
+    id: optionalText(row["id"]),
     chatId: textOf(row["chat_id"]),
-    userId: textOf(row["user_id"]),
-    role: oneOf(row["role"], ["viewer", "editor"], "viewer"),
+    kind: oneOf(row["kind"], ["user", "team", "customer", "external"], "user"),
+    userId: optionalText(row["user_id"]),
+    teamId: optionalText(row["team_id"]),
+    customerUserId: optionalText(row["customer_user_id"]),
+    email: optionalText(row["email"]),
+    role: oneOf(row["role"], ["owner", "viewer", "editor"], "viewer"),
     addedBy: optionalText(row["added_by"]),
     createdAt: optionalInstant(row["created_at"]),
     fields: record(row["fields"]),
@@ -403,3 +419,25 @@ export function participantOf(value: unknown): AiChatParticipant {
  * catalog and moderation events. It names no AI SDK; the adapters in
  * `better-supabase/ai-sdk` convert to and from it.
  */
+
+export function shareSummaryOf(value: unknown): AiChatShareSummary {
+  const row = recordOf(value, "ai_chat_share_summary");
+
+  return {
+    chatId: textOf(row["chat_id"]),
+    users: recordsOf(row["users"] ?? [], "ai_chat_share_summary.users").map(
+      (user) => ({
+        userId: textOf(user["user_id"]),
+        role: oneOf(user["role"], ["owner", "viewer", "editor"], "viewer"),
+      }),
+    ),
+    teamCount: Number(row["team_count"] ?? 0),
+    hasLink: row["has_link"] === true,
+  };
+}
+
+export function linkOf(value: unknown): AiChatLink {
+  const row = recordOf(value, "ai_chat_link");
+
+  return { chatId: textOf(row["chat_id"]), token: textOf(row["token"]) };
+}

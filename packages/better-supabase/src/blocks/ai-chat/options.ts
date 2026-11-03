@@ -20,6 +20,11 @@ export type AiChatSqlOptions = {
   readonly projectExtraColumns?: ExtraColumns;
   readonly participantExtraColumns?: ExtraColumns;
   readonly messageExtraColumns?: ExtraColumns;
+  /**
+   * The function that tells whether a user belongs to a team, such as
+   * `public.is_team_member`.
+   */
+  readonly teamMembership?: string;
   readonly runExtraColumns?: ExtraColumns;
   readonly approvalExtraColumns?: ExtraColumns;
   readonly policyExtraColumns?: ExtraColumns;
@@ -46,6 +51,7 @@ export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
     outputMeter: option.string({ default: "ai.output_tokens" }),
     tenant: option.boolean({ default: true }),
     messages: option.unknown<AiChatMessageStorage>({ client: true }),
+    teamMembership: option.string(),
     extraColumns: option.extraColumns(),
     projectExtraColumns: option.extraColumns(),
     participantExtraColumns: option.extraColumns(),

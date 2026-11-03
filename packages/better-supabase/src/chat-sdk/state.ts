@@ -108,7 +108,21 @@ export function createSupabaseState(
 
   return {
     keyPrefix: prefix,
-    connect: () => Promise.resolve(),
+    connect: async () => {
+      // One cheap call fails early, with a pointer, when the module is missing.
+      try {
+        await call(
+          "chat_state_queue_depth",
+          { prefix, thread_id: "__connect__" },
+          Number,
+        ).orThrow();
+      } catch (cause) {
+        throw new Error(
+          "The chat-sdk-state module is missing or unreachable: add the chat-sdk-state module and run its migration.",
+          { cause },
+        );
+      }
+    },
     disconnect: () => Promise.resolve(),
     subscribe: (threadId) =>
       run("chat_state_subscribe", { thread_id: threadId }, () => undefined),

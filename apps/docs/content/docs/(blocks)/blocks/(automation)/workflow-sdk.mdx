@@ -82,9 +82,43 @@ deliveries before the World gives up on it, the same budget as
 write).
 
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` (5.0.4 for `workflow` 5.2) and stores its tables
+`WORKFLOW_WORLD_PROTOCOL` (5.1.0 for `workflow` 5.2) and stores its tables
 in the shape of the `@workflow/world-postgres` version in
 `WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
+The `conformance` job in `.github/workflows/verify.yml` runs that suite
+against the lowest and highest supported peer versions and uploads the
+report as an artifact.
+
+### Options added with World 5.1
+
+| Option or variable                                                     | What it does                                                                                        |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `onDeadLetter(letter)`                                                 | Runs once when a message used up its 73 deliveries and moved to the dead-letter state.              |
+| `enableInvoke` / `WORKFLOW_POSTGRES_ENABLE_INVOKE`                     | Turns on the experimental `invoke()` delivery of `@workflow/world-postgres`. Off by default.        |
+| `streamFlushIntervalMs` / `WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS` | Sets the milliseconds between flushes of buffered stream writes (10 by default, 0 flushes at once). |
+
+`createWorld()` returns one World per process, so two calls share a pool and
+a poller. The World warns when `DATABASE_URL` points at a transaction pooler
+(`usesTransactionPooler`), because `LISTEN` and session settings don't
+survive one; use the direct or session-mode connection. Messages carry the
+`x-vqs-message-delivery-count` and `x-vqs-message-created-at` headers that
+`@workflow/world-postgres` sends, and `queueBatch` writes a batch in one
+statement. `world.start()` calls `assertWorldMigrations()`, which compares
+the installed `drizzle` migrations with the hashes in
+`WORLD_POSTGRES_MIGRATIONS` and throws a `MigrationDrift` error when they
+differ.
+
+`openHooks()` returns each hook's `metadata` decoded from `metadata_cbor`
+when the run key can open it, and falls back to the `metadata` column
+otherwise. Payloads sealed for another recipient stay closed.
+
+### Rolling out 5.1
+
+Upgrade the SQL module first (`workflow-sdk` version 4 converts the World
+timestamps to `timestamptz`), then deploy the app. Runs started on
+`workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8,
+and `capabilities.inBandFence` is on for them. Don't run old and new app
+versions against the same database for longer than one deploy.
 
 ## Delivery
 
@@ -285,6 +319,20 @@ taken over. Runs started before the key table existed are still found by
 their `bsb.key` attribute. A World without run keys looks the key up in
 `analytics` only, so two concurrent starts can both start a run there.
 
+With the [workflows](/docs/blocks/workflows) run registry, pass `registry:
+workflows.runs` and `startOnce` records a queued run under the key, lets one
+caller lease it, starts the run, and records the engine's run id. Without a
+registry or World run keys it throws `WorkflowRunKeysMissingError` (code
+`WORKFLOW_RUN_KEYS_MISSING`) instead of starting twice.
+
+### Starting a child run
+
+`startChild(context, workflow, args, { parentSubject })` starts a run that
+carries the parent's `bsb.tenant`, `bsb.actor` and `bsb.ticket`, and the
+parent's subject, so the tenant and the actor see the child in
+`workflow_runs`. Call it from a step with the `workflowContext(...)` the parent
+received as an argument.
+
 ## Cancelling runs
 
 `cancelRuns(runIds, { reason })` cancels each run a few at a time (10 by
@@ -396,6 +444,10 @@ the token and let `wakeOnApproval(event)` do the waking from your outbox
 consumer: it resumes the run for `approval.approved`, `approval.rejected`,
 `approval.expired` and `approval.cancelled` with `{ approved, status,
 requestId }`, and ignores a request no run waits on.
+
+`wake` retries a missing hook up to four times, with a short pause, because an
+approver can decide before the run reaches `createHook`; after that it throws
+`HookNotFoundError`, which `wakeOnApproval` ignores.
 
 `wait` resolves `{ status: "resumed", payload }` or `{ status: "expired" }`,
 and returns `expired` at once for a deadline that has passed. `wake`

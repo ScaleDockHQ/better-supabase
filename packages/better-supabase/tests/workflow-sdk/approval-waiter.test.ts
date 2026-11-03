@@ -105,6 +105,25 @@ describe("approvalWaiter.wake", () => {
   });
 });
 
+describe("approvalWaiter.wake retries", () => {
+  it("retries a missing hook a bounded number of times", async () => {
+    resumeHook
+      .mockRejectedValueOnce(new HookNotFoundError("apr_9"))
+      .mockRejectedValueOnce(new HookNotFoundError("apr_9"));
+    await approvalWaiter.wake("apr_9", { approved: true });
+    expect(resumeHook).toHaveBeenCalledTimes(3);
+
+    resumeHook.mockClear();
+    resumeHook.mockRejectedValue(new HookNotFoundError("apr_10"));
+    await expect(approvalWaiter.wake("apr_10")).rejects.toThrow(
+      HookNotFoundError,
+    );
+    expect(resumeHook).toHaveBeenCalledTimes(4);
+    resumeHook.mockReset();
+    resumeHook.mockResolvedValue({ runId: "wrun_1" });
+  });
+});
+
 describe("wakeOnApproval", () => {
   it("wakes the run waiting on the request id with the outcome", async () => {
     const woken: unknown[] = [];

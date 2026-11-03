@@ -612,20 +612,24 @@ export function errorText(error: unknown): string {
 
 /**
  * Returns an injectable after checking its optional `apiVersion`. An omitted
- * version means 1; anything else throws, so an injectable built for a newer
- * contract fails at construction instead of mid-call.
+ * version means 1; a version outside `accepted` (default `[1]`) throws, so an
+ * injectable built for a newer contract fails at construction instead of
+ * mid-call.
  */
-export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+export function injectableOf<T extends { readonly apiVersion?: number }>(
   what: string,
   value: T,
+  accepted?: readonly number[],
 ): T;
-export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+export function injectableOf<T extends { readonly apiVersion?: number }>(
   what: string,
   value: T | undefined,
+  accepted?: readonly number[],
 ): T | undefined;
-export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+export function injectableOf<T extends { readonly apiVersion?: number }>(
   what: string,
   value: T | undefined,
+  accepted: readonly number[] = [1],
 ): T | undefined {
   if (value === undefined) {
     return undefined;
@@ -633,9 +637,14 @@ export function injectableOf<T extends { readonly apiVersion?: 1 }>(
 
   const version: unknown = value.apiVersion;
 
-  if (version !== undefined && version !== 1) {
+  if (
+    version !== undefined &&
+    !(typeof version === "number" && accepted.includes(version))
+  ) {
+    const supported = accepted.join(" and ");
+
     throw new TypeError(
-      `${what} targets API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release built for API 1.`,
+      `${what} targets API ${String(version)}; this better-supabase supports ${supported}. Upgrade better-supabase or use a release built for API ${supported}.`,
     );
   }
 

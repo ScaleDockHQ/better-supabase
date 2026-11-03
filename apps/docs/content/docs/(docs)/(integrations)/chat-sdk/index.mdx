@@ -79,6 +79,27 @@ export const GET = jobs.drainRoute({
 });
 ```
 
+## Other storage and adapter features
+
+`inboundHandler`, `deliver` and `maintain` accept a `ChatInboundStore`
+instead of an `Inbox`. `inboxStore(inbox)` is the default. `drain` and
+`importFiles` need the `Inbox`; with your own store, replay events through
+`handler.process`.
+
+To keep raw webhooks in the [queue block's webhook inbox](/docs/blocks/queue),
+pass it as `webhook({ sink, adapter })`. A worker replays each stored message
+with `handler.process(chatEventOf(message))`.
+
+`capabilitiesOf(name)` returns what a platform adapter supports. It needs the
+optional peer `@chat-adapter/catalog` and returns a `CHAT_CATALOG_MISSING`
+error when it is not installed.
+
+`inboxAdapter` handles actions, reactions and stop actions (through
+`abortTurn`), uploads outgoing files, and marks bot messages with
+`ai_generated` metadata. An empty stream returns an empty message instead of
+posting twice. `deliver` takes a `download` function for platform files.
+`maxConcurrent` limits turns per process, not across instances.
+
 ## Credentials
 
 Platform tokens never sit in the inbox tables. An installation stores a

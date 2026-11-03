@@ -148,7 +148,12 @@ describe("createBetterSupabaseAdapter", () => {
       await failing.bulkDecide({
         flags: [{ key: "new_editor", defaultValue: true }],
       }),
-    ).toEqual({});
+    ).toEqual({ new_editor: true });
+    await expect(
+      failing.bulkDecide({
+        flags: [{ key: "new_editor", defaultValue: true }, { key: "other" }],
+      }),
+    ).rejects.toThrow("offline");
   });
 
   describe("null values", () => {
@@ -408,6 +413,17 @@ describe("createIdentify", () => {
         cookies: { get: () => undefined, getAll: () => [] },
       }),
     ).toEqual({ visitor: { id: "visitor-1" } });
+
+    await identify({
+      headers: new Headers(),
+      cookies: {
+        get: () => undefined,
+        getAll: () => [{ name: "sb", value: "token" }],
+      },
+    });
+
+    const forwarded = resolve.mock.calls.at(-1)?.[0];
+    expect(forwarded?.headers.get("cookie")).toBe("sb=token");
   });
 
   it("targets a visitor when there is no user", () => {
@@ -652,6 +668,23 @@ describe("Explorer overrides", () => {
     expect(
       await provider.resolveStringEvaluation("new_editor", "d", {}),
     ).toMatchObject({ value: "d", reason: "ERROR" });
+  });
+
+  it("serves object and number overrides of the asked type", async () => {
+    const provider = withExplorerOverrides(
+      createFlagsProvider({ definitions: [flag()] }),
+      { layout: { a: 1 }, limit: 3 },
+    );
+
+    expect(await provider.resolveObjectEvaluation("layout", {}, {})).toEqual({
+      value: { a: 1 },
+      reason: "OVERRIDE",
+    });
+
+    expect(await provider.resolveNumberEvaluation("limit", 0, {})).toEqual({
+      value: 3,
+      reason: "OVERRIDE",
+    });
   });
 
   it("reads the Vercel environment", () => {

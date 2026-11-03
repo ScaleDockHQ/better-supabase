@@ -162,7 +162,10 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           read -ra affected <<< "$AFFECTED"
-          pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --log-file -- \
+          # Passthrough arguments enter every task hash, so the build runs without them and hits
+          # the cache; only the test takes `--shard`.
+          pnpm exec turbo run build --filter=better-supabase "${affected[@]}" --log-file
+          pnpm exec turbo run test --filter=better-supabase --only "${affected[@]}" --log-file -- \
             --shard="$SHARD/3" --reporter=blob
 
       # The blob reporter prints no failures, so a failed shard replays its own report.

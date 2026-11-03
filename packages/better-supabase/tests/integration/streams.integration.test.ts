@@ -90,7 +90,7 @@ describe.skipIf(!live)("streams module", () => {
       expect(await reader.cancel("chat-1").orThrow()).toBe(false);
       expect(
         await s.hint(
-          "select better_supabase.stream_append('chat-1', 2, array['x'])",
+          "select better_supabase.stream_append('chat-1', 2, array['x'::bytea])",
         ),
       ).toMatch(/permission denied/);
 

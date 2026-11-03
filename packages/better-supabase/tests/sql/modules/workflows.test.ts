@@ -53,6 +53,49 @@ describe("workflows module", () => {
   });
 });
 
+describe("workflows module, registry only", () => {
+  const registryOnly: AnyBlocksConfig = {
+    workflows: {
+      tables: { schedules: null, semaphores: null, startRequests: null },
+    },
+  };
+
+  it("leaves out the schedule, semaphore and admission functions", () => {
+    const sql = schemaOf(["workflows"], registryOnly);
+    expect(sql).toContain("record_workflow_run");
+    expect(sql).toContain("claim_workflow_run_dispatch");
+    expect(sql).not.toContain("create_workflow_schedule");
+    expect(sql).not.toContain("acquire_workflow_semaphore");
+    expect(sql).not.toContain("request_workflow_start");
+    expect(sql).not.toContain("workflow_schedules");
+  });
+
+  it("lists only the functions it installs in custom mode", () => {
+    const [contract] = customContracts(["workflows"], {
+      modules: { workflows: { mode: "custom", ...registryOnly["workflows"] } },
+    });
+
+    const names = contract!.functions.map((fn) => fn.name);
+    expect(names).toContain("set_workflow_run_engine");
+    expect(names).not.toContain("create_workflow_schedule");
+  });
+
+  it("adds the run's extra columns and passes them to record_workflow_run", () => {
+    const sql = schemaOf(["workflows"], {
+      workflows: { options: { runExtraColumns: { region: "text" } } },
+    });
+
+    expect(sql).toContain('add column if not exists "region" text');
+    expect(sql).toContain("fields jsonb default null");
+  });
+
+  it("keeps the idempotency key unique per tenant", () => {
+    const sql = schemaOf(["workflows"]);
+    expect(sql).toContain("workflow_runs_idempotency_key");
+    expect(sql).toContain("pending:");
+  });
+});
+
 describe("workflow-sdk module", () => {
   it("closes the workflow schema and mirrors runs into workflow_runs", () => {
     const sql = moduleBody("workflow-sdk", {})!;

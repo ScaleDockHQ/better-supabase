@@ -1133,6 +1133,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ai-keys",
         "approvals",
         "data-lifecycle",
+        "teams",
         "usage",
         "share-links"
       ],

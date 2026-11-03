@@ -3,6 +3,12 @@ export {
   type PostgresStreamStoreOptions,
 } from "./postgres.ts";
 
+export {
+  type ResumableStreamAdapterOptions,
+  type ResumableStreamContext,
+  resumableStreamContext,
+} from "./resumable.ts";
+
 export type {
   StreamAppendResult,
   StreamOpenOptions,

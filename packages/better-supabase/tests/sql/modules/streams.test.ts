@@ -26,7 +26,7 @@ describe("streams module", () => {
 
     for (const signature of [
       '"stream_open"(text, uuid, uuid, text, interval, boolean)',
-      '"stream_append"(text, integer, text[])',
+      '"stream_append"(text, integer, bytea[])',
       '"stream_close"(text)',
       '"purge_streams"(interval, integer)',
     ]) {

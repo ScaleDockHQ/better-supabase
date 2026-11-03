@@ -1,7 +1,12 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, serviceGrant } from "../shared.ts";
+import {
+  extraFieldsArg,
+  fail,
+  serviceGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 
 interface Recorded {
   readonly logical: string;
@@ -64,7 +69,10 @@ export function principalJson(ctx: BlockSqlContext, alias: string): string {
  * The record_workflow_run function of the workflows block: creates or updates
  * the run an engine reports.
  */
-export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
+export function recordWorkflowRunSql(
+  ctx: BlockSqlContext,
+  extras: readonly ExtraColumn[],
+): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const r = ctx.table("runs");
@@ -74,6 +82,8 @@ export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
   const moded = ctx.has("runs", "mode");
   const nodded = ctx.has("runs", "triggerNode");
   const app = ctx.appOwned.includes("runs");
+  const keyed = ctx.has("runs", "idempotencyKey");
+  const more = extraFieldsArg(extras);
 
   const recorded: readonly Recorded[] = [
     { logical: "engine", arg: "engine" },
@@ -112,6 +122,7 @@ export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
         ]
       : []),
     ...(nodded ? [{ logical: "triggerNode", arg: "trigger_node" }] : []),
+    ...(keyed ? [{ logical: "idempotencyKey", arg: "idempotency_key" }] : []),
   ];
 
   // On the app's table the upsert runs through execute: its conflict target
@@ -125,7 +136,11 @@ export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
   return `-- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists ${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists ${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+${more.drop(fn("record_workflow_run"), `text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text`)}
 create or replace function ${fn("record_workflow_run")}(
   engine text,
   external_id text,
@@ -142,7 +157,8 @@ create or replace function ${fn("record_workflow_run")}(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null${more.param}
 )
 returns uuid
 language plpgsql
@@ -152,6 +168,23 @@ as $$
 declare
   v_id uuid;
 begin${
+    keyed
+      ? `
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x.${cr("id")} into v_id from ${r} x
+    where x.${cr("tenant")} is not distinct from tenant
+      and x.${cr("idempotencyKey")} = idempotency_key
+      and not (x.${cr("engine")} = engine and x.${cr("externalId")} = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;`
+      : `
+  if idempotency_key is not null then
+    ${fail("WORKFLOW_KEY_UNSUPPORTED", "this workflow runs table has no idempotency_key column", "22023")}
+  end if;`
+  }${
     linked
       ? ""
       : `
@@ -189,16 +222,48 @@ begin${
     ${cr("principalId")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalId")} else x.${cr("principalId")} end,`
         : ""
     }${nodded ? `\n    ${cr("triggerNode")} = coalesce(x.${cr("triggerNode")}, excluded.${cr("triggerNode")}),` : ""}
-    ${cr("updatedAt")} = now()
+    ${keyed ? `${cr("idempotencyKey")} = coalesce(x.${cr("idempotencyKey")}, excluded.${cr("idempotencyKey")}),\n    ` : ""}${cr("updatedAt")} = now()
   returning x.${cr("id")}${
     app
       ? `$q$
   into v_id
   using ${recorded.map((entry) => entry.arg).join(", ")};`
       : " into v_id;"
-  }
+  }${writeExtraColumns(r, extras, "record_workflow_run.fields", `x.${cr("id")} = v_id`)}
   return v_id;
 end;
 $$;
-${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text)`)}`;
+${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text${more.type})`)}`;
 }
+
+export const RUN_KEYS: readonly string[] = [
+  "id",
+  "engine",
+  "externalId",
+  "definition",
+  "tenant",
+  "actor",
+  "status",
+  "attributes",
+  "error",
+  "createdAt",
+  "updatedAt",
+  "startedAt",
+  "completedAt",
+  "cancelRequestedAt",
+  "subjectType",
+  "subjectId",
+  "principalKind",
+  "principalId",
+  "mode",
+  "triggerNode",
+  "idempotencyKey",
+  "fields",
+];
+
+/**
+ * The external id of a run that is queued in the registry but has no engine run
+ * yet: `claim_workflow_run_dispatch` leases it, `set_workflow_run_engine`
+ * replaces it with the engine's id.
+ */
+export const PENDING_EXTERNAL_PREFIX = "pending:";

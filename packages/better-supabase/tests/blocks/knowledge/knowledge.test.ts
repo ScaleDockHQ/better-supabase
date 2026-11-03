@@ -640,6 +640,8 @@ describe("createKnowledge", () => {
         metadata: {},
         title: "Notes",
         score: 0.03,
+        chunkId: "d1#0",
+        organizationId: undefined,
       },
     ]);
     expect(calls[0]?.args).toEqual({
@@ -649,6 +651,8 @@ describe("createKnowledge", () => {
       scopes: { items: [{ scope: "organization" }] },
       k: 3,
       filter: { topic: "a" },
+      collections: undefined,
+      priority_order: true,
     });
     await knowledge
       .search({ organizationId: "o1", query: { embedding: [1, 2] } })
@@ -689,6 +693,72 @@ const collectionRow = (overrides: Record<string, unknown> = {}) => ({
   created_at: AT,
   updated_at: AT,
   ...overrides,
+});
+
+describe("embedder versions", () => {
+  const hitRow = (document_id: string, score: number, extra = {}) => ({
+    document_id,
+    idx: 0,
+    content: document_id,
+    metadata: null,
+    title: document_id,
+    score,
+    ...extra,
+  });
+
+  it("accepts a v2 embedder and a v1 embedder", async () => {
+    const { transport, calls } = fakeTransport({ knowledge_search: () => [] });
+
+    const v2: Embedder = {
+      apiVersion: 2,
+      model: "m2",
+      embed: () =>
+        Promise.resolve({ embeddings: [[1, 2]], usage: { tokens: 3 } }),
+    };
+
+    await createKnowledge({ transport, embedder: v2 })
+      .search({ organizationId: "o1", query: "x" })
+      .orThrow();
+    expect(calls[0]?.args).toMatchObject({ query_embedding: "[1,2]" });
+
+    await createKnowledge({ transport, embedder: embedder() })
+      .search({ organizationId: "o1", query: "x" })
+      .orThrow();
+    expect(calls[1]?.args).toMatchObject({ query_embedding: "[0,0.5]" });
+  });
+
+  it("reports a dimension mismatch", async () => {
+    const { transport } = fakeTransport({ knowledge_search: () => [] });
+
+    const result = await createKnowledge({
+      transport,
+      dimensions: 3,
+      embedder: embedder(),
+    }).search({ organizationId: "o1", query: "x" });
+
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).toContain("KNOWLEDGE_DIMENSION_MISMATCH");
+  });
+
+  it("returns chunk and organization ids and passes the priority order", async () => {
+    const rows = [hitRow("a", 0.1, { chunk_id: "c1", organization_id: "o1" })];
+
+    const { transport, calls } = fakeTransport({
+      knowledge_search: () => rows,
+    });
+
+    const base = { organizationId: "o1", query: { text: "x" } } as const;
+
+    const knowledge = createKnowledge({ transport, priorityOrder: false });
+    const hits = await knowledge.search(base).orThrow();
+
+    expect(hits[0]).toMatchObject({ chunkId: "c1", organizationId: "o1" });
+    expect(calls.at(-1)?.args).toMatchObject({ priority_order: false });
+
+    await knowledge.search({ ...base, priorityOrder: true }).orThrow();
+
+    expect(calls.at(-1)?.args).toMatchObject({ priority_order: true });
+  });
 });
 
 describe("knowledge collections", () => {

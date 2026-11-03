@@ -15,11 +15,13 @@ import { Pool } from "pg";
 import type { WorkflowMaintenance } from "../run-keys.ts";
 import type {
   ClaimedJob,
+  DeadLetter,
   StoredMessage,
   SupabaseWorldOptions,
 } from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
+import { consoleLogger } from "../../core/logger.ts";
 import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
@@ -36,6 +38,7 @@ import {
   unsignedAllowed,
   verifyDelivery,
 } from "./crypto.ts";
+import { assertWorldMigrations } from "./drift.ts";
 import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
 import { createMaintenance } from "./maintenance.ts";
 import { JOB_HEADER, MAX_DELIVERIES, SIGNATURE_HEADER } from "./types.ts";
@@ -69,6 +72,38 @@ function isStoredMessage(value: unknown): value is StoredMessage {
   );
 }
 
+/** The run a flow message belongs to, when its body names one. */
+function runIdOf(message: StoredMessage): string | undefined {
+  try {
+    const body: unknown = JSON.parse(
+      Buffer.from(message.body, "base64").toString("utf-8"),
+    );
+
+    if (typeof body === "object" && body !== null && "runId" in body) {
+      return typeof body.runId === "string" ? body.runId : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/** True for a Supabase transaction-pooler URL (port 6543), which has no LISTEN. */
+export function usesTransactionPooler(
+  connectionString: string | undefined,
+): boolean {
+  if (connectionString === undefined) {
+    return false;
+  }
+
+  try {
+    return new URL(connectionString).port === "6543";
+  } catch {
+    return false;
+  }
+}
+
 function deliveryProblem(
   kind: "invalid_request" | "unauthorized" | "network",
   detail: string,
@@ -85,6 +120,20 @@ function deliveryProblem(
  */
 const backoffSeconds = (attempt: number): number =>
   Math.ceil(Math.exp(Math.min(attempt, 10)));
+
+const REGISTRY: unique symbol = Symbol.for("better-supabase.workflow.worlds");
+
+/**
+ * The Worlds `createWorld()` made, on `globalThis`: the Workflow SDK imports
+ * the factory once per bundle, and each copy must share one pool and poller.
+ */
+function worldRegistry(): Map<string, SupabaseWorld> {
+  // SAFETY: only this function writes the symbol, always a Map of Worlds.
+  const holder = globalThis as { [REGISTRY]?: Map<string, SupabaseWorld> };
+  holder[REGISTRY] ??= new Map<string, SupabaseWorld>();
+
+  return holder[REGISTRY];
+}
 
 /** The World plus the delivery helpers the tests and routes use. */
 export type SupabaseWorld = World &
@@ -136,6 +185,22 @@ export function createSupabaseWorld(
         options.idleInTransactionTimeout ?? 15_000,
     });
 
+  const logger = options.logger ?? consoleLogger;
+
+  if (
+    options.pool === undefined &&
+    usesTransactionPooler(
+      options.connectionString ??
+        env("WORKFLOW_POSTGRES_URL") ??
+        env("SUPABASE_DB_URL") ??
+        env("DATABASE_URL"),
+    )
+  ) {
+    logger.warn(
+      "The workflow World connects through the transaction pooler (port 6543). world-postgres needs LISTEN/NOTIFY, which only a session connection (port 5432 or the session pooler) supports.",
+    );
+  }
+
   watchPoolErrors(pool, {
     ...(options.events ? { events: options.events } : {}),
     ...(options.logger ? { logger: options.logger } : {}),
@@ -146,6 +211,12 @@ export function createSupabaseWorld(
     ...(options.namespace === undefined
       ? {}
       : { namespace: options.namespace }),
+    ...(options.enableInvoke === undefined
+      ? {}
+      : { enableInvoke: options.enableInvoke }),
+    ...(options.streamFlushIntervalMs === undefined
+      ? {}
+      : { streamFlushIntervalMs: options.streamFlushIntervalMs }),
   });
 
   /**
@@ -217,6 +288,7 @@ export function createSupabaseWorld(
         queueName: name,
         messageId,
         attempt: 1,
+        createdAt: new Date().toISOString(),
         body: serialize(message).toString("base64"),
         ...(opts?.headers === undefined ? {} : { headers: opts.headers }),
         ...(opts?.idempotencyKey === undefined
@@ -231,39 +303,113 @@ export function createSupabaseWorld(
     return { messageId };
   };
 
-  const queueBatch = (
+  const queueBatch = async (
     name: ValidQueueName,
     messages: readonly { message: QueuePayload; opts?: QueueOptions }[],
-  ): Promise<QueueBatchResult[]> =>
-    Promise.all(
-      messages.map(({ message, opts }) =>
-        queue(name, message, opts).then(
-          ({ messageId }): QueueBatchResult => ({ messageId }),
-          (cause: unknown): QueueBatchResult => ({
-            messageId: null,
-            error: cause instanceof Error ? cause.message : String(cause),
-            retryable: true,
-          }),
-        ),
-      ),
-    );
+  ): Promise<QueueBatchResult[]> => {
+    if (messages.length === 0) {
+      return [];
+    }
+
+    const createdAt = new Date().toISOString();
+
+    const prepared = messages.map(({ message, opts }) => {
+      // SAFETY: MessageId is a branded string; any id the queue mints is valid.
+      const messageId = `msg_${crypto.randomUUID()}` as MessageId;
+
+      const stored: StoredMessage = {
+        queueName: name,
+        messageId,
+        attempt: 1,
+        createdAt,
+        body: serialize(message).toString("base64"),
+        ...(opts?.headers === undefined ? {} : { headers: opts.headers }),
+        ...(opts?.idempotencyKey === undefined
+          ? {}
+          : { idempotencyKey: opts.idempotencyKey }),
+      };
+
+      return {
+        messageId,
+        stored,
+        delay: Math.max(0, Math.ceil(opts?.delaySeconds ?? 0)),
+      };
+    });
+
+    try {
+      // One statement, so the batch is enqueued together or not at all.
+      await pool.query(
+        `select ${schema}.enqueue_job($1, m.payload, m.delay, $2, m.dedupe, false)
+         from unnest($3::jsonb[], $4::integer[], $5::text[]) as m(payload, delay, dedupe)`,
+        [
+          queueName,
+          MAX_DELIVERIES,
+          prepared.map(({ stored }) => JSON.stringify(stored)),
+          prepared.map(({ delay }) => delay),
+          prepared.map(
+            ({ stored }) => stored.idempotencyKey ?? stored.messageId,
+          ),
+        ],
+      );
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+
+      return prepared.map((): QueueBatchResult => ({
+        messageId: null,
+        error,
+        retryable: true,
+      }));
+    }
+
+    startPolling();
+
+    return prepared.map(({ messageId }): QueueBatchResult => ({ messageId }));
+  };
 
   const complete = (id: string, attempts: number): Promise<unknown> =>
     call("complete_job", [queueName, id, attempts]);
 
-  const fail = (
+  const fail = async (
     id: string,
     attempts: number,
     error: string,
     attempt: number,
-  ): Promise<unknown> =>
-    call("fail_job", [
+    message?: StoredMessage,
+  ): Promise<void> => {
+    const [row] = await call<{ fail_job: string | null }>("fail_job", [
       queueName,
       id,
       attempts,
       error.slice(0, 2000),
       backoffSeconds(attempt),
     ]);
+
+    if (row?.fail_job === "dead") {
+      await deadLetter({
+        jobId: id,
+        attempts,
+        error,
+        queueName: message?.queueName ?? queueName,
+        ...(message === undefined
+          ? {}
+          : { messageId: message.messageId, runId: runIdOf(message) }),
+      });
+    }
+  };
+
+  /**
+   * Tells `onDeadLetter` that a message gave up; the hook can't fail a
+   * delivery.
+   */
+  const deadLetter = async (info: DeadLetter): Promise<void> => {
+    logger.error("A workflow message was dead-lettered", { ...info });
+
+    try {
+      await options.onDeadLetter?.(info);
+    } catch (cause) {
+      logger.error("onDeadLetter threw", { error: cause });
+    }
+  };
 
   const heartbeat = (id: string, attempts: number): (() => void) => {
     const timer = setInterval(
@@ -294,6 +440,7 @@ export function createSupabaseWorld(
         job.attempts,
         `Flow route answered ${String(status)}: ${text}`,
         attempt,
+        message,
       );
 
       return;
@@ -329,12 +476,21 @@ export function createSupabaseWorld(
   const deliveryHeaders = (
     message: StoredMessage,
     attempt: number,
+    deliveryCount: number,
   ): Headers => {
     const headers = new Headers(message.headers);
     headers.set("content-type", "application/json");
     headers.set("x-vqs-queue-name", message.queueName);
     headers.set("x-vqs-message-id", message.messageId);
     headers.set("x-vqs-message-attempt", String(attempt));
+    headers.set("x-vqs-message-delivery-count", String(deliveryCount));
+
+    if (message.createdAt === undefined) {
+      headers.delete("x-vqs-message-created-at");
+    } else {
+      headers.set("x-vqs-message-created-at", message.createdAt);
+    }
+
     headers.delete(JOB_HEADER);
     headers.delete(SIGNATURE_HEADER);
 
@@ -399,7 +555,7 @@ export function createSupabaseWorld(
 
     const attempt = payload.attempt + job.attempts - 1;
     const body = Buffer.from(payload.body, "base64");
-    const headers = deliveryHeaders(payload, attempt);
+    const headers = deliveryHeaders(payload, attempt, job.attempts);
     const beat = heartbeat(job.id, job.attempts);
     const controller = new AbortController();
 
@@ -445,6 +601,7 @@ export function createSupabaseWorld(
         job.attempts,
         cause instanceof Error ? cause.message : String(cause),
         attempt,
+        payload,
       );
     }
   };
@@ -631,7 +788,7 @@ export function createSupabaseWorld(
         const response = await inner(
           new Request(req.url, {
             method: "POST",
-            headers: deliveryHeaders(payload, attempt),
+            headers: deliveryHeaders(payload, attempt, attempts),
             body: Buffer.from(payload.body, "base64"),
           }),
         );
@@ -649,6 +806,7 @@ export function createSupabaseWorld(
           attempts,
           cause instanceof Error ? cause.message : String(cause),
           attempt,
+          payload,
         ).catch(() => undefined);
         throw cause;
       } finally {
@@ -686,8 +844,9 @@ export function createSupabaseWorld(
     },
     getEncryptionKeyForRun,
     deliverOnce,
-    ...createMaintenance(call),
+    ...createMaintenance(call, (runId) => getEncryptionKeyForRun(runId)),
     async start() {
+      await assertWorldMigrations();
       startPolling();
       await reenqueueActiveRuns(
         base.runs,
@@ -725,5 +884,33 @@ export function createSupabaseWorld(
  * and `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
  */
 export function createWorld(): SupabaseWorld {
-  return createSupabaseWorld(worldOptionsFromEnv());
+  const options = worldOptionsFromEnv();
+  const registry = worldRegistry();
+
+  const key = JSON.stringify([
+    options.connectionString ?? null,
+    options.namespace ?? null,
+    options.queue ?? null,
+  ]);
+
+  const existing = registry.get(key);
+
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const world = createSupabaseWorld(options);
+  const close = world.close.bind(world);
+
+  const shared: SupabaseWorld = {
+    ...world,
+    async close() {
+      registry.delete(key);
+      await close();
+    },
+  };
+
+  registry.set(key, shared);
+
+  return shared;
 }

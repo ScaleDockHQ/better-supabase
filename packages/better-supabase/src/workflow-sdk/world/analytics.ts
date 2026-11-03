@@ -12,8 +12,11 @@ import type {
 } from "@workflow/world";
 import type { Pool } from "pg";
 
-/** World-postgres stores UTC in `timestamp without time zone` columns. */
-const utc = (column: string): string => `(${column} at time zone 'UTC')`;
+/**
+ * World-postgres 5.1 stores `timestamp with time zone`; no conversion is
+ * needed.
+ */
+const utc = (column: string): string => `(${column})`;
 
 /** The column every keyset query adds: the row's sort key as `text[]`. */
 const CURSOR = "__cursor";

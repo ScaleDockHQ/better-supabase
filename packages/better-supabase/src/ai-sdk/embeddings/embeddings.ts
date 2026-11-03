@@ -9,6 +9,7 @@ import { embedMany, jsonSchema, rerank, tool } from "ai";
 
 import type {
   Embedder,
+  EmbedderV2,
   Knowledge,
   KnowledgeHit,
   KnowledgeSearchOptions,
@@ -39,16 +40,16 @@ export function modelName(
 export function embedWith(
   model: EmbeddingModel,
   options: EmbedWithOptions = {},
-): Embedder {
+): EmbedderV2 {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
     model: options.name ?? modelName(model),
     embed: async (values, embedOptions) => {
       if (values.length === 0) {
-        return [];
+        return { embeddings: [] };
       }
 
-      const { embeddings } = await embedMany({
+      const { embeddings, usage } = await embedMany({
         model,
         values: [...values],
         maxParallelCalls: options.maxParallelCalls ?? 4,
@@ -60,7 +61,7 @@ export function embedWith(
           : { abortSignal: embedOptions.signal }),
       });
 
-      return embeddings;
+      return { embeddings, usage: { tokens: usage.tokens } };
     },
   };
 }
@@ -68,7 +69,11 @@ export function embedWith(
 export type Reranker = (
   query: string,
   hits: readonly KnowledgeHit[],
-  options?: { readonly signal?: AbortSignal },
+  options?: {
+    readonly signal?: AbortSignal;
+    /** The tenant of the search, so the rerank call is metered for it. */
+    readonly organizationId?: string;
+  },
 ) => Promise<readonly KnowledgeHit[]>;
 
 /** Reorders search hits with a reranking model, keeping the best `topN`. */
@@ -89,6 +94,12 @@ export function rerankWith(
       ...(rerankOptions?.signal === undefined
         ? {}
         : { abortSignal: rerankOptions.signal }),
+      ...(rerankOptions?.organizationId === undefined
+        ? {}
+        : {
+            runtimeContext: { organizationId: rerankOptions.organizationId },
+            telemetry: { includeRuntimeContext: { organizationId: true } },
+          }),
     });
 
     return ranking.flatMap((entry) => {
@@ -120,6 +131,12 @@ export interface SearchToolOptions extends Omit<
   readonly rerank?: Reranker;
   /** Called with the hits, to stream them as source parts. */
   readonly onHits?: (hits: readonly KnowledgeHit[]) => void;
+  /**
+   * Sends the model only each result's `id` and its content cut to
+   * `maxCharacters`; the tool's output (and `onHits`) still has the full
+   * results. Default: the model gets the whole output.
+   */
+  readonly modelOutput?: { readonly maxCharacters: number };
 }
 
 export interface SearchToolResult {
@@ -139,9 +156,17 @@ export function searchTool(
   organizationId: string,
   options: SearchToolOptions = {},
 ): Tool<{ query: string }, SearchToolResult> {
-  const { description, results, rerank: reorder, onHits, ...search } = options;
+  const {
+    description,
+    results,
+    rerank: reorder,
+    onHits,
+    modelOutput,
+    ...search
+  } = options;
 
   return tool({
+    strict: true,
     description:
       description ??
       "Search the knowledge base for passages relevant to a query. Cite results by their id.",
@@ -153,6 +178,19 @@ export function searchTool(
       required: ["query"],
       additionalProperties: false,
     }),
+    ...(modelOutput === undefined
+      ? {}
+      : {
+          toModelOutput: ({ output }) => ({
+            type: "json",
+            value: {
+              results: output.results.map((entry) => ({
+                id: entry.id,
+                content: entry.content.slice(0, modelOutput.maxCharacters),
+              })),
+            },
+          }),
+        }),
     execute: async ({ query }, { abortSignal }): Promise<SearchToolResult> => {
       const found = await knowledge.search({
         organizationId,
@@ -170,11 +208,10 @@ export function searchTool(
         : found.data;
 
       const hits = reorder
-        ? await reorder(
-            query,
-            readable,
-            abortSignal === undefined ? undefined : { signal: abortSignal },
-          )
+        ? await reorder(query, readable, {
+            organizationId,
+            ...(abortSignal === undefined ? {} : { signal: abortSignal }),
+          })
         : readable;
 
       onHits?.(hits);

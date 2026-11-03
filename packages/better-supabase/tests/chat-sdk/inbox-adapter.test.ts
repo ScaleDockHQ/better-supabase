@@ -416,6 +416,16 @@ describe("inboxAdapter", () => {
     );
   });
 
+  it("forgets the oldest threads past its limit", async () => {
+    const { adapter } = setup();
+
+    for (let index = 0; index < 1005; index += 1) {
+      await adapter.fetchMessages(`inbox:i1:c${index}`);
+    }
+
+    await expect(adapter.fetchMessages("inbox:i1:c0")).resolves.toBeDefined();
+  });
+
   it("downloads clean files through download", async () => {
     const bytes = new ArrayBuffer(2);
     const download = vi.fn(async () => bytes);
@@ -452,15 +462,117 @@ describe("inboxAdapter", () => {
       yield " ";
     }
 
-    expect(await plain.adapter.stream?.("inbox:i1:c1", empty())).toBeNull();
+    const none = await plain.adapter.stream?.("inbox:i1:c1", empty());
+    expect(none?.id).toMatch(/^empty:/);
+    expect(none?.raw.body).toBe("");
+    expect(posted?.raw.metadata["ai_generated"]).toBe(true);
 
     const controller = new AbortController();
     controller.abort();
-    expect(
-      await plain.adapter.stream?.("inbox:i1:c1", source(), {
-        signal: controller.signal,
+
+    const aborted = await plain.adapter.stream?.("inbox:i1:c1", source(), {
+      signal: controller.signal,
+    });
+
+    expect(aborted?.id).toMatch(/^empty:/);
+  });
+
+  it("rehydrates an attachment's download", async () => {
+    const download = vi.fn(async () => new ArrayBuffer(3));
+    const { adapter } = setup({ download });
+
+    const restored = adapter.rehydrateAttachment?.({
+      type: "file",
+      name: "a.pdf",
+      fetchMetadata: { attachmentId: "f1" },
+    });
+
+    expect(await restored?.fetchData?.()).toEqual(new ArrayBuffer(3));
+    expect(download).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "f1", name: "a.pdf" }),
+    );
+    expect(adapter.supportsTurnCancellation).toBe(true);
+  });
+
+  it("hands actions and reactions to the Chat SDK, and stops a turn", async () => {
+    const { adapter, chat } = setup();
+    await adapter.initialize(chat);
+    const processAction = vi.spyOn(chat, "processAction");
+    const abortTurn = vi.spyOn(chat, "abortTurn");
+    const processReaction = vi.spyOn(chat, "processReaction");
+    const user = { id: "u1", name: "Ada" };
+
+    await adapter.dispatchAction({
+      conversation_id: "c1",
+      message_id: "m1",
+      action_id: "approve",
+      value: "yes",
+      inbox_id: "i1",
+      user,
+    });
+
+    await adapter.dispatchAction({
+      conversation_id: "c1",
+      message_id: "m1",
+      action_id: "chat:stop",
+    });
+    expect(abortTurn).toHaveBeenCalledWith("inbox:i1:c1");
+    expect(processAction).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        actionId: "approve",
+        threadId: "inbox:i1:c1",
+        value: "yes",
+        user: expect.objectContaining({ userId: "u1", userName: "Ada" }),
       }),
-    ).toBeNull();
+      expect.anything(),
+    );
+
+    await adapter.dispatchReaction({
+      conversation_id: "c1",
+      message_id: "m1",
+      emoji: "👍",
+      added: true,
+    });
+    expect(processReaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: true,
+        rawEmoji: "👍",
+        threadId: "inbox:i1:c1",
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("posts files through the upload option and refuses them without it", async () => {
+    const upload = vi.fn(async () => undefined);
+
+    const { transport, call } = fakeTransport({
+      ...answers,
+      create_inbox_attachment: { id: "att1", bucket: "b", object_path: "p" },
+      confirm_attachment: true,
+    });
+
+    const adapter = inboxAdapter({ inbox: createInbox({ transport }), upload });
+
+    const files = [
+      { data: new Blob(["hi"]), filename: "a.txt", mimeType: "text/plain" },
+    ];
+
+    await adapter.postMessage("inbox:i1:c1", {
+      markdown: "see file",
+      files,
+      aiGenerated: true,
+    });
+    expect(upload).toHaveBeenCalledWith(
+      { id: "att1", bucket: "b", path: "p" },
+      expect.objectContaining({ name: "a.txt" }),
+    );
+    expect(JSON.stringify(call.mock.calls)).toContain("att1");
+    expect(JSON.stringify(call.mock.calls)).toContain("ai_generated");
+
+    await expect(
+      setup().adapter.postMessage("inbox:i1:c1", { markdown: "x", files }),
+    ).rejects.toThrow(/upload/);
   });
 
   it("sends nothing for an unknown thread", async () => {

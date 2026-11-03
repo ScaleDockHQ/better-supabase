@@ -1,3 +1,5 @@
+import type { UIMessage } from "ai";
+
 import { APICallError, jsonSchema, streamText } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
@@ -5,10 +7,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { AssistantOptions } from "../../../src/ai-sdk/chat/index.ts";
 
 import { assistantMetadata } from "../../../src/ai-sdk/chat/index.ts";
-import { AI_SDK_UI_FORMAT } from "../../../src/ai-sdk/index.ts";
+import { AI_SDK_UI_FORMAT, fromUIMessage } from "../../../src/ai-sdk/index.ts";
 import { isRecord } from "../../../src/core/block-helpers.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { fakeChats, post, record, setup, userMessage } from "./fakes.ts";
+import {
+  fakeChats,
+  mockModel,
+  post,
+  record,
+  setup,
+  userMessage,
+} from "./fakes.ts";
 
 describe("createAssistant", () => {
   it("stores the turn, streams the answer and records its usage", async () => {
@@ -424,6 +433,25 @@ describe("createAssistant", () => {
     expect((await assistant.resume("c1", context)).status).toBe(403);
   });
 
+  it("passes errors from each block call through", async () => {
+    for (const call of ["allowed", "appendUser", "path", "claim"] as const) {
+      const { assistant, context } = setup(
+        {},
+        fakeChats({
+          models: ["openai/gpt-5"],
+          failAt: { call, error: dbError("forbidden", "no") },
+        }),
+      );
+
+      const created = await assistant.respond(
+        post({ id: "c1", message: userMessage(), model: "openai/gpt-5" }),
+        context,
+      );
+
+      expect([call, created.status >= 400]).toEqual([call, true]);
+    }
+  });
+
   it("stops the running answer", async () => {
     const { assistant, context, fake } = setup();
     expect((await assistant.stop("c1", context)).status).toBe(204);
@@ -585,5 +613,153 @@ describe("createAssistant", () => {
 
     expect(body).toContain("The model provider refused the credentials.");
     expect(body).not.toContain("sk-123");
+  });
+
+  describe("tool approvals", () => {
+    const requested = (signature = "sig-1"): UIMessage => ({
+      id: "a1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-deleteRow",
+          toolCallId: "call1",
+          state: "approval-requested",
+          input: { id: 7 },
+          approval: { id: "ap1", signature },
+        },
+      ],
+    });
+
+    const seeded = (over: Partial<AssistantOptions> = {}) => {
+      const made = setup(over);
+      made.fake.raw.set("c1", record("c1"));
+      made.fake.seed(fromUIMessage(userMessage()), undefined);
+      made.fake.seed(fromUIMessage(requested()), "u1", {
+        format: AI_SDK_UI_FORMAT,
+        native: requested(),
+      });
+
+      return made;
+    };
+
+    const decision = (approved: boolean, signature = "sig-1"): UIMessage => ({
+      id: "a1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-deleteRow",
+          toolCallId: "call1",
+          state: "approval-responded",
+          // The client cannot change what the tool ran with.
+          input: { id: 999 },
+          approval: { id: "ap1", approved, signature, reason: "ok" },
+        },
+      ],
+    });
+
+    it("copies only the decision onto the stored message and continues it", async () => {
+      const seen: UIMessage[][] = [];
+
+      const { assistant, context, fake, pending } = seeded({
+        run: (args) => {
+          seen.push([...args.uiMessages]);
+
+          return streamText({ model: mockModel(), messages: args.messages });
+        },
+      });
+
+      const response = await assistant.respond(
+        post({ id: "c1", message: decision(true) }),
+        context,
+      );
+
+      expect(response.status).toBe(200);
+      await response.text();
+      await Promise.all(pending);
+
+      expect(seen[0]?.at(-1)?.parts[0]).toMatchObject({
+        state: "approval-responded",
+        input: { id: 7 },
+        approval: {
+          id: "ap1",
+          approved: true,
+          signature: "sig-1",
+          reason: "ok",
+        },
+      });
+
+      expect(fake.saved).toHaveLength(1);
+      expect(fake.saved[0]).toMatchObject({
+        message: { id: "a1" },
+        opts: { parentId: "u1" },
+      });
+    });
+
+    it("keeps a denial", async () => {
+      const seen: UIMessage[][] = [];
+
+      const { assistant, context, pending } = seeded({
+        run: (args) => {
+          seen.push([...args.uiMessages]);
+
+          return streamText({ model: mockModel(), messages: args.messages });
+        },
+      });
+
+      await (
+        await assistant.respond(
+          post({ id: "c1", message: decision(false) }),
+          context,
+        )
+      ).text();
+
+      await Promise.all(pending);
+
+      expect(seen[0]?.at(-1)?.parts[0]).toMatchObject({
+        approval: { approved: false },
+      });
+    });
+
+    it("refuses a signature that differs from the stored one", async () => {
+      const run = vi.fn();
+      const { assistant, context } = seeded({ run, toolApprovalSecret: "s" });
+
+      const response = await assistant.respond(
+        post({ id: "c1", message: decision(true, "forged") }),
+        context,
+      );
+
+      expect(response.status).toBe(403);
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it("refuses a decision that matches no pending request", async () => {
+      const run = vi.fn();
+      const { assistant, context } = seeded({ run });
+
+      const stale = decision(true);
+      const [part] = stale.parts;
+
+      if (
+        part?.type !== "tool-deleteRow" ||
+        part.state !== "approval-responded"
+      ) {
+        throw new Error("fixture");
+      }
+
+      const response = await assistant.respond(
+        post({
+          id: "c1",
+          message: {
+            ...stale,
+            parts: [{ ...part, approval: { ...part.approval, id: "other" } }],
+          },
+        }),
+        context,
+      );
+
+      expect(response.status).toBe(409);
+      expect(run).not.toHaveBeenCalled();
+    });
   });
 });

@@ -16,6 +16,7 @@ import {
   agentTools,
   agentToolApproval,
   createAgentRuntime,
+  mergeGatewayOptions,
   ModerationBlockedError,
   moderationMiddleware,
 } from "../../../src/ai-sdk/agents/index.ts";
@@ -158,6 +159,52 @@ describe("createAgentRuntime", () => {
       role: "system",
       content: "Follow the rules\n\nBe brief",
     });
+  });
+
+  it("chains the app's prepareCall and prepareStep and exposes the tenant to telemetry", async () => {
+    const mock = model("Done");
+    const contexts: unknown[] = [];
+    const steps: string[] = [];
+
+    const runtime = createAgentRuntime({
+      agent: agent(),
+      model: () => mock,
+      caller: { userId: "u1", organizationId: "o1" },
+      gateway: { tags: ["mine"] },
+      prepareCall: (call) => ({
+        ...call,
+        providerOptions: { gateway: { order: ["a"] } },
+      }),
+      prepareStep: () => {
+        steps.push("app");
+
+        return {};
+      },
+      compact: { toolCalls: "before-last-message" },
+      settings: { toolCallConcurrency: 2 },
+      telemetry: {
+        integrations: [
+          {
+            onStart: (event) => {
+              contexts.push(
+                "runtimeContext" in event ? event.runtimeContext : undefined,
+              );
+            },
+          },
+        ],
+      },
+    });
+
+    await runtime.generate({ prompt: "Hi" });
+    expect(steps).toEqual(["app"]);
+    expect(mock.doGenerateCalls[0]?.providerOptions).toMatchObject({
+      gateway: {
+        order: ["a"],
+        user: "u1",
+        tags: expect.arrayContaining(["mine"]),
+      },
+    });
+    expect(contexts).toEqual([{ organizationId: "o1" }]);
   });
 
   it("waits for the user before running an ask tool", async () => {
@@ -311,6 +358,54 @@ describe("createAgentRuntime", () => {
     });
 
     expect(Object.keys(runtime.tools)).toEqual([]);
+  });
+});
+
+describe("mergeGatewayOptions", () => {
+  const library = {
+    gateway: { user: "u1", tags: ["org:o1", "agent:a1"], order: ["x"] },
+  };
+
+  it("keeps the library's user, unions tags and lets the call win otherwise", () => {
+    expect(
+      mergeGatewayOptions(
+        {
+          gateway: { user: "evil", tags: ["org:o1", "mine"], order: ["y"] },
+          openai: { store: false },
+        },
+        library,
+      ),
+    ).toEqual({
+      gateway: {
+        user: "u1",
+        tags: ["org:o1", "agent:a1", "mine"],
+        order: ["y"],
+      },
+      openai: { store: false },
+    });
+  });
+
+  it("passes the call through without a library or adds the library alone", () => {
+    expect(mergeGatewayOptions({ openai: { a: 1 } }, undefined)).toEqual({
+      openai: { a: 1 },
+    });
+    expect(mergeGatewayOptions(undefined, library)).toEqual(library);
+  });
+
+  it("sends the gateway attribution on the model call", async () => {
+    const mock = model("ok");
+
+    const runtime = createAgentRuntime({
+      agent: agent(),
+      model: () => mock,
+      caller: { userId: "u1", organizationId: "o1" },
+    });
+
+    await runtime.generate({ prompt: "hi" });
+
+    expect(mock.doGenerateCalls[0]?.providerOptions).toMatchObject({
+      gateway: { user: "u1", tags: ["org:o1", "feature:agent", "agent:a1"] },
+    });
   });
 });
 

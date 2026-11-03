@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { embedVectors } from "../../src/blocks/knowledge/index.ts";
 import { createMemory, sqlTransport } from "../../src/blocks/memory/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 import { wordEmbedder } from "./word-embedder.ts";
@@ -296,6 +297,7 @@ describe.skipIf(!live)("memory module", () => {
       const editing = createMemory({
         transport: sqlTransport(s.sql),
         embedder: {
+          apiVersion: 1,
           model: embedder.model,
           embed: async (values, options) => {
             await s.client.query(
@@ -303,7 +305,7 @@ describe.skipIf(!live)("memory module", () => {
               [fact.id],
             );
 
-            return embedder.embed(values, options);
+            return (await embedVectors(embedder, values, options)).embeddings;
           },
         },
       });

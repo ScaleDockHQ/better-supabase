@@ -145,7 +145,8 @@ describe("fromUIMessage", () => {
       type: "tool-call",
       toolCallId: "t6",
       toolName: "wait",
-      input: {},
+      input: null,
+      state: "streaming",
       providerExecuted: true,
     });
     expect(message.parts).toContainEqual({
@@ -203,7 +204,7 @@ describe("toUIMessage", () => {
       "custom",
       "reasoning-file",
       "tool-search",
-      "tool-mcp_lookup",
+      "dynamic-tool",
       "tool-delete",
       "tool-send",
       "tool-pay",
@@ -218,7 +219,7 @@ describe("toUIMessage", () => {
     expect(back.parts[12]).toEqual(ui.parts[12]);
     expect(back.parts[13]).toEqual(ui.parts[13]);
     expect(back.parts[14]).toMatchObject({
-      state: "input-available",
+      state: "input-streaming",
       providerExecuted: true,
     });
   });
@@ -702,5 +703,139 @@ describe("validUIMessages", () => {
       kind: "validation",
       hint: "AI_MESSAGES_INVALID",
     });
+  });
+});
+
+describe("AI SDK 7 tool part fields", () => {
+  const signed = {
+    id: "ap",
+    signature: "sig",
+    isAutomatic: true,
+    requestReason: "moves money",
+    descriptor: { risk: "high" },
+    inputSchemaInput: { amount: 1 },
+  };
+
+  const parts: UIMessage["parts"] = [
+    {
+      type: "dynamic-tool",
+      toolName: "lookup",
+      toolCallId: "d1",
+      state: "output-available",
+      input: { id: 1 },
+      output: { ok: true },
+      title: "Lookup",
+      toolMetadata: { source: "mcp" },
+    },
+    {
+      type: "dynamic-tool",
+      dynamic: false,
+      toolName: "legacy",
+      toolCallId: "d2",
+      state: "input-available",
+      input: { a: 1 },
+    },
+    {
+      type: "tool-a",
+      toolCallId: "s1",
+      state: "input-streaming",
+      input: { partial: 1 },
+      rawInput: '{"partial":1',
+      inputEncoding: "json",
+    },
+    { type: "tool-b", toolCallId: "s2", state: "input-available", input: 1 },
+    {
+      type: "tool-c",
+      toolCallId: "s3",
+      state: "approval-requested",
+      input: 1,
+      approval: { id: "ap-c", requestReason: "why", descriptor: ["x"] },
+    },
+    {
+      type: "tool-d",
+      toolCallId: "s4",
+      state: "approval-responded",
+      input: 1,
+      approval: { ...signed, approved: true, reason: "ok" },
+    },
+    {
+      type: "tool-e",
+      toolCallId: "s5",
+      state: "output-available",
+      input: 1,
+      output: "done",
+      preliminary: true,
+      title: "Titled",
+      approval: { ...signed, approved: true },
+    },
+    {
+      type: "tool-f",
+      toolCallId: "s6",
+      state: "output-error",
+      input: 1,
+      errorText: "bad",
+      approval: { ...signed, approved: true },
+    },
+    {
+      type: "tool-g",
+      toolCallId: "s7",
+      state: "output-denied",
+      input: 1,
+      approval: { ...signed, approved: false, reason: "no" },
+    },
+  ];
+
+  const message: UIMessage = { id: "m", role: "assistant", parts };
+
+  it("deep-equals after a round trip through the canonical form", () => {
+    const canonical = fromUIMessage(message);
+    expect(isAiMessage(canonical)).toBe(true);
+    expect(toUIMessage(canonical)).toEqual(message);
+  });
+
+  it("copies the new fields onto the canonical parts", () => {
+    const canonical = fromUIMessage(message);
+
+    expect(canonical.parts[0]).toMatchObject({
+      dynamic: true,
+      title: "Lookup",
+      toolMetadata: { source: "mcp" },
+    });
+    expect(
+      canonical.parts.find(
+        (part) => part.type === "tool-call" && part.toolCallId === "s1",
+      ),
+    ).toMatchObject({
+      state: "streaming",
+      rawInput: '{"partial":1',
+      inputEncoding: "json",
+    });
+    expect(canonical).toSatisfy((m: AiMessage) =>
+      m.parts.some(
+        (part) =>
+          part.type === "tool-approval" &&
+          part.signature === "sig" &&
+          part.isAutomatic === true &&
+          part.requestReason === "moves money" &&
+          part.inputSchemaInput !== undefined,
+      ),
+    );
+    expect(canonical.parts).toContainEqual(
+      expect.objectContaining({ type: "tool-result", preliminary: true }),
+    );
+  });
+
+  it("keeps typed data parts and metadata", () => {
+    type Typed = UIMessage<{ turn: number }, { weather: { temp: number } }>;
+
+    const typed: Typed = {
+      id: "t",
+      role: "assistant",
+      metadata: { turn: 2 },
+      parts: [{ type: "data-weather", id: "w", data: { temp: 3 } }],
+    };
+
+    const back = toUIMessage<Typed>(fromUIMessage(typed));
+    expect(back).toEqual(typed);
   });
 });

@@ -1,5 +1,5 @@
 import type { ModelCallStreamPart } from "@ai-sdk/workflow";
-import type { UIMessageChunk } from "ai";
+import type { UIMessage, UIMessageChunk } from "ai";
 
 import {
   createModelCallToUIChunkTransform,
@@ -15,7 +15,11 @@ import type {
 } from "../../blocks/ai-chat/ai-chat.ts";
 import type { AiRun } from "../../blocks/ai-chat/durable.ts";
 import type { StreamStore } from "../../streams/store.ts";
-import type { Assistant, AssistantContext } from "../chat/assistant.ts";
+import type {
+  Assistant,
+  AssistantContext,
+  AssistantTurn,
+} from "../chat/assistant.ts";
 import type { DurableResume, DurableTurnInput } from "./turn.ts";
 
 import { isRecord } from "../../core/block-helpers.ts";
@@ -23,6 +27,7 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
+import { STREAM_TAIL_INDEX_HEADER } from "../../workflow-sdk/runs.ts";
 import { tenantOf } from "../chat/assistant.ts";
 import { badRequest, readJson, sse } from "../http.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
@@ -30,11 +35,24 @@ import { durableStopToken, durableTurnToken } from "./turn.ts";
 /** Who asks, for one request. */
 export type DurableChatContext = AssistantContext;
 
-export interface DurableChatOptions {
+export interface DurableChatOptions<
+  UI_MESSAGE extends UIMessage = UIMessage,
+  CONTEXT = undefined,
+> {
   /** The assistant whose `prepare` checks and stores the user's turn. */
-  readonly assistant: Pick<Assistant, "prepare">;
+  readonly assistant: Pick<Assistant<UI_MESSAGE>, "prepare">;
   /** The turn's `"use workflow"` function, which calls `durableTurn`. */
-  readonly workflow: (input: DurableTurnInput) => Promise<unknown>;
+  readonly workflow: (input: DurableTurnInput<CONTEXT>) => Promise<unknown>;
+  /**
+   * Builds the turn's `context` for the agent: the tenant's settings, a project
+   * id, anything the agent function needs and can't read itself. The result
+   * must be JSON-serializable. Return a Response to refuse the turn.
+   */
+  readonly context?: (
+    request: unknown,
+    turn: AssistantTurn<UI_MESSAGE>,
+    context: DurableChatContext,
+  ) => CONTEXT | Response | PromiseLike<CONTEXT | Response>;
   /**
    * Keeps a copy of each segment the client reads, for when the World's stream
    * is unavailable.
@@ -65,9 +83,12 @@ export interface DurableChat {
   respond(request: Request, context: DurableChatContext): Promise<Response>;
   /**
    * The reconnect route (`GET /api/chat/:id/stream?startIndex=`): the chat's
-   * running segment, or its last one, from UI chunk `startIndex`. The stream
-   * store answers when the World's stream can't be read; 204 when the chat has
-   * no durable run.
+   * running segment, or its last one, from UI chunk `startIndex`. A negative
+   * `startIndex` counts back from the newest chunk (`-5` is the last five). The
+   * stream store answers when the World's stream can't be read; 204 when the
+   * chat has no durable run. Every stream response carries
+   * `x-workflow-stream-tail-index`, the index of the newest UI chunk written
+   * when it was opened.
    */
   resume(
     chatId: string,
@@ -265,13 +286,91 @@ async function opened<T>(
 function runSse(
   stream: ReadableStream<string>,
   workflowRunId?: string,
+  tailIndex?: number,
 ): Response {
-  return sse(
-    stream,
-    workflowRunId === undefined
+  return sse(stream, {
+    ...(workflowRunId === undefined
       ? {}
-      : { [WORKFLOW_RUN_ID_HEADER]: workflowRunId },
-  );
+      : { [WORKFLOW_RUN_ID_HEADER]: workflowRunId }),
+    ...(tailIndex === undefined
+      ? {}
+      : { [STREAM_TAIL_INDEX_HEADER]: String(tailIndex) }),
+  });
+}
+
+/**
+ * The index of the newest UI chunk a segment holds, or -1 when it holds none.
+ * The World counts raw parts, and one part can make several UI chunks, so the
+ * raw prefix is converted. `undefined` when the stream can't be read.
+ */
+async function uiTailIndex(
+  workflowRunId: string,
+  streamId: string,
+): Promise<number | undefined> {
+  try {
+    const raw = getRun(workflowRunId).getReadable<ModelCallStreamPart>({
+      namespace: streamId,
+    });
+
+    const rawTail = await raw.getTailIndex();
+
+    if (rawTail < 0) {
+      return -1;
+    }
+
+    const reader = raw.getReader();
+    let seen = 0;
+
+    const prefix = new ReadableStream<ModelCallStreamPart>({
+      async pull(controller) {
+        if (seen > rawTail) {
+          controller.close();
+          await reader.cancel().catch(() => undefined);
+
+          return;
+        }
+
+        const next = await reader.read();
+
+        if (next.done) {
+          controller.close();
+        } else {
+          seen += 1;
+          controller.enqueue(next.value);
+        }
+      },
+    });
+
+    let count = 0;
+
+    for await (const _ of streamAsync(
+      prefix.pipeThrough(createModelCallToUIChunkTransform()),
+    )) {
+      count += 1;
+    }
+
+    return count - 1;
+  } catch {
+    return undefined;
+  }
+}
+
+async function* streamAsync<T>(stream: ReadableStream<T>): AsyncGenerator<T> {
+  const reader = stream.getReader();
+
+  try {
+    for (;;) {
+      const next = await reader.read();
+
+      if (next.done) {
+        return;
+      }
+
+      yield next.value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -280,16 +379,21 @@ function runSse(
  * an approval can wait for hours. The chat's runs stay in `ai_runs` with the
  * workflow run id next to them.
  */
-export function durableChat(options: DurableChatOptions): DurableChat {
+export function durableChat<
+  UI_MESSAGE extends UIMessage = UIMessage,
+  CONTEXT = undefined,
+>(options: DurableChatOptions<UI_MESSAGE, CONTEXT>): DurableChat {
   const newId = options.generateId ?? (() => crypto.randomUUID());
 
-  function streamSegment(
+  async function streamSegment(
     context: DurableChatContext,
     chat: Pick<AiChatRecord, "ownerId" | "organizationId">,
     workflowRunId: string,
     streamId: string,
     messageId: string | undefined,
-  ): Response {
+  ): Promise<Response> {
+    const tail = await uiTailIndex(workflowRunId, streamId);
+
     const teed = teeToStore(
       options.streams,
       streamId,
@@ -312,7 +416,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       })(),
     );
 
-    return runSse(teed.stream, workflowRunId);
+    return runSse(teed.stream, workflowRunId, tail);
   }
 
   async function startTurn(
@@ -326,6 +430,13 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     }
 
     const { chat, model } = turn;
+
+    const appContext = await options.context?.(body, turn, context);
+
+    if (appContext instanceof Response) {
+      return appContext;
+    }
+
     const streamId = newId();
     const messageId = newId();
 
@@ -347,7 +458,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       return busy();
     }
 
-    const input: DurableTurnInput = {
+    const input: DurableTurnInput<CONTEXT> = {
       chatId: chat.id,
       ...tenantOf(chat),
       userId: context.userId,
@@ -358,6 +469,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       streamId,
       messages: turn.messages,
       providerOptions: turn.providerOptions,
+      ...(appContext === undefined ? {} : { context: appContext }),
     };
 
     let workflowRunId: string;
@@ -651,15 +763,29 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       return new Response(null, { status: 204 });
     }
 
-    const startIndex = Math.max(0, Math.trunc(resumeOptions.startIndex ?? 0));
+    const requested = Math.trunc(resumeOptions.startIndex ?? 0);
 
-    if (run.engine === WORKFLOW_ENGINE && run.externalRunId !== undefined) {
+    const workflowRunId =
+      run.engine === WORKFLOW_ENGINE ? run.externalRunId : undefined;
+
+    const tail =
+      workflowRunId === undefined
+        ? undefined
+        : await uiTailIndex(workflowRunId, streamId);
+
+    // A negative index counts back from the newest chunk.
+    const startIndex = Math.max(
+      0,
+      requested < 0 ? (tail ?? -1) + 1 + requested : requested,
+    );
+
+    if (workflowRunId !== undefined) {
       let live: ReadableStream<string> | undefined;
 
       try {
         live = await opened(
           segmentChunks(
-            run.externalRunId,
+            workflowRunId,
             streamId,
             run.assistantMessageId,
             startIndex,
@@ -672,12 +798,24 @@ export function durableChat(options: DurableChatOptions): DurableChat {
 
       // Without the World's stream, the stream store has the copy the client read.
       if (live !== undefined) {
-        return runSse(live, run.externalRunId);
+        return runSse(live, workflowRunId, tail);
       }
     }
 
+    // The store keeps UI chunks, so a negative index counts from its own length.
+    let fromIdx = startIndex;
+
+    if (requested < 0) {
+      const status = await options.streams.status(streamId);
+
+      fromIdx = Math.max(
+        0,
+        (status.ok ? (status.data?.next ?? 0) : 0) + requested,
+      );
+    }
+
     const stored = await resumeFromStore(options.streams, streamId, {
-      fromIdx: startIndex,
+      fromIdx,
       ...(resumeOptions.signal === undefined
         ? {}
         : { signal: resumeOptions.signal }),
@@ -689,7 +827,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
 
     return stored.data === undefined
       ? new Response(null, { status: 204 })
-      : runSse(stored.data, run.externalRunId);
+      : runSse(stored.data, run.externalRunId, tail);
   }
 
   async function stop(

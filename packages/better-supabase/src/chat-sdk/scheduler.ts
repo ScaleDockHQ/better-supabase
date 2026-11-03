@@ -67,7 +67,11 @@ export interface ChatScheduler {
 }
 
 export interface StateSchedulerOptions {
-  /** The state key the waiting posts live under. Defaults to `chat:scheduled`. */
+  /**
+   * The state key the waiting posts live under. Defaults to
+   * `better-supabase:scheduled`; posts under the old `chat:scheduled` key are
+   * read and moved on the next write.
+   */
   readonly key?: string;
   /** Attempts before a failing post is dropped. Defaults to 3. */
   readonly maxAttempts?: number;
@@ -75,6 +79,7 @@ export interface StateSchedulerOptions {
   readonly lockWaitMs?: number;
 }
 
+const LEGACY_KEY = "chat:scheduled";
 const LOCK_TTL_MS = 10_000;
 const LOCK_POLL_MS = 25;
 
@@ -95,12 +100,29 @@ export function stateScheduler(
   state: StateAdapter,
   options: StateSchedulerOptions = {},
 ): ChatScheduler {
-  const key = options.key ?? "chat:scheduled";
+  const key = options.key ?? "better-supabase:scheduled";
+  const legacyKey = options.key === undefined ? LEGACY_KEY : undefined;
   const maxAttempts = options.maxAttempts ?? 3;
   const lockWait = options.lockWaitMs ?? 2000;
 
-  const read = async (): Promise<ScheduledPost[]> =>
-    (await state.get<ScheduledPost[]>(key)) ?? [];
+  const read = async (): Promise<ScheduledPost[]> => {
+    const current = await state.get<ScheduledPost[]>(key);
+
+    if (current !== null || legacyKey === undefined) {
+      return current ?? [];
+    }
+
+    return (await state.get<ScheduledPost[]>(legacyKey)) ?? [];
+  };
+
+  // The first write under the new key retires the old one.
+  const write = async (posts: ScheduledPost[]): Promise<void> => {
+    await state.set(key, posts);
+
+    if (legacyKey !== undefined) {
+      await state.delete(legacyKey);
+    }
+  };
 
   const locked = async <T>(work: () => Promise<T>): Promise<T> => {
     const deadline = Date.now() + lockWait;
@@ -133,7 +155,7 @@ export function stateScheduler(
         return false;
       }
 
-      await state.set(key, rest);
+      await write(rest);
 
       return true;
     });
@@ -154,7 +176,7 @@ export function stateScheduler(
       };
 
       await locked(async () => {
-        await state.set(key, [...(await read()), post]);
+        await write([...(await read()), post]);
       });
 
       return {
@@ -183,10 +205,7 @@ export function stateScheduler(
 
         if (taken.length > 0) {
           const ids = new Set(taken.map((post) => post.id));
-          await state.set(
-            key,
-            posts.filter((post) => !ids.has(post.id)),
-          );
+          await write(posts.filter((post) => !ids.has(post.id)));
         }
 
         return taken;
@@ -218,7 +237,7 @@ export function stateScheduler(
 
       if (retry.length > 0) {
         await locked(async () => {
-          await state.set(key, [...(await read()), ...retry]);
+          await write([...(await read()), ...retry]);
         });
       }
 

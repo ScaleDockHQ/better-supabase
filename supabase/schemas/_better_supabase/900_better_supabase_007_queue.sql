@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@8 managed
--- @bsb-hash sha256:2128a6f59d709b195646667c6820ac632aad766f6eed14bed5990cc79ac633bf
+-- @bsb-block queue@9 managed
+-- @bsb-hash sha256:fc5c54300553ce3ed4b98f5d853ef4ad58571f202b04ad3f240fba3a707a6b58
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -91,6 +92,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;

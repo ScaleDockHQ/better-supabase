@@ -151,6 +151,28 @@ Errors are RFC 9457 problem details responses with a `code` (see [Results](/docs
 | `validate`            | Schemas the user's message must match before it is stored                   |
 | `generateId`          | Message and stream ids, `crypto.randomUUID()` by default                    |
 
+## Tool approvals
+
+A tool with `needsApproval` stops the answer at an `approval-requested` part. The client answers with `addToolApprovalResponse`, and `useAssistant` then sends the stored assistant message with the decision on it. The assistant loads the stored message, copies only `approved` and `reason` onto it, and continues the same message, so the approval and the tool output end up in one answer.
+
+Return `tools` from `run` so `toUIMessageStream` can build the tool parts, and set `toolApprovalSecret` to sign approvals:
+
+```ts
+const assistant = createAssistant({
+  streams,
+  defaultModel: "openai/gpt-5",
+  toolApprovalSecret: process.env.APPROVAL_SECRET,
+  run: (args) =>
+    agent.stream({
+      messages: args.messages,
+      abortSignal: args.abortSignal,
+      experimental_toolApprovalSecret: args.toolApprovalSecret,
+    }),
+});
+```
+
+A decision whose signature differs from the stored request gets a 403, and one that matches no pending request gets a 409. The client never supplies a tool's input or output on this path.
+
 ## Stream options
 
 `stream` sets the `toUIMessageStream` options that decide what the client

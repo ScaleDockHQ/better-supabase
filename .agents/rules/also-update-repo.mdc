@@ -27,4 +27,5 @@ paths:
 | A dependency bump | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line |
 | A `typescript` bump | `oxlint-tsgolint` in the same commit |
 | A Next.js bump | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored |
+| A `turbo` bump | the `$schema` URL in every `turbo.json` |
 | A user-visible change | a changeset (`pnpm changeset`) |

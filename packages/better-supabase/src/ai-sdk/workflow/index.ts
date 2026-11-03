@@ -1,4 +1,10 @@
 export {
+  createWorkflowAgentRuntime,
+  type WorkflowAgentRuntimeOptions,
+  type WorkflowOmittedOptions,
+} from "./agent.ts";
+
+export {
   type DurableApprovalDecision,
   type DurableChat,
   type DurableChatContext,
@@ -9,14 +15,15 @@ export {
 
 export {
   type DurableStepOptions,
+  durableStepError,
   durableSteps,
   runDurableStep,
   saveMessagesStep,
 } from "./steps.ts";
 
 export {
-  type DurableAgentArgs,
-  type DurableAgentResult,
+  type DurableTurnAgentArgs,
+  type DurableTurnAgentResult,
   type DurableApprovalRequest,
   type DurableApprovalsInput,
   type DurableDecision,

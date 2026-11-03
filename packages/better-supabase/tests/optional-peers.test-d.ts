@@ -2,6 +2,7 @@
 import type { anthropic } from "@ai-sdk/anthropic";
 // oxlint-disable-next-line eslint/no-restricted-imports -- vercelSandboxes types the session adapter structurally; the test checks it against the real one.
 import type * as SandboxSessions from "@ai-sdk/sandbox-vercel";
+import type * as ChatCatalog from "@chat-adapter/catalog";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -78,6 +79,12 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<
       typeof SandboxSessions
     >().toExtend<VercelSandboxSessionModule>();
+  });
+
+  it("@chat-adapter/catalog has the lookups the chat-sdk helpers will read", () => {
+    expectTypeOf<typeof ChatCatalog.listAdapters>().toBeFunction();
+    expectTypeOf<typeof ChatCatalog.getAdapter>().toBeFunction();
+    expectTypeOf<typeof ChatCatalog.getSecretEnvVars>().toBeFunction();
   });
 
   it("@ai-sdk/anthropic has the pinned memory tool", () => {

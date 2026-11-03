@@ -73,7 +73,7 @@ accept.
 | `publishDue(chat, { now?, limit? })`               | Posts what is due, at most `limit` (100) per call          |
 
 `stateScheduler(state, { key?, maxAttempts?, lockWaitMs? })` keeps the
-waiting messages as one value under `key` (`chat:scheduled`) in any Chat SDK
+waiting messages as one value under `key` (`better-supabase:scheduled` (an older `chat:scheduled` value is read once and moved)) in any Chat SDK
 `StateAdapter`, changed under the state's lock. That suits hundreds of
 waiting messages, not millions. For more, implement `ChatScheduler` over
 your own table or a queue with delayed jobs.

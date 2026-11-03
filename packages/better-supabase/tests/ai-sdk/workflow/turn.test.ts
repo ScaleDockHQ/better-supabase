@@ -4,8 +4,8 @@ import type { ModelMessage } from "ai";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-  DurableAgentArgs,
-  DurableAgentResult,
+  DurableTurnAgentArgs,
+  DurableTurnAgentResult,
   DurableHook,
   DurableSaveInput,
   DurableStep,
@@ -112,14 +112,14 @@ interface Harness {
   readonly stop: Controlled<object>;
   readonly turn: Controlled<{ streamId: string; runId: string }>;
   readonly calls: { name: string; input: unknown }[];
-  readonly agentArgs: DurableAgentArgs[];
+  readonly agentArgs: DurableTurnAgentArgs[];
   readonly namespaces: string[];
   phases: (string | undefined)[];
   readonly run: () => ReturnType<typeof durableTurn>;
 }
 
 function harness(
-  agent: (args: DurableAgentArgs) => Promise<DurableAgentResult>,
+  agent: (args: DurableTurnAgentArgs) => Promise<DurableTurnAgentResult>,
   decisions: () => unknown[] = () => [],
 ): Harness {
   const stop = controlled<object>();
@@ -131,7 +131,7 @@ function harness(
   ]);
 
   const calls: { name: string; input: unknown }[] = [];
-  const agentArgs: DurableAgentArgs[] = [];
+  const agentArgs: DurableTurnAgentArgs[] = [];
   const namespaces: string[] = [];
   const phases: (string | undefined)[] = [];
 
@@ -465,5 +465,69 @@ describe("durableTurn", () => {
     const h = harness(() => Promise.reject("boom"));
     await h.run();
     expect(h.calls[1]?.input).toMatchObject({ error: "boom" });
+  });
+
+  it("ends failed with the error when the agent returns one", async () => {
+    const h = harness(async (args) => ({
+      messages: [...args.messages],
+      steps: [],
+      error: new Error("model refused"),
+    }));
+
+    await expect(h.run()).resolves.toMatchObject({ status: "failed" });
+
+    expect(
+      h.calls.find((call) => call.name === "release")?.input,
+    ).toMatchObject({ status: "failed", error: "model refused" });
+
+    expect(h.calls.find((call) => call.name === "save")?.input).toMatchObject({
+      status: "error",
+    });
+  });
+
+  it("gives the agent the turn's context, user and tenant", async () => {
+    const h = harness(async (args) => ({
+      messages: [...args.messages, answer("Done.")],
+      steps: [],
+    }));
+
+    const seen: DurableTurnAgentArgs<{ projectId: string }>[] = [];
+    const contextual = { ...input, context: { projectId: "p1" } };
+
+    await durableTurn(contextual, {
+      runId: "wrun",
+      // SAFETY: only the stop and turn hooks are asked for, and neither fires here.
+      createHook: <T>({ token }: { token: string }) =>
+        (token.startsWith("ai-chat-stop")
+          ? h.stop.hook
+          : h.turn.hook) as DurableHook<T>,
+      getWritable: () => new WritableStream<ModelCallStreamPart>(),
+      agent: async (args) => {
+        seen.push(args);
+
+        return { messages: [...args.messages, answer("Done.")], steps: [] };
+      },
+      // SAFETY: the fake step answers nothing, and this turn reads no output.
+      step: async () => undefined as never,
+    });
+
+    expect(seen[0]).toMatchObject({
+      userId: "user",
+      organizationId: "org",
+      context: { projectId: "p1" },
+    });
+  });
+
+  it("tells the save step where the segment streams are", async () => {
+    const h = harness(async (args) => ({
+      messages: [...args.messages, answer("Done.")],
+      steps: [],
+    }));
+
+    await h.run();
+
+    expect(h.calls.find((call) => call.name === "save")?.input).toMatchObject({
+      streams: { workflowRunId: "wrun", streamIds: ["s1"] },
+    });
   });
 });

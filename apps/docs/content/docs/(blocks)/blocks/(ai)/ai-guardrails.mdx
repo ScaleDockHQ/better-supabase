@@ -75,13 +75,36 @@ if (verdict.decision === "block") {
 }
 ```
 
-`guardrailMiddleware(guardrails, { agent })` wraps one model step as a function
+`guardText(guardrails, { agent })` wraps one model step as a function
 from the user text and a `next(text)` that calls the model. It checks the input,
 passes the redacted text to `next`, checks the answer and returns the final
 text, or the `refusal` with `blockedAt`. The middleware reads and rewrites text
 only and never changes a repository `Result`. A check that cannot run (for
 example when the database is unreachable) blocks the stage unless you set
 `failOpen`. A failed log write never changes the decision.
+
+### With the AI SDK
+
+`guardrailsMiddleware` from `better-supabase/ai-sdk` runs the same policy as
+an AI SDK 7 `LanguageModelMiddleware`, so it works with `wrapLanguageModel`,
+`generateText`, `streamText` and agents.
+
+```ts
+import { wrapLanguageModel } from "ai";
+import { guardrailsMiddleware } from "better-supabase/ai-sdk";
+
+const model = wrapLanguageModel({
+  model: "openai/gpt-5",
+  middleware: guardrailsMiddleware(guardrails, { agent: "support" }),
+});
+```
+
+The last user message is checked before the model runs. A `block` returns the
+`refusal` without calling the model, and a `redact` rewrites the prompt. The
+answer is checked after the call. A streamed text block is held until its
+`text-end` and then emitted redacted or replaced by the refusal, so the client
+never sees text the policy would have removed. Every check logs one decision,
+and a check that cannot run blocks the stage unless you set `failOpen`.
 
 ## Functions
 

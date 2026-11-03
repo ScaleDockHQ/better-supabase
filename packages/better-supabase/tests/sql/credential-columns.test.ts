@@ -28,6 +28,9 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   // Hook tokens address a Workflow SDK hook; the DDL is @workflow/world-postgres's.
   "workflow-sdk": [
     "workflow.workflow_hooks.token",
+    "workflow.workflow_hooks.claims_token",
+    "workflow.workflow_start_hook_admissions.token",
+    "?.claims_token",
     "workflow.workflow_hooks.token_retention_until",
     "?.token",
     "?.token_retention_until",

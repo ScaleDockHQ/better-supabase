@@ -6,7 +6,7 @@ import {
   createAiGuardrails,
   detectInjection,
   evaluateGuardrails,
-  guardrailMiddleware,
+  guardText,
   scanPii,
 } from "../../../src/blocks/ai-guardrails/index.ts";
 
@@ -183,15 +183,14 @@ describe("check", () => {
   });
 });
 
-describe("guardrailMiddleware", () => {
+describe("guardText", () => {
   it("passes redacted input on and redacts the answer", async () => {
     const { transport } = fake(stored({ pii: { action: "redact" } }));
     let seen = "";
 
-    const guarded = await guardrailMiddleware(
-      createAiGuardrails({ transport }),
-      { agent: "support" },
-    )("Mail ada@example.com", (text) => {
+    const guarded = await guardText(createAiGuardrails({ transport }), {
+      agent: "support",
+    })("Mail ada@example.com", (text) => {
       seen = text;
 
       return Promise.resolve("Sent to bob@example.com");
@@ -206,10 +205,10 @@ describe("guardrailMiddleware", () => {
     const { transport } = fake(stored({ denyTopics: ["x"] }));
     let called = false;
 
-    const guarded = await guardrailMiddleware(
-      createAiGuardrails({ transport }),
-      { agent: "a", refusal: "No." },
-    )("x please", () => {
+    const guarded = await guardText(createAiGuardrails({ transport }), {
+      agent: "a",
+      refusal: "No.",
+    })("x please", () => {
       called = true;
 
       return Promise.resolve("never");
@@ -224,17 +223,16 @@ describe("guardrailMiddleware", () => {
       check: () => Promise.resolve({ ok: false, error: { kind: "unknown" } }),
     } as never;
 
-    const closed = await guardrailMiddleware(failing, { agent: "a" })(
-      "hi",
-      () => Promise.resolve("answer"),
+    const closed = await guardText(failing, { agent: "a" })("hi", () =>
+      Promise.resolve("answer"),
     );
 
     expect(closed.blockedAt).toBe("input");
 
-    const open = await guardrailMiddleware(failing, {
-      agent: "a",
-      failOpen: true,
-    })("hi", () => Promise.resolve("answer"));
+    const open = await guardText(failing, { agent: "a", failOpen: true })(
+      "hi",
+      () => Promise.resolve("answer"),
+    );
 
     expect(open.text).toBe("answer");
   });
