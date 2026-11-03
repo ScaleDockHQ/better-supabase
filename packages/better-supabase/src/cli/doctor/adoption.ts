@@ -22,10 +22,12 @@ import {
   declaredCheckValues,
   excludedColumns,
   moduleLayout,
+  moduleSource,
   SECRET_COLUMNS,
   sameTenantColumn,
   sameTenantTrigger,
   SQL_MODULES,
+  writtenValues,
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
@@ -494,6 +496,8 @@ interface ManagedTables {
   readonly checks: readonly TableCheckValues[];
   readonly tables: BlockSqlNames["tables"];
   readonly values: ValueMaps;
+  /** The module's SQL as the adopter's config renders it. */
+  readonly sql: string;
 }
 
 function managedTables(
@@ -508,6 +512,20 @@ function managedTables(
   }
 
   try {
+    const adoption = adoptionContext(context);
+
+    const layout = {
+      ...moduleLayout(
+        context.config,
+        undefined,
+        [],
+        undefined,
+        adoption.accessProvider,
+      ),
+      ownTables: appTablesOf(context),
+      ...appViewsOf(context),
+    };
+
     return {
       checks: declaredCheckValues([{ text: module.sql }]),
       tables,
@@ -516,6 +534,7 @@ function managedTables(
         context.config.blocks[name]?.values,
         tables,
       ),
+      sql: moduleSource(name, layout) ?? module.sql,
     };
   } catch {
     return undefined;
@@ -646,17 +665,30 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
 
       const options = context.config.blocks[adoptedTable.module]?.options;
 
+      const written = new Set(
+        writtenValues(
+          managed.sql,
+          `${adoptedTable.schema}.${adoptedTable.table}`,
+          physical,
+        ),
+      );
+
       const wanted = [
         ...new Set(
           check.values.flatMap((label) => {
             const mapped = optionValues(options, label);
 
-            return mapped.length > 0
-              ? mapped
-              : appValues(
-                  managed.values[adoptedTable.logical]?.[logical],
-                  label,
-                );
+            const values =
+              mapped.length > 0
+                ? mapped
+                : appValues(
+                    managed.values[adoptedTable.logical]?.[logical],
+                    label,
+                  );
+
+            const first = values[0];
+
+            return first !== undefined && written.has(first) ? [first] : [];
           }),
         ),
       ];

@@ -1617,6 +1617,10 @@ describe("app table's check rejects values a block writes (BS361)", () => {
         message: expect.stringContaining('"held", "digested"'),
       }),
     ]);
+
+    const [finding] = await run("BS361", context(narrow, {}, config));
+
+    expect(finding?.message).toContain("notification_deliveries_status_check");
   });
 
   it("passes a check that accepts every value the block writes", async () => {
@@ -1644,6 +1648,162 @@ describe("app table's check rejects values a block writes (BS361)", () => {
     });
 
     expect(await run("BS361", context(unchecked, {}, config))).toEqual([]);
+  });
+
+  it("does not report a value the config stops the block from writing", async () => {
+    const withDecisions = snapshot((tables, catalog) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        id: 0,
+        name: "approval_decisions",
+        columns: [
+          "id",
+          "request_id",
+          "organization_id",
+          "step",
+          "decided_by",
+          "decision",
+          "delegate_to",
+          "comment",
+          "created_at",
+        ].map((name) => ({
+          ...column,
+          name,
+          udt: name === "decision" ? "approval_decision_outcome" : "text",
+          format: name === "decision" ? "approval_decision_outcome" : "text",
+          typeSchema: name === "decision" ? "public" : "pg_catalog",
+          isEnum: name === "decision",
+          isArray: false,
+        })),
+        checks: [],
+        foreignKeys: [],
+        triggers: [],
+        policies: [],
+        indexes: [],
+        grants: [],
+        primaryKey: [],
+        uniques: [],
+      });
+
+      catalog.enums = [
+        ...catalog.enums,
+        {
+          schema: "public",
+          name: "approval_decision_outcome",
+          values: ["approved", "rejected"],
+        },
+      ];
+    });
+
+    const decisions = {
+      tables: { decisions: "public.approval_decisions" },
+      columns: {
+        decisions: {
+          approver: "decided_by",
+          delegateTo: null,
+          request: "request_id",
+          tenant: "organization_id",
+        },
+      },
+    };
+
+    expect(
+      await run(
+        "BS361",
+        context(withDecisions, {}, { blocks: { approvals: decisions } }),
+      ),
+    ).toEqual([]);
+
+    expect(
+      await run(
+        "BS361",
+        context(
+          withDecisions,
+          {},
+          {
+            blocks: {
+              approvals: {
+                ...decisions,
+                columns: {
+                  decisions: {
+                    ...decisions.columns.decisions,
+                    delegateTo: "delegate_to",
+                  },
+                },
+              },
+            },
+          },
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        target: "public.approval_decisions.decision",
+        message: expect.stringContaining('"delegated"'),
+      }),
+    ]);
+  });
+
+  it("does not report a value the block never writes", async () => {
+    const withProducts = snapshot((tables, catalog) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        id: 0,
+        name: "products",
+        columns: [
+          "id",
+          "organization_id",
+          "slug",
+          "title",
+          "description",
+          "kind",
+          "status",
+          "created_at",
+          "updated_at",
+        ].map((name) => ({
+          ...column,
+          name,
+          udt: name === "kind" ? "product_type" : "text",
+          format: name === "kind" ? "product_type" : "text",
+          typeSchema: name === "kind" ? "public" : "pg_catalog",
+          isEnum: name === "kind",
+          isArray: false,
+        })),
+        checks: [],
+        foreignKeys: [],
+        triggers: [],
+        policies: [],
+        indexes: [],
+        grants: [],
+        primaryKey: [],
+        uniques: [],
+      });
+
+      catalog.enums = [
+        ...catalog.enums,
+        {
+          schema: "public",
+          name: "product_type",
+          values: ["physical", "digital"],
+        },
+      ];
+    });
+
+    const catalog = {
+      blocks: {
+        catalog: {
+          tables: { products: "public.products" },
+          columns: { products: { kind: "kind" } },
+        },
+      },
+    };
+
+    expect(await run("BS361", context(withProducts, {}, catalog))).toEqual([]);
   });
 
   it("maps a label through blocks.<name>.values before it compares", async () => {
