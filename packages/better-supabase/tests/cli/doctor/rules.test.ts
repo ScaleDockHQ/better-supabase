@@ -1507,6 +1507,495 @@ describe("enum columns of the app's tables the module writes as text (BS342)", (
   });
 });
 
+describe("app table's check rejects values a block writes (BS361)", () => {
+  const appTable = (
+    tables: Mutable<CatalogTable>[],
+    catalog: Mutable<Catalog>,
+    columns: readonly string[],
+    checks: readonly { readonly name: string; readonly definition: string }[],
+    enumType?: string,
+  ) => {
+    const notes = table(tables, "notes");
+    const column = notes.columns[0]!;
+
+    const uuid = new Set(["id", "recipient_id"]);
+
+    tables.push({
+      ...notes,
+      id: 0,
+      name: "notification_deliveries",
+      columns: columns.map((name) => ({
+        ...column,
+        name,
+        udt:
+          enumType !== undefined && name === "status"
+            ? enumType
+            : uuid.has(name)
+              ? "uuid"
+              : "text",
+        format:
+          enumType !== undefined && name === "status"
+            ? enumType
+            : uuid.has(name)
+              ? "uuid"
+              : "text",
+        typeSchema:
+          enumType !== undefined && name === "status" ? "public" : "pg_catalog",
+        isEnum: enumType !== undefined && name === "status",
+        isArray: false,
+      })),
+      checks,
+      foreignKeys: [],
+      triggers: [],
+      policies: [],
+      indexes: [],
+      grants: [],
+      primaryKey: [],
+      uniques: [],
+    });
+
+    if (enumType !== undefined) {
+      catalog.enums = [
+        ...catalog.enums,
+        {
+          schema: "public",
+          name: enumType,
+          values: ["pending", "sent", "failed", "skipped"],
+        },
+      ];
+    }
+  };
+
+  const check = (
+    name: string,
+    definition: string,
+  ): { readonly name: string; readonly definition: string } => ({
+    name,
+    definition,
+  });
+
+  const columns = [
+    "id",
+    "recipient_id",
+    "channel",
+    "status",
+    "attempted_at",
+    "created_at",
+  ];
+
+  const config = {
+    blocks: {
+      notifications: {
+        tables: { deliveries: "public.notification_deliveries" },
+      },
+    },
+  };
+
+  const narrow = snapshot((tables, catalog) => {
+    appTable(tables, catalog, columns, [
+      check(
+        "notification_deliveries_status_check",
+        "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'skipped'::text])))",
+      ),
+    ]);
+  });
+
+  const wide = snapshot((tables, catalog) => {
+    appTable(tables, catalog, columns, [
+      check(
+        "notification_deliveries_status_check",
+        "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'skipped'::text, 'held'::text, 'digested'::text])))",
+      ),
+    ]);
+  });
+
+  it("reports a check that rejects held and digested", async () => {
+    expect(await run("BS361", context(narrow, {}, config))).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.notification_deliveries.status",
+        message: expect.stringContaining('"held", "digested"'),
+      }),
+    ]);
+  });
+
+  it("passes a check that accepts every value the block writes", async () => {
+    expect(await run("BS361", context(wide, {}, config))).toEqual([]);
+  });
+
+  it("reports an enum that lacks the values the block writes", async () => {
+    const enumSnapshot = snapshot((tables, catalog) => {
+      appTable(tables, catalog, columns, [], "notification_delivery_status");
+    });
+
+    expect(await run("BS361", context(enumSnapshot, {}, config))).toEqual([
+      expect.objectContaining({
+        target: "public.notification_deliveries.status",
+        message: expect.stringContaining(
+          "the enum public.notification_delivery_status",
+        ),
+      }),
+    ]);
+  });
+
+  it("passes a column without a check", async () => {
+    const unchecked = snapshot((tables, catalog) => {
+      appTable(tables, catalog, columns, []);
+    });
+
+    expect(await run("BS361", context(unchecked, {}, config))).toEqual([]);
+  });
+
+  it("maps a label through blocks.<name>.values before it compares", async () => {
+    const attachmentColumns = [
+      "id",
+      "organization_id",
+      "subject_type",
+      "subject_id",
+      "bucket",
+      "object_path",
+      "name",
+      "mime_type",
+      "size",
+      "status",
+      "uploaded_by",
+      "created_at",
+      "uploaded_at",
+      "version",
+    ];
+
+    const withAttachments = (statusCheck: string) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        const column = notes.columns[0]!;
+
+        tables.push({
+          ...notes,
+          id: 0,
+          name: "attachments",
+          columns: attachmentColumns.map((name) => ({
+            ...column,
+            name,
+            udt: "text",
+            format: "text",
+            typeSchema: "pg_catalog",
+            isEnum: false,
+            isArray: false,
+          })),
+          checks: [
+            { name: "attachments_status_check", definition: statusCheck },
+          ],
+          foreignKeys: [],
+          triggers: [],
+          policies: [],
+          indexes: [],
+          grants: [],
+          primaryKey: [],
+          uniques: [],
+        });
+      });
+
+    const attachments = {
+      blocks: {
+        attachments: {
+          tables: { attachments: "public.attachments" },
+          values: { attachments: { status: { infected: "quarantined" } } },
+        },
+      },
+    };
+
+    expect(
+      await run(
+        "BS361",
+        context(
+          withAttachments(
+            "CHECK ((status = ANY (ARRAY['pending'::text, 'clean'::text, 'failed'::text])))",
+          ),
+          {},
+          attachments,
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        target: "public.attachments.status",
+        message: expect.stringContaining('"quarantined"'),
+      }),
+    ]);
+
+    expect(
+      await run(
+        "BS361",
+        context(
+          withAttachments(
+            "CHECK ((status = ANY (ARRAY['pending'::text, 'clean'::text, 'quarantined'::text, 'failed'::text])))",
+          ),
+          {},
+          attachments,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("maps a label through blocks.<name>.options.statuses before it compares", async () => {
+    const withDeliveries = (statusCheck: string) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        const column = notes.columns[0]!;
+
+        tables.push({
+          ...notes,
+          id: 0,
+          name: "notification_deliveries",
+          columns: columns.map((name) => ({
+            ...column,
+            name,
+            udt: "text",
+            format: "text",
+            typeSchema: "pg_catalog",
+            isEnum: false,
+            isArray: false,
+          })),
+          checks: [
+            {
+              name: "notification_deliveries_status_check",
+              definition: statusCheck,
+            },
+          ],
+          foreignKeys: [],
+          triggers: [],
+          policies: [],
+          indexes: [],
+          grants: [],
+          primaryKey: [],
+          uniques: [],
+        });
+      });
+
+    const webhooks = {
+      blocks: {
+        "webhooks-out": {
+          tables: { deliveries: "public.notification_deliveries" },
+          options: {
+            statuses: {
+              delivering: "processing",
+              succeeded: "completed",
+              retrying: "failed",
+              dead: "dead_lettered",
+            },
+          },
+        },
+      },
+    };
+
+    expect(
+      await run(
+        "BS361",
+        context(
+          withDeliveries(
+            "CHECK ((status = ANY (ARRAY['pending'::text, 'delivering'::text, 'succeeded'::text, 'retrying'::text, 'dead'::text, 'canceled'::text])))",
+          ),
+          {},
+          webhooks,
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        target: "public.notification_deliveries.status",
+        message: expect.stringContaining(
+          '"processing", "completed", "failed", "dead_lettered"',
+        ),
+      }),
+    ]);
+
+    expect(
+      await run(
+        "BS361",
+        context(
+          withDeliveries(
+            "CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text, 'dead_lettered'::text, 'canceled'::text])))",
+          ),
+          {},
+          webhooks,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips an array column", async () => {
+    const array = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        id: 0,
+        name: "notification_deliveries",
+        columns: columns.map((name) => ({
+          ...column,
+          name,
+          udt: name === "status" ? "_text" : "text",
+          format: name === "status" ? "_text" : "text",
+          typeSchema: "pg_catalog",
+          isEnum: false,
+          isArray: name === "status",
+        })),
+        checks: [
+          check(
+            "notification_deliveries_status_check",
+            "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text])))",
+          ),
+        ],
+        foreignKeys: [],
+        triggers: [],
+        policies: [],
+        indexes: [],
+        grants: [],
+        primaryKey: [],
+        uniques: [],
+      });
+    });
+
+    expect(await run("BS361", context(array, {}, config))).toEqual([]);
+  });
+
+  it("skips an enum the catalog does not describe", async () => {
+    const missing = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        id: 0,
+        name: "notification_deliveries",
+        columns: columns.map((name) => ({
+          ...column,
+          name,
+          udt: name === "status" ? "notification_delivery_status" : "text",
+          format: name === "status" ? "notification_delivery_status" : "text",
+          typeSchema: name === "status" ? "public" : "pg_catalog",
+          isEnum: name === "status",
+          isArray: false,
+        })),
+        checks: [],
+        foreignKeys: [],
+        triggers: [],
+        policies: [],
+        indexes: [],
+        grants: [],
+        primaryKey: [],
+        uniques: [],
+      });
+    });
+
+    expect(await run("BS361", context(missing, {}, config))).toEqual([]);
+  });
+
+  it("skips a column that is not text", async () => {
+    const numeric = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        id: 0,
+        name: "notification_deliveries",
+        columns: columns.map((name) => ({
+          ...column,
+          name,
+          udt: name === "status" ? "int4" : "text",
+          format: name === "status" ? "int4" : "text",
+          typeSchema: "pg_catalog",
+          isEnum: false,
+          isArray: false,
+        })),
+        checks: [],
+        foreignKeys: [],
+        triggers: [],
+        policies: [],
+        indexes: [],
+        grants: [],
+        primaryKey: [],
+        uniques: [],
+      });
+    });
+
+    expect(await run("BS361", context(numeric, {}, config))).toEqual([]);
+  });
+
+  it("ignores checks that parse to no column and checks on other columns", async () => {
+    const mixed = snapshot((tables, catalog) => {
+      appTable(tables, catalog, columns, [
+        check(
+          "notification_deliveries_status_check",
+          "CHECK ((length(status) > 0))",
+        ),
+        check(
+          "notification_deliveries_channel_check",
+          "CHECK ((channel = ANY (ARRAY['email'::text])))",
+        ),
+        check(
+          "notification_deliveries_status_check2",
+          "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'skipped'::text, 'held'::text, 'digested'::text])))",
+        ),
+      ]);
+    });
+
+    expect(await run("BS361", context(mixed, {}, config))).toEqual([]);
+  });
+
+  it("intersects several checks on one column and names the first", async () => {
+    const two = snapshot((tables, catalog) => {
+      appTable(tables, catalog, columns, [
+        check(
+          "notification_deliveries_status_check",
+          "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'held'::text, 'digested'::text])))",
+        ),
+        check(
+          "notification_deliveries_status_check2",
+          "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text])))",
+        ),
+      ]);
+    });
+
+    expect(await run("BS361", context(two, {}, config))).toEqual([
+      expect.objectContaining({
+        target: "public.notification_deliveries.status",
+        message: expect.stringContaining(
+          "notification_deliveries_status_check",
+        ),
+      }),
+    ]);
+  });
+
+  it("skips an adopted table the catalog does not have", async () => {
+    const missing = {
+      blocks: {
+        notifications: { tables: { deliveries: "public.missing_deliveries" } },
+      },
+    };
+
+    expect(await run("BS361", context(base, {}, missing))).toEqual([]);
+  });
+
+  it("skips a logical column the app table does not have", async () => {
+    const withoutStatus = snapshot((tables, catalog) => {
+      appTable(
+        tables,
+        catalog,
+        columns.filter((name) => name !== "status"),
+        [
+          check(
+            "notification_deliveries_status_check",
+            "CHECK ((status = ANY (ARRAY['pending'::text])))",
+          ),
+        ],
+      );
+    });
+
+    expect(await run("BS361", context(withoutStatus, {}, config))).toEqual([]);
+  });
+});
+
 describe("app webhook endpoints without a format (BS344)", () => {
   const withEndpoints = (columns: readonly string[]) =>
     snapshot((tables) => {

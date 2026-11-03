@@ -1,19 +1,35 @@
-import type { DataExportPlan } from "../../sql/index.ts";
-import type { CatalogTable } from "../introspect/types.ts";
-import type { FindingInput, Rule } from "./rules.ts";
+import type {
+  AdoptedTable,
+  BlockSqlNames,
+  DataExportPlan,
+  TableCheckValues,
+  ValueMaps,
+} from "../../sql/index.ts";
+import type {
+  CatalogColumn,
+  CatalogEnum,
+  CatalogTable,
+} from "../introspect/types.ts";
+import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import {
   adoptedTables,
   adoptedViews,
+  appValues,
+  checkedValueMaps,
+  checkValues,
   dataExportPlan,
+  declaredCheckValues,
   excludedColumns,
   moduleLayout,
   SECRET_COLUMNS,
   sameTenantColumn,
   sameTenantTrigger,
+  SQL_MODULES,
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
+import { isRecord } from "../guards.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
 import { catalogOf, qualified } from "./shared.ts";
@@ -299,6 +315,14 @@ export const ADOPTION_RULES: readonly Rule[] = [
     check: appTablesWithoutPolicies,
   },
   {
+    code: "BS361",
+    severity: "warning",
+    title: "App table's check rejects values a block writes",
+    description:
+      "A block runs over one of your tables, and a check constraint or an enum on a column the block writes rejects a value the block writes into it. The module's own table declares the values it writes in its `check (column in (...))` constraint, and the block writes them through the column your config maps. A narrower check or enum makes the block's inserts and updates fail. Widen the check constraint or add the values to the enum.",
+    check: checkValuesOverAdoptedTables,
+  },
+  {
     code: "BS341",
     severity: "warning",
     title: "Data export includes a column that looks like a secret",
@@ -392,4 +416,269 @@ function patternOf(pattern: string | undefined): RegExp | undefined {
   } catch {
     return undefined;
   }
+}
+
+const TEXT_TYPES = new Set([
+  "text",
+  "varchar",
+  "bpchar",
+  "char",
+  "citext",
+  "name",
+]);
+
+type AllowedValues =
+  | {
+      readonly values: ReadonlySet<string>;
+      /** The enum type, when the column is an enum. */
+      readonly enumName: string;
+    }
+  | {
+      readonly values: ReadonlySet<string>;
+      /** The check constraint that narrows the column. */
+      readonly constraint: string;
+    };
+
+/** The values an app column accepts: its enum, or its membership checks. */
+function allowedValues(
+  column: CatalogColumn,
+  table: CatalogTable,
+  enums: ReadonlyMap<string, CatalogEnum>,
+): AllowedValues | undefined {
+  if (column.isArray) {
+    return undefined;
+  }
+
+  if (column.isEnum) {
+    const entry = enums.get(`${column.typeSchema}.${column.udt}`);
+
+    return entry === undefined
+      ? undefined
+      : {
+          values: new Set(entry.values),
+          enumName: `${entry.schema}.${entry.name}`,
+        };
+  }
+
+  if (!TEXT_TYPES.has(column.udt)) {
+    return undefined;
+  }
+
+  let found:
+    | { readonly values: ReadonlySet<string>; readonly constraint: string }
+    | undefined;
+
+  for (const check of table.checks) {
+    const parsed = checkValues(check.definition);
+
+    if (parsed === undefined || parsed.column !== column.name) {
+      continue;
+    }
+
+    const accepted = new Set(parsed.values);
+
+    found = {
+      values:
+        found === undefined
+          ? accepted
+          : new Set([...found.values].filter((value) => accepted.has(value))),
+      constraint: found?.constraint ?? check.name,
+    };
+  }
+
+  return found;
+}
+
+/** The module's own tables as it declares them, with the checks it writes. */
+interface ManagedTables {
+  readonly checks: readonly TableCheckValues[];
+  readonly tables: BlockSqlNames["tables"];
+  readonly values: ValueMaps;
+}
+
+function managedTables(
+  name: string,
+  context: DoctorContext,
+): ManagedTables | undefined {
+  const module = SQL_MODULES[name];
+  const tables = module?.names?.tables;
+
+  if (module === undefined || tables === undefined) {
+    return undefined;
+  }
+
+  try {
+    return {
+      checks: declaredCheckValues([{ text: module.sql }]),
+      tables,
+      values: checkedValueMaps(
+        `blocks.${name}`,
+        context.config.blocks[name]?.values,
+        tables,
+      ),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** `blocks.<name>.options.statuses`: the stored value a block gives a label. */
+function optionValues(
+  options: Readonly<Record<string, unknown>> | undefined,
+  label: string,
+): readonly string[] {
+  const statuses = options?.["statuses"];
+
+  if (!isRecord(statuses)) {
+    return [];
+  }
+
+  const value = statuses[label];
+
+  return typeof value === "string" && value.length > 0 ? [value] : [];
+}
+
+function checkRejectsMessage(
+  table: AdoptedTable,
+  logical: string,
+  column: string,
+  missing: readonly string[],
+  allowed: AllowedValues,
+): string {
+  const name = `${table.schema}.${table.table}`;
+  const values = missing.map((value) => `"${value}"`).join(", ");
+  const writes = `blocks.${table.module} writes ${values} into ${table.logical}.${logical}`;
+
+  if ("enumName" in allowed) {
+    return `${name}.${column} is the enum ${allowed.enumName}, which lacks ${values}, and ${writes}, so those writes fail. Add the values to the enum.`;
+  }
+
+  const accepted = [...allowed.values].map((value) => `"${value}"`).join(", ");
+
+  return `${name}.${column} allows ${accepted}, and ${writes}, so those writes fail. Widen the check constraint ${allowed.constraint} to accept ${values}.`;
+}
+
+/** Checks of the app's tables that reject a value the module writes (BS361). */
+function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
+  const adopted = adoptedTables(
+    context.config.blocks,
+    appTablesOf(context),
+    adoptionContext(context),
+  );
+
+  if (adopted.length === 0) {
+    return [];
+  }
+
+  const { tables, enums } = catalogOf(context);
+
+  const byName = new Map(tables.map((table) => [qualified(table), table]));
+
+  const enumByName = new Map(
+    enums.map((entry) => [`${entry.schema}.${entry.name}`, entry]),
+  );
+
+  const rendered = new Map<string, ManagedTables | undefined>();
+  const findings: FindingInput[] = [];
+
+  for (const adoptedTable of adopted) {
+    let managed = rendered.get(adoptedTable.module);
+
+    if (!rendered.has(adoptedTable.module)) {
+      managed = managedTables(adoptedTable.module, context);
+      rendered.set(adoptedTable.module, managed);
+    }
+
+    if (managed === undefined) {
+      continue;
+    }
+
+    const spec = managed.tables[adoptedTable.logical];
+
+    if (spec === undefined) {
+      continue;
+    }
+
+    const name = `${adoptedTable.schema}.${adoptedTable.table}`;
+    const catalogTable = byName.get(name);
+
+    if (catalogTable === undefined) {
+      continue;
+    }
+
+    const logicalByColumn = new Map(
+      Object.entries(spec.columns).map(([logical, column]) => [
+        column,
+        logical,
+      ]),
+    );
+
+    for (const check of managed.checks) {
+      if (check.table.split(".").at(-1) !== spec.name) {
+        continue;
+      }
+
+      const logical = logicalByColumn.get(check.column);
+
+      if (logical === undefined) {
+        continue;
+      }
+
+      const physical = adoptedTable.columns[logical];
+
+      if (physical === undefined) {
+        continue;
+      }
+
+      const column = catalogTable.columns.find(
+        (entry) => entry.name === physical,
+      );
+
+      if (column === undefined) {
+        continue;
+      }
+
+      const allowed = allowedValues(column, catalogTable, enumByName);
+
+      if (allowed === undefined) {
+        continue;
+      }
+
+      const options = context.config.blocks[adoptedTable.module]?.options;
+
+      const wanted = [
+        ...new Set(
+          check.values.flatMap((label) => {
+            const mapped = optionValues(options, label);
+
+            return mapped.length > 0
+              ? mapped
+              : appValues(
+                  managed.values[adoptedTable.logical]?.[logical],
+                  label,
+                );
+          }),
+        ),
+      ];
+
+      const missing = wanted.filter((value) => !allowed.values.has(value));
+
+      if (missing.length === 0) {
+        continue;
+      }
+
+      findings.push({
+        message: checkRejectsMessage(
+          adoptedTable,
+          logical,
+          physical,
+          missing,
+          allowed,
+        ),
+        target: `${name}.${physical}`,
+      });
+    }
+  }
+
+  return findings;
 }
