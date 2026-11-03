@@ -694,7 +694,8 @@ declare
 begin
   select (i.prefill ->> 'recordId')::uuid into v_record
   from better_supabase.invitations i
-  where i.id = better_supabase.accepting_invitation();
+  where i.id = better_supabase.accepting_invitation()
+    and i.organization_id = new.organization_id;
 
   if v_record is not null then
     update public.people set user_id = new.user_id
