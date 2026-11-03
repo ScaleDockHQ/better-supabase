@@ -815,6 +815,9 @@ export const GET = bsb.debugRoute();
   warning. Attach an admin call to its render with
   `bsb.admin({}, { request })` (`{ stats }` on the server entry).
 - `bsb.route()` responses carry `x-bsb-db-calls: calls;waves;ms;verifications;adminCalls` directly.
+  A server action answers with a result, not a `Response`, so with
+  `debug.enabled` it logs the same value as `bsb.action x-bsb-db-calls: ...`
+  after it settles.
   Pages stream, so their headers leave before the render finishes; their
   totals are served by `bsb.debugRoute()` at the URL in the `x-bsb-stats`
   response header.

@@ -80,7 +80,9 @@ import {
 } from "./cache.ts";
 import {
   DEFAULT_ROUND_TRIPS,
+  devBudget,
   REQUEST_ID_HEADER,
+  logActionStats,
   requestIdOf,
   formatStats,
   sharedCollector,
@@ -156,9 +158,7 @@ export function createNext<
   const roundTrips = options.devRoundTripBudget ?? DEFAULT_ROUND_TRIPS;
   const watching = development && roundTrips !== false;
 
-  const budget =
-    debug?.budget ??
-    (watching ? { waves: roundTrips, adminCalls: 0 } : undefined);
+  const budget = debug?.budget ?? devBudget(watching && roundTrips);
 
   const collector =
     debug?.enabled || watching
@@ -1094,6 +1094,12 @@ export function createNext<
           // Also when redirect() or notFound() follows a write.
           flushAfter();
           await writeCookies(ctx);
+          await logActionStats(
+            debug?.enabled ? collector : undefined,
+            betterSupabase.events.logger,
+            incomingRequest,
+            statsHeader,
+          );
         }
 
         // SAFETY: Out is the Result of the action's return type, which both branches build.

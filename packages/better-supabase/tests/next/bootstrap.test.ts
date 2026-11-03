@@ -287,6 +287,7 @@ describe("bsb.bootstrap()", () => {
       stale: false,
       endReason: null,
       tenant: null,
+      subject: null,
       data: { unread: 3 },
       reads: null,
     });

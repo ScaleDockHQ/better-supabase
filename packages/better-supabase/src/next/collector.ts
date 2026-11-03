@@ -241,3 +241,27 @@ function describeBudget(budget: DbBudget): string {
 export function formatStats(stats: DbStats): string {
   return `${stats.calls};${stats.waves};${stats.ms};${stats.verifications};${stats.adminCalls}`;
 }
+
+/**
+ * A server action answers with a serializable result, never a `Response`, so it
+ * can't carry the stats header. This logs the header's value instead; the
+ * proxy's request id links the line to the page.
+ */
+export async function logActionStats(
+  collector: Pick<CollectorView, "get"> | undefined,
+  logger: Logger,
+  request: () => Promise<Request>,
+  header: string,
+): Promise<void> {
+  const id = collector && requestIdOf((await request()).headers);
+  const stats = id === undefined ? undefined : collector?.get(id);
+
+  if (stats) {
+    logger.info(`bsb.action ${header}: ${formatStats(stats)}`);
+  }
+}
+
+/** The development budget: `waves` round trips and no service-role call. */
+export function devBudget(waves: number | false): DbBudget | undefined {
+  return waves === false ? undefined : { waves, adminCalls: 0 };
+}
