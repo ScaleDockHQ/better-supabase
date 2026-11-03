@@ -12,6 +12,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 const mocks = vi.hoisted(() => ({
   headers: new Headers(),
   scope: new Map<unknown, Map<string, unknown>>(),
+  after: vi.fn<(work: () => unknown) => void>(),
   cacheLife: vi.fn<(profile: unknown) => void>(),
   cacheTag: vi.fn<(...tags: string[]) => void>(),
   updateTag: vi.fn<(tag: string) => undefined>(),
@@ -42,6 +43,11 @@ vi.mock(import("next/headers.js"), () => ({
   // SAFETY: the code under test reads only getAll from the cookie jar.
   cookies: () => Promise.resolve({ getAll: () => [] } as never),
   headers: () => Promise.resolve(mocks.headers as never),
+}));
+
+vi.mock(import("next/server.js"), async (original) => ({
+  ...(await original()),
+  after: mocks.after as never,
 }));
 
 vi.mock(import("next/cache.js"), () => ({
@@ -83,6 +89,7 @@ const nextRequest = (): void => {
 beforeEach(() => {
   nextRequest();
   mocks.headers = new Headers();
+  mocks.after.mockReset();
   mocks.cacheLife.mockReset();
   mocks.cacheTag.mockReset();
   mocks.updateTag.mockReset();
@@ -166,6 +173,58 @@ describe("bsb.remote()", () => {
     });
 
     expect(await read()).toBe("none");
+  });
+});
+
+describe("bsb.sessionHandle()", () => {
+  const bsb = createNext(defineSupabase(schema), {
+    env,
+    cacheTags: false,
+    auth: { jwks: signer.jwks },
+  });
+
+  it("resolves a private scope from the handle without reading the request", async () => {
+    await signIn({ authz_ver: 2 });
+
+    const handle = await bsb.sessionHandle();
+
+    expect(handle).toEqual({
+      userId: USER,
+      sessionId: SESSION,
+      tenant: null,
+      authzVersion: 2,
+      shared: null,
+      support: null,
+    });
+
+    // The scope can't read the request: the headers are gone.
+    mocks.headers = new Headers();
+
+    const ctx = await bsb.cached({ session: handle });
+
+    expect(ctx.session.kind === "user" ? ctx.session.user.id : "-").toBe(USER);
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      sessionTag(USER),
+      `bsb:session-id:${SESSION}`,
+    );
+  });
+
+  it("releases the parked session once the response is sent", async () => {
+    await signIn();
+
+    const handle = await bsb.sessionHandle();
+    const release = mocks.after.mock.calls[0]?.[0];
+
+    expect(release).toBeTypeOf("function");
+
+    release?.();
+    nextRequest();
+    mocks.headers = new Headers();
+
+    // Without a parked session the scope reads the (now anonymous) request.
+    const ctx = await bsb.cached({ session: handle });
+
+    expect(ctx.auth.kind).toBe("none");
   });
 });
 

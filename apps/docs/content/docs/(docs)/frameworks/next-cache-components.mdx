@@ -597,6 +597,43 @@ The database calls themselves are what's left; count them with the
 covers the session memo that shares the verification across scopes, even
 while the first one is still in flight.
 
+### Skip the request read with a session handle
+
+Every private scope still reads `cookies()` or `headers()` and looks the
+verified token up in the memo. `bsb.sessionHandle()` does that once, in the
+page, and parks the verified session until the response is sent. Pass the
+returned handle to each island and to `bsb.cached({ session })`:
+
+```tsx title="src/app/customers/page.tsx"
+export default async function Page() {
+  const session = await bsb.sessionHandle();
+
+  return (
+    <>
+      <Customers session={session} />
+      <Notes session={session} />
+    </>
+  );
+}
+
+async function Customers({ session }: { session: SessionHandle }) {
+  "use cache: private";
+
+  const { db } = await bsb.cached({ session, tables: ["customers"] });
+
+  return <List rows={await db.customers.list().orThrow()} />;
+}
+```
+
+The handle names the user, session, tenant and authorization version, never
+the token, so it is a sound part of the cache key. A scope with a handle reads
+no cookie or header, runs no verification and shares one context, and so one
+PostgREST client, with the other islands of the same request. Without a
+parked session (the response has been sent, or a support session is active,
+whose restrictions live in the request) the scope reads the request as
+before. The token memo keys by a SHA-256 digest of the token, so the process
+never keeps a bearer credential as a map key.
+
 Data that is the same for every user belongs in a plain `'use cache'` with
 `bsb.tag()` and `bsb.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
 Don't pass a user id into a shared `'use cache'` function that uses

@@ -83,6 +83,7 @@ export type {
   NextOptions,
   NextRootParams,
   PrivateCachedOptions,
+  SessionHandle,
   RemoteCacheKey,
   RemoteCachedOptions,
   RemoteOptions,

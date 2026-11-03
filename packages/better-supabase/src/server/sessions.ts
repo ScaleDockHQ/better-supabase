@@ -107,13 +107,37 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     return found;
   };
 
+  /** One context, so one PostgREST client, per parked snapshot and tenant. */
+  const built = new WeakMap<object, Map<string, Promise<Ctx>>>();
+
   const contextFromSession = (
     session: SessionSnapshot<C> | null,
     contextOptions?: Opts,
   ): Promise<Ctx> => {
     const auth = session ? authFor<C, P>(session) : ANON;
+    const given = contextOptions ?? {};
+    const keys = Object.keys(given);
+    const tenant = "tenant" in given ? given.tenant : undefined;
 
-    return Promise.resolve(options.contextFor(auth, contextOptions ?? {}));
+    if (
+      !session ||
+      keys.length > 1 ||
+      (keys.length === 1 && typeof tenant !== "string")
+    ) {
+      return Promise.resolve(options.contextFor(auth, given));
+    }
+
+    const tenants = built.get(session) ?? new Map<string, Promise<Ctx>>();
+    const slot = typeof tenant === "string" ? tenant : "";
+    let found = tenants.get(slot);
+
+    if (!found) {
+      found = Promise.resolve(options.contextFor(auth, given));
+      tenants.set(slot, found);
+      built.set(session, tenants);
+    }
+
+    return found;
   };
 
   const evict = (userId: string): void => {

@@ -154,6 +154,17 @@ interface Entry<T> {
   until: number;
 }
 
+const encoder = new TextEncoder();
+
+/** The SHA-256 digest of a token, so the memo never keeps a bearer credential. */
+const digestOf = async (token: string): Promise<string> => {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token));
+
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+};
+
 /**
  * A bounded LRU of verified sessions. Keys derive only from the token, never
  * from a user id or a header, so one instance can serve many users at once
@@ -193,7 +204,8 @@ export function sessionMemo<T>(
   };
 
   return {
-    get(token, load) {
+    async get(raw, load) {
+      const token = await digestOf(raw);
       const now = clock();
       const known = entries.get(token);
 
@@ -240,11 +252,11 @@ export function sessionMemo<T>(
       return entry.promise;
     },
 
-    seed(token, value) {
+    async seed(raw, value) {
+      const token = await digestOf(raw);
       const until = untilFor(clock(), expiresAt(value));
-      store(token, { promise: Promise.resolve(value), value, until });
 
-      return Promise.resolve();
+      store(token, { promise: Promise.resolve(value), value, until });
     },
 
     evict(match) {

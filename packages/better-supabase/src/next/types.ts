@@ -333,6 +333,26 @@ export interface BetterNext<
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B>>;
   /**
+   * Parks the request's verified session until the response is sent and returns
+   * its serializable handle. Pass the handle to a `'use cache: private'`
+   * function and to `bsb.cached({ session: handle })`: the scope resolves the
+   * session from the handle, so it reads no cookie, header or token and runs no
+   * verification. Without a handle (or after the response) the scope reads the
+   * request's session as before. The handle names the user, session, tenant and
+   * authorization version, never the token, so it is a sound cache key part.
+   *
+   * ```ts
+   * const session = await bsb.sessionHandle();
+   * <Customers session={session} />;
+   *
+   * async function Customers({ session }: { session: SessionHandle }) {
+   *   "use cache: private";
+   *   const { db } = await bsb.cached({ session });
+   * }
+   * ```
+   */
+  sessionHandle(options?: { readonly tenant?: string }): Promise<SessionHandle>;
+  /**
    * Wraps a `'use cache: remote'` function so it can read as the caller: it
    * verifies the session outside the boundary (a memo hit), hands the token
    * over for the call, and passes the serializable key parts first. The token
@@ -877,6 +897,9 @@ export interface RemoteCacheKey {
   readonly support: string | null;
 }
 
+/** The serializable handle of a parked session; see `bsb.sessionHandle()`. */
+export type SessionHandle = RemoteCacheKey;
+
 export interface RemoteOptions<
   C = unknown,
   A extends readonly unknown[] = readonly unknown[],
@@ -912,6 +935,11 @@ export interface PrivateCachedOptions<T extends string = string>
   extends ScopeOptions, CachedEntryOptions<T> {
   /** Defaults to `"private"`. */
   readonly scope?: "private";
+  /**
+   * The handle `bsb.sessionHandle()` returned. The scope resolves the session
+   * from it instead of reading the request.
+   */
+  readonly session?: SessionHandle;
   /**
    * The active tenant, as for `bsb.context({ tenant })`. Next.js keys the
    * private cache on your function's arguments, so take the tenant as an
