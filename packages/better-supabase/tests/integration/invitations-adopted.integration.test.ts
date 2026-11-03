@@ -232,6 +232,20 @@ describe.skipIf(!live)("invitations over the app's own tables", () => {
         ).toBe("INVITATION_ROLE_UNKNOWN");
       }
 
+      await s.client.query(`
+        create table ${schema}.accepting_log (user_id uuid, invitation_id uuid);
+        create function ${schema}.log_accepting() returns trigger language plpgsql security definer set search_path = '' as $fn$
+        begin
+          insert into ${schema}.accepting_log values (new.user_id, ${schema}.accepting_invitation());
+          return new;
+        end;
+        $fn$;
+        create trigger log_accepting after insert on ${schema}.user_roles
+          for each row execute function ${schema}.log_accepting();
+        create trigger log_accepting after insert on ${schema}.team_members
+          for each row execute function ${schema}.log_accepting();
+      `);
+
       await s.as(agent);
       expect(
         await s.value<{ prefill: unknown; role: string }>(
@@ -243,6 +257,14 @@ describe.skipIf(!live)("invitations over the app's own tables", () => {
         await s.value(`${schema}.accept_invitation($1)`, [platform.token]),
       ).toBeNull();
       expect(await roleKey("user_roles", agent)).toBe("support");
+
+      const platformLogged = await s.client.query<{ invitation_id: string }>(
+        `select l.invitation_id from ${schema}.accepting_log l where l.user_id = $1`,
+        [agent.id],
+      );
+
+      expect(platformLogged.rows).toHaveLength(1);
+      expect(platformLogged.rows[0]!.invitation_id).not.toBeNull();
 
       await s.as(owner);
 
@@ -256,6 +278,18 @@ describe.skipIf(!live)("invitations over the app's own tables", () => {
         await s.value(`${schema}.accept_invitation($1)`, [tenant.token]),
       ).toBe(organization);
       expect(await roleKey("team_members", member)).toBe("member");
+
+      const tenantLogged = await s.client.query<{ invitation_id: string }>(
+        `select l.invitation_id from ${schema}.accepting_log l where l.user_id = $1`,
+        [member.id],
+      );
+
+      expect(tenantLogged.rows).toHaveLength(1);
+      expect(tenantLogged.rows[0]!.invitation_id).not.toBeNull();
+      expect(tenantLogged.rows[0]!.invitation_id).not.toBe(
+        platformLogged.rows[0]!.invitation_id,
+      );
+      expect(await s.value(`${schema}.accepting_invitation()`)).toBeNull();
     } finally {
       await s.close();
     }

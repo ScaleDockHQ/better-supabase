@@ -868,6 +868,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ]),
       ).rejects.toMatchObject({ code: "42501" });
 
+      await pool.query(`
+        create table if not exists public.accepting_invitation_log (
+          user_id uuid, invitation_id uuid
+        );
+        create or replace function public.log_accepting_invitation()
+        returns trigger language plpgsql security definer set search_path = '' as $fn$
+        begin
+          insert into public.accepting_invitation_log values (new.user_id, better_supabase.accepting_invitation());
+          return new;
+        end;
+        $fn$;
+        drop trigger if exists log_accepting_invitation on better_supabase.memberships;
+        create trigger log_accepting_invitation after insert on better_supabase.memberships
+          for each row execute function public.log_accepting_invitation();
+      `);
+
       const [{ token }] = (await asOwner.queryRaw<{ token: string }>(
         `select better_supabase.create_invitation($1, $2, 'admin') as token`,
         [organization, `invitee-${RUN}@example.com`],
@@ -879,6 +895,39 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
 
       expect(accepted!.organization).toBe(organization);
+
+      const logged = await pool.query<{ invitation_id: string | null }>(
+        "select invitation_id from public.accepting_invitation_log where user_id = $1",
+        [inviteeId],
+      );
+
+      const invitationId = await pool.query<{ id: string }>(
+        "select id from better_supabase.invitations where organization_id = $1 and accepted_at is not null",
+        [organization],
+      );
+
+      expect(logged.rows).toEqual([
+        { invitation_id: invitationId.rows[0]!.id },
+      ]);
+
+      await pool.query(
+        `insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')`,
+        [organization, unconfirmedId],
+      );
+
+      const direct = await pool.query<{ invitation_id: string | null }>(
+        "select invitation_id from public.accepting_invitation_log where user_id = $1",
+        [unconfirmedId],
+      );
+
+      expect(direct.rows).toEqual([{ invitation_id: null }]);
+
+      await pool.query(`
+        delete from better_supabase.memberships where organization_id = '${organization}' and user_id = '${unconfirmedId}';
+        drop trigger log_accepting_invitation on better_supabase.memberships;
+        drop function public.log_accepting_invitation();
+        drop table public.accepting_invitation_log;
+      `);
 
       const [role] = await asInvitee.queryRaw<{ admin: boolean }>(
         `select better_supabase.has_organization_role($1, '{admin}') as admin`,

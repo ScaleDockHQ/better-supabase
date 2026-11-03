@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:c62350e773dc594c7053b02991e5a9eedc31dbf4f2ff7aeaf4c0db378764847a
+-- @bsb-hash sha256:bcb8dff072b3487f5f0f0ac9d4d64198ce9a2990b6ced431cfbd01b137178889
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -495,6 +495,15 @@ begin
 end;
 $$;
 
+create or replace function "better_supabase"."accepting_invitation"()
+returns uuid
+language sql
+stable
+set search_path = ''
+as $$
+  select nullif(current_setting('better_supabase.accepting_invitation', true), '')::uuid
+$$;
+
 -- Accepts with the token for the signed-in user, whose confirmed email must
 -- match, and returns the tenant (null for a platform invitation).
 create or replace function "better_supabase"."accept_invitation"(token text)
@@ -554,8 +563,10 @@ begin
       and not better_supabase.can_assign_as(invite."invited_by", invite."workspace_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "better_supabase"."memberships" ("workspace_id", "user_id", "role")
   values (invite."workspace_id", me, invite."role");
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = invite."id";
@@ -630,8 +641,10 @@ begin
       and not better_supabase.can_assign_as(invite."invited_by", invite."workspace_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
+  perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "better_supabase"."memberships" ("workspace_id", "user_id", "role")
   values (invite."workspace_id", me, invite."role");
+  perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
   where "id" = invite."id";
@@ -714,6 +727,8 @@ revoke execute on function "better_supabase"."decline_invitation_by_id"(uuid) fr
 grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to authenticated;
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
+revoke execute on function "better_supabase"."accepting_invitation"() from public, anon;
+grant execute on function "better_supabase"."accepting_invitation"() to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

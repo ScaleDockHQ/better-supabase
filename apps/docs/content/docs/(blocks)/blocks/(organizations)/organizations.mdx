@@ -675,6 +675,37 @@ functions accept a role id or key. The `before_organization_create`,
 and `after_invitation_accept` [SQL hooks](/docs/extending/events#sql-hooks)
 run your own checks and side effects in the same transaction.
 
+`accepting_invitation() returns uuid` names the invitation that
+`accept_invitation` or `accept_invitation_by_id` is accepting, while it inserts
+the membership or the platform role, and is null at any other time. A trigger
+on your memberships table can use it to read the invitation's `prefill`, for
+example to link the new member to a record the inviter picked, instead of
+matching on an email address:
+
+```sql
+create function public.link_invited_member()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_record uuid;
+begin
+  select (i.prefill ->> 'recordId')::uuid into v_record
+  from better_supabase.invitations i
+  where i.id = better_supabase.accepting_invitation();
+
+  if v_record is not null then
+    update public.people set user_id = new.user_id
+    where id = v_record and user_id is null;
+  end if;
+
+  return new;
+end;
+$$;
+```
+
 `invitation_preview_extra(invitation uuid) returns jsonb` adds keys to what
 `invitation_preview` returns, such as the role's display name or branding
 from another table, and to every invitation `invite_member`,
