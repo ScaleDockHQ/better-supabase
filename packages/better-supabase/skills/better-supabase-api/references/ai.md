@@ -154,6 +154,16 @@ a cron. Mirror platform messages into the inbox with
 `handler.mirror(thread, message)`. Platform adapters such as
 `@chat-adapter/slack` are the app's own dependencies.
 
+`webhook({ sink })` stores the raw request in a durable sink such as the
+queue block's `createWebhookInbox()`; a worker replays it with
+`handler.process(chatEventOf(message))`. `inboxStore(inbox)` is the default
+`ChatInboundStore`, so `inboundHandler`, `deliver` and `maintain` also take
+your own store. `capabilitiesOf(adapterName)` reads an adapter's features and
+needs the optional peer `@chat-adapter/catalog`. `inboxAdapter` handles
+actions, reactions, stop actions, file upload and `ai_generated` metadata.
+The `chat-sdk-state` module is version 2 (`bigint` TTLs): re-run
+`better-supabase add chat-sdk-state` and apply the migration to upgrade.
+
 Inbox thread ids are `inbox:<inboxId>:<conversationId>`; build and read them
 with `inboxThreadId` and `decodeInboxThreadId`, never by string slicing. Pass
 `waitUntil` (Next.js `after`) in the options of `bot.webhooks.inbox(request,

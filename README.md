@@ -115,6 +115,20 @@ A [preset](https://bettersupabase.com/docs/presets) installs a set of blocks for
 
 A preset such as `psa` (professional services), `ats` (recruiting), `intranet`, `erp`, `care` or `qms` names its blocks, and `resolvePreset` adds what they require. To list the blocks from code, read `BLOCK_CATALOG` from `better-supabase/preset`: each entry has a title, category, description, requirements, events and a docs link. Blocks call versioned ports that you can implement yourself, such as a route optimizer, an e-invoice channel or a tax report format; [Write an adapter](https://bettersupabase.com/docs/extending/write-an-adapter) has a tested template for each.
 
+## AI SDK
+
+`better-supabase/ai-sdk` connects the AI blocks to AI SDK 7 without making it a dependency of the blocks. It converts stored chat messages to `UIMessage`s, builds a resumable chat route (`createAssistant`) and a durable one on the Workflow SDK, runs stored agents as a `ToolLoopAgent` or `WorkflowAgent`, meters usage per tenant through a `Telemetry` integration, and wraps a model in `guardrailsMiddleware`. See the [AI SDK docs](https://bettersupabase.com/docs/ai-sdk).
+
+```ts
+import { wrapLanguageModel } from "ai";
+import { guardrailsMiddleware } from "better-supabase/ai-sdk";
+
+const model = wrapLanguageModel({
+  model: "openai/gpt-5",
+  middleware: guardrailsMiddleware(guardrails, { agent: "support" }),
+});
+```
+
 ## Subpaths
 
 Each feature is its own entry, so an app only loads what it imports.

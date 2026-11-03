@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:463e1ba780fccda228eb3c1618b7521e25c579e2d50d1553d38627087d5088f1
+-- @bsb-hash sha256:e86d94a74287bd5f4b03a720d86dfc535a0576a5848f826bd3bf738ca2427c0a
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -624,7 +624,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -663,10 +663,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
@@ -881,7 +881,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:a9d1004edb14ae708aa5bd258361084481f4771029b3e70df5da85c59cae9245
+-- @bsb-hash sha256:574160bd85cf32893eda4a3a9326830d7db63ab618f84f48126b19e025e028e9
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1514,7 +1514,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -1553,10 +1553,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
@@ -1814,7 +1814,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:9440135cdd4f2cbb43efbffa1eacb3a95d3881900e53c680fafdb5a1c98fc114
+-- @bsb-hash sha256:4b2ec830c58d0c67fa8b79101634acc82a24cd30ec68683f6aa56bf88b706b13
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2442,7 +2442,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "app_private"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "app_private"."knowledge_documents" x
+    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "app_private"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "app_private"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
       and (x."collection_id" is null or exists (select 1 from "app_private"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -2481,10 +2481,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "app_private"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
@@ -2699,7 +2699,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:c3ceda15716c5d36edcf751c207e6c6f7635b2fb98e895ecb5752aecba0405eb
+-- @bsb-hash sha256:4dd53dcf666ddd160512305abf71af820d382e214f50baf6c729d22d9ba79f12
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3322,7 +3322,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -3361,10 +3361,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
@@ -3770,7 +3770,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:e82a7b20e68ff57698fb54db9cb48cee1c6230dfe2d081bcbd87a9ed70074b90
+-- @bsb-hash sha256:f3f27ab811c76b8e37432f6838bf2ceabdd1582823398b62c02a19df200c566a
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4387,7 +4387,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility"::text <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -4426,10 +4426,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx
@@ -4644,7 +4644,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@6 managed
--- @bsb-hash sha256:b2a45f434871f01e83da29920b128a6fff46e99b395d93482ed91a82879126e7
+-- @bsb-hash sha256:c728a6c92ffc5699d7c52f0776a108baa37d1585798acf7d075050952ed1c01b
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5267,7 +5267,7 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."org_id" as organization_id, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    select x."id" as id, x."org_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
     where (x."org_id" = knowledge_search.tenant or x."org_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
@@ -5306,10 +5306,10 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.organization_id, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'chunk_id', r.document_id::text || '#' || r.idx::text, 'organization_id', r.doc_tenant, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.rank_priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.organization_id,
+    select f.document_id, f.idx, t."content" as content, t."metadata" as metadata, docs.title, docs.doc_tenant,
       case when knowledge_search.priority_order then docs.priority else 0 end as rank_priority, f.score
     from fused f
     join "better_supabase"."knowledge_chunks" t on t."document_id" = f.document_id and t."idx" = f.idx

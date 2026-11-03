@@ -4031,6 +4031,9 @@
                 "default": true
               },
               "messages": {},
+              "teamMembership": {
+                "type": "string"
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
@@ -8354,7 +8357,14 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "runExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

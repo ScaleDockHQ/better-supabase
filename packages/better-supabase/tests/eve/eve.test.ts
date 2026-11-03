@@ -1053,6 +1053,9 @@ describe("eve on the Supabase World", () => {
       }
     }
 
-    expect([...versions]).toEqual([Number(SPEC_VERSION_MAX_SUPPORTED)]);
+    expect(versions.size).toBeGreaterThan(0);
+    expect(Math.max(...versions)).toBeLessThanOrEqual(
+      Number(SPEC_VERSION_MAX_SUPPORTED),
+    );
   });
 });

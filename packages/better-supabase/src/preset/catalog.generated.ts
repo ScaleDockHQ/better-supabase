@@ -1137,6 +1137,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-keys",
         "approvals",
         "data-lifecycle",
+        "teams",
         "usage",
         "share-links"
       ],
@@ -1147,6 +1148,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links",
         "approvals"
+      ],
+      "tenantNameClashes": [
+        "team"
       ],
       "extraColumns": "chats",
       "entities": {
@@ -1173,6 +1177,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "title",
               "model": "model",
               "visibility": "visibility",
+              "mode": "mode",
               "pinned": "pinned",
               "archivedAt": "archived_at",
               "temporary": "is_temporary",
@@ -12961,11 +12966,26 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AiChatInput"
         },
         {
+          "name": "AiChatLink"
+        },
+        {
           "name": "AiChatOptions"
         },
         {
           "name": "AiChatPage",
           "fields": true
+        },
+        {
+          "name": "AiChatParticipant"
+        },
+        {
+          "name": "AiChatParticipantKind"
+        },
+        {
+          "name": "AiChatParticipantRole"
+        },
+        {
+          "name": "AiChatParty"
         },
         {
           "name": "AiChatPatch"
@@ -12987,6 +13007,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AiChatShare"
+        },
+        {
+          "name": "AiChatShareSummary"
         },
         {
           "name": "AiChatsSnapshot"

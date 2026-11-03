@@ -363,7 +363,7 @@ function fakeRegistry(): { registry: StartOnceRegistry; rows: FakeRow[] } {
 
       return wrap(row.id);
     },
-    claimForDispatch: (id: string) => {
+    claimForDispatch: ({ run: id }: { run: string }) => {
       const row = rows.find((candidate) => candidate.id === id);
 
       const open =

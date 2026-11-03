@@ -350,7 +350,7 @@ async function startRegistered<TResult>(
   let id = await reserve();
 
   for (let attempt = 0; attempt < KEY_WAIT_ATTEMPTS; attempt += 1) {
-    const claimed = await registry.claimForDispatch(id).orThrow();
+    const claimed = await registry.claimForDispatch({ run: id }).orThrow();
 
     if (claimed !== undefined) {
       const run = await input.launch();

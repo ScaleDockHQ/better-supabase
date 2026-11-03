@@ -322,8 +322,11 @@ describe("run registry calls", () => {
     const workflows = createWorkflows({ transport });
 
     expect(
-      (await workflows.runs.claimForDispatch("r1", { lease: 30 }).orThrow())
-        ?.idempotencyKey,
+      (
+        await workflows.runs
+          .claimForDispatch({ run: "r1", lease: 30 })
+          .orThrow()
+      )?.idempotencyKey,
     ).toBe("k");
     expect(
       await workflows.runs

@@ -278,10 +278,10 @@ export interface Workflows<F extends object = Record<never, never>> {
      * (default 60; service role). Resolves `undefined` when the run is gone,
      * already started, or leased by another caller.
      */
-    claimForDispatch(
-      run: string,
-      options?: { readonly lease?: number },
-    ): AsyncResult<WorkflowRun<F> | undefined>;
+    claimForDispatch(input: {
+      readonly run: string;
+      readonly lease?: number;
+    }): AsyncResult<WorkflowRun<F> | undefined>;
     /**
      * Records the engine's run id on a queued run and ends its lease (service
      * role). When the engine already reported the run, that row keeps its id
@@ -555,12 +555,10 @@ export function createWorkflows<
         call("workflow_run_get", { run }, rawValue).andThen(optionalRun),
       requestCancel: (run) =>
         call("request_workflow_cancel", { run }, rawValue).andThen(optionalRun),
-      claimForDispatch: (run, claim = {}) =>
-        call(
-          "claim_workflow_run_dispatch",
-          { run, lease: claim.lease ?? 60 },
-          rawValue,
-        ).andThen(optionalRun),
+      claimForDispatch: ({ run, lease = 60 }) =>
+        call("claim_workflow_run_dispatch", { run, lease }, rawValue).andThen(
+          optionalRun,
+        ),
       setEngine: ({ run, engine, externalId }) =>
         call(
           "set_workflow_run_engine",
