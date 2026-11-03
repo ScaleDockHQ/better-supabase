@@ -9,11 +9,11 @@ packages:
 catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
   # sandbox-vercel and workflow move together.
-  "@ai-sdk/anthropic": 4.0.88
-  "@ai-sdk/mcp": 2.0.84
-  "@ai-sdk/react": 4.0.157
-  "@ai-sdk/sandbox-vercel": 1.0.164
-  "@ai-sdk/workflow": 2.0.85
+  "@ai-sdk/anthropic": 4.0.94
+  "@ai-sdk/mcp": 2.0.88
+  "@ai-sdk/react": 4.0.163
+  "@ai-sdk/sandbox-vercel": 1.0.170
+  "@ai-sdk/workflow": 2.0.91
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
@@ -90,12 +90,13 @@ catalog:
   # 5.0.5 adds migration 0027 (timestamps with time zone); the World's
   # `if not exists` DDL can't alter existing columns, so it needs its own
   # upgrade step before these move.
+  "@workflow/vitest": 5.0.6
   "@workflow/world": 5.0.4
   "@workflow/world-postgres": 5.0.4
   "@workflow/world-testing": 5.0.6
   "@wrksz/themes": 2.1.1
   "@xyflow/react": 12.12.0
-  ai: 7.0.153
+  ai: 7.0.159
   ajv: 8.20.0
   ajv-formats: 3.0.1
   astro: 7.4.2
@@ -106,6 +107,7 @@ catalog:
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.3
+  "@chat-adapter/catalog": 4.43.0
   "@chat-adapter/tests": 4.43.0
   chat: 4.43.0
   citty: 0.2.2
@@ -256,6 +258,8 @@ catalogs:
     "@sveltejs/kit": ">=2 <4"
     "@tanstack/react-start": ">=1 <2"
     astro: ">=7 <8"
+    # 4.43.0 is the first release of the Chat SDK catalog adapter; it types the catalog structurally.
+    "@chat-adapter/catalog": ">=4.43 <5"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
     chat: ">=4.41 <5"
     # 11 is the oldest major that runs on Node 24; @Ctx() requires it synchronously.

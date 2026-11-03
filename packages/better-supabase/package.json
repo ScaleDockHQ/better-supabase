@@ -2513,6 +2513,7 @@
     "@ai-sdk/workflow": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/typescript-config": "workspace:*",
+    "@chat-adapter/catalog": "catalog:",
     "@chat-adapter/tests": "catalog:",
     "@clack/prompts": "catalog:",
     "@effect/platform-node": "catalog:",
@@ -2553,6 +2554,7 @@
     "@vercel/queue": "catalog:",
     "@vercel/sandbox": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "@workflow/vitest": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@workflow/world-testing": "catalog:",
@@ -2615,6 +2617,7 @@
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/sandbox-vercel": "catalog:peers",
     "@ai-sdk/workflow": "catalog:peers",
+    "@chat-adapter/catalog": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
@@ -2756,6 +2759,9 @@
       "optional": true
     },
     "ai": {
+      "optional": true
+    },
+    "@chat-adapter/catalog": {
       "optional": true
     },
     "astro": {

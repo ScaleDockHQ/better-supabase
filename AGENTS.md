@@ -319,6 +319,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0204: The psa, ats and intranet presets reuse existing blocks
 - 0205: Seeds are declared by modules, with defaults in SQL and sample data in the cloud
 - 0206: The e-invoice delivery table is `e_invoice_deliveries` and its hints `E_INVOICE_*`; the participant table keeps its prefix.
+- 0207: Move the AI SDK set to ai 7.0.159 and add @workflow/vitest and @chat-adapter/catalog.
 
 ## Pre-release pins
 
