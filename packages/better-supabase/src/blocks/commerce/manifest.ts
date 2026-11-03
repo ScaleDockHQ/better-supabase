@@ -33,4 +33,6 @@ export const commerceBlock: BlockOf<"commerce", typeof createCommerce> =
     composes: commerceParts,
     create: createCommerce,
     category: "commerce",
+    description:
+      "Catalog, inventory, orders and promotions installed together for a shop.",
   });

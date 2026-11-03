@@ -12,4 +12,6 @@ export const aiEvalsBlock: BlockOf<"ai-evals", typeof createAiEvals> =
     options: { "ai-evals": aiEvalsSqlOptions },
     create: createAiEvals,
     category: "ai",
+    description:
+      "Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.",
   });

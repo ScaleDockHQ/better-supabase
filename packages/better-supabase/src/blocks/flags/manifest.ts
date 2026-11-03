@@ -15,5 +15,7 @@ export const flagsBlock: BlockOf<"flags", typeof createFlags, FlagsEvents> =
     events: flagsEvents,
     create: createFlags,
     category: "growth",
+    description:
+      "Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.",
     recipes: ["feature-flag-toggles"],
   });

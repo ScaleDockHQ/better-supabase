@@ -26,4 +26,6 @@ export const recruitingBlock: BlockOf<"recruiting", typeof createRecruiting> =
     composes: recruitingParts,
     create: createRecruiting,
     category: "people",
+    description:
+      "Hiring, employees and a calendar installed together for recruiting.",
   });

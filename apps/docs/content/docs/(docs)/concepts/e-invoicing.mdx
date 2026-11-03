@@ -173,11 +173,11 @@ const sent = await db.invoices
 ```
 
 `sendEInvoice` needs the `invoices.send` permission. It refuses a draft or
-void invoice (`EINVOICE_NOT_ISSUED`), a buyer without a participant id
-(`EINVOICE_NO_RECIPIENT`), a buyer `lookup` doesn't find
-(`EINVOICE_RECIPIENT_UNREACHABLE`) and an invoice already sent
-(`EINVOICE_ALREADY_SENT`, unless you pass `resend`). It then logs the
-delivery as `pending` in `invoice_e_deliveries` and records the
+void invoice (`E_INVOICE_NOT_ISSUED`), a buyer without a participant id
+(`E_INVOICE_NO_RECIPIENT`), a buyer `lookup` doesn't find
+(`E_INVOICE_RECIPIENT_UNREACHABLE`) and an invoice already sent
+(`E_INVOICE_ALREADY_SENT`, unless you pass `resend`). It then logs the
+delivery as `pending` in `e_invoice_deliveries` and records the
 `invoice.e_invoice_sent` event. The log is unique per channel and message id.
 
 When the channel accepted the document but logging it failed, the error message

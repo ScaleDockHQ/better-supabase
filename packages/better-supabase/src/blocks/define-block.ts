@@ -134,6 +134,8 @@ export interface BlockDefinition<
   /** The headless controller's name (ADR 0030), when the block has one. */
   readonly client?: string;
   readonly category: BlockCategory;
+  /** What the block does, in the catalog and on the Blocks page. */
+  readonly description?: string;
   /** UI recipe slugs on `/recipes`. */
   readonly recipes?: readonly string[];
   /**
@@ -224,6 +226,8 @@ export interface Block<
   readonly create: ((options: Options) => Client) | undefined;
   readonly client: string | undefined;
   readonly category: BlockCategory;
+  /** What the block does, in the catalog and on the Blocks page. */
+  readonly description: string;
   readonly recipes: readonly string[];
   /** Standard Schemas for what the client takes, by entity key. */
   readonly schemas: BlockSchemas;
@@ -292,6 +296,8 @@ export interface AnyBlock {
   readonly create: ((options: never) => unknown) | undefined;
   readonly client: string | undefined;
   readonly category: BlockCategory;
+  /** What the block does, in the catalog and on the Blocks page. */
+  readonly description: string;
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
   readonly invalidates?: BlockInvalidates;
@@ -404,6 +410,7 @@ function blockOf<
     create,
     client: parts.client,
     category: parts.category,
+    description: parts.description ?? "",
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
     invalidates: parts.invalidates ?? {},

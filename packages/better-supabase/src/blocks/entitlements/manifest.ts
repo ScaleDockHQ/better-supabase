@@ -12,5 +12,7 @@ export const entitlementsBlock: BlockOf<
   sql: ["entitlements"],
   create: createEntitlements,
   category: "commerce",
+  description:
+    "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.",
   recipes: ["feature-gate"],
 });

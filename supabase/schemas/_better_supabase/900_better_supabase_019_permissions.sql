@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:eae06fa32142ccde90027113ec7b6bdd047d9f4ced1ae819ff6c82db106e064f
+-- @bsb-hash sha256:a007a8820bbd58b5dc9d966fc0fc565204c552268cee0d12fa7be935b44a37f2
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -182,6 +182,7 @@ as $$
     when 'agents.read' then 'agents.read'
     when 'ai-chat.admin' then 'ai_chat.manage'
     when 'ai-chat.create' then 'ai_chat.create'
+    when 'ai-chat.manage' then 'ai_chat.manage'
     when 'ai-chat.moderate' then 'ai_chat.moderate'
     when 'ai-chat.read' then 'ai_chat.read'
     when 'ai-chat.share' then 'ai_chat.share'
@@ -209,13 +210,17 @@ as $$
     when 'attachments.manage' then 'attachments.manage'
     when 'attachments.read' then 'attachments.read'
     when 'attachments.upload' then 'attachments.upload'
+    when 'audit.read' then 'audit.read'
+    when 'audit.readAll' then 'audit.read'
     when 'audit.revert' then 'audit.revert'
     when 'audit.view' then 'audit.read'
     when 'audit.viewAll' then 'audit.read'
     when 'automations.admin' then 'automations.manage'
     when 'automations.edit' then 'automations.write'
+    when 'automations.manage' then 'automations.manage'
     when 'automations.publish' then 'automations.publish'
     when 'automations.read' then 'automations.read'
+    when 'automations.write' then 'automations.write'
     when 'banking.import' then 'banking.import'
     when 'banking.manage' then 'banking.manage'
     when 'banking.read' then 'banking.read'
@@ -306,6 +311,7 @@ as $$
     when 'e-prescribing.sign' then 'e_prescribing.sign'
     when 'e-prescribing.write' then 'e_prescribing.write'
     when 'employees.read' then 'employees.read'
+    when 'employees.readSensitive' then 'employees.read_sensitive'
     when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
     when 'enrichment.read' then 'enrichment.read'
@@ -355,6 +361,7 @@ as $$
     when 'inventory.reserve' then 'inventory.reserve'
     when 'invitations.invite' then 'members.invite'
     when 'invitations.invitePlatform' then 'platform.invite'
+    when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
     when 'invitations.view' then 'members.invite'
     when 'invoices.approve' then 'invoices.approve'
@@ -476,6 +483,7 @@ as $$
     when 'search.read' then 'search.read'
     when 'segments.edit' then 'segments.write'
     when 'segments.read' then 'segments.read'
+    when 'segments.write' then 'segments.write'
     when 'sequences.enroll' then 'sequences.enroll'
     when 'sequences.manage' then 'sequences.manage'
     when 'sequences.read' then 'sequences.read'
@@ -536,13 +544,17 @@ as $$
     when 'warehouse.pick' then 'warehouse.pick'
     when 'warehouse.read' then 'warehouse.read'
     when 'webhooks-out.manage' then 'webhooks.manage'
+    when 'webhooks-out.read' then 'webhooks.read'
     when 'webhooks-out.view' then 'webhooks.read'
     when 'workflow-editor.admin' then 'workflow_editor.manage'
     when 'workflow-editor.edit' then 'workflow_editor.write'
+    when 'workflow-editor.manage' then 'workflow_editor.manage'
     when 'workflow-editor.publish' then 'workflow_editor.publish'
     when 'workflow-editor.read' then 'workflow_editor.read'
     when 'workflow-editor.run' then 'workflow_editor.run'
+    when 'workflow-editor.write' then 'workflow_editor.write'
     when 'workflows.admin' then 'workflows.manage'
+    when 'workflows.manage' then 'workflows.manage'
     when 'workflows.read' then 'workflows.read'
     when 'workflows.run' then 'workflows.run'
   end

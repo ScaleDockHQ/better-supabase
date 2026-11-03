@@ -22,5 +22,7 @@ export const notificationsBlock: BlockOf<
   create: createNotifications,
   client: "notifications",
   category: "messaging",
+  description:
+    "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   recipes: ["notification-bell", "notification-list"],
 });

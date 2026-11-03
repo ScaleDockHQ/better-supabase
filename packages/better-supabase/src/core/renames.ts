@@ -347,6 +347,40 @@ export const SUBJECT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({
 });
 
 /**
+ * Operation names (`<block>.<action>`) from before the action verbs followed
+ * ADR 0130 (`view`, `edit` and `admin` became `read`, `write` and `manage`),
+ * old to new. `operation_permission` and `blocks.<name>.permissions` still
+ * accept an old name for one minor.
+ */
+export const OPERATION_RENAMES: Readonly<Record<string, string>> = frozen({
+  "ai-chat.admin": "ai-chat.manage",
+  "audit.view": "audit.read",
+  "audit.viewAll": "audit.readAll",
+  "automations.admin": "automations.manage",
+  "automations.edit": "automations.write",
+  "billing.viewAll": "billing.readAll",
+  "employees.viewSensitive": "employees.readSensitive",
+  "impersonation.view": "impersonation.read",
+  "invitations.view": "invitations.read",
+  "segments.edit": "segments.write",
+  "webhooks-in.view": "webhooks-in.read",
+  "webhooks-out.view": "webhooks-out.read",
+  "workflow-editor.admin": "workflow-editor.manage",
+  "workflow-editor.edit": "workflow-editor.write",
+  "workflows.admin": "workflows.manage",
+});
+
+/** The action name `module` used for `action` before `OPERATION_RENAMES`. */
+function formerOperationAction(
+  module: string,
+  action: string,
+): string | undefined {
+  return Object.entries(OPERATION_RENAMES)
+    .find(([, next]) => next === `${module}.${action}`)?.[0]
+    ?.slice(module.length + 1);
+}
+
+/**
  * `blocks.<name>.entities` keys, old to new, by block. A key now equals the
  * entity's singular; an old key still resolves for one minor.
  */
@@ -611,4 +645,16 @@ export function legacyEventType(type: string, data?: unknown): string {
   );
 
   return legacyEventTypes.get(type) ?? type;
+}
+
+/** A permission configured for an action, or under its name before ADR 0130. */
+export function configuredAction(
+  permissions: Readonly<Record<string, string>>,
+  module: string,
+  action: string,
+): string | undefined {
+  return (
+    permissions[action] ??
+    permissions[formerOperationAction(module, action) ?? ""]
+  );
 }

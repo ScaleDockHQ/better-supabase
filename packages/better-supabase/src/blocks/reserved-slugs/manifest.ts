@@ -9,5 +9,7 @@ export const reservedSlugsBlock: Block<"reserved-slugs"> = defineBlock({
   sql: ["reserved-slugs"],
   options: { "reserved-slugs": reservedSlugsSqlOptions },
   category: "tenancy",
+  description:
+    "A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
   recipes: ["workspace-url-field"],
 });

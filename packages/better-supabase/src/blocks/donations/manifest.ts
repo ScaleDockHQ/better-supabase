@@ -33,6 +33,8 @@ export const donationsBlock: BlockOf<
   create: createDonations,
   record: givingBinding,
   category: "commerce",
+  description:
+    "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
   providers: [
     {
       option: "payments",

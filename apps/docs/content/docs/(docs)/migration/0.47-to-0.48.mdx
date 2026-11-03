@@ -1,0 +1,45 @@
+---
+title: From 0.47 to 0.48
+description: What to check when upgrading from better-supabase 0.47 to 0.48. Permission actions of the operations model take the read, write and manage verbs, activity notes link tasks instead of storing action items, and the e-invoice delivery table and hints get underscore names.
+---
+
+0.48.0 finishes three renames that ADR 0130 left open. Run `better-supabase upgrade`
+to rename the table and to copy stored action items into tasks, then generate a
+migration with `db diff`.
+
+| Section                                         | Needs code                                     |
+| ----------------------------------------------- | ---------------------------------------------- |
+| [Permission actions](#permission-actions)       | Rename keys in `permissions` and in tokens     |
+| [Activity note actions](#activity-note-actions) | Run `upgrade` with the `tasks` block installed |
+| [E-invoice deliveries](#e-invoice-deliveries)   | Run `upgrade`; rename `EINVOICE_*` hint checks |
+
+## Permission actions
+
+The actions of the operations model use the verbs of the rest of the
+convention. The config types accept only the new names; delegated tokens and
+stored configs that carry an old name still resolve, so nothing breaks until you
+write the config again.
+
+| Old action      | New action      |
+| --------------- | --------------- |
+| `view`          | `read`          |
+| `viewAll`       | `readAll`       |
+| `edit`          | `write`         |
+| `admin`         | `manage`        |
+| `viewSensitive` | `readSensitive` |
+
+## Activity note actions
+
+`EngagementNotes.actionItems` is now `actionTaskIds`: each action item is a task
+of the tasks block, linked through the table `activity_note_actions`. The
+`action_items` column goes away. The upgrade step creates one task per stored
+item and drops the column. It stops with instructions when the tasks block is
+not installed; install it first.
+
+## E-invoice deliveries
+
+The table `invoice_e_deliveries` is now `e_invoice_deliveries`, with its
+indexes and policies, and the hint codes `EINVOICE_*` are `E_INVOICE_*`. The
+upgrade step renames the table in place, so no rows move. The table
+`invoice_e_endpoints` keeps its name: it is the one documented exception in
+[ADR 0206](https://github.com/better-supabase/better-supabase/blob/main/docs/decisions/0206-e-invoice-naming.md).

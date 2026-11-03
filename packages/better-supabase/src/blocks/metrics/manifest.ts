@@ -24,5 +24,7 @@ export const metricsBlock: BlockOf<
   },
   create: createMetrics,
   category: "admin",
+  description:
+    "Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.",
   recipes: ["metrics-dashboard"],
 });

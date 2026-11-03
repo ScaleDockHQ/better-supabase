@@ -18,5 +18,7 @@ export const promotionsBlock: BlockOf<
   events: promotionsEvents,
   create: createPromotions,
   category: "commerce",
+  description:
+    "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",
   recipes: ["promotion-code-field"],
 });

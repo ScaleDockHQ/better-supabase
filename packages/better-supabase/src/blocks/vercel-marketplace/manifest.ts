@@ -18,4 +18,6 @@ export const vercelMarketplaceBlock: BlockOf<
   events: vercelMarketplaceEvents,
   create: createVercelMarketplace,
   category: "developer",
+  description:
+    "Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.",
 });

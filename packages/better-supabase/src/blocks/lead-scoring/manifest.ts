@@ -14,4 +14,6 @@ export const leadScoringBlock: BlockOf<
   options: { "lead-scoring": leadScoringSqlOptions },
   create: createLeadScoring,
   category: "crm",
+  description:
+    "Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.",
 });

@@ -23,5 +23,7 @@ export const tagsBlock: BlockOf<
   create: createTags,
   record: tagsBinding,
   category: "work",
+  description:
+    "Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.",
   recipes: ["record-page", "tag-input"],
 });

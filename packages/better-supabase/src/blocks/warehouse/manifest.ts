@@ -29,4 +29,6 @@ export const warehouseBlock: BlockOf<
   create: createWarehouse,
   recipes: [],
   category: "commerce",
+  description:
+    "Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.",
 });

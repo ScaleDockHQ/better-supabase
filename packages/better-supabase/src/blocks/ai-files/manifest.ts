@@ -18,4 +18,6 @@ export const aiFilesBlock: BlockOf<
   provides: { files: (client) => client },
   create: createAiFiles,
   category: "ai",
+  description:
+    "Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.",
 });

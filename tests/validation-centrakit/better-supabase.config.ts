@@ -36,6 +36,8 @@ export default defineConfig({
   },
   // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
   blocks: {
+    // Tenant defaults that new organizations receive.
+    seeds: { api: false },
     permissions: {
       model: "provider",
       activeTenant: {
@@ -177,7 +179,7 @@ export default defineConfig({
     impersonation: {
       permissions: {
         start: "platform.users.manage",
-        view: "platform.users.manage",
+        read: "platform.users.manage",
       },
       // CentraKit's support staff start sessions alone; it has no second approver.
       options: { auditCategory: "security", approval: "none" },
@@ -210,7 +212,7 @@ export default defineConfig({
           metadata: "restricted_metadata",
         },
       },
-      permissions: { view: "audit.view", viewAll: "platform.users.manage" },
+      permissions: { read: "audit.view", readAll: "platform.users.manage" },
       options: {
         eventSource: "saas",
         eventCategory: "data",
@@ -285,7 +287,7 @@ export default defineConfig({
           run: "workflow_run_id",
         },
       },
-      permissions: { manage: "webhook.manage", view: "webhook.view" },
+      permissions: { manage: "webhook.manage", read: "webhook.view" },
       options: {
         secretStorage: "column",
         eventIdType: "uuid",
@@ -336,7 +338,7 @@ export default defineConfig({
         create: "webhook.manage",
         update: "webhook.manage",
         delete: "webhook.manage",
-        view: "webhook.view",
+        read: "webhook.view",
       },
     },
     "webhook-inbox": {

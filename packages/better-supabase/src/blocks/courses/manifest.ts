@@ -26,5 +26,7 @@ export const coursesBlock: BlockOf<
   // block bindings to the other subjects. An app's course page mounts
   // courseLearnersBinding itself.
   category: "content",
+  description:
+    "Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.",
   recipes: ["course-outline", "lesson-player"],
 });

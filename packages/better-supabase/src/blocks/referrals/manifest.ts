@@ -20,4 +20,6 @@ export const referralsBlock: BlockOf<
   create: createReferrals,
   recipes: [],
   category: "commerce",
+  description:
+    "Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.",
 });

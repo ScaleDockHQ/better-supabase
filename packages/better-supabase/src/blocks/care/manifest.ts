@@ -103,4 +103,6 @@ export const careBlock: BlockOf<"care", typeof createCare> = defineBlock({
   create: createCare,
   defaults: CARE_SETTINGS,
   category: "people",
+  description:
+    "Contacts, consents, care plans, observations, medications, funding, shifts and the blocks around them installed together for care providers.",
 });

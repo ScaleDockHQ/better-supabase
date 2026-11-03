@@ -26,6 +26,8 @@ export const casesBlock: BlockOf<"cases", typeof createCases, CasesEvents> =
     create: createCases,
     recipes: ["case-board", "case-detail"],
     category: "work",
+    description:
+      "Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.",
     schedules: [
       {
         name: "effectiveness-due",

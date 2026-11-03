@@ -26,6 +26,8 @@ export const risksBlock: BlockOf<"risks", typeof createRisks, RisksEvents> =
     create: createRisks,
     recipes: ["risk-register", "risk-heatmap"],
     category: "work",
+    description:
+      "A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.",
     schedules: [
       {
         name: "review-due",

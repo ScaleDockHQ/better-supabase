@@ -29,4 +29,6 @@ export const meetingsBlock: BlockOf<
   create: createMeetings,
   recipes: ["meeting-agenda", "meeting-minutes"],
   category: "collaboration",
+  description:
+    "Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.",
 });

@@ -19,4 +19,6 @@ export const agentCheckoutBlock: BlockOf<
   create: createAgentCheckout,
   recipes: [],
   category: "commerce",
+  description:
+    "ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.",
 });

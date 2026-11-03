@@ -46,7 +46,7 @@ export const exampleEInvoiceFormat: EInvoiceFormat = {
 /**
  * An `EInvoiceChannel` over an access point's API (ADR 0182). `send` returns
  * the access point's message id, which the block keeps in
- * `invoice_e_deliveries`; `status` answers later what the network says about
+ * `e_invoice_deliveries`; `status` answers later what the network says about
  * it.
  */
 export function createEInvoiceChannel(options: HttpOptions): EInvoiceChannel {

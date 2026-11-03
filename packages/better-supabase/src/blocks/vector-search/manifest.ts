@@ -9,4 +9,6 @@ export const vectorSearchBlock: Block<"vector-search"> = defineBlock({
   sql: ["vector-search"],
   options: { "vector-search": vectorSearchSqlOptions },
   category: "ai",
+  description:
+    "search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.",
 });

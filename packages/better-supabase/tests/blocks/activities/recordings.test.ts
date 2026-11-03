@@ -66,10 +66,7 @@ const NOTES = {
   engagementId: "e1",
   organizationId: "o",
   summary: "Proposal by Friday",
-  actionItems: [
-    { text: "Send proposal", ownerId: "u1", dueAt: "2026-10-16T09:00:00Z" },
-    { text: "Book a demo" },
-  ],
+  actionTaskIds: ["t1", "t2"],
   model: "notes-1",
   source: "ai",
   createdBy: "u1",
@@ -474,7 +471,7 @@ describe("engagement notes", () => {
         ...NOTES,
         source: "member",
         model: null,
-        actionItems: [],
+        actionTaskIds: [],
       }),
     });
 
@@ -498,11 +495,10 @@ describe("engagement notes", () => {
       .saveNotes({ engagementId: "e1", notes: { summary: "Only" } })
       .orThrow();
 
-    expect(notes.actionItems[0]?.dueAt?.equals(due)).toBe(true);
-    expect(notes.actionItems[1]).toEqual({ text: "Book a demo" });
+    expect(notes.actionTaskIds).toEqual(["t1", "t2"]);
     expect(notes.source).toBe("ai");
     expect(none).toBeUndefined();
-    expect(saved).toMatchObject({ source: "member", actionItems: [] });
+    expect(saved).toMatchObject({ source: "member", actionTaskIds: [] });
     expect(saved.model).toBeUndefined();
     expect(t.calls[2]?.[1]).toEqual({
       engagement: "e1",

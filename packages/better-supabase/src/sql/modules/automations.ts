@@ -219,9 +219,9 @@ function build(ctx: BlockSqlContext): string {
 
   const keys = moduleOperations("automations");
   const read = ctx.permission("read", keys.read);
-  const edit = ctx.permission("edit", keys.edit);
+  const edit = ctx.permission("write", keys.write);
   const publish = ctx.permission("publish", keys.publish);
-  const admin = ctx.permission("admin", keys.admin);
+  const admin = ctx.permission("manage", keys.manage);
   const maxConditions = limitOf(ctx, "maxConditions", 50);
   const maxDepth = limitOf(ctx, "maxDepth", 4);
   const maxActions = limitOf(ctx, "maxActions", 20);

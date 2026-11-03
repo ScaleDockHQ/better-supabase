@@ -24,4 +24,6 @@ export const billableTimeBlock: BlockOf<
   create: createBillableTime,
   record: billableTimeBinding,
   category: "commerce",
+  description:
+    "A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.",
 });

@@ -198,7 +198,7 @@ function build(ctx: BlockSqlContext): string {
   const cq = (column: string): string => ctx.col("startRequests", column);
   const permissions = moduleOperations("workflows");
 
-  const can = (tenant: string, action: "read" | "run" | "admin"): string =>
+  const can = (tenant: string, action: "read" | "run" | "manage"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
 
   const callable = (signature: string): string =>
@@ -529,7 +529,7 @@ begin
   end if;
   if not (${SERVICE_CALLER}
     or v_run.${cr("actor")} = (select auth.uid())
-    or (v_run.${cr("tenant")} is not null and ${can(`v_run.${cr("tenant")}`, "admin")})) then
+    or (v_run.${cr("tenant")} is not null and ${can(`v_run.${cr("tenant")}`, "manage")})) then
     ${fail("WORKFLOW_FORBIDDEN", "You may not cancel this run")}
   end if;
   if v_run.${cr("status")} in ${TERMINAL} then
@@ -595,7 +595,7 @@ as $$
 declare
   v_row ${s}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or (${arg("tenant")} is not null and ${can(arg("tenant"), "admin")})) then
+  if not (${SERVICE_CALLER} or (${arg("tenant")} is not null and ${can(arg("tenant"), "manage")})) then
     ${fail("WORKFLOW_FORBIDDEN", "You may not schedule workflows here")}
   end if;
   ${ctx.hook("before_workflow_schedule_create", [
@@ -643,7 +643,7 @@ as $$
 begin
   update ${s} x set ${cs("paused")} = coalesce(paused, true)
   where x.${cs("id")} = schedule
-    and (${SERVICE_CALLER} or (x.${cs("tenant")} is not null and ${can(`x.${cs("tenant")}`, "admin")}));
+    and (${SERVICE_CALLER} or (x.${cs("tenant")} is not null and ${can(`x.${cs("tenant")}`, "manage")}));
   return found;
 end;
 $$;
@@ -659,7 +659,7 @@ as $$
 begin
   delete from ${s} x
   where x.${cs("id")} = schedule
-    and (${SERVICE_CALLER} or (x.${cs("tenant")} is not null and ${can(`x.${cs("tenant")}`, "admin")}));
+    and (${SERVICE_CALLER} or (x.${cs("tenant")} is not null and ${can(`x.${cs("tenant")}`, "manage")}));
   return found;
 end;
 $$;

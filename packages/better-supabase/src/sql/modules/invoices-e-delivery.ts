@@ -76,11 +76,11 @@ export const E_ENDPOINTS_TABLE: BlockSqlTableSpec = {
 };
 
 /**
- * The `invoice_e_deliveries` table: one row per e-invoice a channel took from
+ * The `e_invoice_deliveries` table: one row per e-invoice a channel took from
  * the app or delivered to it, unique per channel and message id.
  */
 export const E_DELIVERIES_TABLE: BlockSqlTableSpec = {
-  name: "invoice_e_deliveries",
+  name: "e_invoice_deliveries",
   app: {},
   optionalTable: true,
   lifecycle: { tenant: "tenant", export: true },
@@ -164,11 +164,11 @@ create table if not exists ${deliveries} (
   ${d("createdAt")} timestamptz not null default now(),
   ${d("updatedAt")} timestamptz not null default now()
 );
-create unique index if not exists ${ctx.naming.rename("invoice_e_deliveries_message_key")} on ${deliveries} (${d("tenant")}, ${d("channel")}, ${d("messageId")});
-create index if not exists ${ctx.naming.rename("invoice_e_deliveries_invoice_idx")} on ${deliveries} (${d("invoice")}, ${d("tenant")});
-create index if not exists ${ctx.naming.rename("invoice_e_deliveries_state_idx")} on ${deliveries} (${d("tenant")}, ${d("direction")}, ${d("state")});
+create unique index if not exists ${ctx.naming.rename("e_invoice_deliveries_message_key")} on ${deliveries} (${d("tenant")}, ${d("channel")}, ${d("messageId")});
+create index if not exists ${ctx.naming.rename("e_invoice_deliveries_invoice_idx")} on ${deliveries} (${d("invoice")}, ${d("tenant")});
+create index if not exists ${ctx.naming.rename("e_invoice_deliveries_state_idx")} on ${deliveries} (${d("tenant")}, ${d("direction")}, ${d("state")});
 ${lockModuleTable(ctx, "eDeliveries", { read: true })}
-${readPolicy("invoice_e_deliveries_read", d("tenant"), deliveries)}
+${readPolicy("e_invoice_deliveries_read", d("tenant"), deliveries)}
 `;
 }
 
@@ -233,7 +233,7 @@ begin
   if set_invoice_e_endpoint.party_kind not in ('organization', 'legal_entity', 'company')
     or nullif(trim(set_invoice_e_endpoint.party_id), '') is null
     or length(set_invoice_e_endpoint.party_id) > 150 then
-    ${fail("EINVOICE_ENDPOINT_INVALID", "party_kind is organization, legal_entity or company, and party_id is a non-empty text of at most 150 characters", "22023")}
+    ${fail("E_INVOICE_ENDPOINT_INVALID", "party_kind is organization, legal_entity or company, and party_id is a non-empty text of at most 150 characters", "22023")}
   end if;
   if set_invoice_e_endpoint.scheme is null and set_invoice_e_endpoint.endpoint_id is null then
     delete from ${endpoints} x
@@ -245,7 +245,7 @@ begin
   if set_invoice_e_endpoint.scheme !~ '^[0-9]{4}$'
     or nullif(trim(set_invoice_e_endpoint.endpoint_id), '') is null
     or length(set_invoice_e_endpoint.endpoint_id) > 200 then
-    ${fail("EINVOICE_ENDPOINT_INVALID", "an endpoint is a four-digit EAS scheme and a non-empty id of at most 200 characters", "22023")}
+    ${fail("E_INVOICE_ENDPOINT_INVALID", "an endpoint is a four-digit EAS scheme and a non-empty id of at most 200 characters", "22023")}
   end if;
   insert into ${endpoints} (${p("tenant")}, ${p("partyKind")}, ${p("partyId")}, ${p("scheme")}, ${p("endpoint")})
   values (set_invoice_e_endpoint.tenant, set_invoice_e_endpoint.party_kind, set_invoice_e_endpoint.party_id, set_invoice_e_endpoint.scheme, trim(set_invoice_e_endpoint.endpoint_id))
@@ -333,7 +333,7 @@ begin
     ${fail("INVOICE_FORBIDDEN", "not allowed to send invoices in this organization", "42501")}
   end if;
   if record_e_invoice_delivery.direction not in ('outbound', 'inbound') then
-    ${fail("EINVOICE_DELIVERY_INVALID", "direction is outbound or inbound", "22023")}
+    ${fail("E_INVOICE_DELIVERY_INVALID", "direction is outbound or inbound", "22023")}
   end if;
   v_state := coalesce(record_e_invoice_delivery.state, case
     when record_e_invoice_delivery.direction = 'outbound' then 'pending'
@@ -345,7 +345,7 @@ begin
     or (v_state in ('pending', 'delivered', 'rejected') and record_e_invoice_delivery.invoice is null)
     or nullif(trim(record_e_invoice_delivery.channel), '') is null
     or nullif(trim(record_e_invoice_delivery.message_id), '') is null then
-    ${fail("EINVOICE_DELIVERY_INVALID", "a delivery needs a channel and a message id, and a state that fits its direction (an outbound one an invoice)", "22023")}
+    ${fail("E_INVOICE_DELIVERY_INVALID", "a delivery needs a channel and a message id, and a state that fits its direction (an outbound one an invoice)", "22023")}
   end if;
   if record_e_invoice_delivery.invoice is not null then
     select * into v_row from ${t("invoices")} x
@@ -391,17 +391,17 @@ begin
   select * into v_delivery from ${deliveries} x
   where x.${d("id")} = set_e_invoice_delivery_state.delivery and ${allowed(`x.${d("tenant")}`, n.send)} for update;
   if v_delivery.${d("id")} is null then
-    ${fail("EINVOICE_DELIVERY_NOT_FOUND", "no such delivery you can update", "P0002")}
+    ${fail("E_INVOICE_DELIVERY_NOT_FOUND", "no such delivery you can update", "P0002")}
   end if;
   if not (
     (v_delivery.${d("state")} = 'pending' and set_e_invoice_delivery_state.state in ('delivered', 'rejected'))
     or (v_delivery.${d("state")} = 'unmatched' and set_e_invoice_delivery_state.state in ('received', 'unmatched'))
   ) then
-    ${fail("EINVOICE_DELIVERY_STATE", "a pending delivery becomes delivered or rejected, an unmatched one received or unmatched", "55000")}
+    ${fail("E_INVOICE_DELIVERY_STATE", "a pending delivery becomes delivered or rejected, an unmatched one received or unmatched", "55000")}
   end if;
   v_target := coalesce(set_e_invoice_delivery_state.invoice, v_delivery.${d("invoice")});
   if set_e_invoice_delivery_state.state = 'received' and v_target is null then
-    ${fail("EINVOICE_DELIVERY_INVALID", "a received delivery names the invoice it became", "22023")}
+    ${fail("E_INVOICE_DELIVERY_INVALID", "a received delivery names the invoice it became", "22023")}
   end if;
   if v_target is not null then
     select * into v_row from ${t("invoices")} x

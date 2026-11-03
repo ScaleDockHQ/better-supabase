@@ -376,7 +376,7 @@ tenants, as `{ organizationId, customerId, row }`, and platform staff also
 read one tenant's `invoices` and `paymentMethods`.
 
 These are open to platform staff with `billing.read` in the platform scope
-(the module's `viewAll` permission, checked with `is_platform()`), and
+(the module's `readAll` permission, checked with `is_platform()`), and
 `allSubscriptions` to the service role. `subscription` also answers members
 with `billing.read` in the tenant.
 
@@ -398,7 +398,7 @@ transitions), `hosted_invoice_url`, `invoice_pdf`, `customer_email` and
 `customer_name` (the invoice's, else the customer's), `created` and
 `updated_at` (when the Sync Engine last wrote the row). Both read the Sync
 Engine's tables when they exist, and are open to the service role and
-platform staff with `viewAll`.
+platform staff with `readAll`.
 
 `plan` is `null` for a price that `options.plans` doesn't list. When your
 plans keep their key in the price's metadata instead, fall back to it:
@@ -426,7 +426,7 @@ A customer list includes tenants that have a customer but no subscription
 or invoice yet. `billing_platform_customers()` returns one row per linked
 customer with `tenant`, `customer`, `email`, `name` and `created` (from
 `stripe.customers`, null before the Sync Engine has the row), for the
-service role and platform staff with `viewAll`. In TypeScript,
+service role and platform staff with `readAll`. In TypeScript,
 `allCustomers()` reads it through `billing_all_customers()`:
 
 ```ts

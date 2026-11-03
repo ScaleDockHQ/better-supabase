@@ -39,4 +39,6 @@ export const filespaceBlock: BlockOf<"filespace", typeof createFilespace> =
     composes: filespaceParts,
     create: createFilespace,
     category: "content",
+    description:
+      "Drive, attachments, versions, share links, search and trash installed together for file storage.",
   });

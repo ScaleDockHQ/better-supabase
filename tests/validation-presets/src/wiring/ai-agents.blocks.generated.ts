@@ -220,14 +220,14 @@ export const permissions = {
     manage: "approvals.manage",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   connectors: {
     read: "connectors.read",
@@ -242,7 +242,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   metrics: {
     read: "metrics.read",
@@ -277,7 +277,7 @@ export const permissions = {
   workflows: {
     read: "workflows.read",
     run: "workflows.run",
-    admin: "workflows.manage",
+    manage: "workflows.manage",
   },
 } as const;
 

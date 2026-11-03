@@ -9,4 +9,6 @@ export const undoBlock: BlockOf<"undo", typeof createUndo> = defineBlock({
   create: createUndo,
   client: "undo",
   category: "work",
+  description:
+    "Applies the undo token a block method returns, running its inverse calls in order as the caller.",
 });

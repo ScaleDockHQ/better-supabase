@@ -25,12 +25,12 @@ await invoices.receiveEInvoices({ organizationId, channel }).orThrow();
 ```
 
 - Sending needs `invoices.send`, an issued invoice and a participant id on the
-  buyer's company. Errors: `EINVOICE_NOT_ISSUED`, `EINVOICE_NO_RECIPIENT`,
-  `EINVOICE_RECIPIENT_UNREACHABLE`, `EINVOICE_ALREADY_SENT` (pass `resend`).
+  buyer's company. Errors: `E_INVOICE_NOT_ISSUED`, `E_INVOICE_NO_RECIPIENT`,
+  `E_INVOICE_RECIPIENT_UNREACHABLE`, `E_INVOICE_ALREADY_SENT` (pass `resend`).
 - `syncEInvoices` moves pending deliveries to `delivered` or `rejected`.
   `receiveEInvoices` makes purchase bills of the company that owns the sender's
   participant id; documents it can't match stay `unmatched`.
-- The delivery log is `invoice_e_deliveries`. Docs:
+- The delivery log is `e_invoice_deliveries`. Docs:
   `https://bettersupabase.com/docs/concepts/e-invoicing`.
 
 ## Audit files (SAF-T)

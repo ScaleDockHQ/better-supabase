@@ -27,4 +27,6 @@ export const medicationsBlock: BlockOf<
   create: createMedications,
   recipes: ["medication-chart"],
   category: "people",
+  description:
+    "A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.",
 });

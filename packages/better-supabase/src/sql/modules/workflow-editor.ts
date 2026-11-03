@@ -564,7 +564,7 @@ begin
     ${fail("WORKFLOW_SUBJECT_UNSUPPORTED", "this workflow definitions table has no subject types column", "22023")}
   end if;`
   }
-  if not ${allowed("tenant", "edit")} then
+  if not ${allowed("tenant", "write")} then
     ${forbidden("You may not edit workflows here")}
   end if;
   select * into v_row from ${d} x
@@ -581,7 +581,7 @@ begin
     if not ${granted(`v_row.${cd("id")}`, "tenant", "edit")} then
       ${forbidden("You may not edit this workflow")}
     end if;
-    if restricted is not null and restricted <> v_row.${cd("restricted")} and not ${allowed("tenant", "admin")} then
+    if restricted is not null and restricted <> v_row.${cd("restricted")} and not ${allowed("tenant", "manage")} then
       ${forbidden("Only a workflow admin restricts a workflow")}
     end if;
     update ${d} x set
@@ -592,7 +592,7 @@ begin
     where x.${cd("id")} = v_row.${cd("id")}
     returning * into v_row;
   else
-    if coalesce(restricted, false) and not ${allowed("tenant", "admin")} then
+    if coalesce(restricted, false) and not ${allowed("tenant", "manage")} then
       ${forbidden("Only a workflow admin restricts a workflow")}
     end if;
     insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}${subjectTyped ? `, ${cd("subjectTypes")}` : ""}${scoped ? `, ${cd("scope")}` : ""}, ${cd("restricted")}, ${cd("createdBy")})
@@ -671,7 +671,7 @@ as $$
 #variable_conflict use_variable
 begin
   delete from ${d} x
-  where x.${cd("id")} = definition and ${allowed(`x.${cd("tenant")}`, "admin")};
+  where x.${cd("id")} = definition and ${allowed(`x.${cd("tenant")}`, "manage")};
   return found;
 end;
 $$;
@@ -697,7 +697,7 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  if not (${allowed("v_tenant", "edit")} and ${granted("definition", "v_tenant", "edit")}) then
+  if not (${allowed("v_tenant", "write")} and ${granted("definition", "v_tenant", "edit")}) then
     ${forbidden("You may not edit this workflow")}
   end if;
   if jsonb_typeof(graph) <> 'object' then

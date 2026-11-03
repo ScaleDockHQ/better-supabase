@@ -32,4 +32,6 @@ export const incidentsBlock: BlockOf<
   create: createIncidents,
   recipes: ["status-page"],
   category: "work",
+  description:
+    "Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.",
 });

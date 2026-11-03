@@ -1,11 +1,11 @@
 import type { AuditRecord, AuditWarning } from "./model.ts";
 import type { XmlNode } from "./xml.ts";
 
+import { parseScaled } from "../commerce/scaled.ts";
 import { AuditFileError } from "./model.ts";
 import { childNode, childText } from "./xml.ts";
 
 const DEFAULT_DECIMALS = 2;
-const DECIMAL = /^([+-])?(\d+)(?:\.(\d+))?$/u;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})/u;
 
 /** Reads a decimal such as `-1234.50` as minor units, refusing lost digits. */
@@ -15,28 +15,23 @@ export function parseAmount(
   where: string,
 ): bigint {
   const scale = decimals ?? DEFAULT_DECIMALS;
-  const match = DECIMAL.exec(text.trim());
+  const minor = parseScaled(text, scale, true);
 
-  if (match === null) {
+  if (minor === "syntax") {
     throw new AuditFileError(
       "AUDIT_AMOUNT_INVALID",
       `${where}: "${text}" is not a decimal amount`,
     );
   }
 
-  const [, sign, whole = "0", fraction = ""] = match;
-  const trimmed = fraction.replace(/0+$/u, "");
-
-  if (trimmed.length > scale) {
+  if (minor === "scale") {
     throw new AuditFileError(
       "AUDIT_AMOUNT_INVALID",
       `${where}: "${text}" has more than ${scale} decimals`,
     );
   }
 
-  const minor = BigInt(whole + trimmed.padEnd(scale, "0"));
-
-  return sign === "-" ? -minor : minor;
+  return minor;
 }
 
 /** Writes minor units as a decimal with `decimals` digits. */

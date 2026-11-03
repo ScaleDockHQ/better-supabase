@@ -2506,7 +2506,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ai-files",
         "queue",
         "bookings",
-        "contacts"
+        "contacts",
+        "tasks"
       ],
       "modes": [
         "managed",

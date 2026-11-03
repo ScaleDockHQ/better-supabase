@@ -31,6 +31,8 @@ export const carePlansBlock: BlockOf<
   create: createCarePlans,
   recipes: ["care-plan-editor", "care-plan-evaluations"],
   category: "people",
+  description:
+    "Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.",
   schedules: [
     {
       name: "reviews",

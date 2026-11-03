@@ -1,6 +1,6 @@
 -- better-supabase module: activities
--- @bsb-block activities@3 managed
--- @bsb-hash sha256:8d1da03d53cfbff8c249b3b65cbf620fc9dda1c2411360f4d7abb9f9ac574417
+-- @bsb-block activities@4 managed
+-- @bsb-hash sha256:e5ab3ad713a3fc0e2da61086c4f425f51e396edcfb9c53b88a96d82b2475bc39
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -705,7 +705,7 @@ create table if not exists "better_supabase"."engagement_notes" (
   "activity_id" uuid primary key references "better_supabase"."activities" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "summary" text not null check (length("summary") between 1 and 20000),
-  "action_items" jsonb not null default '[]' check (jsonb_typeof("action_items") = 'array'),
+
   "model" text,
   "source" text not null default 'ai' check ("source" in ('ai', 'member')),
   "created_by" uuid,
@@ -718,6 +718,26 @@ grant select on "better_supabase"."engagement_notes" to authenticated;
 grant all on "better_supabase"."engagement_notes" to service_role;
 drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
 create policy engagement_notes_read on "better_supabase"."engagement_notes"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
+
+-- The action items of a note: each one is a task, so it is assigned, due and
+-- closed in the tasks block.
+create table if not exists "better_supabase"."activity_note_actions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "activity_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
+  "task_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "created_at" timestamptz not null default now(),
+  unique ("activity_id", "task_id")
+);
+create index if not exists "activity_note_actions_task_idx" on "better_supabase"."activity_note_actions" ("task_id");
+alter table "better_supabase"."activity_note_actions" enable row level security;
+revoke all on "better_supabase"."activity_note_actions" from public, anon, authenticated;
+grant select on "better_supabase"."activity_note_actions" to authenticated;
+grant all on "better_supabase"."activity_note_actions" to service_role;
+drop policy if exists activity_note_actions_read on "better_supabase"."activity_note_actions";
+create policy activity_note_actions_read on "better_supabase"."activity_note_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 
@@ -930,7 +950,9 @@ revoke execute on function "better_supabase"."pending_activity_recordings"(integ
 grant execute on function "better_supabase"."pending_activity_recordings"(integer) to service_role;
 
 -- Saves an engagement's notes: notes { summary, actionItems: [{ text,
--- ownerId, dueAt }], model, source }. Replaces earlier notes.
+-- ownerId, dueAt }], model, source }. Replaces earlier notes. Each action item
+-- becomes a task through the tasks block, unless the engagement already has a
+-- task with that title; without the tasks block action items are refused.
 create or replace function "better_supabase"."save_activity_notes"(engagement uuid, notes jsonb)
 returns jsonb
 language plpgsql
@@ -944,6 +966,8 @@ declare
   v_items jsonb := coalesce(save_activity_notes.notes -> 'actionItems', '[]'::jsonb);
   v_subjects jsonb;
   v_first jsonb;
+  v_item jsonb;
+  v_task uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -962,15 +986,29 @@ begin
   ) then
     raise exception 'actionItems must be a list of { text }' using errcode = '22023', hint = 'ACTIVITY_NOTES_INVALID';
   end if;
-  insert into "better_supabase"."engagement_notes" ("activity_id", "tenant_id", "summary", "action_items", "model", "source", "created_by")
-  values (save_activity_notes.engagement, v_tenant, v_summary, v_items, nullif(save_activity_notes.notes ->> 'model', ''), case when save_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
+  insert into "better_supabase"."engagement_notes" ("activity_id", "tenant_id", "summary", "model", "source", "created_by")
+  values (save_activity_notes.engagement, v_tenant, v_summary, nullif(save_activity_notes.notes ->> 'model', ''), case when save_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
   on conflict ("activity_id") do update set
-    "summary" = excluded."summary", "action_items" = excluded."action_items",
+    "summary" = excluded."summary",
     "model" = excluded."model", "source" = excluded."source", "updated_at" = now();
+  for v_item in select i.value from jsonb_array_elements(v_items) i loop
+    if not exists (
+      select 1 from "better_supabase"."activity_note_actions" ax join "better_supabase"."work_items" k on k."id" = ax."task_id"
+      where ax."activity_id" = save_activity_notes.engagement and k."title" = left(btrim(v_item ->> 'text'), 500)
+    ) then
+      v_task := ("better_supabase"."create_work_item"(
+        v_tenant,
+        jsonb_strip_nulls(jsonb_build_object('title', left(btrim(v_item ->> 'text'), 500), 'dueAt', v_item ->> 'dueAt')),
+        case when nullif(v_item ->> 'ownerId', '') is null then '{}'::uuid[] else array[(v_item ->> 'ownerId')::uuid] end
+      ) ->> 'id')::uuid;
+      insert into "better_supabase"."activity_note_actions" ("tenant_id", "activity_id", "task_id")
+      values (v_tenant, save_activity_notes.engagement, v_task);
+    end if;
+  end loop;
   v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."activity_id" = save_activity_notes.engagement), '[]'::jsonb);
   v_first := v_subjects -> 0;
   perform "better_supabase".emit_event('activity.summarized', jsonb_build_object('organizationId', v_tenant, 'engagementId', save_activity_notes.engagement, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || save_activity_notes.engagement::text, (v_tenant::text)::text, 'activity.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text), 'better-supabase/activities');
-  return (select jsonb_build_object('engagementId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionItems', nx."action_items", 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."activity_id" = save_activity_notes.engagement);
+  return (select jsonb_build_object('engagementId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionTaskIds', coalesce((select jsonb_agg(ax."task_id" order by ax."created_at", ax."id") from "better_supabase"."activity_note_actions" ax where ax."activity_id" = nx."activity_id"), '[]'::jsonb), 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."activity_id" = save_activity_notes.engagement);
 end;
 $$;
 revoke execute on function "better_supabase"."save_activity_notes"(uuid, jsonb) from public, anon;
@@ -1009,7 +1047,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('engagementId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionItems', nx."action_items", 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."activity_id" = activity_notes.engagement
+  select jsonb_build_object('engagementId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionTaskIds', coalesce((select jsonb_agg(ax."task_id" order by ax."created_at", ax."id") from "better_supabase"."activity_note_actions" ax where ax."activity_id" = nx."activity_id"), '[]'::jsonb), 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."activity_id" = activity_notes.engagement
 $$;
 revoke execute on function "better_supabase"."activity_notes"(uuid) from public, anon;
 grant execute on function "better_supabase"."activity_notes"(uuid) to authenticated, service_role;

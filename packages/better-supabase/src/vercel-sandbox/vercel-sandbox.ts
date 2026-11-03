@@ -319,6 +319,8 @@ function statusOf(cause: unknown): number | undefined {
   return typeof status === "number" ? status : undefined;
 }
 
+// Not `dbErrorOfStatus`: 401 is `forbidden` here (the sandbox is not available to
+// this app), every other status is `network`, and each message is fixed.
 /**
  * A `@vercel/sandbox` failure as a `DbError`. The message is fixed per kind,
  * since the SDK's own message can quote the sandbox's output.

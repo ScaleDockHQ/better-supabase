@@ -36,7 +36,7 @@ const EXTRA: Extra = {
       permissions: {
         read: "people.read",
         write: "people.manage",
-        viewSensitive: "people.view-sensitive",
+        readSensitive: "people.view-sensitive",
       },
     },
   },

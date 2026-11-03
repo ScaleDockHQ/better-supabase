@@ -16,6 +16,8 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     events: ordersEvents,
     create: createOrders,
     category: "commerce",
+    description:
+      "Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
     recipes: ["order-detail", "kitchen-display", "order-state-board"],
     actions: [{ kind: "orders.from_quote", title: "Order the accepted quote" }],
     handlers: { "orders.from_quote": orderFromQuoteFactory },

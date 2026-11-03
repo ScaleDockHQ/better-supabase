@@ -12,4 +12,6 @@ export const identitiesBlock: BlockOf<"identities", typeof createIdentities> =
     options: { identities: identitiesSqlOptions },
     create: createIdentities,
     category: "identity",
+    description:
+      "Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.",
   });

@@ -102,12 +102,13 @@ export interface EngagementNotesInput {
   readonly actionItems?: readonly EngagementActionItem[];
 }
 
-/** The notes on an engagement: a summary and its action items. */
+/** The notes on an engagement: a summary and the tasks its action items became. */
 export interface EngagementNotes {
   readonly engagementId: string;
   readonly organizationId: string;
   readonly summary: string;
-  readonly actionItems: readonly EngagementActionItem[];
+  /** The tasks the action items became; empty without the tasks block. */
+  readonly actionTaskIds: readonly string[];
   /** The note taker's model, for notes an AI wrote. */
   readonly model?: string;
   /** `ai` from `summarize`, `member` when a member wrote them. */
@@ -190,12 +191,8 @@ export function segmentOf(row: Record<string, unknown>): TranscriptSegment {
   });
 }
 
-function actionItemOf(row: Record<string, unknown>): EngagementActionItem {
-  return defined<EngagementActionItem>({
-    text: textOf(row["text"]),
-    ownerId: optionalText(row["ownerId"]),
-    dueAt: optionalInstant(row["dueAt"]),
-  });
+function idsOf(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((id) => textOf(id)) : [];
 }
 
 export function notesOf(value: unknown): EngagementNotes {
@@ -205,9 +202,7 @@ export function notesOf(value: unknown): EngagementNotes {
     engagementId: textOf(row["engagementId"]),
     organizationId: textOf(row["organizationId"]),
     summary: textOf(row["summary"]),
-    actionItems: recordsOf(row["actionItems"], "action items").map(
-      actionItemOf,
-    ),
+    actionTaskIds: idsOf(row["actionTaskIds"]),
     model: optionalText(row["model"]),
     source: row["source"] === "member" ? "member" : "ai",
     createdBy: optionalText(row["createdBy"]),

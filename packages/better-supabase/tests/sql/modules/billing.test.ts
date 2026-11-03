@@ -154,7 +154,7 @@ describe("billing module", () => {
     );
   });
 
-  it("checks viewAll with the read key unless viewAll is set", () => {
+  it("checks readAll with the read key unless readAll is set", () => {
     const sql = (permissions: Record<string, string>) =>
       moduleBody("billing", { modules: { billing: { permissions } } })!;
 
@@ -162,7 +162,7 @@ describe("billing module", () => {
       "better_supabase.is_platform('billing.view')",
     );
     expect(
-      sql({ read: "billing.view", viewAll: "platform.billing" }),
+      sql({ read: "billing.view", readAll: "platform.billing" }),
     ).toContain("better_supabase.is_platform('platform.billing')");
   });
 

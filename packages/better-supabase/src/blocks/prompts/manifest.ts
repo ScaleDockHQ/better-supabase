@@ -12,4 +12,6 @@ export const promptsBlock: BlockOf<"prompts", typeof createPrompts> =
     options: { prompts: promptsSqlOptions },
     create: createPrompts,
     category: "ai",
+    description:
+      "Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.",
   });

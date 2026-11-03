@@ -30,4 +30,6 @@ export const schedulingBlock: BlockOf<"scheduling", typeof createScheduling> =
     composes: schedulingParts,
     create: createScheduling,
     category: "scheduling",
+    description:
+      "Bookings, a calendar and reminders installed together for appointments.",
   });

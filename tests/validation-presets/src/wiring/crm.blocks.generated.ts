@@ -326,20 +326,20 @@ export const permissions = {
     assign: "assignment.assign",
   },
   audit: {
-    view: "audit.read",
-    viewAll: "audit.read",
+    read: "audit.read",
+    readAll: "audit.read",
     revert: "audit.revert",
   },
   automations: {
     read: "automations.read",
-    edit: "automations.write",
+    write: "automations.write",
     publish: "automations.publish",
-    admin: "automations.manage",
+    manage: "automations.manage",
   },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
-    viewAll: "billing.read",
+    readAll: "billing.read",
   },
   comments: {
     read: "messages.read",
@@ -395,7 +395,7 @@ export const permissions = {
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
-    view: "members.invite",
+    read: "members.invite",
   },
   "mail-sync": {
     read: "mail_sync.read",
@@ -465,7 +465,7 @@ export const permissions = {
   },
   segments: {
     read: "segments.read",
-    edit: "segments.write",
+    write: "segments.write",
   },
   sequences: {
     read: "sequences.read",

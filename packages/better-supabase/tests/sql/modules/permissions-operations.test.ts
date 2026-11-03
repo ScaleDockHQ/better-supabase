@@ -34,8 +34,8 @@ describe("OPERATIONS", () => {
       "organization.update",
     );
     expect(moduleOperations("audit")).toEqual({
-      view: "audit.read",
-      viewAll: "audit.read",
+      read: "audit.read",
+      readAll: "audit.read",
       revert: "audit.revert",
     });
   });
@@ -45,10 +45,11 @@ describe("operation_permission", () => {
   it("answers the installed modules' operations after renames", () => {
     const sql = operationFn(
       accessSql(["permissions", "audit"], {
-        modules: { audit: { permissions: { view: "logs.read" } } },
+        modules: { audit: { permissions: { read: "logs.read" } } },
       }),
     );
 
+    expect(sql).toContain("when 'audit.read' then 'logs.read'");
     expect(sql).toContain("when 'audit.view' then 'logs.read'");
     expect(sql).toContain("when 'audit.revert' then 'audit.revert'");
     expect(sql).not.toContain("'billing.read'");

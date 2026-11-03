@@ -15,5 +15,7 @@ export const ssoBlock: BlockOf<"sso", typeof createSso, SsoEvents> =
     events: ssoEvents,
     create: createSso,
     category: "identity",
+    description:
+      "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",
     recipes: ["sso-settings"],
   });

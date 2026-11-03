@@ -33,4 +33,6 @@ export const financeBlock: BlockOf<"finance", typeof createFinance> =
     composes: financeParts,
     create: createFinance,
     category: "commerce",
+    description:
+      "Accounting, tax, banking and invoices installed together for the books.",
   });

@@ -29,6 +29,8 @@ export const inspectionsBlock: BlockOf<
   create: createInspections,
   recipes: ["inspection-program-calendar", "inspection-run"],
   category: "work",
+  description:
+    "Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.",
   schedules: [
     {
       name: "overdue",

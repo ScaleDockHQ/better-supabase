@@ -24,4 +24,5 @@ export const learningBlock: BlockOf<"learning", typeof createLearning> =
     composes: learningParts,
     create: createLearning,
     category: "people",
+    description: "Courses and enrollments installed together for training.",
   });

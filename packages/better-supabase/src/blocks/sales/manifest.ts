@@ -13,4 +13,6 @@ export const salesBlock: BlockOf<"sales", typeof createSales> = defineBlock({
   composes: salesParts,
   create: createSales,
   category: "crm",
+  description:
+    "Contacts, pipelines, deals, quotes, orders and invoices installed together for a team that sells.",
 });

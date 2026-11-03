@@ -1195,31 +1195,31 @@ describe("modulePermissionKeys", () => {
     };
 
     expect(key(invite, "invitations", "revoke")).toBe("member.invite");
-    expect(key(invite, "invitations", "view")).toBe("member.invite");
+    expect(key(invite, "invitations", "read")).toBe("member.invite");
     expect(key(invite, "waitlist", "invite")).toBe("waitlist.invite");
     expect(
       key(
         { billing: { permissions: { read: "billing.view" } } },
         "billing",
-        "viewAll",
+        "readAll",
       ),
     ).toBe("billing.view");
     expect(
       key(
-        { audit: { permissions: { view: "audit.view" } } },
+        { audit: { permissions: { read: "audit.view" } } },
         "audit",
-        "viewAll",
+        "readAll",
       ),
     ).toBe("audit.view");
     expect(
       key(
         {
           invitations: {
-            permissions: { invite: "member.invite", view: "member.view" },
+            permissions: { invite: "member.invite", read: "member.view" },
           },
         },
         "invitations",
-        "view",
+        "read",
       ),
     ).toBe("member.view");
     expect(key({}, "waitlist", "invite")).toBe("waitlist.invite");

@@ -173,6 +173,8 @@ export default defineConfig({
     assignment: {},
     // Company and person data from an enrichment provider, one result each.
     enrichment: {},
+    // Tenant defaults (pipelines, calendars, tax codes) that new organizations receive.
+    seeds: { api: false },
     // The forecast call by period, snapshotted so a review compares weeks.
     forecasts: {},
     // Old and new values of a deal's amount, stage, owner and close date,

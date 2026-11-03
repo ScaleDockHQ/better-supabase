@@ -107,6 +107,14 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
       expect(warnings).toEqual({
         // The fixture runs no queue worker, so the reminders timer has no handler.
         "warning BS508": ["reminders.schedule()"],
+        // The notifications 9 to 10 upgrade migration adds a column and a check
+        // to a table the fixture already holds.
+        "warning BS230": [
+          "supabase/migrations/20261102222046_better_supabase_block_upgrade.sql:4",
+        ],
+        "warning BS233": [
+          "supabase/migrations/20261102222046_better_supabase_block_upgrade.sql",
+        ],
         // CentraKit grants projects to members for select only, and file nodes
         // are written by the app's own service, never by clients.
         "warning BS107": ["centrakit.file_node", "centrakit.projects"],

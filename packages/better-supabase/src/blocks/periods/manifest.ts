@@ -18,4 +18,6 @@ export const periodsBlock: BlockOf<
   create: createPeriods,
   recipes: [],
   category: "commerce",
+  description:
+    "Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.",
 });

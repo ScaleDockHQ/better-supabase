@@ -18,5 +18,7 @@ export const apiKeysBlock: BlockOf<
   events: apiKeysEvents,
   create: createApiKeys,
   category: "developer",
+  description:
+    "Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.",
   recipes: ["api-keys-table"],
 });

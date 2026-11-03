@@ -15,6 +15,8 @@ export const trashBlock: BlockOf<"trash", typeof createTrash, TrashEvents> =
     events: trashEvents,
     create: createTrash,
     category: "database",
+    description:
+      "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.",
     recipes: ["undo-toast", "trash-bin"],
     extension: "trashExtension",
   });

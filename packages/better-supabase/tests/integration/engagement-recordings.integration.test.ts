@@ -29,6 +29,7 @@ const MODULES = [
   "subjects",
   "contacts",
   "ai-files",
+  "tasks",
   "activities",
 ];
 
@@ -230,8 +231,8 @@ describe.skipIf(!live)("engagement recordings", () => {
         source: "ai",
         model: "notes-test",
         summary: "2 turns: Thanks for joining. Send the proposal by Friday.",
-        actionItems: [{ text: "Send the proposal" }],
       });
+      expect(notes.actionTaskIds).toHaveLength(1);
 
       const edited = await engagements
         .saveNotes({
@@ -240,7 +241,10 @@ describe.skipIf(!live)("engagement recordings", () => {
         })
         .orThrow();
 
-      expect(edited).toMatchObject({ source: "member", actionItems: [] });
+      expect(edited).toMatchObject({
+        source: "member",
+        actionTaskIds: expect.any(Array),
+      });
       expect(edited.model).toBeUndefined();
       expect(
         hint(

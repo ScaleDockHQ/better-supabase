@@ -209,7 +209,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select ${ctx.scope.ids(modulePermission(ctx, "view", OPERATIONS["invitations.view"]))};
+  return query select ${ctx.scope.ids(modulePermission(ctx, "read", OPERATIONS["invitations.read"]))};
 end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;

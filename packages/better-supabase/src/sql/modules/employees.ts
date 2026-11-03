@@ -502,14 +502,14 @@ function build(ctx: BlockSqlContext): string {
     c: (table, column) => ctx.col(table, column),
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
-    sensitive: ctx.permission("viewSensitive", keys.viewSensitive),
+    sensitive: ctx.permission("readSensitive", keys.readSensitive),
     create: sqlString(
       ctx.config.permissions["create"] ??
         ctx.permissionKey("write", keys.write),
     ),
     contractsRead: sqlString(
       ctx.config.permissions["contractsRead"] ??
-        ctx.permissionKey("viewSensitive", keys.viewSensitive),
+        ctx.permissionKey("readSensitive", keys.readSensitive),
     ),
     contractsWrite: optionalKey(ctx, "contractsWrite"),
     privateDetailsWrite: optionalKey(ctx, "privateDetailsWrite"),

@@ -20,4 +20,6 @@ export const commissionsBlock: BlockOf<
   create: createCommissions,
   recipes: [],
   category: "commerce",
+  description:
+    "Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.",
 });

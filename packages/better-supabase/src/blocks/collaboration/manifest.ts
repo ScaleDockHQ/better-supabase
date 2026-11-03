@@ -38,4 +38,6 @@ export const collaborationBlock: BlockOf<
   composes: collaborationParts,
   create: createCollaboration,
   category: "collaboration",
+  description:
+    "Comments, tags, attachments, a timeline and reactions installed together on any record.",
 });

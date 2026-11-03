@@ -18,5 +18,7 @@ export const timeTrackingBlock: BlockOf<
   events: timeTrackingEvents,
   create: createTimeTracking,
   category: "people",
+  description:
+    "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
   recipes: ["timesheet"],
 });

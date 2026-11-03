@@ -18,6 +18,8 @@ export const templatesBlock: BlockOf<
   events: templatesEvents,
   create: createTemplates,
   category: "content",
+  description:
+    "Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.",
   recipes: ["templates-gallery"],
   schedules: [
     {

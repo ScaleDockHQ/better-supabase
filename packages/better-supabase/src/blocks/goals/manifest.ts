@@ -11,5 +11,7 @@ export const goalsBlock: BlockOf<"goals", typeof createGoals> = defineBlock({
   options: { goals: goalsSqlOptions },
   create: createGoals,
   category: "crm",
+  description:
+    "Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.",
   recipes: ["targets-progress"],
 });
