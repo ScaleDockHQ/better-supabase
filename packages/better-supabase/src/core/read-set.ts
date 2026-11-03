@@ -3,7 +3,12 @@ import type { BlockReadMap } from "./block-reads.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
-import type { InferEntryResult, ReadSetEntry, ReadSetSpecs } from "./spec.ts";
+import type {
+  InferEntryResult,
+  ReadSetEntry,
+  ReadSetGate,
+  ReadSetSpecs,
+} from "./spec.ts";
 
 import { createBlockReadSpecs } from "./block-reads.ts";
 import { dbError } from "./errors.ts";
@@ -73,6 +78,17 @@ export interface ReadSetAuth {
    * otherwise.
    */
   readonly uid: string;
+  /**
+   * A check that the caller holds `permission`, for `s.when(gate, entry)`: the
+   * entry runs only when `better_supabase.can(scope, id, permission)` is true
+   * and its result is `null` otherwise. `scope` defaults to `tenant` and `id`
+   * to the caller's current tenant; pass a parameter placeholder to check
+   * another one.
+   */
+  can(
+    permission: string,
+    options?: { readonly scope?: string; readonly id?: string },
+  ): ReadSetGate;
 }
 
 type ReadSetRole = "anon" | "authenticated";
@@ -152,7 +168,14 @@ function sentinel(name: string): string {
   return `${NUL}bsb:${name}${NUL}`;
 }
 
-const AUTH: ReadSetAuth = { uid: sentinel("@uid") };
+const AUTH: ReadSetAuth = {
+  uid: sentinel("@uid"),
+  can: (permission, options = {}) => ({
+    permission,
+    scope: options.scope ?? "tenant",
+    ...(options.id === undefined ? {} : { id: options.id }),
+  }),
+};
 
 /** What a placeholder stands for: a caller parameter or the caller's identity. */
 export type Placeholder =
@@ -242,6 +265,7 @@ export function defineReadSet<
       $fn: createFunctionSpecs(),
       blocks: createBlockReadSpecs(options.blocks ?? {}),
       record: recordSpec,
+      when: gateSpec,
     } as unknown as ReadSetSpecs<M, F, E, B>,
     placeholders as ReadSetParams<P>,
     AUTH,
@@ -420,6 +444,17 @@ export function containsPlaceholder(value: unknown): boolean {
   return false;
 }
 
+/** `s.when`: the entry with the gate on it. */
+function gateSpec<S extends ReadSetEntry>(gate: ReadSetGate, entry: S): S {
+  if (typeof gate.permission !== "string" || gate.permission === "") {
+    throw new TypeError(
+      "better-supabase: s.when needs a gate from auth.can(permission)",
+    );
+  }
+
+  return { ...entry, gate };
+}
+
 /** Whether the set's specs read the caller's identity. */
 function readSetUsesAuth(set: ReadSet): boolean {
   return Object.values(set.specs).some((spec) => usesAuth(spec.args));
@@ -523,17 +558,28 @@ export function bindParams(
     return value;
   };
 
+  const bindGate = (gate: ReadSetGate | undefined): { gate?: ReadSetGate } =>
+    gate === undefined
+      ? {}
+      : {
+          gate: {
+            ...gate,
+            ...(gate.id === undefined ? {} : { id: bind(gate.id) }),
+          },
+        };
+
   const specs = Object.fromEntries(
     Object.entries(set.specs).map(([key, spec]) => [
       key,
       isFunctionSpec(spec)
         ? {
             ...spec,
+            ...bindGate(spec.gate),
             args: Object.fromEntries(
               Object.entries(spec.args).map(([name, arg]) => [name, bind(arg)]),
             ),
           }
-        : { ...spec, args: spec.args.map(bind) },
+        : { ...spec, ...bindGate(spec.gate), args: spec.args.map(bind) },
     ]),
   );
 

@@ -1,7 +1,7 @@
 import type { SqlQuery } from "../compile/sql.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Placeholder, ReadSet } from "../core/read-set.ts";
-import type { FunctionSpec } from "../core/spec.ts";
+import type { FunctionSpec, ReadSetGate } from "../core/spec.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { compileSql, quoteIdent } from "../compile/sql.ts";
@@ -323,6 +323,22 @@ function functionEntry(set: ReadSet, spec: FunctionSpec): string {
 }
 
 /**
+ * An entry behind its gate: the provider-agnostic `better_supabase.can`
+ * answers, so the permissions block must be installed. Evaluated once per
+ * call.
+ */
+function gated(set: ReadSet, gate: ReadSetGate, entrySql: string): string {
+  const id =
+    gate.id === undefined
+      ? "better_supabase.current_tenant_id()"
+      : literal(set, gate.id);
+
+  const check = `better_supabase.can(${sqlString(gate.scope)}, ${id}, ${sqlString(gate.permission)})`;
+
+  return `case when (select ${check}) then ${entrySql} else null end`;
+}
+
+/**
  * The function for a read set: `stable`, `security invoker` (RLS applies to the
  * caller) and with an empty `search_path`. Parameters are read from the `p
  * jsonb` argument; nothing is built dynamically.
@@ -331,11 +347,11 @@ export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   const ops = await operations(set);
 
   const entries = Object.entries(set.specs).map(([key, spec]) => {
-    if (isFunctionSpec(spec)) {
-      return `    ${sqlString(key)}, ${functionEntry(set, spec)}`;
-    }
+    const sql = isFunctionSpec(spec)
+      ? functionEntry(set, spec)
+      : entry(set, ops.get(key)!);
 
-    return `    ${sqlString(key)}, ${entry(set, ops.get(key)!)}`;
+    return `    ${sqlString(key)}, ${spec.gate ? gated(set, spec.gate, sql) : sql}`;
   });
 
   const body = `  select jsonb_build_object(\n${entries.join(",\n")}\n  )`;

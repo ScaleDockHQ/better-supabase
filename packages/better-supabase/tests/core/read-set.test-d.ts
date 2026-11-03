@@ -124,3 +124,19 @@ describe("block reads in a read set", () => {
     >();
   });
 });
+
+const guarded = defineReadSet(betterSupabase, "guarded", {}, (s, _p, auth) => ({
+  all: s.customers.count(),
+  some: s.when(auth.can("customer.read"), s.customers.count()),
+}));
+
+describe("gated entries", () => {
+  it("are null when the caller lacks the permission", async () => {
+    const result = await db.$many(guarded, {});
+
+    if (result.ok) {
+      expectTypeOf(result.data.all).toEqualTypeOf<number>();
+      expectTypeOf(result.data.some).toEqualTypeOf<number | null>();
+    }
+  });
+});

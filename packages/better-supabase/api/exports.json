@@ -1849,6 +1849,7 @@
       "ResourceRouteOptions",
       "RouteOptions",
       "ScopeOptions",
+      "SessionHandle",
       "SessionSnapshot",
       "SignedIn",
       "SignInCredentials",
