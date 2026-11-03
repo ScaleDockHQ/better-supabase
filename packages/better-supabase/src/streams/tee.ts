@@ -4,6 +4,8 @@ import type { StreamOpenOptions, StreamStore } from "./store.ts";
 
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 
+const encoder = new TextEncoder();
+
 export interface TeeToStoreOptions extends StreamOpenOptions {
   /** Milliseconds a chunk may wait before its batch is written. Defaults to 100. */
   readonly flushMs?: number;
@@ -142,7 +144,7 @@ async function persist(
       }
 
       buffer.push(value);
-      bytes += value.length;
+      bytes += encoder.encode(value).length;
 
       if (bytes >= flushBytes) {
         void flush();

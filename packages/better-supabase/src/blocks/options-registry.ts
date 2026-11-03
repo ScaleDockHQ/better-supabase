@@ -149,6 +149,7 @@ import type {
 } from "./webhooks/options.ts";
 import type { WorkflowEditorSqlOptions } from "./workflow-editor/options.ts";
 import type { WorkflowSdkSqlOptions } from "./workflow-sdk/options.ts";
+import type { WorkflowsSqlOptions } from "./workflows/options.ts";
 
 import { accessRequestsSqlOptions } from "./access-requests/options.ts";
 import { accountingSqlOptions } from "./accounting/options.ts";
@@ -301,6 +302,7 @@ import {
 } from "./webhooks/options.ts";
 import { workflowEditorSqlOptions } from "./workflow-editor/options.ts";
 import { workflowSdkSqlOptions } from "./workflow-sdk/options.ts";
+import { workflowsSqlOptions } from "./workflows/options.ts";
 
 type None = Record<never, never>;
 
@@ -491,7 +493,7 @@ export interface BlockOptionsRegistry {
   readonly "webhooks-out": WebhooksOutSqlOptions;
   readonly "workflow-editor": WorkflowEditorSqlOptions;
   readonly "workflow-sdk": WorkflowSdkSqlOptions;
-  readonly workflows: None;
+  readonly workflows: WorkflowsSqlOptions;
 }
 
 /** The options schema of every SQL module, keyed by module name. */
@@ -681,7 +683,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "webhooks-out": webhooksOutSqlOptions,
   "workflow-editor": workflowEditorSqlOptions,
   "workflow-sdk": workflowSdkSqlOptions,
-  workflows: NO_OPTIONS,
+  workflows: workflowsSqlOptions,
 };
 
 /** The manifest's options schema of `module`, when it is a built-in module. */

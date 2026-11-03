@@ -310,3 +310,64 @@ describe("createWorkflows", () => {
     });
   });
 });
+
+describe("run registry calls", () => {
+  it("claims, sets the engine and records a key and fields", async () => {
+    const { transport, calls } = fake({
+      claim_workflow_run_dispatch: () => ({ ...RUN, idempotencyKey: "k" }),
+      set_workflow_run_engine: () => null,
+      record_workflow_run: () => "r1",
+    });
+
+    const workflows = createWorkflows({ transport });
+
+    expect(
+      (await workflows.runs.claimForDispatch("r1", { lease: 30 }).orThrow())
+        ?.idempotencyKey,
+    ).toBe("k");
+    expect(
+      await workflows.runs
+        .setEngine({ run: "r1", engine: "workflow-sdk", externalId: "wrun_9" })
+        .orThrow(),
+    ).toBeUndefined();
+
+    await workflows.runs
+      .record({
+        engine: "workflow-sdk",
+        externalId: "pending:1",
+        definition: "d",
+        status: "queued",
+        idempotencyKey: "k",
+        fields: { region: "eu" },
+      })
+      .orThrow();
+
+    expect(calls[0]).toEqual({
+      fn: "claim_workflow_run_dispatch",
+      args: { run: "r1", lease: 30 },
+    });
+    expect(calls[1]?.args).toEqual({
+      run: "r1",
+      engine: "workflow-sdk",
+      external_id: "wrun_9",
+    });
+    expect(calls[2]?.args).toMatchObject({
+      idempotency_key: "k",
+      fields: { region: "eu" },
+    });
+  });
+
+  it("reads the key, lease and fields of a run", () => {
+    const run = workflowRunOf({
+      ...RUN,
+      idempotencyKey: "k",
+      dispatchUntil: "2026-01-01T00:01:00Z",
+      fields: { region: "eu" },
+    });
+
+    expect(run.idempotencyKey).toBe("k");
+    expect(run.dispatchUntil?.toString()).toBe("2026-01-01T00:01:00Z");
+    expect(run.fields).toEqual({ region: "eu" });
+    expect(workflowRunOf(RUN).fields).toEqual({});
+  });
+});

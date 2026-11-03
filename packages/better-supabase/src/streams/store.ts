@@ -64,7 +64,7 @@ export interface StreamStore {
   append(
     id: string,
     fromIdx: number,
-    chunks: readonly string[],
+    chunks: readonly (string | Uint8Array)[],
   ): AsyncResult<StreamAppendResult>;
   /**
    * The chunks from `fromIdx` on, waiting for new ones until the stream is
@@ -76,6 +76,15 @@ export interface StreamStore {
     fromIdx?: number,
     options?: StreamReadOptions,
   ): ReadableStream<string>;
+  /**
+   * Like `read`, but yields each chunk's bytes, so binary frames come back
+   * exactly as appended. Stores that keep text only leave it out.
+   */
+  readBytes?(
+    id: string,
+    fromIdx?: number,
+    options?: StreamReadOptions,
+  ): ReadableStream<Uint8Array>;
   /** The stream's state, or `undefined` when it doesn't exist. */
   status(id: string): AsyncResult<StreamStatus | undefined>;
   isCancelled(id: string): AsyncResult<boolean>;
@@ -94,14 +103,14 @@ export interface StreamStore {
 }
 
 /** One page of a read. */
-export interface StreamPage {
-  readonly chunks: readonly string[];
+export interface StreamPage<T = string> {
+  readonly chunks: readonly T[];
   readonly next: number;
   readonly done: boolean;
 }
 
-export interface PollingReadOptions {
-  readonly fetch: (from: number) => PromiseLike<Result<StreamPage>>;
+export interface PollingReadOptions<T = string> {
+  readonly fetch: (from: number) => PromiseLike<Result<StreamPage<T>>>;
   readonly from: number;
   readonly pollMs: number;
   readonly signal: AbortSignal | undefined;
@@ -113,9 +122,9 @@ export interface PollingReadOptions {
  * A reader that fetches pages and waits for a wake-up or `pollMs` between empty
  * ones.
  */
-export function pollingRead(
-  options: PollingReadOptions,
-): ReadableStream<string> {
+export function pollingRead<T = string>(
+  options: PollingReadOptions<T>,
+): ReadableStream<T> {
   let next = options.from;
   let woken = false;
   let resolveWait: (() => void) | undefined;
@@ -152,7 +161,7 @@ export function pollingRead(
       resolveWait = done;
     });
 
-  return new ReadableStream<string>({
+  return new ReadableStream<T>({
     start() {
       options.signal?.addEventListener("abort", wake, { once: true });
       unsubscribe = options.subscribe?.(wake);

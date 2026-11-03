@@ -124,3 +124,9 @@ number of streams deleted.
 `StreamStore` has `apiVersion: 1`. Run `testStreamStore` from
 `better-supabase/testing` against your implementation; see
 [Interfaces](/docs/extending/interfaces#streamstore).
+
+## Binary chunks and resumable-stream
+
+Chunks are stored as `bytea`. `append` accepts strings or `Uint8Array` values, and `readBytes(id, fromIdx)` on the Postgres store returns them exactly as written. The Redis store keeps text only and rejects a `Uint8Array` with the hint `STREAM_TEXT_ONLY`.
+
+`resumableStreamContext(store, { waitUntil })` from `better-supabase/streams` implements the `createNewResumableStream`, `resumeExistingStream` and `hasExistingStream` methods the AI SDK resume route calls, so a reconnecting client continues from its character offset without Redis.

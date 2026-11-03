@@ -117,7 +117,8 @@ end;
 $$;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
--- returns its id. With dedupe_running false only a message no worker has
+-- returns its id, and a waiting message moves to the earlier of its time and
+-- the new delay. With dedupe_running false only a message no worker has
 -- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -141,6 +142,10 @@ begin
     execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
       into existing using dedupe_key, dedupe_running;
     if existing is not null then
+      -- A message nobody has read yet moves earlier when this enqueue is due
+      -- sooner, never later.
+      execute format('update pgmq.%I set vt = least(vt, clock_timestamp() + make_interval(secs => $2)) where msg_id = $1 and read_ct = 0', 'q_' || queue)
+        using existing, greatest(delay, 0);
       return existing;
     end if;
   end if;
@@ -803,13 +808,19 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 8,
+  version: 9,
   names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
       : "",
   upgrades: [
+    {
+      from: 8,
+      description:
+        "enqueue_job moves a waiting message with the same dedupe key earlier when the new delay is shorter.",
+      sql: () => "",
+    },
     {
       from: 1,
       description:

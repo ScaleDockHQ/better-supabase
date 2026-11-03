@@ -315,6 +315,12 @@ that many seconds and replaces a request that is still waiting, and
 active. `admission.tick` starts the requests whose key has room, with the
 idempotency key `admission:<id>`. Both are service-role functions.
 
+## Run extra columns
+
+Pass `fields` (a Standard Schema) to `createWorkflows` and map extra columns with `blocks.workflows.options.runExtraColumns`. `runs.record` validates `fields`, and `runs.list`, `runs.get` and the other run methods return them parsed on `run.fields`, typed by the schema. A run also carries `idempotencyKey` and `dispatchUntil`. `runs.claimForDispatch` leases a queued run (an external id that starts with `pending:`) and `runs.setEngine` records the engine's run id on it.
+
+Map `schedules`, `semaphores` or `startRequests` to `null` in `tables` to install only the run registry.
+
 ## Functions
 
 | Function                                                                                      | Granted to                      | Does                                                                                   |

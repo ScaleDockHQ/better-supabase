@@ -6,6 +6,7 @@ import { getWorld } from "workflow/runtime";
 
 import type { OutboxEvent, OutboxHandler } from "../blocks/outbox/outbox.ts";
 import type {
+  Workflows,
   WorkflowPrincipalKind,
   WorkflowStartCall,
   WorkflowStarter,
@@ -15,6 +16,7 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
 import { unwrap, withContext } from "../blocks/queue/envelope.ts";
+import { PENDING_RUN_PREFIX } from "../blocks/workflows/workflows.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 import { runKeysOf } from "./run-keys.ts";
 
@@ -125,12 +127,69 @@ export function startFor<TArgs extends unknown[], TResult>(
   return startRun(context, workflow, args, options, {});
 }
 
+/**
+ * Starts `workflow` as a child of the run `context` belongs to: the child
+ * carries the same `bsb.tenant`, `bsb.actor` and `bsb.ticket` attributes, and
+ * the parent's `subject`, so the tenant and the actor see it in
+ * `workflow_runs`. Call it from a step with the `workflowContext(...)` the
+ * parent run received as an argument. `options.subject` overrides the
+ * parent's.
+ */
+export function startChild<TArgs extends unknown[], TResult>(
+  context: RequestContext,
+  workflow: WorkflowFn<TArgs, TResult>,
+  args: TArgs,
+  options: StartForOptions & { readonly parentSubject?: WorkflowSubject } = {},
+): Promise<Run<TResult>> {
+  const { parentSubject, ...rest } = options;
+  const subject = rest.subject ?? parentSubject;
+
+  return startFor(context, workflow, args, {
+    ...rest,
+    ...(subject === undefined ? {} : { subject }),
+  });
+}
+
+/**
+ * The run registry methods `startOnce` uses; `createWorkflows(...).runs` has
+ * them.
+ */
+export type StartOnceRegistry = Pick<
+  Workflows["runs"],
+  "claimForDispatch" | "get" | "record" | "setEngine"
+>;
+
 export interface StartOnceOptions extends Omit<
   StartForOptions,
   "idempotencyKey"
 > {
-  /** The idempotency key: one run per key while the run is in the World. */
+  /**
+   * The idempotency key: one run per key, in the registry or the World's run
+   * keys.
+   */
   readonly key: string;
+  /**
+   * The `workflows` module's runs, from a service-role `createWorkflows`. The
+   * key is claimed on `workflow_runs` (unique per tenant and key), so it works
+   * with any World and survives a World purge. Without it, `startOnce` needs a
+   * World with run keys.
+   */
+  readonly registry?: StartOnceRegistry;
+}
+
+/**
+ * Thrown by `startOnce` when it has no `registry` and the World has no run
+ * keys, so it can't promise a single run for a key.
+ */
+export class WorkflowRunKeysMissingError extends Error {
+  readonly code = "WORKFLOW_RUN_KEYS_MISSING";
+
+  constructor() {
+    super(
+      "better-supabase: startOnce needs a registry (createWorkflows(...).runs) or a World with run keys; use startFor for a best-effort key",
+    );
+    this.name = "WorkflowRunKeysMissingError";
+  }
 }
 
 /**
@@ -143,7 +202,7 @@ export function startOnce<TArgs extends unknown[], TResult>(
   args: TArgs,
   options: StartOnceOptions,
 ): Promise<Run<TResult>> {
-  const { key, ...rest } = options;
+  const { key, registry, ...rest } = options;
 
   if (typeof key !== "string" || key === "" || key.length > 500) {
     throw new TypeError(
@@ -151,13 +210,25 @@ export function startOnce<TArgs extends unknown[], TResult>(
     );
   }
 
-  return startRun(
-    context,
-    workflow,
-    args,
-    { ...rest, idempotencyKey: key },
-    {},
-  );
+  const run = async (): Promise<Run<TResult>> => {
+    if (
+      registry === undefined &&
+      runKeysOf(rest.world ?? (await getWorld())) === undefined
+    ) {
+      throw new WorkflowRunKeysMissingError();
+    }
+
+    return startRun(
+      context,
+      workflow,
+      args,
+      { ...rest, idempotencyKey: key },
+      {},
+      registry,
+    );
+  };
+
+  return run();
 }
 
 const RUN_AS_ATTRIBUTES: ReadonlySet<string> = new Set([
@@ -176,6 +247,7 @@ async function startRun<TArgs extends unknown[], TResult>(
   args: TArgs,
   options: StartForOptions,
   trusted: Readonly<Record<string, string | undefined>>,
+  registry?: StartOnceRegistry,
 ): Promise<Run<TResult>> {
   const key = options.idempotencyKey;
   const attributes: Record<string, string> = {};
@@ -212,7 +284,103 @@ async function startRun<TArgs extends unknown[], TResult>(
       ...(options.world === undefined ? {} : { world: options.world }),
     });
 
+  if (key !== undefined && registry !== undefined) {
+    return startRegistered({
+      registry,
+      key,
+      definition: workflowName(workflow),
+      context,
+      attributes,
+      launch,
+    });
+  }
+
   return key === undefined ? launch() : startKeyed(key, options.world, launch);
+}
+
+function workflowName(workflow: {
+  readonly name: string;
+  readonly workflowId?: unknown;
+}): string {
+  const id = workflow.workflowId;
+
+  return typeof id === "string" ? id : workflow.name;
+}
+
+const ENGINE = "workflow-sdk";
+
+interface RegisteredStart<TResult> {
+  readonly registry: StartOnceRegistry;
+  readonly key: string;
+  readonly definition: string;
+  readonly context: RequestContext;
+  readonly attributes: Readonly<Record<string, string>>;
+  readonly launch: () => Promise<Run<TResult>>;
+}
+
+/**
+ * Starts the run for `key` once through the run registry: a queued row holds
+ * the key, the caller that leases it starts the run and records its id, and a
+ * concurrent caller waits for that id. A lease that ran out (the starter died)
+ * can be claimed again, so the run starts once the lease ends.
+ */
+async function startRegistered<TResult>(
+  input: RegisteredStart<TResult>,
+): Promise<Run<TResult>> {
+  const { registry, key } = input;
+
+  const reserve = (): Promise<string> =>
+    registry
+      .record({
+        engine: ENGINE,
+        externalId: `${PENDING_RUN_PREFIX}${crypto.randomUUID()}`,
+        definition: input.definition,
+        status: "queued",
+        ...(input.context.tenant === undefined
+          ? {}
+          : { tenant: input.context.tenant }),
+        ...(input.context.actor?.kind === "user"
+          ? { actor: input.context.actor.id }
+          : {}),
+        attributes: input.attributes,
+        idempotencyKey: key,
+      })
+      .orThrow();
+
+  let id = await reserve();
+
+  for (let attempt = 0; attempt < KEY_WAIT_ATTEMPTS; attempt += 1) {
+    const claimed = await registry.claimForDispatch(id).orThrow();
+
+    if (claimed !== undefined) {
+      const run = await input.launch();
+
+      await registry
+        .setEngine({ run: id, engine: ENGINE, externalId: run.runId })
+        .orThrow();
+
+      return run;
+    }
+
+    const current = await registry.get(id).orThrow();
+
+    if (current === undefined) {
+      // The engine's own report took the row over; recording again resolves
+      // the row that now holds the key.
+      id = await reserve();
+      continue;
+    }
+
+    if (!current.externalId.startsWith(PENDING_RUN_PREFIX)) {
+      return getRun<TResult>(current.externalId);
+    }
+
+    await sleep(KEY_WAIT_MS);
+  }
+
+  throw new Error(
+    `better-supabase: another start with idempotency key ${JSON.stringify(key)} has not finished`,
+  );
 }
 
 const KEY_WAIT_ATTEMPTS = 20;

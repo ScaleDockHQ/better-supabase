@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   postgresStreamStore,
+  resumableStreamContext,
   resumeFromStore,
   teeToStore,
   writeToStore,
@@ -42,6 +43,28 @@ describe("postgresStreamStore", () => {
     );
 
     expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
+
+  it("round-trips binary chunks and decodes text reads", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    await store.open("bin").orThrow();
+    await store
+      .append("bin", 0, [new Uint8Array([0, 255, 128]), "h\u00E9"])
+      .orThrow();
+    await store.close("bin").orThrow();
+
+    const bytes: number[][] = [];
+
+    for await (const chunk of store.readBytes!("bin")) {
+      bytes.push([...chunk]);
+    }
+
+    expect(bytes).toEqual([
+      [0, 255, 128],
+      [104, 195, 169],
+    ]);
+    expect(await text(store.read("bin", 1))).toBe("h\u00E9");
   });
 
   it("sends the module's arguments", async () => {
@@ -334,5 +357,52 @@ describe("resumeFromStore", () => {
         signal: new AbortController().signal,
       }).orThrow(),
     ).toBeUndefined();
+  });
+});
+
+describe("resumableStreamContext", () => {
+  it("tees a new stream and resumes it from a character offset", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    const pending: Promise<unknown>[] = [];
+
+    const context = resumableStreamContext(store, {
+      flushMs: 1,
+      waitUntil: (promise) => pending.push(promise),
+    });
+
+    expect(await context.hasExistingStream("r1")).toBeNull();
+
+    const live = await context.createNewResumableStream("r1", () =>
+      fromChunks(["hello ", "world"]),
+    );
+
+    expect(await text(live!)).toBe("hello world");
+    await Promise.all(pending);
+
+    expect(await context.hasExistingStream("r1")).toBe("DONE");
+    expect(await text((await context.resumeExistingStream("r1", 3))!)).toBe(
+      "lo world",
+    );
+    expect(await context.resumeExistingStream("missing")).toBeNull();
+  });
+});
+
+describe("teeToStore flushBytes", () => {
+  it("counts UTF-8 bytes, not characters", async () => {
+    const { transport, calls } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+
+    // Two characters of three bytes each reach flushBytes 6 at once.
+    const teed = teeToStore(store, "bytes", fromChunks(["\u20AC", "\u20AC"]), {
+      flushBytes: 6,
+      flushMs: 60_000,
+    });
+
+    await text(teed.stream);
+    await teed.persisted.orThrow();
+
+    const appends = calls.filter((call) => call.fn === "stream_append");
+    expect(appends).toHaveLength(1);
   });
 });

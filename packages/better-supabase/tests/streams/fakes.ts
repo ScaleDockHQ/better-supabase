@@ -148,6 +148,7 @@ export function fakeStreamsTransport(): {
 
           const from = Number(args["from_idx"]);
           const chunks = (args["chunks"] as string[] | undefined) ?? [];
+          // the module stores bytea; keep the hex the client sent
 
           if (from > stream.chunks.length) {
             raise("gap", "P0001", "STREAM_GAP");
@@ -175,10 +176,9 @@ export function fakeStreamsTransport(): {
             };
           }
 
-          const chunks = stream.chunks.slice(
-            from,
-            from + Number(args["max"] ?? 1000),
-          );
+          const chunks = stream.chunks
+            .slice(from, from + Number(args["max"] ?? 1000))
+            .map((hex) => Buffer.from(hex.slice(2), "hex").toString("base64"));
 
           const next = from + chunks.length;
 

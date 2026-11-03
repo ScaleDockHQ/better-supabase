@@ -324,7 +324,19 @@ export function redisStreamStore(
           );
         }
 
-        const fresh = chunks.slice(stored - fromIdx);
+        const texts = chunks.filter(
+          (chunk): chunk is string => typeof chunk === "string",
+        );
+
+        if (texts.length !== chunks.length) {
+          return err(
+            dbError("raised", "the Redis stream store keeps text chunks only", {
+              hint: "STREAM_TEXT_ONLY",
+            }),
+          );
+        }
+
+        const fresh = texts.slice(stored - fromIdx);
 
         if (fresh.length > 0) {
           const client = await redis();

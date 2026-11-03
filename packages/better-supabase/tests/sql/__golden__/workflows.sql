@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:42d95e67c2d92f8ca4703e29e4338e63fd6fe250cde188097f568b1f2095621f
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:a2b9eaa7b5b103af97106d0f4eebac08cb83cfde9d0fd16c33d093d8da2c613b
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -105,6 +105,12 @@ alter table "better_supabase"."workflow_runs" add column if not exists "principa
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
 begin
   if coalesce(obj_description((
@@ -210,6 +216,7 @@ alter table "better_supabase"."workflow_start_requests" enable row level securit
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -240,7 +247,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -257,7 +268,8 @@ create or replace function "better_supabase"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -267,8 +279,18 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "better_supabase"."workflow_runs" x
+    where x."tenant_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -283,13 +305,149 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "better_supabase"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+begin
+  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status" = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "better_supabase"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+  v_other "better_supabase"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "better_supabase"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "better_supabase"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "better_supabase"."workflow_runs" x where x."id" = run;
+    update "better_supabase"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "tenant_id" = coalesce(x."tenant_id", v_row."tenant_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -330,7 +488,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -375,7 +534,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -434,7 +594,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -460,7 +621,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -886,6 +1048,7 @@ $$;
 revoke execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -989,22 +1152,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:d1d55221b02153b89df26b61ebb57ad404aad61c95e6c9ed9e98dd2388fa1906
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:c0de17c3ab1c40e505f61eb2018af2bd837002c9a9e7b2f778594d6bce11b464
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1107,6 +1270,12 @@ alter table "better_supabase"."workflow_runs" add column if not exists "principa
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
 begin
   if coalesce(obj_description((
@@ -1212,6 +1381,7 @@ alter table "better_supabase"."workflow_start_requests" enable row level securit
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -1254,7 +1424,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -1271,7 +1445,8 @@ create or replace function "better_supabase"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -1281,8 +1456,18 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "better_supabase"."workflow_runs" x
+    where x."tenant_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -1297,13 +1482,149 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "better_supabase"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+begin
+  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status" = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "better_supabase"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+  v_other "better_supabase"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "better_supabase"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "better_supabase"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "better_supabase"."workflow_runs" x where x."id" = run;
+    update "better_supabase"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "tenant_id" = coalesce(x."tenant_id", v_row."tenant_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -1344,7 +1665,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -1389,7 +1711,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -1448,7 +1771,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -1474,7 +1798,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -1902,6 +2227,7 @@ $$;
 revoke execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -2005,22 +2331,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:8ebd4484bd77f07f9a7646921096aec42ab7bbb43d2b3d8e0671a04d1eb8aaa7
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:774558c1cf2f72cb5d25e24d144ca951cdabf30d112606d8b1beef7385efb833
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2128,6 +2454,12 @@ alter table "app_private"."workflow_runs" add column if not exists "principal_ki
 alter table "app_private"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "app_private"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "app_private"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "app_private"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "app_private"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "app_private"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
 begin
   if coalesce(obj_description((
@@ -2233,6 +2565,7 @@ alter table "app_private"."workflow_start_requests" enable row level security;
 revoke all on "app_private"."workflow_start_requests" from public, anon, authenticated;
 grant all on "app_private"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -2263,7 +2596,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "app_private"."record_workflow_run"(
   engine text,
   external_id text,
@@ -2280,7 +2617,8 @@ create or replace function "app_private"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -2290,8 +2628,18 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "app_private"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "app_private"."workflow_runs" x
+    where x."tenant_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  insert into "app_private"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -2306,13 +2654,149 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "app_private"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."workflow_runs"%rowtype;
+begin
+  update "app_private"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status" = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "app_private"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "app_private"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "app_private"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."workflow_runs"%rowtype;
+  v_other "app_private"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "app_private"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "app_private"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "app_private"."workflow_runs" x where x."id" = run;
+    update "app_private"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "tenant_id" = coalesce(x."tenant_id", v_row."tenant_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "app_private"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "app_private"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -2353,7 +2837,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "app_private"."workflow_runs" y
@@ -2398,7 +2883,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "app_private"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -2457,7 +2943,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "app_private"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -2483,7 +2970,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -2909,6 +3397,7 @@ $$;
 revoke execute on function "app_private"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -3012,22 +3501,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:be2a989f21568e791a7b246cfc5bf2e051f1c8acb891d48566d6eca0816c698f
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:c3e22acac05aabfbc776e9f47e86f2138e3dee21cbfaff7d92edab232748c52b
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3130,6 +3619,12 @@ alter table "better_supabase"."workflow_runs" add column if not exists "principa
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
 begin
   if coalesce(obj_description((
@@ -3235,6 +3730,7 @@ alter table "better_supabase"."workflow_start_requests" enable row level securit
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -3265,7 +3761,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -3282,7 +3782,8 @@ create or replace function "better_supabase"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -3292,8 +3793,18 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "better_supabase"."workflow_runs" x
+    where x."tenant_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -3308,13 +3819,149 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "better_supabase"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+begin
+  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status" = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "better_supabase"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+  v_other "better_supabase"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "better_supabase"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "better_supabase"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "better_supabase"."workflow_runs" x where x."id" = run;
+    update "better_supabase"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "tenant_id" = coalesce(x."tenant_id", v_row."tenant_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -3355,7 +4002,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -3400,7 +4048,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -3459,7 +4108,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -3485,7 +4135,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -3911,6 +4562,7 @@ $$;
 revoke execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -4003,6 +4655,8 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 drop function if exists "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
 drop function if exists "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 
@@ -4024,14 +4678,32 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."record_workflow_run"(engine text, external_id text, definition text, status text, tenant uuid default null, actor uuid default null, attributes jsonb default '{}'::jsonb, error text default null, started_at timestamptz default null, completed_at timestamptz default null, subject_type text default null, subject_id text default null, principal_kind text default null, principal_id text default null, mode text default null, trigger_node text default null)
+create or replace function "api"."record_workflow_run"(engine text, external_id text, definition text, status text, tenant uuid default null, actor uuid default null, attributes jsonb default '{}'::jsonb, error text default null, started_at timestamptz default null, completed_at timestamptz default null, subject_type text default null, subject_id text default null, principal_kind text default null, principal_id text default null, mode text default null, trigger_node text default null, idempotency_key text default null)
 returns uuid
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."record_workflow_run"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) $$;
-revoke execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+as $$ select "better_supabase"."record_workflow_run"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) $$;
+revoke execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+create or replace function "api"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."claim_workflow_run_dispatch"($1, $2) $$;
+revoke execute on function "api"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "api"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+create or replace function "api"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_workflow_run_engine"($1, $2, $3) $$;
+revoke execute on function "api"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 create or replace function "api"."workflow_runs_list"(tenant uuid default null, definition text default null, status text default null, max integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, mode text default 'live')
 returns jsonb
@@ -4193,22 +4865,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:d01c1147a5ebd10ea52a924f50984439e8179467e0cc1d3a8c863c6fedcbb1a9
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:a2bf6c673809653d41cb92151f1eba3738d6a4b04c165cf69d36e0d47c98552f
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4326,6 +4998,12 @@ alter table "better_supabase"."workflow_runs" add column if not exists "principa
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 grant select on "better_supabase"."workflow_runs" to authenticated;
@@ -4399,6 +5077,7 @@ alter table "better_supabase"."workflow_start_requests" add column if not exists
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -4429,7 +5108,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -4446,7 +5129,8 @@ create or replace function "better_supabase"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -4456,8 +5140,18 @@ as $$
 declare
   v_id uuid;
 begin
-  execute $q$insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values ($1, $2, $3, better_supabase.as_column_type($4, (null::"better_supabase"."workflow_runs")."status"), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, better_supabase.as_column_type($15, (null::"better_supabase"."workflow_runs")."mode"), $16)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "better_supabase"."workflow_runs" x
+    where x."tenant_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  execute $q$insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "tenant_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values ($1, $2, $3, better_supabase.as_column_type($4, (null::"better_supabase"."workflow_runs")."status"), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, better_supabase.as_column_type($15, (null::"better_supabase"."workflow_runs")."mode"), $16, $17)
   on conflict ("engine", "external_id") do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -4472,15 +5166,151 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id"$q$
   into v_id
-  using engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node;
+  using engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "better_supabase"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+begin
+  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status"::text = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "better_supabase"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+  v_other "better_supabase"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "better_supabase"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "better_supabase"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "better_supabase"."workflow_runs" x where x."id" = run;
+    update "better_supabase"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "tenant_id" = coalesce(x."tenant_id", v_row."tenant_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."tenant_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -4521,7 +5351,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -4566,7 +5397,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -4625,7 +5457,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -4651,7 +5484,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -5077,6 +5911,7 @@ $$;
 revoke execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -5180,22 +6015,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
--- @bsb-block workflows@3 managed
--- @bsb-hash sha256:97f7d6c49d621bb1856834c8d0c30227797ae3c731c845909a17b97f2d1c0984
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- @bsb-block workflows@4 managed
+-- @bsb-hash sha256:ccc0f4cc9e64dbe536ed6f1b64c3b4914306796fea74b0785f48e7b2fdbef9bf
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -5298,6 +6133,12 @@ alter table "better_supabase"."workflow_runs" add column if not exists "principa
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
 alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+-- A start's idempotency key: one run per tenant and key. A run queued before
+-- its engine run exists carries an external_id that starts with
+-- pending:; dispatch_until leases it to the process that starts it.
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("org_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
 begin
   if coalesce(obj_description((
@@ -5403,6 +6244,7 @@ alter table "better_supabase"."workflow_start_requests" enable row level securit
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
+
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
 -- for test runs).
@@ -5433,7 +6275,11 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
 -- the principal, the trigger node and started_at keep their first non-null
 -- value, mode keeps the first report's (default live); attributes merge.
+-- With an idempotency_key, a run that already holds the key for the tenant is
+-- returned as it is, so concurrent starts with one key record one run.
 drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
+drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -5450,7 +6296,8 @@ create or replace function "better_supabase"."record_workflow_run"(
   principal_kind text default null,
   principal_id text default null,
   mode text default null,
-  trigger_node text default null
+  trigger_node text default null,
+  idempotency_key text default null
 )
 returns uuid
 language plpgsql
@@ -5460,8 +6307,18 @@ as $$
 declare
   v_id uuid;
 begin
-  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "org_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node")
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
+  if idempotency_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_run_key'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
+    select x."id" into v_id from "better_supabase"."workflow_runs" x
+    where x."org_id" is not distinct from tenant
+      and x."idempotency_key" = idempotency_key
+      and not (x."engine" = engine and x."external_id" = external_id);
+    if found then
+      return v_id;
+    end if;
+  end if;
+  insert into "better_supabase"."workflow_runs" as x ("engine", "external_id", "definition", "status", "org_id", "actor_id", "attributes", "error", "started_at", "completed_at", "subject_type", "subject_id", "principal_kind", "principal_id", "mode", "trigger_node", "idempotency_key")
+  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node, idempotency_key)
   on conflict on constraint workflow_runs_engine_external_key do update set
     "definition" = excluded."definition",
     "status" = excluded."status",
@@ -5476,13 +6333,149 @@ begin
     "principal_kind" = case when x."principal_kind" is null then excluded."principal_kind" else x."principal_kind" end,
     "principal_id" = case when x."principal_kind" is null then excluded."principal_id" else x."principal_id" end,
     "trigger_node" = coalesce(x."trigger_node", excluded."trigger_node"),
+    "idempotency_key" = coalesce(x."idempotency_key", excluded."idempotency_key"),
     "updated_at" = now()
   returning x."id" into v_id;
   return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text) to service_role;
+
+-- Leases a queued run that has no engine run yet (its external_id starts with
+-- pending:) to the caller for lease seconds, and returns it; null when the
+-- run is gone, already has an engine run, or another caller holds the lease.
+-- A lease that runs out can be claimed again.
+create or replace function "better_supabase"."claim_workflow_run_dispatch"(run uuid, lease integer default 60)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+begin
+  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  where x."id" = run
+    and x."status" = 'queued'
+    and starts_with(x."external_id", 'pending:')
+    and (x."dispatch_until" is null or x."dispatch_until" < now())
+  returning * into v_row;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."org_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_workflow_run_dispatch"(uuid, integer) to service_role;
+
+-- Records the engine run of a queued run and ends its lease. When the engine's
+-- own report already created a row for (engine, external_id), that row keeps
+-- its id and takes the key and the queued run's attributes, and the queued row
+-- is deleted. Returns the run, or null when there is none.
+create or replace function "better_supabase"."set_workflow_run_engine"(run uuid, engine text, external_id text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_runs"%rowtype;
+  v_other "better_supabase"."workflow_runs"%rowtype;
+begin
+  select * into v_row from "better_supabase"."workflow_runs" x where x."id" = run for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_other from "better_supabase"."workflow_runs" x
+  where x."engine" = engine and x."external_id" = external_id and x."id" <> run
+  for update;
+  if found then
+    delete from "better_supabase"."workflow_runs" x where x."id" = run;
+    update "better_supabase"."workflow_runs" x set "idempotency_key" = coalesce(x."idempotency_key", v_row."idempotency_key"),
+      "attributes" = v_row."attributes" || x."attributes",
+      "org_id" = coalesce(x."org_id", v_row."org_id"),
+      "actor_id" = coalesce(x."actor_id", v_row."actor_id"),
+      "updated_at" = now()
+    where x."id" = v_other."id"
+    returning * into v_row;
+    return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."org_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+  end if;
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  where x."id" = run
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'engine', v_row."engine",
+    'externalId', v_row."external_id",
+    'definition', v_row."definition",
+    'tenant', v_row."org_id",
+    'actor', v_row."actor_id",
+    'status', v_row."status",
+    'attributes', v_row."attributes",
+    'error', v_row."error",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at",
+    'startedAt', v_row."started_at",
+    'completedAt', v_row."completed_at",
+    'cancelRequestedAt', v_row."cancel_requested_at",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'principalKind', v_row."principal_kind",
+    'principalId', v_row."principal_id",
+    'mode', v_row."mode",
+    'triggerNode', v_row."trigger_node",
+    'idempotencyKey', v_row."idempotency_key"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text, text) to service_role;
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -5523,7 +6516,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   ) order by x."created_at" desc), '[]'::jsonb)
   from (
     select * from "better_supabase"."workflow_runs" y
@@ -5568,7 +6562,8 @@ as $$
     'principalKind', x."principal_kind",
     'principalId', x."principal_id",
     'mode', x."mode",
-    'triggerNode', x."trigger_node"
+    'triggerNode', x."trigger_node",
+    'idempotencyKey', x."idempotency_key"
   )
   from "better_supabase"."workflow_runs" x
   where x."id"::text = workflow_run_get.run or x."external_id" = workflow_run_get.run
@@ -5627,7 +6622,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
   end if;
   update "better_supabase"."workflow_runs" set "cancel_requested_at" = coalesce("cancel_requested_at", now()), "updated_at" = now()
@@ -5653,7 +6649,8 @@ begin
     'principalKind', v_run."principal_kind",
     'principalId', v_run."principal_id",
     'mode', v_run."mode",
-    'triggerNode', v_run."trigger_node"
+    'triggerNode', v_run."trigger_node",
+    'idempotencyKey', v_run."idempotency_key"
   );
 end;
 $$;
@@ -6079,6 +7076,7 @@ $$;
 revoke execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, text) to service_role;
 
+
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
 do $$
@@ -6182,13 +7180,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block-data workflows
--- @bsb-hash sha256:4237851ec792fdbc3434d71841e2707e563966c6d7b09e7bada102fc206b95e4
+-- @bsb-hash sha256:3cc4bded653535df1a54113b9e1236344f4495b4c720f94b388a05996109b0d9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflows', 3, 'managed')
+values ('workflows', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

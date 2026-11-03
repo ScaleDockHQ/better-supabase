@@ -285,6 +285,20 @@ taken over. Runs started before the key table existed are still found by
 their `bsb.key` attribute. A World without run keys looks the key up in
 `analytics` only, so two concurrent starts can both start a run there.
 
+With the [workflows](/docs/blocks/workflows) run registry, pass `registry:
+workflows.runs` and `startOnce` records a queued run under the key, lets one
+caller lease it, starts the run, and records the engine's run id. Without a
+registry or World run keys it throws `WorkflowRunKeysMissingError` (code
+`WORKFLOW_RUN_KEYS_MISSING`) instead of starting twice.
+
+### Starting a child run
+
+`startChild(context, workflow, args, { parentSubject })` starts a run that
+carries the parent's `bsb.tenant`, `bsb.actor` and `bsb.ticket`, and the
+parent's subject, so the tenant and the actor see the child in
+`workflow_runs`. Call it from a step with the `workflowContext(...)` the parent
+received as an argument.
+
 ## Cancelling runs
 
 `cancelRuns(runIds, { reason })` cancels each run a few at a time (10 by
@@ -396,6 +410,10 @@ the token and let `wakeOnApproval(event)` do the waking from your outbox
 consumer: it resumes the run for `approval.approved`, `approval.rejected`,
 `approval.expired` and `approval.cancelled` with `{ approved, status,
 requestId }`, and ignores a request no run waits on.
+
+`wake` retries a missing hook up to four times, with a short pause, because an
+approver can decide before the run reaches `createHook`; after that it throws
+`HookNotFoundError`, which `wakeOnApproval` ignores.
 
 `wait` resolves `{ status: "resumed", payload }` or `{ status: "expired" }`,
 and returns `expired` at once for a deadline that has passed. `wake`
