@@ -101,6 +101,30 @@ describe("meterTelemetry", () => {
     });
   });
 
+  it("defaults the source to the function id and resolves key, actor and metadata", async () => {
+    const { usage, rows } = fakeUsage();
+    await generateText({
+      model: languageModel(),
+      prompt: "Hi",
+      providerOptions: gatewayOptions({ organizationId: "o1" }),
+      telemetry: {
+        functionId: "inbox.suggest-actions",
+        integrations: meterTelemetry({
+          usage,
+          actor: () => "u1",
+          idempotencyKey: () => "message:m1",
+          metadata: () => ({ messageId: "m1" }),
+        }),
+      },
+    });
+    expect(rows[0]?.options).toMatchObject({
+      source: "ai:inbox.suggest-actions",
+      idempotencyKey: expect.stringMatching(/^message:m1:.+$/),
+      actor: "u1",
+      metadata: { messageId: "m1" },
+    });
+  });
+
   it("meters embeddings and reranks on custom meters", async () => {
     const { usage, rows } = fakeUsage();
 

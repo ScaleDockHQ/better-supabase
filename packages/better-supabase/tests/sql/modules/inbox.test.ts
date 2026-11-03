@@ -182,4 +182,37 @@ describe("inbox module", () => {
       moduleBody("inbox", { modules: { inbox: { mode: "custom" } } }),
     ).toBeUndefined();
   });
+
+  it("leases inbound events with a backoff and re-picks stale leases", () => {
+    const sql = body();
+
+    expect(sql).toContain("'processing'");
+    expect(sql).toContain("available_at");
+    expect(sql).toContain("locked_until");
+    expect(sql).toContain("set_inbound_event_status");
+    expect(INBOX.version).toBeGreaterThanOrEqual(9);
+    expect(INBOX.upgrades?.some((step) => step.from === 8)).toBe(true);
+  });
+
+  it("claims a live stream per conversation and broadcasts timeline events", () => {
+    const sql = body();
+
+    expect(sql).toContain("set_active_stream");
+    expect(sql).toContain("INBOX_STREAM_ACTIVE");
+    expect(sql).toContain("active_stream_id");
+    expect(sql).toContain("event.created");
+    expect(sql).toContain("last_inbound_at");
+  });
+
+  it("adds changed columns to the conversation broadcast on request", () => {
+    expect(body()).not.toContain("'columns'");
+
+    const sql = body({
+      inbox: { options: { realtimeColumns: ["status", "botMode"] } },
+    });
+
+    expect(sql).toContain("'columns'");
+    expect(sql).toContain('"status"');
+    expect(sql).toContain('"bot_mode"');
+  });
 });

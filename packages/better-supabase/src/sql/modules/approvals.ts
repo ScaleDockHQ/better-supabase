@@ -28,6 +28,12 @@ import {
   REQUEST_KEYS,
 } from "./approvals-contract.ts";
 import {
+  approvalItemsContract,
+  itemsOf,
+  itemsSql,
+  itemsTableSql,
+} from "./approvals-items.ts";
+import {
   approvalPolicies,
   policyCase,
   validateApprovers,
@@ -610,8 +616,16 @@ ${renderPolicy(makePolicy({ table: decisions, name: ctx.naming.rename("approval_
 `
     : "";
 
+  const itemsTable = itemsTableSql(ctx, kit, {
+    tenantless,
+    linked: (type) => linkedRow(type),
+    read,
+    manage,
+  });
+
   return `${schemaPreamble(ctx)}
 ${tables}
+${itemsTable}
 -- The policy a new request snapshots, from options.policies.
 create or replace function ${fn("approval_policy")}(subject_type text, action text)
 returns jsonb
@@ -795,6 +809,8 @@ ${approvalsTenantSql(ctx, {
 
 ${decideSql(ctx, kit)}
 
+${itemsSql(ctx, kit, { tenantless, linked: (type) => linkedRow(type), read, manage })}
+
 -- Hands the caller's place on the current step to another user.
 create or replace function ${fn("delegate_approval")}(request_id uuid, to_user uuid, comment text default null)
 returns jsonb
@@ -893,7 +909,8 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x.${d("id")}, 'step', x.${d("step")}, 'approver', x.${d("approver")}, 'decision', x.${d("decision")}, 'delegateTo', ${or("decisions", "x", "delegateTo")}, 'comment', ${or("decisions", "x", "comment")}, 'createdAt', x.${d("createdAt")}) order by x.${d("createdAt")}, x.${d("id")})
       from ${decisions} x where x.${d("request")} = v_req.${c("id")}
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    'items', ${itemsOf(ctx, `v_req.${c("id")}`)}
   );
 end;
 $$;
@@ -1031,6 +1048,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...approvalsContract(
       extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
     ),
+    ...approvalItemsContract(),
     ...approvalsTenantContract(ctx),
   ];
 }
@@ -1080,8 +1098,16 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: APPROVALS_NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Adds approval_items and the item functions; decide_approval refuses a request that has items.",
+      sql: () => "",
+    },
+  ],
   contract,
   build,
 };

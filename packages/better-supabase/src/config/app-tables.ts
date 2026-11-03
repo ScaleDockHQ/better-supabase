@@ -15,8 +15,10 @@ import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
 import { accessOf, checkColumnAccess } from "./app-access.ts";
+import { columnGroupsOf } from "./app-column-groups.ts";
 import { computedOf, hasComputed } from "./app-computed.ts";
 import { appDefaultError, isAppDefault } from "./app-defaults.ts";
+import { embeddingOf } from "./app-embedding.ts";
 import {
   auditReadsOf,
   checkEncryptedKeys,
@@ -57,6 +59,8 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "lookups",
   "events",
   "auditReads",
+  "columnGroups",
+  "embedding",
 ]);
 
 const SUBJECT_KEYS: ReadonlySet<string> = new Set([
@@ -1023,6 +1027,8 @@ function tableOf(
   checkEncryptedKeys(where, own, { unique, indexes });
   checkLookupColumns(where, own);
   const auditReads = auditReadsOf(where, value["auditReads"], own);
+  const columnGroups = columnGroupsOf(where, value["columnGroups"], own);
+  const embedding = embeddingOf(where, value["embedding"], own);
 
   return {
     ...(columns === undefined ? {} : { columns: Object.fromEntries(resolved) }),
@@ -1035,6 +1041,8 @@ function tableOf(
     ...(subject === undefined ? {} : { subject }),
     ...(events === undefined ? {} : { events }),
     ...(auditReads === undefined ? {} : { auditReads }),
+    ...(columnGroups === undefined ? {} : { columnGroups }),
+    ...(embedding === undefined ? {} : { embedding }),
   };
 }
 

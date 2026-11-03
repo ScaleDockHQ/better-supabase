@@ -11,6 +11,7 @@ export type InboxSqlOptions = {
   readonly outboundQueue?: unknown;
   readonly scheduleQueue?: unknown;
   readonly notify?: boolean;
+  readonly realtimeColumns?: readonly string[];
 };
 
 export const inboxSqlOptions: BlockOptionsSchema<InboxSqlOptions> =
@@ -22,4 +23,5 @@ export const inboxSqlOptions: BlockOptionsSchema<InboxSqlOptions> =
     outboundQueue: option.unknown(),
     scheduleQueue: option.unknown(),
     notify: option.boolean({ default: true }),
+    realtimeColumns: option.strings(),
   });

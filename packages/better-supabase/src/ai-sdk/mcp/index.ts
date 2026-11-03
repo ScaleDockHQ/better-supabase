@@ -29,3 +29,10 @@ export type {
   SupabaseMcpFeature,
   SupabaseMcpScope,
 } from "../../core/supabase-mcp.ts";
+
+export {
+  type DedupeMcpEventsOptions,
+  dedupeMcpEvents,
+  postgresMcpEventStore,
+  type PostgresMcpEventStoreOptions,
+} from "./events.ts";

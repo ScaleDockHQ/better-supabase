@@ -244,8 +244,53 @@ export interface ApprovalDecision {
   readonly createdAt: Temporal.Instant;
 }
 
+/** An item to file with `request({ items })`. */
+export interface ApprovalItemInput {
+  /** Unique within the request, 1 to 200 characters. */
+  readonly key: string;
+  readonly label?: string;
+  readonly payload?: Readonly<Record<string, unknown>>;
+  /**
+   * The permission a decider of this item holds. Without it, the approvers of
+   * the policy's current step decide it.
+   */
+  readonly permission?: string;
+  /** Keys of items listed before this one; it can't be approved before them. */
+  readonly dependsOn?: readonly string[];
+}
+
+export type ApprovalItemStatus = "pending" | "approved" | "rejected";
+
+/** One thing a request asks to approve. */
+export interface ApprovalItem {
+  readonly id: string;
+  readonly key: string;
+  readonly label?: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly permission?: string;
+  readonly dependsOn: readonly string[];
+  readonly status: ApprovalItemStatus;
+  /** The record the approved item created, from `recordCreated`. */
+  readonly created?: RecordRef;
+  /** The user who decided the item; none when `settle` closed it. */
+  readonly decidedBy?: string;
+  readonly decidedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** One decision of `decideItems`. */
+export interface ApprovalItemDecision {
+  readonly key: string;
+  readonly decision: "approve" | "reject";
+}
+
+/** A request with its items, from `decideItems` and `settle`. */
+export interface ApprovalRequestWithItems extends ApprovalRequest {
+  readonly items: readonly ApprovalItem[];
+}
+
 /** A request with its decisions, from `get`. */
-export interface ApprovalRequestDetail extends ApprovalRequest {
+export interface ApprovalRequestDetail extends ApprovalRequestWithItems {
   /** Whether the caller can decide the current step. */
   readonly canDecide: boolean;
   readonly decisions: readonly ApprovalDecision[];
@@ -280,6 +325,13 @@ export interface ApprovalRequestInput {
    * they can't approve it unless the policy allows self-approval.
    */
   readonly requestedBy?: string;
+  /**
+   * Asks for several things at once, each decided on its own with
+   * `decideItems`. The request settles when no item is pending. Not available
+   * with the request's extra columns or for a subject type another module
+   * decides.
+   */
+  readonly items?: readonly ApprovalItemInput[];
 }
 
 /** Who decides when the service role calls `approve` or `reject`. */
@@ -403,6 +455,40 @@ export interface Approvals<F extends object = Record<never, never>> {
   /** Deletes a tenant policy; `false` when it did not exist. */
   removePolicy(id: string): AsyncResult<boolean>;
   /**
+   * Decides items of a pending request. Each item checks its own permission,
+   * and one can't be approved while an item it depends on is pending or
+   * rejected. Rejecting an item rejects the pending items that depend on it.
+   * The request settles when no item is pending: approved when any item was
+   * approved. The service role passes `decidedBy` to decide for a user.
+   */
+  decideItems(input: {
+    id: string;
+    decisions: readonly ApprovalItemDecision[];
+    decidedBy?: string | undefined;
+  }): AsyncResult<ApprovalRequestWithItems & F>;
+  /**
+   * Notes the record an approved item created, once per item, so a retried run
+   * finds it instead of creating another. The requester, a manager or the
+   * service role may call it.
+   */
+  recordCreated(input: {
+    id: string;
+    key: string;
+    type: string;
+    recordId: string;
+  }): AsyncResult<ApprovalItem>;
+  /**
+   * Closes a pending request on the system's behalf, service role only. It
+   * writes a decision without an approver (`reason` is its comment), settles
+   * the pending items to `outcome` and fires the same events as a person's
+   * decision, so waiters wake.
+   */
+  settle(input: {
+    id: string;
+    outcome: "approved" | "rejected";
+    reason?: string | undefined;
+  }): AsyncResult<ApprovalRequestWithItems & F>;
+  /**
    * Approves or rejects the pending request for `action` on `subject`, the one
    * `list` finds, so a caller does not need the request id. Fails with
    * `not_found` when nothing is pending.
@@ -412,6 +498,8 @@ export interface Approvals<F extends object = Record<never, never>> {
     action: string;
     decision: "approve" | "reject";
     comment?: string | undefined;
+    /** The user the service role decides for. */
+    decidedBy?: string | undefined;
   }): AsyncResult<ApprovalRequest & F>;
   /**
    * Runs `run` when `action` on `subject` is approved. Otherwise it files a
@@ -575,6 +663,45 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
   };
 }
 
+const itemStatusOf = (value: unknown): ApprovalItemStatus => {
+  if (value === "pending" || value === "approved" || value === "rejected") {
+    return value;
+  }
+
+  throw new TypeError(`unknown approval item status ${String(value)}`);
+};
+
+function itemOf(value: unknown, fn: string): ApprovalItem {
+  const row = recordOf(value, fn);
+  const label = optionalText(row["label"]);
+  const permission = optionalText(row["permission"]);
+  const createdType = optionalText(row["createdType"]);
+  const createdId = optionalText(row["createdId"]);
+  const decidedBy = optionalText(row["decidedBy"]);
+  const payload = row["payload"];
+
+  return {
+    id: textOf(row["id"]),
+    key: textOf(row["key"]),
+    payload: isRecord(payload) ? payload : {},
+    dependsOn: Array.isArray(row["dependsOn"])
+      ? row["dependsOn"].map((key) => textOf(key))
+      : [],
+    status: itemStatusOf(row["status"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...(label === undefined ? {} : { label }),
+    ...(permission === undefined ? {} : { permission }),
+    ...(createdType === undefined || createdId === undefined
+      ? {}
+      : { created: subjectRefOf(createdType, createdId) }),
+    ...(decidedBy === undefined ? {} : { decidedBy }),
+    ...instant(row["decidedAt"], "decidedAt"),
+  };
+}
+
+const itemsFrom = (value: unknown, fn: string): readonly ApprovalItem[] =>
+  recordsOf(value ?? [], fn).map((row) => itemOf(row, fn));
+
 function requirementOf(value: unknown): ApprovalRequirement | null {
   if (value === null || value === undefined) {
     return null;
@@ -678,6 +805,17 @@ export function createApprovals<
       withFields(fields, value, requestOf(value, fn)),
     );
 
+  const withItems = (
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): AsyncResult<ApprovalRequestWithItems & F> =>
+    call(fn, args, (value) => value).andThen((value) =>
+      withFields(fields, value, {
+        ...requestOf(value, fn),
+        items: itemsFrom(recordOf(value, fn)["items"], fn),
+      }),
+    );
+
   const approverOf = options.authorization?.approverOf;
 
   if (approverOf !== undefined && options.approver === undefined) {
@@ -738,6 +876,7 @@ export function createApprovals<
         return withFields(fields, row, {
           ...requestOf(row, "get_approval"),
           canDecide: row["canDecide"] === true,
+          items: itemsFrom(row["items"], "get_approval"),
           decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
             decisionOf,
           ),
@@ -778,29 +917,96 @@ export function createApprovals<
         tenantless,
         policy,
         requestedBy,
+        items,
         ...extra
       },
     }) =>
       tenantOr(tenantless).andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
-          one("request_approval", {
-            tenant: organizationId,
-            subject_type: subject.type,
-            subject_id: subject.id,
-            action,
-            reason: reason ?? null,
-            payload: payload ?? {},
-            ...more,
-            ...(fingerprint === undefined ? {} : { fingerprint }),
-            ...(policy === undefined ? {} : { policy }),
-            ...(requestedBy === undefined ? {} : { requested_by: requestedBy }),
-          }),
+          items === undefined
+            ? one("request_approval", {
+                tenant: organizationId,
+                subject_type: subject.type,
+                subject_id: subject.id,
+                action,
+                reason: reason ?? null,
+                payload: payload ?? {},
+                ...more,
+                ...(fingerprint === undefined ? {} : { fingerprint }),
+                ...(policy === undefined ? {} : { policy }),
+                ...(requestedBy === undefined
+                  ? {}
+                  : { requested_by: requestedBy }),
+              })
+            : more.fields === undefined
+              ? one("request_approval_items", {
+                  tenant: organizationId,
+                  subject_type: subject.type,
+                  subject_id: subject.id,
+                  action,
+                  items: items.map((item) => ({
+                    key: item.key,
+                    label: item.label ?? null,
+                    payload: item.payload ?? {},
+                    permission: item.permission ?? null,
+                    dependsOn: item.dependsOn ?? [],
+                  })),
+                  reason: reason ?? null,
+                  payload: payload ?? {},
+                  ...(fingerprint === undefined ? {} : { fingerprint }),
+                  ...(policy === undefined ? {} : { policy }),
+                  ...(requestedBy === undefined
+                    ? {}
+                    : { requested_by: requestedBy }),
+                })
+              : AsyncResult.err(
+                  dbError(
+                    "validation",
+                    "A request with items takes no extra columns",
+                    {
+                      hint: "APPROVAL_ITEMS_INVALID",
+                      issues: [
+                        {
+                          message:
+                            "A request with items takes no extra columns",
+                          path: ["items"],
+                        },
+                      ],
+                    },
+                  ),
+                ),
         ),
       ),
     approve: ({ id, comment, ...decideOptions }) =>
       decide(id, "approved", comment, decideOptions),
     reject: ({ id, comment, ...decideOptions }) =>
       decide(id, "rejected", comment, decideOptions),
+    decideItems: ({ id, decisions, decidedBy }) =>
+      withItems("decide_approval_items", {
+        request_id: id,
+        decisions: decisions.map((each) => ({
+          key: each.key,
+          decision: each.decision === "approve" ? "approved" : "rejected",
+        })),
+        ...(decidedBy === undefined ? {} : { decided_by: decidedBy }),
+      }),
+    recordCreated: ({ id, key, type, recordId }) =>
+      call(
+        "record_approval_created",
+        {
+          request_id: id,
+          item_key: key,
+          created_type: type,
+          created_id: recordId,
+        },
+        (value) => itemOf(value, "record_approval_created"),
+      ),
+    settle: ({ id, outcome, reason }) =>
+      withItems("settle_approval", {
+        request_id: id,
+        outcome,
+        reason: reason ?? null,
+      }),
     delegate: ({ id, userId, comment }) =>
       asApprover(id, () =>
         one("delegate_approval", {
@@ -911,7 +1117,7 @@ export function createApprovals<
           await sleep(intervalMs, signal);
         }
       }),
-    decideForSubject: ({ subject, action, decision, comment }) =>
+    decideForSubject: ({ subject, action, decision, comment, decidedBy }) =>
       hooked.list({ subject, status: "pending" }).andThen(async (requests) => {
         const found = requests.find((each) => each.action === action);
 
@@ -922,8 +1128,16 @@ export function createApprovals<
         }
 
         return decision === "approve"
-          ? hooked.approve({ id: found.id, comment })
-          : hooked.reject({ id: found.id, comment });
+          ? hooked.approve({
+              id: found.id,
+              comment,
+              ...(decidedBy === undefined ? {} : { decidedBy }),
+            })
+          : hooked.reject({
+              id: found.id,
+              comment,
+              ...(decidedBy === undefined ? {} : { decidedBy }),
+            });
       }),
     guarded: <T>({
       subject,

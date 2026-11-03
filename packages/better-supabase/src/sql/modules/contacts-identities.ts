@@ -213,6 +213,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn("resolve_person")}(${ctx.idType}, jsonb) from public, anon, authenticated;
+grant execute on function ${fn("resolve_person")}(${ctx.idType}, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function ${fn("list_person_identities")}(person uuid)

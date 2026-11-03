@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:25fcb7ad48cec28a3a7acae3ee22ec2c15222516c2a538cdfbb25b2f5df665e7
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:7698e4668c8e9bbd4d26744d5f2eb32a0af7149f5e9e0d7f7c121f1c9575d6a6
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1351,6 +1351,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -1616,21 +1617,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:dffaa68b75cc4818d9e91f4e5befa000ef4a970bdea0775f9154866e81388cf2
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:803d70ec92859bd2e683ee97e1231346e090e146633c637c8b1817ffe95932fa
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3063,6 +3064,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -3410,21 +3412,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:4ea2c59ab7c37487030745cf27bd42ee710727ca73995c47d16e374a3342fd4a
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:694d17ccac5d2c3db1eef31e699fe9942fb2e28e504f53645b94286848d08313
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4779,6 +4781,7 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "app_private"."list_person_identities"(person uuid)
@@ -5044,21 +5047,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:50d13570304265bd5e59e117c5eb4dae7ac4ef9250a3bac49592b370d40542f5
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:50bd41e1c9347a65d6b2091d37c392a83e55669d802e49cb0dccbf29a4bd2664
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6408,6 +6411,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -6660,6 +6664,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."resolve_person"(uuid, jsonb);
 
 drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
 drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);
@@ -6932,21 +6939,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:538a1a2eb79b1c1b33dc48b207fa7a7a82c47162cb842684ebea747ba16208b7
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:fea9ac370d38cdb9a38d24a326d64235f898bd6a5b1d5a6873bdd7d11bcf8689
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8299,6 +8306,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -8564,21 +8572,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:f4990f8ef8697db1bda62a48ae175ca5b95cd7321d118a58bcb99d5d2cec3027
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:150291b0c121217c815e3fa64ceff60ede4c2c58eefef01a084b8eab0ec5450d
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9928,6 +9936,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -10193,13 +10202,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
+-- @bsb-hash sha256:de08c7697682e28b5a387f3550c0e726eaf1f369eac0d849c9c9d8bc751d7dcf
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 2, 'managed')
+values ('contacts', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

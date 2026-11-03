@@ -403,7 +403,7 @@ ${create("documents", [
   ["chat", `${d.chat} uuid`],
   [
     "kind",
-    `${d.kind} text not null check (${d.kind} in ('text', 'code', 'sheet', 'image'))`,
+    `${d.kind} text not null check (${d.kind} in ('text', 'code', 'sheet', 'image', 'spec'))`,
   ],
   [
     "title",
@@ -1047,6 +1047,33 @@ $$;`;
   },
 };
 
+const WITH_SPEC_KIND: BlockSqlUpgrade = {
+  from: 2,
+  description:
+    "Documents take the kind spec, a json-render spec kept as JSON text in the version content.",
+  sql: (ctx) => {
+    const d = columnsOf(ctx, "documents", DOCUMENTS);
+    const documents = ctx.table("documents");
+
+    return `do $bsb$
+declare
+  v_name text;
+begin
+  for v_name in
+    select c.conname from pg_catalog.pg_constraint c
+    where c.conrelid = '${documents}'::regclass and c.contype = 'c'
+      and pg_catalog.pg_get_constraintdef(c.oid) like '%${d.kind.replaceAll('"', "")}%'
+      and pg_catalog.pg_get_constraintdef(c.oid) like '%''sheet''%'
+  loop
+    execute pg_catalog.format('alter table ${documents} drop constraint %I', v_name);
+  end loop;
+  alter table ${documents} add constraint ${sqlIdent(ctx.naming.rename("ai_documents_kind_check"))}
+    check (${d.kind} in ('text', 'code', 'sheet', 'image', 'spec'));
+end
+$bsb$;`;
+  },
+};
+
 export const AI_FILES: BlockSqlDefinition = {
   internal: ["ai_file_object_allowed"],
   name: "ai-files",
@@ -1058,8 +1085,8 @@ export const AI_FILES: BlockSqlDefinition = {
   integrates: ["ai-chat"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
-  upgrades: [TO_VERSIONS],
+  version: 3,
+  upgrades: [TO_VERSIONS, WITH_SPEC_KIND],
   names: NAMES,
   contract,
   build,

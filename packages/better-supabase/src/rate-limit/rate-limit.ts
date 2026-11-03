@@ -45,6 +45,8 @@ export interface RateLimitHit {
   readonly key: string;
   /** A limit for this call, instead of the scope's rule from `set_rate_limit`. */
   readonly rule?: RateLimitRule;
+  /** Uses the rule `setRule` stored for this organization, when there is one. */
+  readonly organizationId?: string;
 }
 
 /** The answer of `checkAll`: allowed only when every limit allowed the hit. */
@@ -69,7 +71,22 @@ export interface RateLimit {
     scope: string;
     key: string;
     rule?: RateLimitRule | undefined;
+    /** Uses the rule `setRule` stored for this organization, when there is one. */
+    organizationId?: string | undefined;
   }): AsyncResult<RateLimitDecision>;
+  /**
+   * Sets the limit of `scope` for one organization
+   * (`set_organization_rate_limit`). It replaces the scope's own rule for hits
+   * that pass `organizationId`; other hits keep the scope's rule. `max: null`
+   * removes the organization's rule. Needs a service role.
+   */
+  setRule(input: {
+    scope: string;
+    organizationId: string;
+    max: number | null;
+    /** Seconds, or a Postgres interval such as `1 minute`. Default one minute. */
+    period?: number | string | undefined;
+  }): AsyncResult<void>;
   /**
    * Counts one hit against several limits in one database round trip, such as a
    * per-user, a per-IP and a per-organization limit. The hit counts only when
@@ -150,13 +167,51 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
             decodeAll(value, hits),
           );
 
+  const setOrganizationRule: SetRule =
+    options.transport === undefined
+      ? (scope, organizationId, max, period) =>
+          run(async () => {
+            await options.sql.queryRaw(
+              "select better_supabase.set_organization_rate_limit($1, $2::uuid, $3, coalesce($4::interval, interval '1 minute'))",
+              [scope, organizationId, max, period],
+            );
+          })
+      : (scope, organizationId, max, period) =>
+          call(
+            "set_organization_rate_limit",
+            {
+              scope,
+              organization_id: organizationId,
+              max_requests: max,
+              period: period ?? undefined,
+            },
+            () => undefined,
+          );
+
   const client: RateLimit = {
     purge: (purgeOptions = {}) =>
       call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
         Number(value ?? 0),
       ),
     purgeJob: (jobOptions) => async () => hooked.purge(jobOptions).orThrow(),
-    check: ({ scope, key, rule }) => {
+    setRule: ({ scope, organizationId, max, period }) => {
+      if (max !== null && (!Number.isInteger(max) || max < 1)) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_input",
+            "A rate limit's max must be a positive integer",
+          ),
+        );
+      }
+
+      return setOrganizationRule(
+        scope,
+        organizationId,
+        max,
+        period === undefined ? null : seconds(period),
+      );
+    },
+    check: ({ scope, key, rule, organizationId }) => {
       if (rule !== undefined && (!Number.isInteger(rule.max) || rule.max < 1)) {
         return AsyncResult.err(
           dbError(
@@ -171,6 +226,7 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
         key,
         rule?.max ?? null,
         rule === undefined ? null : seconds(rule.period),
+        organizationId ?? null,
       );
     },
     checkAll: (hits) => {
@@ -198,6 +254,9 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
         rows.push({
           scope: hit.scope,
           key: hit.key,
+          ...(hit.organizationId === undefined
+            ? {}
+            : { organization_id: hit.organizationId }),
           ...(hit.rule === undefined
             ? {}
             : { max_requests: hit.rule.max, period: seconds(hit.rule.period) }),
@@ -221,7 +280,15 @@ interface LimitRow {
   readonly key: string;
   readonly max_requests?: number;
   readonly period?: string;
+  readonly organization_id?: string;
 }
+
+type SetRule = (
+  scope: string,
+  organizationId: string,
+  max: number | null,
+  period: string | null,
+) => AsyncResult<void>;
 
 type HitAll = (hits: readonly LimitRow[]) => AsyncResult<RateLimitAllDecision>;
 
@@ -291,11 +358,12 @@ type Hit = (
   key: string,
   max: number | null,
   period: string | null,
+  organizationId: string | null,
 ) => AsyncResult<RateLimitDecision>;
 
 const overTransport =
   (call: ReturnType<typeof blockCall>): Hit =>
-  (scope, key, max, period) =>
+  (scope, key, max, period, organizationId) =>
     call(
       "check_rate_limit",
       {
@@ -303,6 +371,7 @@ const overTransport =
         key,
         max_requests: max ?? undefined,
         period: period ?? undefined,
+        organization_id: organizationId ?? undefined,
       },
       (value) => {
         const row = isRecord(value) ? value : {};
@@ -325,17 +394,16 @@ export async function hitRateLimit(
   key: string,
   max: number | null,
   period: string | null,
+  organizationId: string | null = null,
 ): Promise<RateLimitDecision> {
   const [row] = await sql.queryRaw<{
     allowed: boolean;
     remaining: number;
     retry_after: number;
-  }>("select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval)", [
-    scope,
-    key,
-    max,
-    period,
-  ]);
+  }>(
+    "select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval, $5::uuid)",
+    [scope, key, max, period, organizationId],
+  );
 
   return {
     allowed: row?.allowed ?? false,
@@ -346,8 +414,8 @@ export async function hitRateLimit(
 
 const overSql =
   (sql: SqlClient): Hit =>
-  (scope, key, max, period) =>
-    run(() => hitRateLimit(sql, scope, key, max, period));
+  (scope, key, max, period, organizationId) =>
+    run(() => hitRateLimit(sql, scope, key, max, period, organizationId));
 
 /** A `problem+json` 429 with `Retry-After`, for a refused `check`. */
 export function rateLimited(

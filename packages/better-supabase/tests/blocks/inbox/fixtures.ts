@@ -44,6 +44,8 @@ export const conversationRow: Row = {
   thread_id: "whatsapp:+3100:+3199",
   snoozed_until: null,
   last_message_at: AT,
+  last_inbound_at: AT,
+  active_stream_id: null,
   last_message_preview: "hi",
   first_response_at: null,
   resolved_at: null,

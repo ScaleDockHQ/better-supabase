@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:9bd3e726331f2e7a2c365558d5f1a59e7cbf75c69842963f4bf5ca27b5897505
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:c273960917710f415165e48c18e8125952fec18c02b16ad9fe46de3b1d3d525c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,7 +123,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -808,7 +808,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -819,14 +819,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:e6b4bc55854e1e3f2f23af8ed5c9933559f0beda59e68c667e4ab19031d33e01
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:b3346d1575dc069f67aa55a5afa5279b6d27907e12bdb7f18d85512a84e140bd
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -948,7 +948,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -1641,7 +1641,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1652,14 +1652,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:2e6f94c8b5edce3e4c6c926d5cd7ab5155aca6efe03077ab035574ba16ec249c
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:08ca4f116964ff075c0f869794bbfcc7332352018e6d518c65a00fc5c919b82b
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1786,7 +1786,7 @@ create table if not exists "app_private"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -2471,7 +2471,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2482,14 +2482,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:f7faebe9b4402da62a3ea3ccb556bbf412a7b69c0f8d93a2e28efca0bac20b95
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:a24c74c2a63362852f3aa299b3caf603bb0978aec2e3e2ac786b9f8e979c84ea
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2611,7 +2611,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -3504,7 +3504,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3515,14 +3515,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:4734146399cb2eb2fede39c0f69b1996903ed0bab940ce30c929cb8c798f630f
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:d0ea41ac3fab0368d167f3cb1d022d8bb6128458f38971718d960276f555e5bb
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3656,7 +3656,7 @@ alter table "better_supabase"."ai_documents" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_documents" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_documents" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_documents" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_documents" add column if not exists "kind" text check ("kind" in ('text', 'code', 'sheet', 'image'));
+alter table "better_supabase"."ai_documents" add column if not exists "kind" text check ("kind" in ('text', 'code', 'sheet', 'image', 'spec'));
 alter table "better_supabase"."ai_documents" add column if not exists "title" text check (length("title") between 1 and 500);
 alter table "better_supabase"."ai_documents" add column if not exists "current_version" integer not null default 1 check ("current_version" >= 1);
 alter table "better_supabase"."ai_documents" add column if not exists "created_at" timestamptz not null default now();
@@ -4337,7 +4337,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4348,14 +4348,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:4076c9d9e969ebd3eda3caa564af7c78bbc58fd8c46b68b8ac428d89c8284b6c
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:bf0a7e2040c203c472548cc30c48c1106264621a09133d4744621a005362a622
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4477,7 +4477,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -5162,7 +5162,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5173,6 +5173,6 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

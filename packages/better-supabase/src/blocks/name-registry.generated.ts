@@ -127,9 +127,9 @@ export interface BlockNameRegistry {
       readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";
       readonly "installs": "agent" | "user" | "tenant" | "installedAt";
       readonly "ratings": "agent" | "user" | "rating" | "comment" | "createdAt";
-      readonly "skills": "id" | "agent" | "provider" | "reference" | "createdAt";
+      readonly "skills": "id" | "agent" | "provider" | "reference" | "name" | "files" | "contentHash" | "latestVersion" | "providerRefs" | "createdAt";
     };
-    readonly functions: "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "rate_agent" | "save_agent" | "set_agent_skills";
+    readonly functions: "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "rate_agent" | "record_skill_sync" | "save_agent" | "set_agent_skills";
     readonly actions: "read" | "create" | "publish" | "moderate";
     readonly hooks: never;
     readonly entities: {
@@ -304,9 +304,10 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "action" | "policy" | "step" | "status" | "requestedBy" | "reason" | "payload" | "expiresAt" | "remindedAt" | "decidedAt" | "fingerprint" | "consumedAt" | "createdAt";
       readonly "decisions": "id" | "request" | "tenant" | "step" | "approver" | "decision" | "delegateTo" | "comment" | "createdAt";
+      readonly "items": "id" | "request" | "tenant" | "key" | "label" | "payload" | "permission" | "dependsOn" | "status" | "createdType" | "createdId" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "policies": "id" | "tenant" | "subjectType" | "action" | "name" | "conditions" | "mode" | "steps" | "selfApproval" | "expiresIn" | "enabled" | "createdBy" | "createdAt" | "updatedAt" | "effect";
     };
-    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_policy_tighten" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "delegate_approval" | "escalate_approvals" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "remind_approvals" | "request_approval";
+    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_policy_tighten" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "decide_approval_items" | "delegate_approval" | "escalate_approvals" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "record_approval_created" | "remind_approvals" | "request_approval" | "request_approval_items" | "settle_approval";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_approval_request" | "after_approval_request" | "before_approval_decide" | "after_approval_decide" | "approval_notification";
     readonly entities: {
@@ -1264,16 +1265,16 @@ export interface BlockNameRegistry {
       readonly "members": "inbox" | "user" | "role" | "createdAt";
       readonly "teams": "id" | "tenant" | "name" | "createdAt";
       readonly "teamMembers": "team" | "user" | "createdAt";
-      readonly "conversations": "id" | "tenant" | "inbox" | "contact" | "subject" | "status" | "priority" | "assignee" | "team" | "botMode" | "thread" | "snoozedUntil" | "lastMessageAt" | "preview" | "firstResponseAt" | "resolvedAt" | "metadata" | "createdAt" | "updatedAt";
+      readonly "conversations": "id" | "tenant" | "inbox" | "contact" | "subject" | "status" | "priority" | "assignee" | "team" | "botMode" | "thread" | "snoozedUntil" | "lastMessageAt" | "lastInboundAt" | "activeStreamId" | "preview" | "firstResponseAt" | "resolvedAt" | "metadata" | "createdAt" | "updatedAt";
       readonly "events": "id" | "tenant" | "conversation" | "type" | "actor" | "data" | "createdAt";
       readonly "details": "message" | "tenant" | "conversation" | "direction" | "authorType" | "format" | "externalId" | "replyTo" | "metadata";
-      readonly "deliveries": "id" | "tenant" | "message" | "channel" | "status" | "externalId" | "error" | "attempts" | "createdAt" | "updatedAt";
-      readonly "inbound": "id" | "tenant" | "adapter" | "externalId" | "inbox" | "headers" | "body" | "status" | "error" | "attempts" | "receivedAt" | "processedAt";
+      readonly "deliveries": "id" | "tenant" | "message" | "channel" | "status" | "externalId" | "error" | "attempts" | "deliveredAt" | "readAt" | "failedAt" | "createdAt" | "updatedAt";
+      readonly "inbound": "id" | "tenant" | "adapter" | "externalId" | "inbox" | "headers" | "body" | "status" | "error" | "attempts" | "availableAt" | "lockedUntil" | "receivedAt" | "processedAt";
       readonly "templates": "id" | "tenant" | "inbox" | "name" | "channel" | "language" | "body" | "variables" | "externalId" | "createdAt" | "updatedAt";
       readonly "scheduled": "id" | "tenant" | "conversation" | "author" | "input" | "scheduledFor" | "createdAt" | "updatedAt";
       readonly "drafts": "id" | "tenant" | "conversation" | "author" | "source" | "input" | "status" | "metadata" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_event_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_active_stream" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: "before_inbox_conversation_start" | "after_inbox_conversation_start" | "before_inbox_message_send" | "after_inbox_message_send" | "before_inbox_conversation_assign" | "after_inbox_conversation_assign" | "before_inbox_conversation_status_change" | "after_inbox_conversation_status_change";
     readonly entities: {
@@ -1996,6 +1997,7 @@ export interface BlockNameRegistry {
   readonly "queue": {
     readonly tables: {
       readonly "messages": "id" | "queue" | "message" | "attempts" | "enqueuedAt" | "visibleAt" | "archivedAt" | "dead" | "dedupeKey" | "maxAttempts";
+      readonly "leases": "scope" | "key" | "holder" | "state" | "expiresAt";
       readonly "schedules": "jobName" | "schedule" | "timezone" | "queue" | "payload" | "nextRun" | "lastRun" | "lockedUntil" | "createdAt" | "tenant" | "firstAfter";
     };
     readonly functions: never;
@@ -2033,7 +2035,7 @@ export interface BlockNameRegistry {
   };
   readonly "rate-limit": {
     readonly tables: {
-      readonly "rules": "scope" | "maxRequests" | "period" | "keyClaim";
+      readonly "rules": "scope" | "maxRequests" | "period" | "keyClaim" | "organization";
       readonly "counters": "scope" | "key" | "windowStart" | "hits" | "period";
     };
     readonly functions: never;
@@ -2451,8 +2453,9 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "streams": "id" | "tenant" | "owner" | "kind" | "wake" | "createdAt" | "closedAt" | "cancelRequestedAt" | "expiresAt";
       readonly "chunks": "stream" | "idx" | "data";
+      readonly "kv": "key" | "value" | "expiresAt";
     };
-    readonly functions: "purge_streams" | "stream_append" | "stream_cancel" | "stream_close" | "stream_open" | "stream_read" | "stream_status";
+    readonly functions: "purge_streams" | "stream_append" | "stream_cancel" | "stream_close" | "stream_kv_get" | "stream_kv_incr" | "stream_kv_publish" | "stream_kv_set" | "stream_open" | "stream_read" | "stream_status";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -2634,7 +2637,7 @@ export interface BlockNameRegistry {
       readonly "billed": "tenant" | "periodStart" | "periodEnd" | "invoice" | "billedAt";
       readonly "quotas": "id" | "tenant" | "plan" | "meter" | "limit" | "period" | "createdAt";
     };
-    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
+    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
     readonly actions: "read" | "record";
     readonly hooks: "usage_billing_period";
     readonly entities: {};

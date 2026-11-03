@@ -122,6 +122,9 @@ begin
   end if;`
       : ""
   }
+  if exists (select 1 from ${ctx.table("items")} x where x.${ctx.col("items", "request")} = v_req.${c("id")}) then
+    ${fail("APPROVAL_ITEMS_REQUIRED", "this request has items; use decide_approval_items", "22023")}
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req.${c("requestedBy")} and coalesce(${policyOf("v_req")} ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then

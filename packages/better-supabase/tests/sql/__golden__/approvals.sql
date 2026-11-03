@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:1bd3d858378f947a99d421c054d3ecd1dc4b0a805b23bbaec13ab4cbb936d268
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:e8e9ed9a5e00ab1798547f7a994e055d68e6c09052bfb87ad29a6d0e8435b7ba
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,6 +60,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -116,6 +124,34 @@ grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+create table if not exists "better_supabase"."approval_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "key" text not null check (length("key") between 1 and 200),
+  "label" text check ("label" is null or length("label") <= 500),
+  "payload" jsonb not null default '{}'::jsonb,
+  "permission" text,
+  "depends_on" text[] not null default '{}',
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "created_type" text,
+  "created_id" text,
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("request_id", "key"),
+  check (("created_type" is null) = ("created_id" is null))
+);
+create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+alter table "better_supabase"."approval_items" enable row level security;
+revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
+grant select on "better_supabase"."approval_items" to authenticated;
+grant all on "better_supabase"."approval_items" to service_role;
+drop policy if exists approval_items_read on "better_supabase"."approval_items";
+create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -563,6 +599,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -639,6 +678,324 @@ end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "better_supabase"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if false then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "better_supabase"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "better_supabase"."approval_items" ("request_id", "tenant_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "better_supabase"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "better_supabase"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."tenant_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "better_supabase"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "better_supabase"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "better_supabase"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "better_supabase"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "better_supabase"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "better_supabase"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "better_supabase"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision")
+    values (v_req."id", v_req."tenant_id", v_req."step", v_actor, v_outcome)
+    on conflict do nothing;
+    update "better_supabase"."approval_requests" r set "status" = v_outcome, "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    else
+      null;
+      perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "better_supabase"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "better_supabase"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "better_supabase"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "better_supabase"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "better_supabase"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", null, settle_approval.outcome, left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "better_supabase"."approval_requests" r set "status" = settle_approval.outcome, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "better_supabase"."approval_finalize"(v_req."id");
+  else
+    null;
+    perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "better_supabase"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -737,6 +1094,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -960,6 +1321,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -977,21 +1359,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:763a72803ce2319667beb7af214d370b17e06282900384bc92ecb3016231c005
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:04a9c9c56bf01142316ba57cef39e50737248f51df2a20f4891057777f43467e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1067,6 +1449,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -1123,6 +1513,34 @@ grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+create table if not exists "better_supabase"."approval_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "key" text not null check (length("key") between 1 and 200),
+  "label" text check ("label" is null or length("label") <= 500),
+  "payload" jsonb not null default '{}'::jsonb,
+  "permission" text,
+  "depends_on" text[] not null default '{}',
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "created_type" text,
+  "created_id" text,
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("request_id", "key"),
+  check (("created_type" is null) = ("created_id" is null))
+);
+create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+alter table "better_supabase"."approval_items" enable row level security;
+revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
+grant select on "better_supabase"."approval_items" to authenticated;
+grant all on "better_supabase"."approval_items" to service_role;
+drop policy if exists approval_items_read on "better_supabase"."approval_items";
+create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -1800,6 +2218,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -1897,6 +2318,342 @@ end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "better_supabase"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if request_approval_items.subject_type in ('support_request', 'ai_tool_approval') then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "better_supabase"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "better_supabase"."approval_items" ("request_id", "tenant_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "better_supabase"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "better_supabase"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."tenant_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "better_supabase"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "better_supabase"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "better_supabase"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "better_supabase"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "better_supabase"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "better_supabase"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "better_supabase"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision")
+    values (v_req."id", v_req."tenant_id", v_req."step", v_actor, v_outcome)
+    on conflict do nothing;
+    update "better_supabase"."approval_requests" r set "status" = v_outcome, "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    else
+      perform "better_supabase".emit_event('approval.rejected', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval.rejected',
+    category => 'data',
+    target_type => 'approval_request',
+    record_id => v_req."id"::text,
+    summary => 'rejected' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    tenant => (v_req."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
+  );
+      perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "better_supabase"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "better_supabase"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "better_supabase"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "better_supabase"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "better_supabase"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", null, settle_approval.outcome, left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "better_supabase"."approval_requests" r set "status" = settle_approval.outcome, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "better_supabase"."approval_finalize"(v_req."id");
+  else
+    perform "better_supabase".emit_event('approval.rejected', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval.rejected',
+    category => 'data',
+    target_type => 'approval_request',
+    record_id => v_req."id"::text,
+    summary => 'rejected' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    tenant => (v_req."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
+  );
+    perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "better_supabase"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -2016,6 +2773,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -2248,6 +3009,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 do $$
@@ -2272,21 +3054,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:ceaecc1a8748fd840fe9cd1d63b8632836ff7ba49af2e565bf1cdfbef9d40459
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:7d248f929aa8e44ced7d3df8c5acaff87afb95c2d1f1f4ad28d6e35c18d9dd60
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2343,6 +3125,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_decisions";
     drop policy if exists bsb_tenant_scope_update on "app_private"."approval_decisions";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_decisions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2406,6 +3196,34 @@ grant select on "app_private"."approval_decisions" to authenticated;
 grant all on "app_private"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "app_private"."approval_decisions";
 create policy approval_decisions_read on "app_private"."approval_decisions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+create table if not exists "app_private"."approval_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "request_id" uuid not null references "app_private"."approval_requests" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "key" text not null check (length("key") between 1 and 200),
+  "label" text check ("label" is null or length("label") <= 500),
+  "payload" jsonb not null default '{}'::jsonb,
+  "permission" text,
+  "depends_on" text[] not null default '{}',
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "created_type" text,
+  "created_id" text,
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("request_id", "key"),
+  check (("created_type" is null) = ("created_id" is null))
+);
+create index if not exists "approval_items_tenant_idx" on "app_private"."approval_items" ("tenant_id", "status");
+alter table "app_private"."approval_items" enable row level security;
+revoke all on "app_private"."approval_items" from public, anon, authenticated;
+grant select on "app_private"."approval_items" to authenticated;
+grant all on "app_private"."approval_items" to service_role;
+drop policy if exists approval_items_read on "app_private"."approval_items";
+create policy approval_items_read on "app_private"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -2853,6 +3671,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "app_private"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -2929,6 +3750,324 @@ end;
 $$;
 revoke execute on function "app_private"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "app_private"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "app_private"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if false then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "app_private"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "app_private"."approval_items" ("request_id", "tenant_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "app_private"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "app_private"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "app_private"."approval_requests"%rowtype;
+  v_item "app_private"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "app_private"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "app_private"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "app_private"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."tenant_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "app_private"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "app_private"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "app_private"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "app_private"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "app_private"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "app_private"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "app_private"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "app_private"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision")
+    values (v_req."id", v_req."tenant_id", v_req."step", v_actor, v_outcome)
+    on conflict do nothing;
+    update "app_private"."approval_requests" r set "status" = v_outcome, "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "app_private"."approval_finalize"(v_req."id");
+    else
+      null;
+      perform "app_private"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "app_private"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "app_private"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "app_private"."approval_requests"%rowtype;
+  v_item "app_private"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "app_private"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "app_private"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "app_private"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "app_private"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "app_private"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "app_private"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "app_private"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "app_private"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "app_private"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", null, settle_approval.outcome, left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "app_private"."approval_requests" r set "status" = settle_approval.outcome, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "app_private"."approval_finalize"(v_req."id");
+  else
+    null;
+    perform "app_private"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "app_private"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "app_private"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -3027,6 +4166,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "app_private"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "app_private"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -3250,6 +4393,27 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_decisio
 create policy bsb_tenant_scope_delete on "app_private"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "app_private"."approval_items";
+create policy bsb_tenant_scope_select on "app_private"."approval_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_items";
+create policy bsb_tenant_scope_insert on "app_private"."approval_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."approval_items";
+create policy bsb_tenant_scope_update on "app_private"."approval_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_items";
+create policy bsb_tenant_scope_delete on "app_private"."approval_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3267,21 +4431,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:2fd75de3a8b114acdb1f7531f28a4b409312850c3543e2fc1248b0fb4f1d2caf
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:6211e89e32d126d1b773bdbfff36a71cf41aec9058f4c0014802435721b8bde3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3340,6 +4504,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3396,6 +4568,34 @@ grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+create table if not exists "better_supabase"."approval_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "key" text not null check (length("key") between 1 and 200),
+  "label" text check ("label" is null or length("label") <= 500),
+  "payload" jsonb not null default '{}'::jsonb,
+  "permission" text,
+  "depends_on" text[] not null default '{}',
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "created_type" text,
+  "created_id" text,
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("request_id", "key"),
+  check (("created_type" is null) = ("created_id" is null))
+);
+create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+alter table "better_supabase"."approval_items" enable row level security;
+revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
+grant select on "better_supabase"."approval_items" to authenticated;
+grant all on "better_supabase"."approval_items" to service_role;
+drop policy if exists approval_items_read on "better_supabase"."approval_items";
+create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -3843,6 +5043,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -3919,6 +5122,324 @@ end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "better_supabase"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if false then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "better_supabase"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "better_supabase"."approval_items" ("request_id", "tenant_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "better_supabase"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "better_supabase"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."tenant_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "better_supabase"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "better_supabase"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "better_supabase"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "better_supabase"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "better_supabase"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "better_supabase"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "better_supabase"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision")
+    values (v_req."id", v_req."tenant_id", v_req."step", v_actor, v_outcome)
+    on conflict do nothing;
+    update "better_supabase"."approval_requests" r set "status" = v_outcome, "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    else
+      null;
+      perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "better_supabase"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "better_supabase"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "better_supabase"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "better_supabase"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "better_supabase"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", null, settle_approval.outcome, left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "better_supabase"."approval_requests" r set "status" = settle_approval.outcome, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "better_supabase"."approval_finalize"(v_req."id");
+  else
+    null;
+    perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "better_supabase"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -4017,6 +5538,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -4240,6 +5765,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.approvals.api: entry points for the Data API.
 create schema if not exists "api";
@@ -4323,6 +5869,42 @@ set search_path = ''
 as $$ select "better_supabase"."decide_approval"($1, $2, $3, $4) $$;
 revoke execute on function "api"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "api"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."request_approval_items"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+create or replace function "api"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."decide_approval_items"($1, $2, $3) $$;
+revoke execute on function "api"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+create or replace function "api"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_approval_created"($1, $2, $3, $4) $$;
+revoke execute on function "api"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "api"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."settle_approval"($1, $2, $3) $$;
+revoke execute on function "api"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."settle_approval"(uuid, text, text) to service_role;
 
 create or replace function "api"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
 returns jsonb
@@ -4412,21 +5994,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:3ee7c24883ec46a5741d46c84a9b07102a53f80e2dcc829f1cc7d2763fd10d52
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:b103e41f40e4b727cf2bba7e24a9bbbadd0e77972cf0584f8175afd3132f01aa
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4501,6 +6083,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4552,6 +6142,30 @@ grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists bsb_approval_decisions_select on "better_supabase"."approval_decisions";
 create policy bsb_approval_decisions_select on "better_supabase"."approval_decisions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+-- better_supabase.approval_items is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."approval_items" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."approval_items" add column if not exists "request_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade;
+alter table "better_supabase"."approval_items" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."approval_items" add column if not exists "key" text check (length("key") between 1 and 200);
+alter table "better_supabase"."approval_items" add column if not exists "label" text check ("label" is null or length("label") <= 500);
+alter table "better_supabase"."approval_items" add column if not exists "payload" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."approval_items" add column if not exists "permission" text;
+alter table "better_supabase"."approval_items" add column if not exists "depends_on" text[] not null default '{}';
+alter table "better_supabase"."approval_items" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected'));
+alter table "better_supabase"."approval_items" add column if not exists "created_type" text;
+alter table "better_supabase"."approval_items" add column if not exists "created_id" text;
+alter table "better_supabase"."approval_items" add column if not exists "decided_by" uuid;
+alter table "better_supabase"."approval_items" add column if not exists "decided_at" timestamptz;
+alter table "better_supabase"."approval_items" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+alter table "better_supabase"."approval_items" enable row level security;
+grant select on "better_supabase"."approval_items" to authenticated;
+grant all on "better_supabase"."approval_items" to service_role;
+drop policy if exists bsb_approval_items_select on "better_supabase"."approval_items";
+create policy bsb_approval_items_select on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -4999,6 +6613,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -5075,6 +6692,324 @@ end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "better_supabase"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if false then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "better_supabase"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "better_supabase"."approval_items" ("request_id", "tenant_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "better_supabase"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "better_supabase"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."tenant_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "better_supabase"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "better_supabase"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "better_supabase"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "better_supabase"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "better_supabase"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "better_supabase"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "better_supabase"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision")
+    values (v_req."id", v_req."tenant_id", v_req."step", v_actor, better_supabase.as_column_type(v_outcome, (null::"better_supabase"."approval_decisions")."decision"))
+    on conflict do nothing;
+    update "better_supabase"."approval_requests" r set "status" = better_supabase.as_column_type(v_outcome, (null::"better_supabase"."approval_requests")."status"), "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    else
+      null;
+      perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "better_supabase"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "better_supabase"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "better_supabase"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "better_supabase"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "better_supabase"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."tenant_id", v_req."step", null, better_supabase.as_column_type(settle_approval.outcome, (null::"better_supabase"."approval_decisions")."decision"), left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "better_supabase"."approval_requests" r set "status" = better_supabase.as_column_type(settle_approval.outcome, (null::"better_supabase"."approval_requests")."status"), "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "better_supabase"."approval_finalize"(v_req."id");
+  else
+    null;
+    perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "better_supabase"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -5173,6 +7108,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -5396,6 +7335,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5413,21 +7373,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@1 managed
--- @bsb-hash sha256:ac530f0b9b31ea47a48b00301360b78856ad1b0b6d7053b1271379707386a30c
+-- @bsb-block approvals@2 managed
+-- @bsb-hash sha256:ed870e19e4300c8338ed17075b30eb4f6180b00f42c680b2816331d4f8500453
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5486,6 +7446,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -5542,6 +7510,34 @@ grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+create table if not exists "better_supabase"."approval_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
+  "org_id" uuid not null,
+  "key" text not null check (length("key") between 1 and 200),
+  "label" text check ("label" is null or length("label") <= 500),
+  "payload" jsonb not null default '{}'::jsonb,
+  "permission" text,
+  "depends_on" text[] not null default '{}',
+  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "created_type" text,
+  "created_id" text,
+  "decided_by" uuid,
+  "decided_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("request_id", "key"),
+  check (("created_type" is null) = ("created_id" is null))
+);
+create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("org_id", "status");
+alter table "better_supabase"."approval_items" enable row level security;
+revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
+grant select on "better_supabase"."approval_items" to authenticated;
+grant all on "better_supabase"."approval_items" to service_role;
+drop policy if exists approval_items_read on "better_supabase"."approval_items";
+create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -5989,6 +7985,9 @@ begin
   if v_req."expires_at" is not null and v_req."expires_at" <= now() then
     raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
   end if;
+  if exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has items; use decide_approval_items' using errcode = '22023', hint = 'APPROVAL_ITEMS_REQUIRED';
+  end if;
   if v_service then
     if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
@@ -6065,6 +8064,324 @@ end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."decide_approval"(uuid, text, text, uuid) to authenticated, service_role;
+
+-- Files a request that asks for several things. Each item carries its own
+-- permission and may depend on items filed before it. request_approval
+-- checks the caller, the policy and the record, so an item request is filed
+-- under the same rules as any other, and the items are written in the same
+-- transaction.
+create or replace function "better_supabase"."request_approval_items"(tenant uuid, subject_type text, subject_id text, action text, items jsonb, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_result jsonb;
+  v_item jsonb;
+  v_key text;
+  v_seen text[] := '{}';
+  v_after text[];
+  v_depends text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(request_approval_items.items) is distinct from 'array' or jsonb_array_length(request_approval_items.items) = 0 then
+    raise exception 'items must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if jsonb_array_length(request_approval_items.items) > 200 then
+    raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  if false then
+    raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
+  end if;
+  for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
+    if jsonb_typeof(v_item) is distinct from 'object' or jsonb_typeof(v_item -> 'key') is distinct from 'string' or length(btrim(v_item ->> 'key')) not between 1 and 200 then
+      raise exception 'each item needs a key of 1 to 200 characters' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_key := v_item ->> 'key';
+    if v_key = any(v_seen) then
+      raise exception 'item keys must be unique' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    if v_item ? 'dependsOn' and jsonb_typeof(v_item -> 'dependsOn') is distinct from 'array' then
+      raise exception 'dependsOn must be an array of item keys' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_depends := array(select jsonb_array_elements_text(coalesce(v_item -> 'dependsOn', '[]'::jsonb)));
+    if exists (select 1 from unnest(v_depends) dep where dep <> all(v_seen)) then
+      raise exception 'an item depends only on items listed before it' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+    end if;
+    v_seen := v_seen || v_key;
+  end loop;
+  v_result := "better_supabase"."request_approval"(
+    tenant => request_approval_items.tenant,
+    subject_type => request_approval_items.subject_type,
+    subject_id => request_approval_items.subject_id,
+    action => request_approval_items.action,
+    reason => request_approval_items.reason,
+    payload => request_approval_items.payload,
+    fingerprint => request_approval_items.fingerprint,
+    policy => request_approval_items.policy,
+    requested_by => request_approval_items.requested_by
+  );
+  insert into "better_supabase"."approval_items" ("request_id", "org_id", "key", "label", "payload", "permission", "depends_on")
+  select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
+    case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
+    nullif(e.value ->> 'permission', ''),
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+  from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
+  order by e.position;
+  return v_result || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = (v_result ->> 'id')::uuid
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."request_approval_items"(uuid, text, text, text, jsonb, text, jsonb, text, jsonb, uuid) to authenticated, service_role;
+
+-- Approves or rejects items of a pending request. An item with a permission
+-- needs the caller to hold it; one without follows the step's approvers. An
+-- item can't be approved while an item it depends on is pending or rejected,
+-- and rejecting an item rejects the pending items that depend on it. The
+-- request settles when no item is pending: approved when any item was
+-- approved, rejected otherwise. The service role decides for the user in
+-- decided_by, who is recorded on the items.
+create or replace function "better_supabase"."decide_approval_items"(request_id uuid, decisions jsonb, decided_by uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+  v_each jsonb;
+  v_decision text;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_actor uuid := coalesce(decide_approval_items.decided_by, auth.uid());
+  v_pending integer;
+  v_approved integer;
+  v_outcome text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(decide_approval_items.decisions) is distinct from 'array' or jsonb_array_length(decide_approval_items.decisions) = 0 then
+    raise exception 'decisions must be a non-empty array' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  if decide_approval_items.decided_by is not null and not v_service and decide_approval_items.decided_by is distinct from auth.uid() then
+    raise exception 'only the service role decides for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = decide_approval_items.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  if v_req."expires_at" is not null and v_req."expires_at" <= now() then
+    raise exception 'this request has expired' using errcode = '22023', hint = 'APPROVAL_EXPIRED';
+  end if;
+  if not exists (select 1 from "better_supabase"."approval_items" x where x."request_id" = v_req."id") then
+    raise exception 'this request has no items; use decide_approval' using errcode = '22023', hint = 'APPROVAL_ITEMS_NONE';
+  end if;
+  if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
+    and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+    raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
+    v_decision := v_each ->> 'decision';
+    if v_decision is null or v_decision not in ('approved', 'rejected') or jsonb_typeof(v_each -> 'key') is distinct from 'string' then
+      raise exception 'each decision needs a key and a decision of approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+    end if;
+    select * into v_item from "better_supabase"."approval_items" x
+    where x."request_id" = v_req."id" and x."key" = v_each ->> 'key' for update;
+    if not found then
+      raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+    end if;
+    if v_item."status" <> 'pending' then
+      raise exception 'this item is no longer pending' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+    end if;
+    if not v_service then
+      if v_item."permission" is not null then
+        if not (coalesce(better_supabase.can('tenant', v_req."org_id", v_item."permission"), false)) then
+          raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+        end if;
+      elsif not "better_supabase"."approval_eligible"(v_req."id") then
+        raise exception 'not an approver for this item' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+      end if;
+    end if;
+    if v_decision = 'approved' and exists (
+      select 1 from "better_supabase"."approval_items" dep
+      where dep."request_id" = v_req."id" and dep."key" = any(v_item."depends_on") and dep."status" <> 'approved'
+    ) then
+      raise exception 'an item this one depends on is not approved' using errcode = '22023', hint = 'APPROVAL_ITEM_BLOCKED';
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_decision;
+    end if;
+  end;
+    update "better_supabase"."approval_items" x set "status" = v_decision, "decided_by" = v_actor, "decided_at" = now()
+    where x."id" = v_item."id";
+    if v_decision = 'rejected' then
+      with recursive blocked(key) as (
+        select y."key" from "better_supabase"."approval_items" y
+        where y."request_id" = v_req."id" and v_item."key" = any(y."depends_on")
+        union
+        select y."key" from "better_supabase"."approval_items" y join blocked b on b.key = any(y."depends_on")
+        where y."request_id" = v_req."id"
+      )
+      update "better_supabase"."approval_items" x set "status" = 'rejected', "decided_by" = v_actor, "decided_at" = now()
+      where x."request_id" = v_req."id" and x."status" = 'pending' and x."key" in (select key from blocked);
+    end if;
+  end loop;
+  select count(*) filter (where x."status" = 'pending'), count(*) filter (where x."status" = 'approved')
+    into v_pending, v_approved
+  from "better_supabase"."approval_items" x where x."request_id" = v_req."id";
+  if v_pending = 0 then
+    v_outcome := case when v_approved > 0 then 'approved' else 'rejected' end;
+    insert into "better_supabase"."approval_decisions" ("request_id", "org_id", "step", "approver", "decision")
+    values (v_req."id", v_req."org_id", v_req."step", v_actor, v_outcome)
+    on conflict do nothing;
+    update "better_supabase"."approval_requests" r set "status" = v_outcome, "decided_at" = now()
+      where r."id" = v_req."id" returning * into v_req;
+    if v_outcome = 'approved' then
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    else
+      null;
+      perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    end if;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."org_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."decide_approval_items"(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- Notes the record an approved item created, so a retry of the run that
+-- creates it finds the record instead of creating another. The requester, a
+-- manager or the service role records it, once per item.
+create or replace function "better_supabase"."record_approval_created"(request_id uuid, item_key text, created_type text, created_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_item "better_supabase"."approval_items"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = record_approval_created.request_id;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."org_id", 'approvals.manage'), false)) then
+    raise exception 'only the requester or a manager records what an item created' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if nullif(btrim(record_approval_created.created_type), '') is null or nullif(btrim(record_approval_created.created_id), '') is null then
+    raise exception 'created_type and created_id are required' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
+  end if;
+  select * into v_item from "better_supabase"."approval_items" x
+  where x."request_id" = v_req."id" and x."key" = record_approval_created.item_key for update;
+  if not found then
+    raise exception 'this request has no such item' using errcode = 'P0002', hint = 'APPROVAL_ITEM_NOT_FOUND';
+  end if;
+  if v_item."status" <> 'approved' then
+    raise exception 'only an approved item records what it created' using errcode = '22023', hint = 'APPROVAL_ITEM_CLOSED';
+  end if;
+  if v_item."created_type" is not null then
+    raise exception 'this item already recorded what it created' using errcode = '23505', hint = 'APPROVAL_ITEM_RECORDED';
+  end if;
+  update "better_supabase"."approval_items" x set "created_type" = record_approval_created.created_type, "created_id" = record_approval_created.created_id
+  where x."id" = v_item."id" returning * into v_item;
+  return jsonb_build_object('id', v_item."id", 'key', v_item."key", 'label', v_item."label", 'payload', v_item."payload", 'permission', v_item."permission", 'dependsOn', to_jsonb(v_item."depends_on"), 'status', v_item."status", 'createdType', v_item."created_type", 'createdId', v_item."created_id", 'decidedBy', v_item."decided_by", 'decidedAt', v_item."decided_at", 'createdAt', v_item."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_approval_created"(uuid, text, text, text) to authenticated, service_role;
+
+-- Closes a pending request on the system's behalf, such as a run that
+-- finished or gave up. It writes a decision without an approver, settles the
+-- items still pending to the outcome, and records the same events and runs the
+-- same final approval as a person's decision, so waiters wake.
+create or replace function "better_supabase"."settle_approval"(request_id uuid, outcome text, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if settle_approval.outcome not in ('approved', 'rejected') then
+    raise exception 'outcome must be approved or rejected' using errcode = '22023', hint = 'APPROVAL_DECISION_INVALID';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = settle_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."status" <> 'pending' then
+    raise exception 'this request is no longer pending' using errcode = '22023', hint = 'APPROVAL_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", settle_approval.outcome;
+    end if;
+  end;
+  update "better_supabase"."approval_items" x set "status" = settle_approval.outcome, "decided_at" = now()
+  where x."request_id" = v_req."id" and x."status" = 'pending';
+  insert into "better_supabase"."approval_decisions" ("request_id", "org_id", "step", "approver", "decision", "comment")
+  values (v_req."id", v_req."org_id", v_req."step", null, settle_approval.outcome, left('system' || coalesce(': ' || settle_approval.reason, ''), 2000));
+  update "better_supabase"."approval_requests" r set "status" = settle_approval.outcome, "decided_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  if settle_approval.outcome = 'approved' then
+    perform "better_supabase"."approval_finalize"(v_req."id");
+  else
+    null;
+    perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_approval_decide"(uuid, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
+        using v_req."id", v_req."status";
+    end if;
+  end;
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."org_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object('items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."settle_approval"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."settle_approval"(uuid, text, text) to service_role;
 
 -- Hands the caller's place on the current step to another user.
 create or replace function "better_supabase"."delegate_approval"(request_id uuid, to_user uuid, comment text default null)
@@ -6163,6 +8480,10 @@ begin
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
       from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id"
+    ), '[]'::jsonb),
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = v_req."id"
     ), '[]'::jsonb)
   );
 end;
@@ -6386,6 +8707,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6403,13 +8745,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:42c6ed9866679559107e98b7c390497981bf36b42dc763f3dc29712a073bb21e
+-- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 1, 'managed')
+values ('approvals', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

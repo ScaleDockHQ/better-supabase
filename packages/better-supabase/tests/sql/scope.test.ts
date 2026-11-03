@@ -211,10 +211,14 @@ describe("blocks.memberships.names.organization", () => {
     );
 
     // Function parameters keep their names, so the TypeScript clients pass
-    // the same arguments under any tenant name.
+    // the same arguments under any tenant name. The rate-limit module's
+    // organization rules take the organization as an argument, not as the
+    // tenant, so set_organization_rate_limit keeps its name too.
     expect([...found].toSorted()).toEqual([
       "except_organization",
       "organization",
+      "organization_id",
+      "set_organization_rate_limit",
     ]);
   });
 

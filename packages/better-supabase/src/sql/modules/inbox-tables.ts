@@ -184,7 +184,7 @@ create table if not exists ${T.conversations} (
   ${cv("botMode")} text not null default 'human' check (${cv("botMode")} in (${botModes})),
   ${cv("thread")} text,
   ${cv("snoozedUntil")} timestamptz,
-  ${cv("lastMessageAt")} timestamptz not null default now(),${line(q, "conversations", "preview", () => "text")}${line(q, "conversations", "firstResponseAt", () => "timestamptz")}${line(q, "conversations", "resolvedAt", () => "timestamptz")}${line(q, "conversations", "metadata", () => "jsonb not null default '{}'::jsonb")}
+  ${cv("lastMessageAt")} timestamptz not null default now(),${line(q, "conversations", "lastInboundAt", () => "timestamptz")}${line(q, "conversations", "activeStreamId", () => "text")}${line(q, "conversations", "preview", () => "text")}${line(q, "conversations", "firstResponseAt", () => "timestamptz")}${line(q, "conversations", "resolvedAt", () => "timestamptz")}${line(q, "conversations", "metadata", () => "jsonb not null default '{}'::jsonb")}
   ${cv("createdAt")} timestamptz not null default now()
 );
 create unique index if not exists conversations_thread_idx on ${T.conversations} (${cv("inbox")}, ${cv("thread")}) where ${cv("thread")} is not null;
@@ -220,7 +220,7 @@ create table if not exists ${T.deliveries} (
   ${dl("message")} uuid not null references ${T.details} (${dt("message")}) on delete cascade,
   ${dl("channel")} text not null,
   ${dl("status")} text not null default 'queued' check (${dl("status")} in ('queued', 'sent', 'delivered', 'read', 'failed')),
-  ${dl("externalId")} text,${line(q, "deliveries", "error", () => "text")}${line(q, "deliveries", "attempts", () => "integer not null default 0")}
+  ${dl("externalId")} text,${line(q, "deliveries", "error", () => "text")}${line(q, "deliveries", "attempts", () => "integer not null default 0")}${line(q, "deliveries", "deliveredAt", () => "timestamptz")}${line(q, "deliveries", "readAt", () => "timestamptz")}${line(q, "deliveries", "failedAt", () => "timestamptz")}
   ${dl("createdAt")} timestamptz not null default now(),
   unique (${dl("message")}, ${dl("channel")})
 );${unique(q, "deliveries", "channel", ["message", "channel"])}
@@ -231,6 +231,9 @@ ${policy(T.deliveries, sqlIdent(`${q.ctx.tableName("deliveries").name}_staff_rea
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
+-- attempts counts only starts of processing; available_at delays a retry and
+-- locked_until is the lease of a processing row, after which it is picked
+-- again.
 create table if not exists ${T.inbound} (
   ${ie("id")} uuid primary key default gen_random_uuid(),
   ${ie("tenant")} ${id},
@@ -239,8 +242,8 @@ create table if not exists ${T.inbound} (
   ${ie("inbox")} uuid references ${T.inboxes} (${ib("id")}) on delete set null,
   ${ie("headers")} jsonb not null default '{}'::jsonb,
   ${ie("body")} text not null,
-  ${ie("status")} text not null default 'received' check (${ie("status")} in ('received', 'processed', 'ignored', 'failed')),${line(q, "inbound", "error", () => "text")}
-  ${ie("attempts")} integer not null default 0,
+  ${ie("status")} text not null default 'received' check (${ie("status")} in ('received', 'processing', 'processed', 'ignored', 'failed')),${line(q, "inbound", "error", () => "text")}
+  ${ie("attempts")} integer not null default 0,${line(q, "inbound", "availableAt", () => "timestamptz not null default now()")}${line(q, "inbound", "lockedUntil", () => "timestamptz")}
   ${ie("receivedAt")} timestamptz not null default now()${tail(q, "inbound", "processedAt", () => "timestamptz")}
 );
 create unique index if not exists ${sqlIdent(`${q.ctx.tableName("inbound").name}_external_idx`)} on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
@@ -389,8 +392,10 @@ export function inboxRealtime(q: InboxSql): string {
   const cv = q.cols("conversations");
   const dt = q.cols("details");
   const dl = q.cols("deliveries");
+  const ev = q.cols("events");
   const ms = q.core.cols("messages");
   const topic = topics(q);
+  const columns = q.realtimeColumns;
 
   const send = (payload: string, event: string, to: string): string =>
     `perform realtime.send(${payload}, ${event}, ${to}, true);`;
@@ -434,7 +439,16 @@ set search_path = ''
 as $$
 declare
   v_payload jsonb := jsonb_build_object('conversation_id', new.${cv("id")});
-begin
+begin${
+    columns.length === 0
+      ? ""
+      : `
+  -- realtimeColumns: an update pings only when one of them changed, and the ping carries them.
+  if tg_op = 'UPDATE' and not (${columns.map((column) => `old.${cv(column)} is distinct from new.${cv(column)}`).join(" or ")}) then
+    return null;
+  end if;
+  v_payload := v_payload || jsonb_build_object('columns', jsonb_build_object(${columns.map((column) => `${sqlString(q.cols("conversations")(column))}, to_jsonb(new.${cv(column)})`).join(", ")}));`
+  }
   if ${ready} then
     ${send("v_payload", "'conversation'", q.core.topic(`new.${cv("id")}`))}
     ${send("v_payload", "'conversation'", topic.org(`new.${cv("tenant")}`))}
@@ -446,6 +460,29 @@ revoke execute on function ${q.fn("inbox_conversation_broadcast")}() from public
 drop trigger if exists conversations_broadcast on ${q.t("conversations")};
 create trigger conversations_broadcast after insert or update on ${q.t("conversations")}
   for each row execute function ${q.fn("inbox_conversation_broadcast")}();
+
+-- A timeline event (assignment, status, hand-off, note) pings the staff topic
+-- and the conversation's own topic with ids only.
+create or replace function ${q.fn("inbox_event_broadcast")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_payload jsonb := jsonb_build_object('conversation_id', new.${ev("conversation")}, 'event_id', new.${ev("id")}, 'type', new.${ev("type")});
+begin
+  if ${ready} then
+    ${send("v_payload", "'event.created'", q.core.topic(`new.${ev("conversation")}`))}
+    ${send("v_payload", "'event.created'", topic.org(`new.${ev("tenant")}`))}
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function ${q.fn("inbox_event_broadcast")}() from public, anon, authenticated;
+drop trigger if exists ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} on ${q.t("events")};
+create trigger ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} after insert on ${q.t("events")}
+  for each row execute function ${q.fn("inbox_event_broadcast")}();
 
 create or replace function ${q.fn("inbox_delivery_broadcast")}()
 returns trigger

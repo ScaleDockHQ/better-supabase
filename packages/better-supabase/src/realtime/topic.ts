@@ -344,6 +344,14 @@ export interface TriggerOptions<
   readonly when?: {
     readonly changed: readonly Extract<keyof Row<M, T>, string>[];
   };
+  /**
+   * Broadcast only these columns: an UPDATE is sent when one of them changed,
+   * inserts and deletes always, and the payload is `{ operation, table, id,
+   * columns }` with the listed columns' new values (the old ones on a delete).
+   * Use it for a few status fields that a client watches. It replaces `when`
+   * and `payload`, which cannot be set with it.
+   */
+  readonly columns?: readonly Extract<keyof Row<M, T>, string>[];
 }
 
 export interface TopicTriggerLookup {
@@ -379,6 +387,13 @@ export interface TopicTriggerOptions<
    * Inserts and deletes always send.
    */
   readonly when?: { readonly changed: readonly string[] };
+  /**
+   * Broadcast only these columns (database names): an UPDATE is sent when one
+   * of them changed, inserts and deletes always, and the payload is `{
+   * operation, table, id, columns }`. It replaces `when` and `payload`, which
+   * cannot be set with it.
+   */
+  readonly columns?: readonly string[];
 }
 
 /** A row change sent with `payload: "row"`. */
@@ -526,6 +541,54 @@ interface AnyTriggerOptions {
   readonly topics?: readonly TriggerTopic<AnyTriggerValue>[];
   readonly functionSchema?: string;
   readonly when?: { readonly changed: readonly string[] };
+  readonly columns?: readonly string[];
+}
+
+/**
+ * `columns` as the options it stands for: `when.changed` on the columns and a
+ * payload of their values next to the operation and the row's key.
+ */
+function withColumns(
+  trigger: AnyTriggerOptions,
+  meta: TableMeta | undefined,
+  where: string,
+): AnyTriggerOptions {
+  const { columns } = trigger;
+
+  if (columns === undefined) {
+    return trigger;
+  }
+
+  if (columns.length === 0) {
+    throw new TypeError(`${where}: columns lists no columns`);
+  }
+
+  if (trigger.when !== undefined || trigger.payload !== undefined) {
+    throw new TypeError(`${where}: columns replaces when and payload`);
+  }
+
+  const dbName = (column: string): string =>
+    meta?.columns[column]?.db ?? column;
+
+  const key = meta ? idSql(meta.primaryKey.map(dbName)) : CATALOG_ID_SQL;
+
+  return {
+    ...trigger,
+    when: { changed: columns },
+    payload: {
+      operation: { sql: "tg_op" },
+      table: { sql: "tg_table_name" },
+      id: { sql: key },
+      columns: {
+        sql: `jsonb_build_object(${columns
+          .map(
+            (column) =>
+              `${sqlString(dbName(column))}, to_jsonb({row}.${sqlIdent(dbName(column))})`,
+          )
+          .join(", ")})`,
+      },
+    },
+  };
 }
 
 const columnsOnly = (
@@ -751,11 +814,12 @@ export function defineTopic<
 
   const triggerStatement = (
     table: string,
-    trigger: AnyTriggerOptions,
+    given: AnyTriggerOptions,
   ): string => {
     const where = `defineTopic(${template}).trigger`;
-    const tables = trigger.betterSupabase?.meta.tables;
+    const tables = given.betterSupabase?.meta.tables;
     const meta = tables?.[table];
+    const trigger = withColumns(given, meta, where);
 
     if (tables && !meta) {
       throw new TypeError(`defineTopic: unknown table "${table}"`);

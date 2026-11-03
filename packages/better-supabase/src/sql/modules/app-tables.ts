@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlContext, BlockSqlIdType } from "../context.ts";
 import type { BlockSqlFile, BlockSqlLayout } from "../module-types.ts";
 import type { EnrichTable } from "./app-table-enrich.ts";
+import type { GroupTable } from "./app-table-groups.ts";
 import type { SealTable } from "./app-table-seal.ts";
 import type { TenantReference } from "./app-table-tenant-keys.ts";
 
@@ -22,6 +23,7 @@ import {
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { renderAutoEmbedding } from "../auto-embeddings.ts";
 import { formatValidatorSql, validatorsOf } from "../format-checks.ts";
 import { moduleContext } from "../module-context.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -31,6 +33,7 @@ import {
   TENANT_SCOPE_NAMES,
   tenantScopePolicy,
 } from "../tenant-scope.ts";
+import { vectorSchemaOf } from "../vector-schema.ts";
 import {
   columnAccessChecks,
   columnAccessRefusals,
@@ -45,6 +48,7 @@ import {
   privilegeChecks,
   scopePolicyName,
 } from "./app-table-enrich.ts";
+import { columnGroupChecks, columnGroupsSql } from "./app-table-groups.ts";
 import {
   checkSealBlocks,
   findSql,
@@ -97,6 +101,8 @@ interface AppTable {
   readonly exposed: boolean;
   /** Whether `blocks['sessions'].options.policies` adds `bsb_session_active`. */
   readonly sessionPolicy: boolean;
+  /** The schema pgvector is installed in. */
+  readonly vectorSchema: string;
   /** The columns whose reference checks the tenant too, by column name. */
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
   /** Set when the app's own schema creates the table (`layout.ownTables`). */
@@ -364,6 +370,31 @@ function searchSql(table: AppTable): string {
   ).trim();
 }
 
+/**
+ * The embedding column, queue, triggers and drain job of a table with
+ * `embedding`.
+ */
+function embeddingSql(table: AppTable): string {
+  const embedding = table.config.embedding;
+
+  if (embedding === undefined) {
+    return "";
+  }
+
+  return renderAutoEmbedding({
+    schema: SCHEMA,
+    table: table.name,
+    content: embedding.content,
+    dimensions: embedding.dimensions,
+    vectorSchema: table.vectorSchema,
+    ...(embedding.type === undefined ? {} : { type: embedding.type }),
+    ...(embedding.schedule === undefined
+      ? {}
+      : { schedule: embedding.schedule }),
+    ...(embedding.batch === undefined ? {} : { batch: embedding.batch }),
+  }).trim();
+}
+
 function indexesSql(table: AppTable): string {
   const indexed = [
     ...(table.scope ? [table.scope.name] : []),
@@ -590,6 +621,15 @@ function triggerSql(table: AppTable): string {
   return `drop trigger if exists ${trigger} on ${target};
 create trigger ${trigger} before update on ${target}
   for each row execute function better_supabase.set_updated_at();`;
+}
+
+function groupTable(table: AppTable): GroupTable {
+  return {
+    name: table.name,
+    config: table.config,
+    ctx: table.ctx,
+    tenant: table.scope?.name,
+  };
 }
 
 /** The event type prefix: the subject type, or the table name. */
@@ -855,8 +895,10 @@ function tableSql(table: AppTable): string {
     constraintsSql(table),
     indexesSql(table),
     searchSql(table),
+    embeddingSql(table),
     commentsSql(table),
     triggerSql(table),
+    columnGroupsSql(groupTable(table)),
     eventsSql(table),
     sealSql(sealTable(table), constraintChecks),
     revealSql(sealTable(table)),
@@ -1041,7 +1083,10 @@ function testSql(table: AppTable): string {
     checks.push(...privilegeChecks(table), ...columnAccessChecks(access));
   }
 
-  checks.push(...appViewChecks(table.name, table.config));
+  checks.push(
+    ...columnGroupChecks(groupTable(table)),
+    ...appViewChecks(table.name, table.config),
+  );
 
   // The test can't fill the required columns of the app's own table.
   const seeded = table.enrich === undefined ? foreignRow(table) : undefined;
@@ -1139,6 +1184,7 @@ export function appTablesFiles(
         scope,
         exposed: isExposed(name, layout),
         sessionPolicy: sessionTables.includes(qualifiedName),
+        vectorSchema: vectorSchemaOf(layout),
         enrich:
           source === undefined
             ? undefined

@@ -304,6 +304,7 @@
       "AppRollupAggregate",
       "AppRollupConfig",
       "AppTableConfig",
+      "AppTableEmbedding",
       "AppTableEventKind",
       "AppTableEvents",
       "AppTableInput",
@@ -2484,6 +2485,7 @@
       "blockTickHandler",
       "blockTickSchema",
       "createIdempotency",
+      "createLeases",
       "createQueue",
       "createWebhookInbox",
       "dbTransport",
@@ -2537,6 +2539,7 @@
       "EnsureSchedulesOptions",
       "EnsureSchedulesResult",
       "FailOptions",
+      "HeldLease",
       "Idempotency",
       "IdempotencyOptions",
       "IdempotencySettings",
@@ -2548,8 +2551,13 @@
       "JobHandler",
       "JobsSource",
       "Lease",
+      "LeaseClaim",
+      "LeaseClaimInput",
       "LeaseOptions",
       "LeaseOutcome",
+      "Leases",
+      "LeasesOptions",
+      "LeasesSource",
       "ListDeadOptions",
       "MaintenanceTickOptions",
       "MaintenanceTickResult",
@@ -2594,6 +2602,8 @@
       "WebhookInboxOptions",
       "WebhookInboxProcessOptions",
       "WebhookInboxPurgeOptions",
+      "WithLeaseOptions",
+      "WithLeaseResult",
       "WorkOptions"
     ]
   },
@@ -4545,6 +4555,7 @@
   },
   "./streams": {
     "values": [
+      "consumeSseStreamInto",
       "dbTransport",
       "postgresStreamStore",
       "resumableStreamContext",
@@ -4556,6 +4567,7 @@
     ],
     "types": [
       "BlockTransport",
+      "ConsumeSseStreamOptions",
       "PostgresStreamStoreOptions",
       "ResumableStreamAdapterOptions",
       "ResumableStreamContext",
@@ -4568,6 +4580,42 @@
       "StreamStore",
       "TeedStream",
       "TeeToStoreOptions"
+    ]
+  },
+  "./json-render": {
+    "values": [
+      "applySpecPatch",
+      "collapseSpecParts",
+      "isSpec",
+      "parseSpecDocument",
+      "specDataSchemas",
+      "specDocumentContent",
+      "specOfMessage",
+      "validateSpec"
+    ],
+    "types": [
+      "JsonRenderCatalog",
+      "JsonRenderElement",
+      "JsonRenderPart",
+      "JsonRenderPatch",
+      "JsonRenderSpec",
+      "JsonRenderSpecPart",
+      "SpecIssue",
+      "SpecValidation"
+    ]
+  },
+  "./streams/resumable": {
+    "values": [
+      "postgresPublisher",
+      "postgresSubscriber"
+    ],
+    "types": [
+      "PostgresPublisherOptions",
+      "PostgresSubscriberOptions",
+      "ResumablePublisher",
+      "ResumableRealtime",
+      "ResumableRealtimeChannel",
+      "ResumableSubscriber"
     ]
   },
   "./streams/redis": {
@@ -5000,6 +5048,8 @@
       "chatErrorOf",
       "chatEventOf",
       "chatIdentityOf",
+      "chatWebhookPipeline",
+      "ChatWindowClosedError",
       "conversationIdOf",
       "createChatInstallations",
       "createSupabaseState",
@@ -5013,16 +5063,20 @@
       "inboxIdentityOf",
       "inboxStore",
       "inboxThreadId",
+      "INTERACTIVE_PARSERS",
       "maintain",
       "messengerDeliveries",
       "resolveChatAuthor",
       "rpcTransport",
       "scheduledAdapter",
+      "sendWithinWindowOrTemplate",
       "sqlTransport",
       "stateScheduler",
       "twilioDeliveries",
       "webhook",
       "whatsappDeliveries",
+      "whatsappInteractive",
+      "whatsappInteractiveOf",
       "whatsappWindowOpen"
     ],
     "types": [
@@ -5043,11 +5097,15 @@
       "ChatInstallation",
       "ChatInstallations",
       "ChatInstallationsOptions",
+      "ChatInteractiveAction",
       "ChatLike",
       "ChatOutboundMessage",
       "ChatScheduler",
       "ChatWebhookEvent",
       "ChatWebhookPayload",
+      "ChatWebhookPipeline",
+      "ChatWebhookPipelineOptions",
+      "ChatWebhookResult",
       "ChatWebhookSink",
       "DeliverFile",
       "DeliverOptions",
@@ -5069,18 +5127,24 @@
       "InboxThread",
       "InboxWebhookOptions",
       "InstallInput",
+      "InteractiveParser",
       "MaintainOptions",
       "MaintainResult",
       "MirrorThread",
       "ParsedDeliveries",
+      "ParsedInteractive",
       "PublishDueOptions",
       "PublishDueResult",
       "ScheduledAdapter",
       "ScheduledPost",
       "ScheduleInput",
+      "SendWithinWindowOptions",
       "StateSchedulerOptions",
       "SupabaseState",
-      "SupabaseStateOptions"
+      "SupabaseStateOptions",
+      "WhatsappTemplate",
+      "WhatsappTemplateAdapter",
+      "WindowedThread"
     ]
   },
   "./blocks/ai-chat": {
@@ -5628,6 +5692,8 @@
       "Agents",
       "AgentsEvents",
       "AgentSkill",
+      "AgentSkillFile",
+      "AgentSkillProviderRef",
       "AgentsOptions",
       "AgentVisibility",
       "BlockTransport",
@@ -5830,6 +5896,7 @@
       "AI_SDK_UI_FORMAT",
       "aiErrorMessage",
       "aiErrorToDbError",
+      "aiTranscriber",
       "BYOK_FIELD",
       "byokOptions",
       "codeTool",
@@ -5844,10 +5911,13 @@
       "modelCatalogRefresh",
       "modelInputOf",
       "problem429",
+      "rateLimitMiddleware",
+      "realtimeTokenRoute",
       "spendReconciliation",
       "summarizeWith",
       "tenantGatewayOptions",
       "tenantOfEvent",
+      "toolSearchFrom",
       "toUIMessage",
       "toUIMessages",
       "trackedSandbox",
@@ -5857,6 +5927,7 @@
       "validUIMessages"
     ],
     "types": [
+      "AiTranscriberOptions",
       "AiUsage",
       "AiUsageMeters",
       "CodeLanguage",
@@ -5875,6 +5946,11 @@
       "ModelApproval",
       "ModelCatalogRefreshOptions",
       "ModelSource",
+      "RateLimitCall",
+      "RateLimitMiddlewareOptions",
+      "RealtimeCaller",
+      "RealtimeTokenEntry",
+      "RealtimeTokenRouteOptions",
       "SpendReconciliation",
       "SpendReconciliationOptions",
       "SpendReportClient",
@@ -5885,6 +5961,8 @@
       "ThreadSummarizer",
       "ThreadSummaryInput",
       "ThreadSummaryOutput",
+      "ToolCatalog",
+      "ToolSearchFromOptions",
       "TrackedSandboxOptions",
       "UIMessageSchemas",
       "UsageSource"
@@ -5923,13 +6001,19 @@
       "aiFileDownload",
       "AiFileDownloadError",
       "providerFile",
-      "saveGeneratedFiles"
+      "providerFileParts",
+      "saveGeneratedFiles",
+      "uploadToProvider"
     ],
     "types": [
       "AiFileDownloadOptions",
       "GeneratedFileLike",
+      "ProviderFilePartsOptions",
+      "ProviderFilesApi",
       "ProviderFileUpload",
-      "SaveGeneratedOptions"
+      "ProviderUpload",
+      "SaveGeneratedOptions",
+      "UploadToProviderOptions"
     ]
   },
   "./ai-sdk/cache": {
@@ -5954,8 +6038,12 @@
   },
   "./ai-sdk/embeddings": {
     "values": [
+      "drainEmbeddings",
+      "embeddingCacheMiddleware",
+      "embeddingWorker",
       "embedWith",
       "modelName",
+      "rerankHits",
       "rerankWith",
       "searchTool",
       "supabaseEmbed",
@@ -5963,6 +6051,11 @@
     ],
     "types": [
       "Embedder",
+      "EmbeddingBatch",
+      "EmbeddingCacheMiddlewareOptions",
+      "EmbeddingDrainResult",
+      "EmbeddingJob",
+      "EmbeddingWorkerOptions",
       "EmbedWithOptions",
       "KnowledgeHit",
       "Reranker",
@@ -6000,11 +6093,15 @@
       "agentToolApproval",
       "agentToolOperation",
       "agentTools",
+      "anthropicSkillOptions",
       "assertToolDelegated",
       "createAgentRuntime",
+      "harnessSkills",
       "mergeGatewayOptions",
       "ModerationBlockedError",
       "moderationMiddleware",
+      "openaiShellSkills",
+      "syncSkill",
       "toolDelegated"
     ],
     "types": [
@@ -6025,8 +6122,13 @@
       "AgentToolOperation",
       "AgentToolOperations",
       "AgentToolPermissions",
+      "HarnessSkill",
       "ModerationMiddlewareOptions",
       "ModerationVerdict",
+      "ReadSkillFile",
+      "SkillsApi",
+      "SyncedSkill",
+      "SyncSkillOptions",
       "ToolDelegation"
     ]
   },
@@ -6036,7 +6138,9 @@
       "completeConnector",
       "connectAll",
       "connectTools",
+      "dedupeMcpEvents",
       "mcpOAuthRef",
+      "postgresMcpEventStore",
       "SUPABASE_MCP_URL",
       "supabaseMcp",
       "vaultOAuthProvider"
@@ -6047,7 +6151,9 @@
       "ConnectAllResult",
       "ConnectedTools",
       "ConnectToolsOptions",
+      "DedupeMcpEventsOptions",
       "McpToolSchemas",
+      "PostgresMcpEventStoreOptions",
       "SupabaseMcp",
       "SupabaseMcpFeature",
       "SupabaseMcpOptions",
@@ -7147,6 +7253,7 @@
       "CommandSearchOptions",
       "CommandSearchSnapshot",
       "Embedder",
+      "EmbedFunction",
       "PendingEmbedding",
       "Search",
       "SearchHit",
@@ -9098,6 +9205,7 @@
       "readPolicy",
       "readRulePolicies",
       "renamedBlock",
+      "renderAutoEmbedding",
       "renderBlocks",
       "renderPolicy",
       "renderRule",
@@ -9140,6 +9248,7 @@
       "AdoptedView",
       "AuditCategory",
       "AuditedTable",
+      "AutoEmbeddingConfig",
       "BlockOptionsRegistry",
       "BlockSql",
       "BlockSqlAccessProvider",

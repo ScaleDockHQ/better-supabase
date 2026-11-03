@@ -116,6 +116,25 @@ describe("migration safety", () => {
     ]);
   });
 
+  it("BS240 flags a renamed or removed enum value", async () => {
+    const files = [
+      migration(
+        "20260101000000",
+        [
+          "alter type public.status rename value 'draft' to 'new';",
+          "delete from pg_enum where enumlabel = 'old';",
+          "alter type public.status add value 'paused';",
+          "alter type public.status rename to state;",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(await run("BS240", files)).toEqual([
+      expect.stringContaining(":1: renames or removes an enum value"),
+      expect.stringContaining(":2: renames or removes an enum value"),
+    ]);
+  });
+
   it("BS230 flags a foreign key or check without not valid", async () => {
     const files = [
       migration(

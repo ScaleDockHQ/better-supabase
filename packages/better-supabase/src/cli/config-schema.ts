@@ -435,6 +435,21 @@ const appTableEntries = {
   indexes: v.optional(v.array(v.array(v.string()))),
   comment: v.optional(v.string()),
   auditReads: v.optional(v.boolean()),
+  embedding: v.optional(
+    v.strictObject({
+      content: v.array(v.string()),
+      dimensions: v.number(),
+      type: v.optional(v.picklist(["vector", "halfvec"])),
+      schedule: v.optional(v.string()),
+      batch: v.optional(v.number()),
+    }),
+  ),
+  columnGroups: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({ columns: v.array(v.string()), update: v.string() }),
+    ),
+  ),
   subject: v.optional(
     v.strictObject({
       type: v.string(),

@@ -42,6 +42,29 @@ export interface AgentSkill {
   /** Who serves the skill, such as `vercel` or `local`. */
   readonly provider: string;
   readonly reference: Readonly<Record<string, unknown>>;
+  /** The skill's name, when its files are kept in Storage. */
+  readonly name?: string;
+  /** The skill's files in Storage: a relative `path` and the Storage `object`. */
+  readonly files?: readonly AgentSkillFile[];
+  /** A hash of the files' bytes; `syncSkill` uploads again when it changes. */
+  readonly contentHash?: string;
+  readonly latestVersion?: string;
+  /**
+   * What each provider returned, keyed by provider, for the hash it was
+   * uploaded from.
+   */
+  readonly providerRefs?: Readonly<Record<string, AgentSkillProviderRef>>;
+}
+
+export interface AgentSkillFile {
+  readonly path: string;
+  /** The Storage object, such as `skills/<id>/SKILL.md`. */
+  readonly object: string;
+}
+
+export interface AgentSkillProviderRef {
+  readonly reference: Readonly<Record<string, unknown>>;
+  readonly contentHash: string;
 }
 
 export interface Agent {
@@ -166,6 +189,16 @@ export interface Agents<F extends object = Record<never, never>> {
     agentId: string;
     skills: readonly Omit<AgentSkill, "id">[];
   }): AsyncResult<number>;
+  /**
+   * Stores what a provider returned for a skill's current content. Needs the
+   * service role. `syncSkill` calls it.
+   */
+  recordSkillSync(input: {
+    skillId: string;
+    provider: string;
+    reference: Readonly<Record<string, unknown>>;
+    contentHash: string;
+  }): AsyncResult<Readonly<Record<string, AgentSkillProviderRef>>>;
   remove(agentId: string): AsyncResult<boolean>;
 }
 
@@ -196,18 +229,59 @@ function scopesOf(value: unknown): readonly AgentKnowledgeScope[] {
   });
 }
 
+function skillFilesOf(value: readonly unknown[]): readonly AgentSkillFile[] {
+  return value
+    .filter(isRecord)
+    .map((file) => ({
+      path: textOf(file["path"]),
+      object: textOf(file["object"]),
+    }));
+}
+
+function providerRefsOf(
+  value: unknown,
+): Readonly<Record<string, AgentSkillProviderRef>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const refs: Record<string, AgentSkillProviderRef> = {};
+
+  for (const [provider, entry] of Object.entries(value)) {
+    if (isRecord(entry)) {
+      refs[provider] = {
+        reference: isRecord(entry["reference"]) ? entry["reference"] : {},
+        contentHash: textOf(entry["content_hash"]),
+      };
+    }
+  }
+
+  return refs;
+}
+
 function skillsOf(value: unknown): readonly AgentSkill[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return value
-    .filter(isRecord)
-    .map((item) => ({
+  return value.filter(isRecord).map((item) => {
+    const name = item["name"];
+    const hash = item["content_hash"];
+    const version = item["latest_version"];
+
+    return {
       id: textOf(item["id"]),
       provider: textOf(item["provider"]),
       reference: isRecord(item["reference"]) ? item["reference"] : {},
-    }));
+      ...(typeof name === "string" ? { name } : {}),
+      ...(Array.isArray(item["files"])
+        ? { files: skillFilesOf(item["files"]) }
+        : {}),
+      ...(typeof hash === "string" ? { contentHash: hash } : {}),
+      ...(typeof version === "string" ? { latestVersion: version } : {}),
+      providerRefs: providerRefsOf(item["provider_refs"]),
+    };
+  });
 }
 
 function agentOf(value: unknown): Agent {
@@ -377,8 +451,27 @@ export function createAgents<
     setSkills: ({ agentId, skills }) =>
       call(
         "set_agent_skills",
-        { agent_id: agentId, skills: { items: skills } },
+        {
+          agent_id: agentId,
+          skills: {
+            items: skills.map((skill) => ({
+              provider: skill.provider,
+              reference: skill.reference,
+              name: skill.name,
+              files: skill.files,
+              content_hash: skill.contentHash,
+              latest_version: skill.latestVersion,
+              provider_refs: skill.providerRefs,
+            })),
+          },
+        },
         Number,
+      ),
+    recordSkillSync: ({ skillId, provider, reference, contentHash }) =>
+      call(
+        "record_skill_sync",
+        { skill_id: skillId, provider, reference, content_hash: contentHash },
+        providerRefsOf,
       ),
     remove: (agentId) =>
       call("delete_agent", { id: agentId }, (value) => value === true),

@@ -188,6 +188,44 @@ export interface AppTableConfig {
    * per call. Needs an `encrypted` column and the `audit` block.
    */
   readonly auditReads?: boolean;
+  /**
+   * Columns that only members with a permission may change, keyed by group name
+   * (ADR 0216). A `before update` trigger raises `42501` when a listed column
+   * changes and the caller, a signed-in user, lacks `update` in the row's
+   * tenant. The service role and the table owner are not checked. Needs a table
+   * scoped per tenant.
+   */
+  readonly columnGroups?: Readonly<Record<string, AppColumnGroup>>;
+  /**
+   * Keeps a vector column current from the table's text columns (`@bsb
+   * embedding`, ADR 0229): a trigger enqueues changed rows on pgmq, pg_cron
+   * sends them to an embedding worker through pg_net, and the worker stores the
+   * vector with `<table>_apply_embedding`. Needs the `vector`, `pgmq`, `pg_net`
+   * and `pg_cron` extensions.
+   */
+  readonly embedding?: AppTableEmbedding;
+}
+
+/** What `appTables.<name>.embedding` sets. */
+export interface AppTableEmbedding {
+  /** Own plain `text` columns, joined with a blank line, that are embedded. */
+  readonly content: readonly string[];
+  /** The vector size: up to 4000 for `halfvec`, 2000 for `vector`. */
+  readonly dimensions: number;
+  /** `halfvec` (the default) or `vector`. */
+  readonly type?: "vector" | "halfvec";
+  /** The pg_cron schedule of the drain job. Defaults to `10 seconds`. */
+  readonly schedule?: string;
+  /** Rows one drain sends to the worker, 1 to 200. Defaults to 20. */
+  readonly batch?: number;
+}
+
+/** A set of columns of one table, and the permission that changes them. */
+export interface AppColumnGroup {
+  /** Own columns of the table. A column belongs to one group at most. */
+  readonly columns: readonly string[];
+  /** The permission key a signed-in user needs in the row's tenant. */
+  readonly update: string;
 }
 
 export const APP_TABLE_EVENT_KINDS = ["created", "updated", "deleted"] as const;

@@ -544,7 +544,18 @@ export const PARTIES: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
+  upgrades: [
+    {
+      from: 2,
+      description:
+        "resolve_person is granted to service_role, so record_inbound resolves senders when the service role calls it.",
+      sql: (ctx) =>
+        ctx.mode === "custom"
+          ? ""
+          : `grant execute on function ${partyNames(ctx).fn("resolve_person")}(${ctx.idType}, jsonb) to service_role;`,
+    },
+  ],
   internal: [
     "resolve_person",
     "payment_term_write",

@@ -15,7 +15,7 @@ import {
 } from "../shared.ts";
 
 const NAMES: BlockSqlNames = {
-  options: ["topic"],
+  options: ["topic", "purgeSchedule", "purgeOlderThan"],
   tables: {
     streams: {
       name: "streams",
@@ -38,6 +38,11 @@ const NAMES: BlockSqlNames = {
       name: "stream_chunks",
       app: {},
       columns: { stream: "stream_id", idx: "idx", data: "data" },
+    },
+    kv: {
+      name: "stream_kv",
+      app: {},
+      columns: { key: "key", value: "value", expiresAt: "expires_at" },
     },
   },
 };
@@ -92,10 +97,33 @@ function build(ctx: BlockSqlContext): string {
     ? ""
     : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("chunks").name}_idx_key`)} on ${c} (${cc("stream")}, ${cc("idx")});`;
 
+  const kvKey = ctx.owns("kv")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("kv").name}_key_key`)} on ${ctx.table("kv")} (${ctx.col("kv", "key")});`;
+
   const topic = (stream: string): string =>
     `${sqlString(`${prefix}:`)} || ${stream}`;
 
   const receive = ctx.trigger("streams_receive");
+  const kv = ctx.table("kv");
+  const ck = (column: string): string => ctx.col("kv", column);
+  const purgeSchedule = ctx.text("purgeSchedule", "");
+  const purgeOlderThan = ctx.text("purgeOlderThan", "1 day");
+
+  const purgeJob =
+    purgeSchedule === ""
+      ? ""
+      : `
+-- Purges on ${sqlString(purgeSchedule)} with pg_cron when the extension exists.
+do $bsb$
+declare
+  v_schedule regprocedure := pg_catalog.to_regprocedure('cron.schedule(text, text, text)');
+begin
+  if v_schedule is not null then
+    execute pg_catalog.format('select cron.schedule(%L, %L, %L)', 'better-supabase-purge-streams', ${sqlString(purgeSchedule)}, ${sqlString(`select ${fn("purge_streams")}(${sqlString(purgeOlderThan)}::interval)`)});
+  end if;
+end
+$bsb$;`;
 
   const wake = (stream: string, event: string): string => `
   if v_wake and to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
@@ -152,6 +180,93 @@ ${renderPolicy(
   }),
   { drop: true, target: c },
 )}
+
+-- A key-value table with the Redis semantics resumable-stream needs from its
+-- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
+-- not an integer makes stream_kv_incr fail with Redis's own error text, which
+-- is how the package learns a stream is DONE. The service role only.
+create table if not exists ${kv} (
+  ${ck("key")} text primary key check (length(${ck("key")}) between 1 and 400),
+  ${ck("value")} text not null,
+  ${ck("expiresAt")} timestamptz
+);
+create index if not exists stream_kv_expires_idx on ${kv} (${ck("expiresAt")}) where ${ck("expiresAt")} is not null;${kvKey}
+alter table ${kv} enable row level security;
+${revokeTable(kv)}
+grant all on ${kv} to service_role;
+
+create or replace function ${fn("stream_kv_get")}(key text)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select k.${ck("value")} from ${kv} k
+  where k.${ck("key")} = stream_kv_get.key
+    and (k.${ck("expiresAt")} is null or k.${ck("expiresAt")} > now());
+$$;
+${serviceOnly(`${fn("stream_kv_get")}(text)`)}
+
+create or replace function ${fn("stream_kv_set")}(key text, value text, ex integer default null)
+returns text
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  insert into ${kv} (${ck("key")}, ${ck("value")}, ${ck("expiresAt")})
+  values (key, value, case when ex is null then null else now() + make_interval(secs => ex) end)
+  on conflict (${ck("key")}) do update
+    set ${ck("value")} = excluded.${ck("value")}, ${ck("expiresAt")} = excluded.${ck("expiresAt")};
+  return 'OK';
+end;
+$$;
+${serviceOnly(`${fn("stream_kv_set")}(text, text, integer)`)}
+
+create or replace function ${fn("stream_kv_incr")}(key text)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_value text;
+  v_next bigint;
+begin
+  delete from ${kv} where ${ck("key")} = stream_kv_incr.key and ${ck("expiresAt")} <= now();
+  insert into ${kv} (${ck("key")}, ${ck("value")}) values (key, '1')
+  on conflict (${ck("key")}) do nothing
+  returning ${ck("value")} into v_value;
+  if found then
+    return 1;
+  end if;
+  select ${ck("value")} into v_value from ${kv} where ${ck("key")} = stream_kv_incr.key for update;
+  if v_value !~ '^-?[0-9]{1,18}$' then
+    raise exception 'ERR value is not an integer or out of range' using errcode = '22023';
+  end if;
+  v_next := v_value::bigint + 1;
+  update ${kv} set ${ck("value")} = v_next::text where ${ck("key")} = stream_kv_incr.key;
+  return v_next;
+end;
+$$;
+${serviceOnly(`${fn("stream_kv_incr")}(text)`)}
+
+-- Sends message on a private Realtime topic; the subscriber joins it with a
+-- service-role client. Returns the number of listeners it can't know: 0.
+create or replace function ${fn("stream_kv_publish")}(channel text, message text)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is null then
+    raise exception 'stream_kv_publish needs Supabase Realtime (realtime.send)';
+  end if;
+  perform realtime.send(jsonb_build_object('message', message), 'message', channel, true);
+  return 0;
+end;
+$$;
+${serviceOnly(`${fn("stream_kv_publish")}(text, text)`)}
 
 -- Opens a stream; true when it was created, false when it already existed.
 -- wake = false skips the Realtime ping after each batch, for apps near the
@@ -345,6 +460,7 @@ begin
   )
   delete from ${s} st using doomed where st.${cs("id")} = doomed.${cs("id")};
   get diagnostics v_count = row_count;
+  delete from ${kv} where ${ck("expiresAt")} <= now();
   return v_count;
 end;
 $$;
@@ -373,7 +489,7 @@ begin
         )}
   end if;
 end;
-$$;`;
+$$;${purgeJob}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -401,6 +517,14 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["interval", "integer"],
       returns: "integer",
     },
+    { name: "stream_kv_get", args: ["text"], returns: "text" },
+    {
+      name: "stream_kv_set",
+      args: ["text", "text", "integer"],
+      returns: "text",
+    },
+    { name: "stream_kv_incr", args: ["text"], returns: "bigint" },
+    { name: "stream_kv_publish", args: ["text", "text"], returns: "integer" },
   ];
 }
 
@@ -412,7 +536,7 @@ export const STREAMS: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -426,6 +550,13 @@ begin
 end
 $bsb$;
 drop function if exists ${ctx.fn("stream_append")}(text, integer, text[]);`,
+    },
+    {
+      from: 2,
+      description:
+        "Adds stream_kv and the stream_kv_get, stream_kv_set, stream_kv_incr and stream_kv_publish functions for postgresPublisher, and the purgeSchedule option; purge_streams also clears expired keys.",
+      sql: () =>
+        "-- Version 3 only adds objects; the module file below creates them.",
     },
   ],
   names: NAMES,

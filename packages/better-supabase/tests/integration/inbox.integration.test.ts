@@ -358,6 +358,135 @@ describe.skipIf(!live)("inbox module", () => {
     }
   });
 
+  it("leases inbound events, keeps read deliveries read and tracks the last inbound message", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(MODULES);
+      const owner = await s.user("owner");
+      const org = await s.organization(owner);
+      const inbox = createInbox({ transport: sqlTransport(s.sql) });
+      await s.asRole(owner);
+
+      const whatsapp = await inbox.inboxes
+        .create({
+          tenant: org,
+          name: "WhatsApp",
+          channel: "whatsapp",
+          address: "+3100",
+        })
+        .orThrow();
+
+      await s.service();
+
+      const stored = await inbox.inbound
+        .store({ adapter: "whatsapp", body: "{}", externalId: "evt-lease" })
+        .orThrow();
+
+      const setStatus = (status: "processing" | "failed", extra = {}) =>
+        inbox.inbound.setStatus({ id: stored.id, status, ...extra }).orThrow();
+
+      // A processing row is held by its lease.
+      await setStatus("processing", { lease: 300 });
+      expect(await inbox.inbound.pending().orThrow()).toEqual([]);
+
+      // Once the lease ran out the row is offered again.
+      await s.rows(
+        "update better_supabase.inbox_inbound_events set locked_until = now() - interval '1 second'",
+      );
+      expect(await inbox.inbound.pending().orThrow()).toHaveLength(1);
+
+      // A failure waits for its retry delay, and the attempts count starts.
+      await setStatus("processing", { lease: 300 });
+      await setStatus("failed", { retryIn: 3600 });
+      expect(await inbox.inbound.pending().orThrow()).toEqual([]);
+      await s.rows(
+        "update better_supabase.inbox_inbound_events set available_at = now() - interval '1 second'",
+      );
+      expect(await inbox.inbound.pending().orThrow()).toHaveLength(1);
+      expect(await inbox.inbound.pending({ maxAttempts: 2 }).orThrow()).toEqual(
+        [],
+      );
+
+      const input = {
+        inboxId: whatsapp.id,
+        threadId: "whatsapp:+3100:+3198",
+        contact: { externalId: "+3198", name: "Bo" },
+        message: { body: "Hi", externalId: "wamid.in2" },
+      };
+
+      const first = await inbox.inbound.record(input).orThrow();
+
+      await s.asRole(owner);
+
+      const lastInbound = async () =>
+        (await inbox.conversations.get(first.conversationId).orThrow())
+          ?.lastInboundAt;
+
+      expect(await lastInbound()).not.toBeNull();
+
+      const reply = await inbox.messages
+        .send({
+          conversationId: first.conversationId,
+          input: { body: "Hello Bo" },
+        })
+        .orThrow();
+
+      await s.service();
+      await inbox.deliveries
+        .record({
+          messageId: reply.id,
+          channel: "whatsapp",
+          externalId: "wamid.out2",
+          status: "sent",
+        })
+        .orThrow();
+
+      const callback = (status: "delivered" | "read") =>
+        inbox.deliveries
+          .setStatus({ channel: "whatsapp", externalId: "wamid.out2", status })
+          .orThrow();
+
+      expect(await callback("read")).toBe(1);
+      expect(await callback("delivered")).toBe(0);
+      expect(
+        (await inbox.messages.get(reply.id).orThrow())?.delivery,
+      ).toMatchObject({ status: "read" });
+
+      await s.asRole(owner);
+      expect(
+        (
+          await inbox.conversations
+            .setActiveStream({
+              conversationId: first.conversationId,
+              streamId: "stream-1",
+            })
+            .orThrow()
+        ).activeStreamId,
+      ).toBe("stream-1");
+      await expect(
+        inbox.conversations
+          .setActiveStream({
+            conversationId: first.conversationId,
+            streamId: "stream-2",
+          })
+          .orThrow(),
+      ).rejects.toThrow(/INBOX_STREAM_ACTIVE|active/i);
+      expect(
+        (
+          await inbox.conversations
+            .setActiveStream({
+              conversationId: first.conversationId,
+              streamId: null,
+            })
+            .orThrow()
+        ).activeStreamId,
+      ).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
+
   it("schedules replies and wakes snoozed conversations through delayed jobs", async () => {
     const s = await BlockSession.open(pool);
 

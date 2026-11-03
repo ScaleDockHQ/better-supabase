@@ -1,6 +1,7 @@
 export {
   createSearch,
   type Embedder,
+  type EmbedFunction,
   type PendingEmbedding,
   type Search,
   type SearchHit,

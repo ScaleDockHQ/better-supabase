@@ -5,6 +5,8 @@ export {
   type AgentKnowledgeScope,
   type Agents,
   type AgentSkill,
+  type AgentSkillFile,
+  type AgentSkillProviderRef,
   type AgentsOptions,
   type AgentVisibility,
   createAgents,

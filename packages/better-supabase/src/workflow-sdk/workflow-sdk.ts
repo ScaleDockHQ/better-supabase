@@ -353,7 +353,23 @@ async function startRegistered<TResult>(
     const claimed = await registry.claimForDispatch({ run: id }).orThrow();
 
     if (claimed !== undefined) {
-      const run = await input.launch();
+      let run: Run<TResult>;
+
+      try {
+        run = await input.launch();
+      } catch (cause) {
+        // Recording the row's own pending id ends the lease and keeps the row
+        // queued, so the next caller starts the run without waiting it out.
+        await registry
+          .setEngine({
+            run: id,
+            engine: claimed.engine,
+            externalId: claimed.externalId,
+          })
+          .orThrow()
+          .catch(() => undefined);
+        throw cause;
+      }
 
       await registry
         .setEngine({ run: id, engine: ENGINE, externalId: run.runId })

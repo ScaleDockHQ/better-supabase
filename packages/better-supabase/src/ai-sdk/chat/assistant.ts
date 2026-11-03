@@ -270,6 +270,12 @@ export interface AssistantOptions<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly toolApprovalSecret?: string | Uint8Array;
   /** Makes message and stream ids. Defaults to `crypto.randomUUID()`. */
   readonly generateId?: () => string;
+  /**
+   * Changes the answer before it is stored and passed to `onFinish`. The client
+   * still receives the full stream. `collapseSpecParts` from
+   * `better-supabase/json-render` folds streamed spec patches into one part.
+   */
+  readonly parts?: { readonly compact?: (message: UI_MESSAGE) => UI_MESSAGE };
 }
 
 /** The body `useAssistant` sends. */
@@ -880,19 +886,23 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
     let finished: Promise<void> | undefined;
 
     const onEnd: UIMessageStreamOnEndCallback<UI_MESSAGE> = (event) => {
+      const responseMessage =
+        options.parts?.compact?.(event.responseMessage) ??
+        event.responseMessage;
+
       finished = (async () => {
         const stopped = event.isAborted || abort.signal.aborted;
         const status: AiRunStatus = stopped ? "cancelled" : "completed";
 
         const saved = await context.chats.messages.saveAssistant({
           chatId: chat.id,
-          message: fromUIMessage(event.responseMessage),
+          message: fromUIMessage(responseMessage),
           options: {
             parentId,
             status: stopped ? "aborted" : "complete",
             model,
             format: AI_SDK_UI_FORMAT,
-            native: event.responseMessage,
+            native: responseMessage,
             runId,
           },
         });
@@ -921,7 +931,7 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
 
         await options.onFinish?.({
           chat,
-          message: event.responseMessage,
+          message: responseMessage,
           status,
           model,
           usage,

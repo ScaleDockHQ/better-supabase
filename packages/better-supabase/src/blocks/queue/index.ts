@@ -44,6 +44,8 @@ export { createWebhookInbox, purgeWebhookInbox } from "./webhook-inbox.ts";
 
 export { withLease } from "./lease.ts";
 
+export { createLeases } from "./leases.ts";
+
 export type {
   Idempotency,
   IdempotencyOptions,
@@ -53,6 +55,17 @@ export type {
 } from "./idempotency.ts";
 
 export type { Lease, LeaseOptions, LeaseOutcome } from "./lease.ts";
+
+export type {
+  HeldLease,
+  LeaseClaim,
+  LeaseClaimInput,
+  Leases,
+  LeasesOptions,
+  LeasesSource,
+  WithLeaseOptions,
+  WithLeaseResult,
+} from "./leases.ts";
 
 export type {
   WebhookInbox,

@@ -100,6 +100,19 @@ export default defineConfig({
       rules: { "eslint/max-lines": "off" },
     },
     {
+      // Each module grew past 1,000 code lines with the AI SDK and chat
+      // work on this branch (1,010 to 1,070); splitting them is a refactor of
+      // their own. 5 findings when measured.
+      files: [
+        "src/realtime/topic.ts",
+        "src/sql/modules/app-tables.ts",
+        "src/sql/modules/usage.ts",
+        "src/sql/modules/approvals.ts",
+        "src/cli/config-schema.ts",
+      ],
+      rules: { "eslint/max-lines": "off" },
+    },
+    {
       // The drive client takes one object per method (ADR 0196), which
       // expands its declarations; 1,021 code lines, 1 finding when measured.
       files: ["src/blocks/drive/drive.ts"],

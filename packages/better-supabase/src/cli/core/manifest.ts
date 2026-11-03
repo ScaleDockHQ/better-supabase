@@ -560,6 +560,12 @@ export const COMMANDS: readonly CommandSpec[] = [
               "better-supabase db backfill invoices.currency --value \"'EUR'\" --dry-run",
             description: "Counts the rows it would set to EUR",
           },
+          {
+            command:
+              'better-supabase db backfill projects.settings --array tags --match \'{"name":"old"}\' --delete --dry-run',
+            description:
+              "Counts the rows and array elements it would remove from the tags array",
+          },
         ],
         effects: [{ kind: "database", access: "write" }],
       },

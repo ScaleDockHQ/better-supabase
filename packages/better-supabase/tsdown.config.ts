@@ -228,6 +228,8 @@ const entries = [
   "blocks/waitlist/index",
   "streams/index",
   "streams/redis/index",
+  "streams/resumable/index",
+  "json-render/index",
   "credentials/index",
   "vercel-connect/index",
   "vercel-sandbox/index",

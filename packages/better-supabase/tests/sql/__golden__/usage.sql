@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:c1098677f8f628f48d280d77b56d173532e88847088f2d50a168c5d653c69582
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:27c241378c979089f929878e33fe814769823b9e3728cf7ca0163f126309bc19
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -173,6 +173,59 @@ as $$
     and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
   order by (q."organization_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "better_supabase"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  update "better_supabase"."usage_quotas" q
+  set "limit" = quota_limit, "period" = coalesce(period, 'month')
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  if not found then
+    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "better_supabase"."usage_quotas" q
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -673,6 +726,10 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -755,21 +812,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:bc0e439699ece35b7dd3fbd1515507337ac2adf5e48660c2d74752317591e01b
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:5573c9294160adc856d899d6985510121980ba7cac015923d075c16b9c51ef13
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -971,6 +1028,59 @@ as $$
     and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(tenant)))))
   order by (q."organization_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "better_supabase"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  update "better_supabase"."usage_quotas" q
+  set "limit" = quota_limit, "period" = coalesce(period, 'month')
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  if not found then
+    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "better_supabase"."usage_quotas" q
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -1511,6 +1621,10 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -1734,21 +1848,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:e9c59b2987379123d139a13cc3ce9892a48642811dae5d6f41e5ed34cb4fbdc0
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:f56e292f66888ab98c57201724fa0fec2ec3e8817a89760d6e09917c5ef2cdda
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1925,6 +2039,59 @@ as $$
     and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
   order by (q."organization_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "app_private"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  update "app_private"."usage_quotas" q
+  set "limit" = quota_limit, "period" = coalesce(period, 'month')
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  if not found then
+    insert into "app_private"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "app_private"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "app_private"."usage_quotas" q
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -2425,6 +2592,10 @@ grant execute on function "app_private"."record_usage_batch"(uuid, jsonb, text, 
 revoke execute on function "app_private"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "app_private"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "app_private"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "app_private"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "app_private"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "app_private"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "app_private"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "app_private"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "app_private"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -2507,21 +2678,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:8e4c332da6f138dce070e5c9a5af0b638f62106fe57bbfadc2500fcde45aeff0
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:73be4b1086ccda1ca128286380ce36440b94df939cb57516148609fbe56b1b7a
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2693,6 +2864,59 @@ as $$
     and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
   order by (q."organization_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "better_supabase"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  update "better_supabase"."usage_quotas" q
+  set "limit" = quota_limit, "period" = coalesce(period, 'month')
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  if not found then
+    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "better_supabase"."usage_quotas" q
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -3193,6 +3417,10 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -3380,6 +3608,24 @@ as $$ select * from "better_supabase"."usage_quota"($1, $2) $$;
 revoke execute on function "api"."usage_quota"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."usage_quota"(uuid, text) to service_role;
 
+create or replace function "api"."set_usage_quota"(tenant uuid, plan text, meter text, quota_limit numeric, period text default 'month')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_usage_quota"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+grant execute on function "api"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+
+create or replace function "api"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_usage_quota"($1, $2, $3) $$;
+revoke execute on function "api"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."remove_usage_quota"(uuid, text, text) to service_role;
+
 create or replace function "api"."usage_used"(tenant uuid, meter text, period text default 'month')
 returns numeric
 language sql
@@ -3459,21 +3705,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:b7fbeba07c1e834ed40e6f76585f7335cd7bfbee25852717b1ff79cd8ab2204b
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:af9a2147e3924f6845c5b3c7e543ef8269a55ae5087ba92fb8296bb6ef90d0b1
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3629,6 +3875,62 @@ as $$
     and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
   order by (q."organization_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "better_supabase"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  -- The app's period column can be an enum, which a text value can't be assigned to.
+  execute format(
+    'update "better_supabase"."usage_quotas" q set "limit" = $1, "period" = %L where q."meter" = $2 and q."organization_id" is not distinct from $3 and q."plan" is not distinct from $4',
+    coalesce(period, 'month')
+  ) using quota_limit, meter, tenant, plan;
+  get diagnostics changed = row_count;
+  if changed = 0 then
+    execute format(
+      'insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period") values ($1, $2, $3, $4, %L)',
+      coalesce(period, 'month')
+    ) using tenant, plan, meter, quota_limit;
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "better_supabase"."usage_quotas" q
+  where q."meter" = meter
+    and q."organization_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -4129,6 +4431,10 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -4211,21 +4517,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@7 managed
--- @bsb-hash sha256:0c4aad6e4d924137444a31ee7c86ae16e230317d036c195fd6efe046929c81cf
+-- @bsb-block usage@8 managed
+-- @bsb-hash sha256:00f3fc4c6654b119e0de813670954faed61c8f0b8ce09f93d7ce65f69699648d
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4397,6 +4703,59 @@ as $$
     and (q."org_id" = usage_quota.tenant or (q."org_id" is null and (q."plan" = '*')))
   order by (q."org_id" is not null) desc, q."limit" desc nulls first
   limit 1
+$$;
+
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function "better_supabase"."set_usage_quota"(
+  tenant uuid,
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'set_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  update "better_supabase"."usage_quotas" q
+  set "limit" = quota_limit, "period" = coalesce(period, 'month')
+  where q."meter" = meter
+    and q."org_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  if not found then
+    insert into "better_supabase"."usage_quotas" ("org_id", "plan", "meter", "limit", "period")
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+  end if;
+  delete from "better_supabase"."usage_quotas" q
+  where q."meter" = meter
+    and q."org_id" is not distinct from tenant
+    and q."plan" is not distinct from plan;
+  return found;
+end
 $$;
 
 -- The window of a period for tenant: the current UTC day, week, month or
@@ -4897,6 +5256,10 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
+grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
@@ -4979,13 +5342,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:1211581c793a98340e3ba0553f33e9468c9e9dcc0dc4d8613f97394e3d6677fb
+-- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 7, 'managed')
+values ('usage', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

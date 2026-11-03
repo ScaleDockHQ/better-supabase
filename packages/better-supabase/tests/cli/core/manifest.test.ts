@@ -7,6 +7,7 @@ import type { CommandEffect } from "../../../src/cli/core/manifest.ts";
 import { builtinCommands } from "../../../src/cli/builtin-commands.ts";
 import {
   COMMANDS,
+  commandMeta,
   findSpec,
   RESERVED_NAMES,
   specPaths,
@@ -119,5 +120,17 @@ describe("command manifest", () => {
     expect(!("project-ref" in args) || callsApi).toBe(true);
     expect(!("db-url-stdin" in args) || usesDatabase).toBe(true);
     expect(whenFlags.filter((flag) => !(flag in args))).toEqual([]);
+  });
+});
+
+describe("manifest lookups", () => {
+  it("returns nothing for an unknown path and throws for unknown meta", () => {
+    expect(findSpec(["no-such-command"])).toBeUndefined();
+    expect(findSpec(["sql", "no-such-sub"])).toBeUndefined();
+    expect(() => commandMeta("no-such-command")).toThrow(
+      "is not in the command manifest",
+    );
+    expect(specPaths().length).toBeGreaterThan(0);
+    expect(commandMeta("db backfill").name).toBe("backfill");
   });
 });

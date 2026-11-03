@@ -227,6 +227,32 @@ export function purgeWebhookInbox(
   });
 }
 
+function isPermanent(outcome: unknown): boolean {
+  return (
+    typeof outcome === "object" &&
+    outcome !== null &&
+    "permanent" in outcome &&
+    outcome.permanent === true
+  );
+}
+
+/** The `retryIn` a handler's return value asks for, if it asks for one. */
+function retryInOf(outcome: unknown): number | string | undefined {
+  if (
+    typeof outcome !== "object" ||
+    outcome === null ||
+    !("retryIn" in outcome)
+  ) {
+    return undefined;
+  }
+
+  const { retryIn } = outcome;
+
+  return typeof retryIn === "number" || typeof retryIn === "string"
+    ? retryIn
+    : undefined;
+}
+
 export interface WebhookInbox<F extends object = Record<never, never>> {
   /**
    * Verifies and stores a webhook; answers 202, or 200 for a duplicate
@@ -247,7 +273,8 @@ export interface WebhookInbox<F extends object = Record<never, never>> {
    * outcome is not counted. A message whose extra columns the `fields` schema
    * rejects fails without reaching the handler. The signal aborts when the
    * lease can't be renewed; the message is then neither completed nor failed by
-   * this worker.
+   * this worker. A handler that returns `{ retryIn }` (`{ retryIn, permanent
+   * }`) fails the message with that delay.
    */
   process<T = unknown>(
     input: {
@@ -659,6 +686,28 @@ export function createWebhookInbox<
                     "The handler failed",
                 ),
               );
+            }
+
+            const retryIn = retryInOf(outcome);
+            const permanent = isPermanent(outcome);
+
+            if (retryIn !== undefined || permanent) {
+              await must(
+                "fail_webhook",
+                {
+                  inbox_id: id,
+                  worker,
+                  error: permanent
+                    ? "The handler marked the message as permanent"
+                    : "The handler asked to retry",
+                  retry_in: retryIn === undefined ? null : seconds(retryIn),
+                  attempt,
+                  ...(permanent ? { permanent } : {}),
+                },
+                () => undefined,
+              );
+              failed += 1;
+              continue;
             }
 
             const done = await must(

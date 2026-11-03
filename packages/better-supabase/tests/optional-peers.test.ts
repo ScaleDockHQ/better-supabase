@@ -20,6 +20,8 @@ const INTEGRATIONS = [
   "@ai-sdk/anthropic",
   "@ai-sdk/sandbox-vercel",
   "@chat-adapter/catalog",
+  "@chat-adapter/whatsapp",
+  "@json-render/core",
   "@openfeature/server-sdk",
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",
@@ -34,6 +36,7 @@ const INTEGRATIONS = [
   "yjs",
   "fast-xml-parser",
   "redis",
+  "resumable-stream",
   "jsonpath-rfc9535",
   "temporal-polyfill",
 ] as const;

@@ -96,7 +96,8 @@ function text(value: string | true | undefined): string | undefined {
  * on (ADR 0102): `subject`, `realtime`, `vector-search`, `json` (`column=Type`,
  * or `column=import:module#Name`), `encrypted` (`column=type`, a bare column is
  * text), `lookup` (bare encrypted columns), `events` (`on`, `include`) and
- * `search` (`columns`). `audit`, `audit-reads` and `expose` change the table's
+ * `search` (`columns`) and `embedding` (`content`, `dimensions`, `type`,
+ * `schedule`, `batch`). `audit`, `audit-reads` and `expose` change the table's
  * SQL only, so `gen` has nothing to read from them. A key the config sets
  * itself wins, so a project can move to tags one table at a time. Tables
  * outside `config.schemas` are ignored.
@@ -304,6 +305,31 @@ export function withTableTags(
         };
 
         changed = true;
+      } else if (
+        tag.name === "embedding" &&
+        table.schema === "public" &&
+        appTables[table.name]?.embedding === undefined
+      ) {
+        const content = list(tag.args["content"]);
+        const dimensions = Number(text(tag.args["dimensions"]));
+        const type = text(tag.args["type"]);
+        const schedule = text(tag.args["schedule"]);
+        const batch = text(tag.args["batch"]);
+
+        if (content.length > 0 && Number.isInteger(dimensions)) {
+          appTables[table.name] = {
+            ...appTables[table.name],
+            embedding: {
+              content,
+              dimensions,
+              ...(type === "vector" || type === "halfvec" ? { type } : {}),
+              ...(schedule === undefined ? {} : { schedule }),
+              ...(batch === undefined ? {} : { batch: Number(batch) }),
+            },
+          };
+
+          changed = true;
+        }
       } else if (
         tag.name === "audit-reads" ||
         tag.name === "history" ||

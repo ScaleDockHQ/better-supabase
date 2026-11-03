@@ -74,7 +74,15 @@ export interface ChatInboundStore {
 export type ChatInboundEvent = Pick<
   StoredInboundEvent,
   "id" | "adapter" | "headers" | "body"
->;
+> & {
+  /**
+   * The number of this attempt, counting from 1. `inboundHandler`'s
+   * `deduplicate: "first-attempt"` skips Chat SDK's duplicate check from the
+   * second attempt on, so a retry reaches the handlers. Left out, the event
+   * counts as a first attempt.
+   */
+  readonly attempt?: number;
+};
 
 /** What `webhook` hands a durable sink: the raw request, ready to replay. */
 export interface ChatWebhookPayload {
@@ -94,6 +102,16 @@ export interface ChatWebhookEvent {
 }
 
 /**
+ * What `process` may return instead of throwing, for a worker that schedules
+ * the retry itself. A webhook inbox handler can return it as is: `retryIn`
+ * delays the next attempt.
+ */
+export interface ChatWebhookResult {
+  /** Seconds, or an interval string such as `"2 minutes"`. */
+  readonly retryIn?: number | string;
+}
+
+/**
  * A durable place for verified webhook requests. The queue block's
  * `createWebhookInbox` fits it: pass the inbox itself, and replay each message
  * with `inboundHandler(...).process(chatEventOf(message))`.
@@ -106,10 +124,15 @@ export interface ChatWebhookSink {
   store(event: ChatWebhookEvent): PromiseLike<unknown>;
 }
 
-/** The replayable event in a webhook inbox message's `payload`, or `null`. */
+/**
+ * The replayable event in a webhook inbox message's `payload`, or `null`. The
+ * message's `attempts` becomes the event's `attempt`.
+ */
 export function chatEventOf(message: {
   readonly id: string | number;
   readonly payload: unknown;
+  /** The webhook inbox's count of claims, this one included. */
+  readonly attempts?: number;
 }): ChatInboundEvent | null {
   const { payload } = message;
 
@@ -136,6 +159,7 @@ export function chatEventOf(message: {
     adapter: payload["adapter"],
     body: payload["body"],
     headers,
+    ...(message.attempts === undefined ? {} : { attempt: message.attempts }),
   };
 }
 
@@ -175,16 +199,11 @@ export function inboxStore(inbox: Inbox): ChatInboundStore {
     updateDeliveryStatus: (input) =>
       inbox.deliveries.setStatus(input).orThrow(),
     lastInboundAt: async (conversationId) => {
-      const page = await inbox.messages
-        .list({ conversationId, limit: 200 })
+      const conversation = await inbox.conversations
+        .get(conversationId)
         .orThrow();
 
-      const last = page.findLast(
-        (message) =>
-          message.direction === "inbound" && message.kind === "message",
-      );
-
-      return last?.createdAt ?? null;
+      return conversation?.lastInboundAt ?? null;
     },
     outbound: async (messageId) => {
       const message = await inbox.messages.get(messageId).orThrow();

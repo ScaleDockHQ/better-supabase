@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:28cd3361866d46e187116f72c063b62340fd708ccf220e16ef3e2a6858a02ac6
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:f704f363828f18480b2409bda7ff0812537b318d6c8c9a04c105c51fe31e42dd
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,7 +123,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "workspace_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
@@ -808,7 +808,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
+-- @bsb-hash sha256:7aee02a49251d74c98f55d2beb27d7cc09ab284a126a717637efdd0dd61832f8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -819,6 +819,6 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 2, 'managed')
+values ('ai-files', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

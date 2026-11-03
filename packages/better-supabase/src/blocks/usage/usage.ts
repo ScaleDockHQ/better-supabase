@@ -234,6 +234,28 @@ export interface Usage {
     meter: string;
   }): AsyncResult<readonly UsageBreakdownEntry[]>;
   /**
+   * Sets the quota of one organization or one plan (give exactly one) on
+   * `meter`, for the period's window. `limit: null` is unlimited. An
+   * organization's quota overrides its plan's. Needs a service transport.
+   */
+  setQuota(input: {
+    meter: string;
+    organizationId?: string | undefined;
+    plan?: string | undefined;
+    limit: number | null;
+    /** Default `month`. */
+    period?: UsagePeriod | undefined;
+  }): AsyncResult<void>;
+  /**
+   * Removes the quota of one organization or plan on `meter`; resolves to
+   * whether there was one. Needs a service transport.
+   */
+  removeQuota(input: {
+    meter: string;
+    organizationId?: string | undefined;
+    plan?: string | undefined;
+  }): AsyncResult<boolean>;
+  /**
    * Sets what one unit of `meter` costs in the currency of `unitAmount`, and
    * how many units each period includes (`included`, default 0). Needs a
    * service transport and the `invoices` block with `options.history`.
@@ -451,6 +473,24 @@ export function createUsage(options: UsageOptions): Usage {
   const purgeEvents = purge("purge_usage_events");
 
   const client: Usage = {
+    setQuota: ({ meter, organizationId, plan, limit, period }) =>
+      call(
+        "set_usage_quota",
+        {
+          tenant: organizationId,
+          plan,
+          meter,
+          quota_limit: limit,
+          period: period ?? "month",
+        },
+        () => undefined,
+      ),
+    removeQuota: ({ meter, organizationId, plan }) =>
+      call(
+        "remove_usage_quota",
+        { tenant: organizationId, plan, meter },
+        (value) => value === true,
+      ),
     setPrice: ({ meter, unitAmount, included, label }) =>
       call(
         "set_usage_price",

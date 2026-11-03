@@ -18,6 +18,24 @@ import { tableMoves } from "../table-renames.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
+/** The conversation columns `realtimeColumns` may list, by key. */
+const REALTIME_COLUMNS: readonly string[] = [
+  "status",
+  "priority",
+  "assignee",
+  "team",
+  "botMode",
+  "snoozedUntil",
+  "resolvedAt",
+  "activeStreamId",
+];
+
+const OPTIONAL_REALTIME_COLUMNS: ReadonlySet<string> = new Set([
+  "priority",
+  "resolvedAt",
+  "activeStreamId",
+]);
+
 const EVENTS: BlockSqlEvents<InboxEvents> = {
   "inbox_conversation.reopened": {
     subject: "conversations",
@@ -127,6 +145,7 @@ export const INBOX_NAMES: BlockSqlNames = {
     "outboundQueue",
     "scheduleQueue",
     "notify",
+    "realtimeColumns",
   ],
   tables: {
     inboxes: {
@@ -197,6 +216,8 @@ export const INBOX_NAMES: BlockSqlNames = {
         "firstResponseAt",
         "resolvedAt",
         "metadata",
+        "lastInboundAt",
+        "activeStreamId",
       ],
       typed: ["status", "priority", "botMode"],
       lifecycle: { tenant: "tenant" },
@@ -214,6 +235,8 @@ export const INBOX_NAMES: BlockSqlNames = {
         thread: "thread_id",
         snoozedUntil: "snoozed_until",
         lastMessageAt: "last_message_at",
+        lastInboundAt: "last_inbound_at",
+        activeStreamId: "active_stream_id",
         preview: "last_message_preview",
         firstResponseAt: "first_response_at",
         resolvedAt: "resolved_at",
@@ -258,7 +281,7 @@ export const INBOX_NAMES: BlockSqlNames = {
     deliveries: {
       name: "inbox_message_deliveries",
       app: {},
-      optional: ["error", "attempts"],
+      optional: ["error", "attempts", "deliveredAt", "readAt", "failedAt"],
       typed: ["status"],
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -270,6 +293,9 @@ export const INBOX_NAMES: BlockSqlNames = {
         externalId: "external_id",
         error: "error",
         attempts: "attempts",
+        deliveredAt: "delivered_at",
+        readAt: "read_at",
+        failedAt: "failed_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -277,7 +303,7 @@ export const INBOX_NAMES: BlockSqlNames = {
     inbound: {
       name: "inbox_inbound_events",
       app: {},
-      optional: ["error", "processedAt"],
+      optional: ["error", "processedAt", "availableAt", "lockedUntil"],
       typed: ["status"],
       lifecycle: { tenant: "tenant", omit: ["headers"] },
       columns: {
@@ -291,6 +317,8 @@ export const INBOX_NAMES: BlockSqlNames = {
         status: "status",
         error: "error",
         attempts: "attempts",
+        availableAt: "available_at",
+        lockedUntil: "locked_until",
         receivedAt: "received_at",
         processedAt: "processed_at",
       },
@@ -433,6 +461,11 @@ export interface InboxSql {
   readonly staff: (tenant: string, action?: Action) => string;
   readonly service: string;
   readonly topic: string;
+  /**
+   * Conversation columns (keys) that `realtimeColumns` puts in the staff ping.
+   * Empty pings on every change, with ids only.
+   */
+  readonly realtimeColumns: readonly string[];
   readonly bucket: string;
   readonly maxBody: number;
   readonly botQueue: string;
@@ -494,6 +527,20 @@ export function inboxSql(
     throw new TypeError(
       "blocks.inbox.options.topic must be a lowercase name of at most 31 characters",
     );
+  }
+
+  const realtimeColumns = ctx.list("realtimeColumns", []);
+
+  for (const column of realtimeColumns) {
+    if (
+      !REALTIME_COLUMNS.includes(column) ||
+      (OPTIONAL_REALTIME_COLUMNS.has(column) &&
+        !ctx.has("conversations", column))
+    ) {
+      throw new TypeError(
+        `blocks.inbox.options.realtimeColumns: "${column}" is not a conversation column the inbox broadcasts (${REALTIME_COLUMNS.join(", ")})`,
+      );
+    }
   }
 
   const bucket = ctx.text("bucket", "inbox-files");
@@ -564,6 +611,7 @@ export function inboxSql(
     staff: (tenant, action = "read") => ctx.scope.check(tenant, key(action)),
     service: SERVICE_CALLER,
     topic,
+    realtimeColumns,
     bucket,
     maxBody,
     botQueue: queue("botQueue", "inbox_bot"),

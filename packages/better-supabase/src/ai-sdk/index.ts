@@ -25,6 +25,12 @@ export {
 } from "./guardrails.ts";
 
 export {
+  type RateLimitCall,
+  rateLimitMiddleware,
+  type RateLimitMiddlewareOptions,
+} from "./rate-limit-middleware.ts";
+
+export {
   AI_SDK_UI_FORMAT,
   DENIED_TOOL_OUTPUT,
   fromUIMessage,
@@ -80,3 +86,18 @@ export {
 } from "./telemetry.ts";
 
 export { aiErrorMessage, aiErrorToDbError } from "./errors.ts";
+
+export { aiTranscriber, type AiTranscriberOptions } from "./transcriber.ts";
+
+export {
+  type RealtimeCaller,
+  realtimeTokenRoute,
+  type RealtimeTokenEntry,
+  type RealtimeTokenRouteOptions,
+} from "./realtime.ts";
+
+export {
+  type ToolCatalog,
+  toolSearchFrom,
+  type ToolSearchFromOptions,
+} from "./tool-search.ts";

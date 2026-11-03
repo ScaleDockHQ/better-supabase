@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "../../../src/cli/db.ts";
 
 import {
+  arrayStatements,
   backfillStatements,
   dbBackfillCommand,
   parseColumnPath,
@@ -59,6 +60,10 @@ function fakeDb(
 
         if (text.includes("not exists (select 1")) {
           return Promise.resolve({ rows: [{ count: "2" }] });
+        }
+
+        if (text.startsWith("select coalesce(sum")) {
+          return Promise.resolve({ rows: [{ count: "5" }] });
         }
 
         if (text.startsWith("select count(*)")) {
@@ -435,5 +440,240 @@ describe("db backfill", () => {
       error:
         "db backfill public.invoices.currency failed: canceling statement due to lock timeout",
     });
+  });
+});
+
+describe("arrayStatements", () => {
+  const target = { schema: "public", table: "projects", column: "settings" };
+
+  it("deletes matching elements in ctid batches", () => {
+    const { batch, pending } = arrayStatements(
+      target,
+      { path: ["tags"], match: '{"name":"old"}' },
+      50,
+    );
+
+    expect(batch).toContain("limit 50");
+    expect(batch).toContain("for update of t skip locked");
+    expect(batch).toContain('where not (e @> \'{"name":"old"}\'::jsonb)');
+    expect(batch).toContain("jsonb_set(t.\"settings\", '{tags}'::text[]");
+    expect(pending).toContain("c.n > 0");
+  });
+
+  it("merges, and only counts elements the merge would alter", () => {
+    const { elements, batch } = arrayStatements(
+      target,
+      { path: [], match: '{"a":1}', merge: '{"b":2}' },
+      10,
+    );
+
+    expect(elements).toContain("is distinct from e");
+    expect(batch).not.toContain("jsonb_set");
+    expect(batch).toContain("e || '{\"b\":2}'::jsonb");
+  });
+
+  it("escapes quotes in the JSON", () => {
+    const { pending } = arrayStatements(
+      target,
+      { path: ["tags"], match: '{"name":"o\'k"}' },
+      10,
+    );
+
+    expect(pending).toContain("o''k");
+  });
+});
+
+describe("runBackfill --array", () => {
+  const ARRAY = [
+    "projects.settings",
+    "--array",
+    "tags",
+    "--match",
+    '{"name":"old"}',
+    "--delete",
+  ];
+
+  it("counts rows and elements on a dry run", async () => {
+    const db = fakeDb({ remaining: 3 });
+
+    const result = await runBackfill(
+      config,
+      args([...ARRAY, "--dry-run"]),
+      LOCAL,
+      { open: fakeConnect(db.client).connect },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.output).toBe(
+      "Would delete 5 elements in 3 rows of public.projects.settings (tags).",
+    );
+    expect(db.sent.some((text) => text.startsWith("with batch"))).toBe(false);
+  });
+
+  it("changes batches until none are left", async () => {
+    const db = fakeDb({ batches: [2, 1] });
+
+    const result = await runBackfill(config, args(ARRAY), LOCAL, {
+      open: fakeConnect(db.client).connect,
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("in 2 batches");
+  });
+
+  it("refuses a missing action or a fill flag", async () => {
+    await expect(
+      runBackfill(
+        config,
+        args(["projects.settings", "--array", "tags", "--match", "{}"]),
+        LOCAL,
+        { open: fakeConnect(fakeDb().client).connect },
+      ),
+    ).rejects.toThrow("exactly one of --delete or --merge");
+
+    await expect(
+      runBackfill(config, args([...ARRAY, "--value", "1"]), LOCAL, {
+        open: fakeConnect(fakeDb().client).connect,
+      }),
+    ).rejects.toThrow("can't be combined");
+  });
+
+  it("refuses a bad --match, --merge and key path", async () => {
+    const run = (flags: string[]) =>
+      runBackfill(config, args(flags), LOCAL, {
+        open: fakeConnect(fakeDb().client).connect,
+      });
+
+    await expect(
+      run([
+        "projects.settings",
+        "--array",
+        "tags",
+        "--match",
+        "nope",
+        "--delete",
+      ]),
+    ).rejects.toThrow("takes a JSON object");
+    await expect(
+      run([
+        "projects.settings",
+        "--array",
+        "tags",
+        "--match",
+        "[1]",
+        "--delete",
+      ]),
+    ).rejects.toThrow("non-empty JSON object");
+    await expect(
+      run([
+        "projects.settings",
+        "--array",
+        "tags",
+        "--match",
+        '{"a":1}',
+        "--merge",
+        "{}",
+      ]),
+    ).rejects.toThrow("non-empty JSON object");
+    await expect(
+      run([
+        "projects.settings",
+        "--array",
+        "a b",
+        "--match",
+        '{"a":1}',
+        "--delete",
+      ]),
+    ).rejects.toThrow("dot-separated key path");
+    await expect(
+      run(["projects.settings", "--array", "tags", "--delete"]),
+    ).rejects.toThrow("needs --match");
+  });
+
+  it("changes the column itself with a dot, and refuses a missing column", async () => {
+    const db = fakeDb({ batches: [1] });
+
+    const result = await runBackfill(
+      config,
+      args([
+        "projects.settings",
+        "--array",
+        ".",
+        "--match",
+        '{"a":1}',
+        "--delete",
+      ]),
+      LOCAL,
+      { open: fakeConnect(db.client).connect },
+    );
+
+    expect(result.code).toBe(0);
+    await expect(
+      runBackfill(config, args(ARRAY), LOCAL, {
+        open: fakeConnect(fakeDb({ missing: "settings" }).client).connect,
+      }),
+    ).rejects.toThrow("has no column");
+  });
+
+  it("refuses array flags without --array", async () => {
+    await expect(
+      runBackfill(
+        config,
+        args(["projects.name", "--value", "'x'", "--delete"]),
+        LOCAL,
+        { open: fakeConnect(fakeDb().client).connect },
+      ),
+    ).rejects.toThrow("go with --array");
+  });
+});
+
+describe("runBackfill --array, remaining paths", () => {
+  it("refuses a column that is not jsonb", async () => {
+    const db = fakeDb();
+    const plain = db.client;
+
+    const client: PgQueryable = {
+      // SAFETY: the wrapper forwards to the fake and answers one query.
+      query: ((text: string, values?: readonly unknown[]) =>
+        text.includes("atttypid")
+          ? Promise.resolve({ rows: [{ found: false }] })
+          : plain.query(text, values)) as unknown as PgQueryable["query"],
+    };
+
+    await expect(
+      runBackfill(
+        config,
+        args([
+          "projects.settings",
+          "--array",
+          ".",
+          "--match",
+          '{"a":1}',
+          "--delete",
+        ]),
+        LOCAL,
+        { open: fakeConnect(client).connect },
+      ),
+    ).rejects.toThrow("isn't a jsonb column");
+  });
+
+  it("reports a missing column", async () => {
+    const db = fakeDb({ missing: "settings" });
+
+    await expect(
+      runBackfill(
+        config,
+        args([
+          "projects.settings",
+          "--array",
+          "tags",
+          "--match",
+          '{"a":1}',
+          "--delete",
+        ]),
+        LOCAL,
+        { open: fakeConnect(db.client).connect },
+      ),
+    ).rejects.toThrow("no column");
   });
 });

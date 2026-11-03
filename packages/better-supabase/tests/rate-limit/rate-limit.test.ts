@@ -24,10 +24,40 @@ describe("createRateLimit", () => {
       })
       .orThrow();
     expect(fake.calls.map((call) => call.values)).toEqual([
-      ["preview", "token-1", null, null],
-      ["chat", "thread-1", 20, "60 seconds"],
-      ["chat", "thread-1", 5, "1 hour"],
+      ["preview", "token-1", null, null, null],
+      ["chat", "thread-1", 20, "60 seconds", null],
+      ["chat", "thread-1", 5, "1 hour", null],
     ]);
+  });
+
+  it("passes the organization and stores per-organization rules", async () => {
+    const fake = fakeSql([
+      ["hit_rate_limit", [{ allowed: true, remaining: 4, retry_after: 0 }]],
+    ]);
+
+    const limit = createRateLimit({ sql: fake.sql });
+    await limit
+      .check({ scope: "ai", key: "u1", organizationId: "org-1" })
+      .orThrow();
+    await limit
+      .setRule({
+        scope: "ai",
+        organizationId: "org-1",
+        max: 10,
+        period: "1 hour",
+      })
+      .orThrow();
+    await limit
+      .setRule({ scope: "ai", organizationId: "org-1", max: null })
+      .orThrow();
+    expect(fake.calls.map((call) => call.values)).toEqual([
+      ["ai", "u1", null, null, "org-1"],
+      ["ai", "org-1", 10, "1 hour"],
+      ["ai", "org-1", null, null],
+    ]);
+    expect(
+      await limit.setRule({ scope: "ai", organizationId: "org-1", max: 0 }),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
   });
 
   it("refuses a bad limit and reads a missing row as refused", async () => {

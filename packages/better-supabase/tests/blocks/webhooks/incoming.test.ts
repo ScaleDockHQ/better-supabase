@@ -174,7 +174,7 @@ describe("createIncomingWebhooks", () => {
     ).toBe(200);
     expect(
       fake.calls.find((call) => call.text.includes("hit_rate_limit"))!.values,
-    ).toEqual(["forms:endpoint", "e1", 5, "1 hour"]);
+    ).toEqual(["forms:endpoint", "e1", 5, "1 hour", null]);
   });
 
   it("ties endpoints to a subject and lists them", async () => {

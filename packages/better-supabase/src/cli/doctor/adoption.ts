@@ -49,6 +49,44 @@ const sameNotNull = (
       a.length === b.length &&
       a.every((name) => b.includes(name));
 
+const READ_ONLY_KEY =
+  /\bbetter_supabase"?\s*\.\s*"?(?:can|tenant_ids_with)"?\s*\([^)]*?'([^']*\.(?:read|view))'/giu;
+
+/**
+ * The permission keys ending in `.read` or `.view` that an update policy
+ * checks.
+ */
+function readOnlyUpdateKeys(
+  table: CatalogTable,
+): readonly { readonly policy: string; readonly key: string }[] {
+  return table.policies.flatMap((policy) =>
+    policy.permissive &&
+    !/^bsb?_/u.test(policy.name) &&
+    (policy.command === "update" || policy.command === "all")
+      ? [
+          ...new Set(
+            [
+              ...`${policy.using ?? ""} ${policy.check ?? ""}`.matchAll(
+                READ_ONLY_KEY,
+              ),
+            ].map((match) => match[1]!),
+          ),
+        ].map((key) => ({ policy: policy.name, key }))
+      : [],
+  );
+}
+
+function updatePolicyReadKeys(context: DoctorContext): FindingInput[] {
+  return catalogOf(context).tables.flatMap((table) =>
+    table.schema === "better_supabase"
+      ? []
+      : readOnlyUpdateKeys(table).map(({ policy, key }) => ({
+          message: `Policy "${policy}" on ${qualified(table)} lets a caller update rows with the read permission "${key}". Every column of the row is writable for it. Check a write permission there, and guard the columns that need another one with columnGroups.`,
+          target: `${qualified(table)}.${policy}`,
+        })),
+  );
+}
+
 /**
  * Checks for adopted schemas: config the SQL could carry, and references and
  * exports the modules leave open.
@@ -323,6 +361,14 @@ export const ADOPTION_RULES: readonly Rule[] = [
     description:
       "A block runs over one of your tables, and a check constraint or an enum on a column the block writes rejects a value the block writes into it. The module's own table declares the values it writes in its `check (column in (...))` constraint, and the block writes them through the column your config maps. A narrower check or enum makes the block's inserts and updates fail. Widen the check constraint or add the values to the enum.",
     check: checkValuesOverAdoptedTables,
+  },
+  {
+    code: "BS362",
+    severity: "warning",
+    title: "Update policy checks a read permission",
+    description:
+      "A permissive policy for `update` (or `all`) checks a permission whose key ends in `.read` or `.view`. Anyone who can read a row can then change every column of it. Check a write permission in the policy, and put the columns that need a stricter permission in `tables.<name>.columnGroups`, which renders a trigger that raises 42501 when a caller without the group's permission changes one of them.",
+    check: updatePolicyReadKeys,
   },
   {
     code: "BS341",

@@ -286,6 +286,72 @@ ${LEGACY_FUNCTIONS.map((signature) => `drop function if exists ${ctx.schema}.${s
   },
 };
 
+// The columns and the status the replay needs. The module file only creates
+// missing tables, so the step brings installed tables up to date; a column the
+// app's table lacks (an adopted table) is skipped.
+const REPLAY: BlockSqlUpgrade = {
+  from: 8,
+  description:
+    "Inbound events take the status processing, count an attempt only when processing starts, wait for available_at after a failure and are offered again once their lease (locked_until) ran out; set_inbound_event_status takes retry_in and lease. Deliveries record delivered_at, read_at and failed_at, and conversations keep last_inbound_at and active_stream_id (set_active_stream claims or releases it and broadcasts stream). Option realtimeColumns adds the listed conversation columns to the staff ping, and timeline events broadcast event.created.",
+  sql: (ctx) => {
+    const q = inboxSql(ctx);
+    const ie = q.cols("inbound");
+    const cv = q.cols("conversations");
+    const dt = q.cols("details");
+    const cm = q.core.cols("messages");
+    const inbound = q.t("inbound");
+
+    const columns = (
+      [
+        ["inbound", "availableAt", "timestamptz not null default now()"],
+        ["inbound", "lockedUntil", "timestamptz"],
+        ["deliveries", "deliveredAt", "timestamptz"],
+        ["deliveries", "readAt", "timestamptz"],
+        ["deliveries", "failedAt", "timestamptz"],
+        ["conversations", "lastInboundAt", "timestamptz"],
+        ["conversations", "activeStreamId", "text"],
+      ] as const
+    )
+      .filter(([table, column]) => q.has(table, column))
+      .map(
+        ([table, column, type]) =>
+          `alter table ${q.t(table)} add column if not exists ${q.cols(table)(column)} ${type};`,
+      )
+      .join("\n");
+
+    const backfill = q.has("conversations", "lastInboundAt")
+      ? `
+update ${q.t("conversations")} v set ${cv("lastInboundAt")} = (
+  select max(m.${cm("createdAt")})
+  from ${q.t("details")} d
+  join ${q.core.t("messages")} m on m.${cm("id")} = d.${dt("message")}
+  where d.${dt("conversation")} = v.${cv("id")} and d.${dt("direction")} = 'inbound' and m.${cm("kind")} = 'message'
+);`
+      : "";
+
+    const status = ctx.owns("inbound")
+      ? ""
+      : `
+do $$
+declare
+  c record;
+begin
+  for c in
+    select conname from pg_constraint
+    where conrelid = ${sqlString(inbound)}::regclass and contype = 'c'
+      and pg_get_constraintdef(oid) like '%''received''%'
+  loop
+    execute format('alter table ${inbound} drop constraint %I', c.conname);
+  end loop;
+end
+$$;
+alter table ${inbound} add check (${ie("status")} in ('received', 'processing', 'processed', 'ignored', 'failed'));`;
+
+    return `${columns}${status}${backfill}
+drop function if exists ${q.fn("set_inbound_event_status")}(uuid, text, text);`;
+  },
+};
+
 // Inbox contacts become people of the contacts block. A contact keeps its id
 // as the new person's id unless a linked person or an active person with the
 // same email exists; conversations and identity links then move to that one.
@@ -480,6 +546,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "set_bot_mode", args: ["uuid", "text", "text"], returns: "jsonb" },
+    { name: "set_active_stream", args: ["uuid", "text"], returns: "jsonb" },
     { name: "mark_conversation_read", args: ["uuid"], returns: "timestamptz" },
     {
       name: "react_to_inbox_message",
@@ -526,7 +593,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "set_inbound_event_status",
-      args: ["uuid", "text", "text"],
+      args: ["uuid", "text", "text", "interval", "interval"],
       returns: "boolean",
     },
     {
@@ -583,6 +650,16 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const SERVICE_RECORD_INBOUND: BlockSqlUpgrade = {
+  from: 9,
+  description:
+    "record_inbound runs as its owner, so the service role can call it: the functions it uses stay closed to API roles.",
+  sql: (ctx) =>
+    ctx.mode === "custom"
+      ? ""
+      : `alter function ${inboxSql(ctx).fn("record_inbound")}(jsonb) security definer;`,
+};
+
 export const INBOX: BlockSqlDefinition = {
   internal: [
     "inbox_contact_ids",
@@ -624,7 +701,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -647,6 +724,8 @@ export const INBOX: BlockSqlDefinition = {
       sql: () => "",
     },
     CONTACTS_TO_PEOPLE,
+    REPLAY,
+    SERVICE_RECORD_INBOUND,
   ],
   names: INBOX_NAMES,
   contract,

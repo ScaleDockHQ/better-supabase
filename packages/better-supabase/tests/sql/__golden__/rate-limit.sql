@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
--- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:f5bd5b81ef18d3bb85a2d0ec80544952ac28da4ed430ecde7a7e687edf5127f9
+-- @bsb-block rate-limit@2 managed
+-- @bsb-hash sha256:7dc36ec17f4d6d66a3575cc139b224355c5afdf6a57b477f2dc60fc8866e1b96
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,11 +14,16 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists "better_supabase"."rate_limit_rules" (
-  "scope" text primary key,
+  "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
-  "key_claim" text not null default 'sub'
+  "key_claim" text not null default 'sub',
+  "organization_id" uuid
 );
+-- Rules from before organization_id are global rules.
+alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table if not exists "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -52,19 +57,55 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") do update
+  on conflict ("scope") where "organization_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
 
 revoke execute on function better_supabase.set_rate_limit(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
+
+-- A rule for one organization: it replaces the scope's global rule for hits
+-- that name the organization (hit_rate_limit, check_rate_limit and
+-- check_rate_limits take organization_id). A null max_requests removes it.
+create or replace function better_supabase.set_organization_rate_limit(
+  scope text,
+  organization_id uuid,
+  max_requests integer,
+  period interval default interval '1 minute'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if organization_id is null then
+    raise exception 'set_organization_rate_limit needs an organization_id'
+      using errcode = '22023', hint = 'RATE_LIMIT_HITS';
+  end if;
+  if max_requests is null then
+    delete from "better_supabase"."rate_limit_rules" r
+    where r."scope" = set_organization_rate_limit.scope
+      and r."organization_id" = set_organization_rate_limit.organization_id;
+    return;
+  end if;
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  values (scope, organization_id, max_requests, period)
+  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+    set "max_requests" = excluded."max_requests", "period" = excluded."period";
+end
+$$;
+
+revoke execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
 -- by a replica), so only writes count. A POST to /rpc for a stable or
@@ -98,7 +139,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -138,11 +179,16 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- Data API writes: allowed, the hits left in the window and, when refused,
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
+-- The signatures before organization_id.
+drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
+drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 create or replace function better_supabase.hit_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns table (allowed boolean, remaining integer, retry_after integer)
 language plpgsql
@@ -157,7 +203,11 @@ declare
   used integer;
   started timestamptz;
 begin
-  select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit_rate_limit.scope;
+  select * into rule from "better_supabase"."rate_limit_rules" r
+  where r."scope" = hit_rate_limit.scope
+    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
+  order by (r."organization_id" is null)
+  limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
   if limit_max is null or limit_period is null then
@@ -178,27 +228,28 @@ begin
       else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
 end
 $$;
-revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 create or replace function better_supabase.check_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns jsonb
 language sql
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period, organization_id) h
 $$;
-revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 -- Counts one hit against several limits at once: hits is a JSON array of
--- { scope, key, max_requests?, period? }, each with its own scope and key.
+-- { scope, key, max_requests?, period?, organization_id? }, each with its own scope and key.
 -- The counters are locked in a fixed order and the hit counts only when every
 -- limit allows it, so a refused call leaves every counter as it was. Returns
 -- { allowed, blocked, retry_after, results }: blocked is the index of the first
@@ -240,7 +291,11 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit ->> 'scope';
+    select * into rule from "better_supabase"."rate_limit_rules" r
+    where r."scope" = hit ->> 'scope'
+      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."organization_id" is null)
+    limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
     if limit_max is null or limit_period is null then
@@ -337,7 +392,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope"
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
     where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -369,7 +424,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -396,14 +451,14 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
--- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:f5bd5b81ef18d3bb85a2d0ec80544952ac28da4ed430ecde7a7e687edf5127f9
+-- @bsb-block rate-limit@2 managed
+-- @bsb-hash sha256:7dc36ec17f4d6d66a3575cc139b224355c5afdf6a57b477f2dc60fc8866e1b96
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,11 +471,16 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists "better_supabase"."rate_limit_rules" (
-  "scope" text primary key,
+  "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
-  "key_claim" text not null default 'sub'
+  "key_claim" text not null default 'sub',
+  "organization_id" uuid
 );
+-- Rules from before organization_id are global rules.
+alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table if not exists "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -454,19 +514,55 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") do update
+  on conflict ("scope") where "organization_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
 
 revoke execute on function better_supabase.set_rate_limit(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
+
+-- A rule for one organization: it replaces the scope's global rule for hits
+-- that name the organization (hit_rate_limit, check_rate_limit and
+-- check_rate_limits take organization_id). A null max_requests removes it.
+create or replace function better_supabase.set_organization_rate_limit(
+  scope text,
+  organization_id uuid,
+  max_requests integer,
+  period interval default interval '1 minute'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if organization_id is null then
+    raise exception 'set_organization_rate_limit needs an organization_id'
+      using errcode = '22023', hint = 'RATE_LIMIT_HITS';
+  end if;
+  if max_requests is null then
+    delete from "better_supabase"."rate_limit_rules" r
+    where r."scope" = set_organization_rate_limit.scope
+      and r."organization_id" = set_organization_rate_limit.organization_id;
+    return;
+  end if;
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  values (scope, organization_id, max_requests, period)
+  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+    set "max_requests" = excluded."max_requests", "period" = excluded."period";
+end
+$$;
+
+revoke execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
 -- by a replica), so only writes count. A POST to /rpc for a stable or
@@ -500,7 +596,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -540,11 +636,16 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- Data API writes: allowed, the hits left in the window and, when refused,
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
+-- The signatures before organization_id.
+drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
+drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 create or replace function better_supabase.hit_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns table (allowed boolean, remaining integer, retry_after integer)
 language plpgsql
@@ -559,7 +660,11 @@ declare
   used integer;
   started timestamptz;
 begin
-  select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit_rate_limit.scope;
+  select * into rule from "better_supabase"."rate_limit_rules" r
+  where r."scope" = hit_rate_limit.scope
+    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
+  order by (r."organization_id" is null)
+  limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
   if limit_max is null or limit_period is null then
@@ -580,27 +685,28 @@ begin
       else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
 end
 $$;
-revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 create or replace function better_supabase.check_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns jsonb
 language sql
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period, organization_id) h
 $$;
-revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 -- Counts one hit against several limits at once: hits is a JSON array of
--- { scope, key, max_requests?, period? }, each with its own scope and key.
+-- { scope, key, max_requests?, period?, organization_id? }, each with its own scope and key.
 -- The counters are locked in a fixed order and the hit counts only when every
 -- limit allows it, so a refused call leaves every counter as it was. Returns
 -- { allowed, blocked, retry_after, results }: blocked is the index of the first
@@ -642,7 +748,11 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit ->> 'scope';
+    select * into rule from "better_supabase"."rate_limit_rules" r
+    where r."scope" = hit ->> 'scope'
+      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."organization_id" is null)
+    limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
     if limit_max is null or limit_period is null then
@@ -739,7 +849,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope"
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
     where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -771,7 +881,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -798,14 +908,14 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
--- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:d8395dd9413fd01086e7582ad85494c9e1383663a3c637a5e63067bbb6bbbb99
+-- @bsb-block rate-limit@2 managed
+-- @bsb-hash sha256:fb3d82d4ac4190a97a50c93b24efebff4131de37154a2dc3268dbeb4f9e28960
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,11 +933,16 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists "app_private"."rate_limit_rules" (
-  "scope" text primary key,
+  "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
-  "key_claim" text not null default 'sub'
+  "key_claim" text not null default 'sub',
+  "organization_id" uuid
 );
+-- Rules from before organization_id are global rules.
+alter table "app_private"."rate_limit_rules" add column if not exists "organization_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table if not exists "app_private"."rate_limits" (
   "scope" text not null,
@@ -861,19 +976,55 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "app_private"."rate_limit_rules" r where r."scope" = set_rate_limit.scope;
+    delete from "app_private"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
     delete from "app_private"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "app_private"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") do update
+  on conflict ("scope") where "organization_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
 
 revoke execute on function better_supabase.set_rate_limit(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
+
+-- A rule for one organization: it replaces the scope's global rule for hits
+-- that name the organization (hit_rate_limit, check_rate_limit and
+-- check_rate_limits take organization_id). A null max_requests removes it.
+create or replace function better_supabase.set_organization_rate_limit(
+  scope text,
+  organization_id uuid,
+  max_requests integer,
+  period interval default interval '1 minute'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if organization_id is null then
+    raise exception 'set_organization_rate_limit needs an organization_id'
+      using errcode = '22023', hint = 'RATE_LIMIT_HITS';
+  end if;
+  if max_requests is null then
+    delete from "app_private"."rate_limit_rules" r
+    where r."scope" = set_organization_rate_limit.scope
+      and r."organization_id" = set_organization_rate_limit.organization_id;
+    return;
+  end if;
+  insert into "app_private"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  values (scope, organization_id, max_requests, period)
+  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+    set "max_requests" = excluded."max_requests", "period" = excluded."period";
+end
+$$;
+
+revoke execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
 -- by a replica), so only writes count. A POST to /rpc for a stable or
@@ -907,7 +1058,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "app_private"."rate_limit_rules" r where r."scope" in ('*', path) order by r."scope"
+    select * from "app_private"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -947,11 +1098,16 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- Data API writes: allowed, the hits left in the window and, when refused,
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
+-- The signatures before organization_id.
+drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
+drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 create or replace function better_supabase.hit_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns table (allowed boolean, remaining integer, retry_after integer)
 language plpgsql
@@ -966,7 +1122,11 @@ declare
   used integer;
   started timestamptz;
 begin
-  select * into rule from "app_private"."rate_limit_rules" r where r."scope" = hit_rate_limit.scope;
+  select * into rule from "app_private"."rate_limit_rules" r
+  where r."scope" = hit_rate_limit.scope
+    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
+  order by (r."organization_id" is null)
+  limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
   if limit_max is null or limit_period is null then
@@ -987,27 +1147,28 @@ begin
       else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
 end
 $$;
-revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 create or replace function better_supabase.check_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns jsonb
 language sql
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period, organization_id) h
 $$;
-revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 -- Counts one hit against several limits at once: hits is a JSON array of
--- { scope, key, max_requests?, period? }, each with its own scope and key.
+-- { scope, key, max_requests?, period?, organization_id? }, each with its own scope and key.
 -- The counters are locked in a fixed order and the hit counts only when every
 -- limit allows it, so a refused call leaves every counter as it was. Returns
 -- { allowed, blocked, retry_after, results }: blocked is the index of the first
@@ -1049,7 +1210,11 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from "app_private"."rate_limit_rules" r where r."scope" = hit ->> 'scope';
+    select * into rule from "app_private"."rate_limit_rules" r
+    where r."scope" = hit ->> 'scope'
+      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."organization_id" is null)
+    limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
     if limit_max is null or limit_period is null then
@@ -1146,7 +1311,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "app_private"."rate_limits" l
-    left join "app_private"."rate_limit_rules" r on r."scope" = l."scope"
+    left join "app_private"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
     where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -1178,7 +1343,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1205,14 +1370,14 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
--- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:4d3bb1a5ad54daa21449eb400f2e65f890da27dd495ea708af1b554e994c99d0
+-- @bsb-block rate-limit@2 managed
+-- @bsb-hash sha256:078b7bb6dbde98371b4e7636683a39920e1812b3cc5ef53340f0285927032298
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1225,11 +1390,16 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists "better_supabase"."rate_limit_rules" (
-  "scope" text primary key,
+  "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
-  "key_claim" text not null default 'sub'
+  "key_claim" text not null default 'sub',
+  "organization_id" uuid
 );
+-- Rules from before organization_id are global rules.
+alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table if not exists "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -1263,19 +1433,55 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") do update
+  on conflict ("scope") where "organization_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
 
 revoke execute on function better_supabase.set_rate_limit(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
+
+-- A rule for one organization: it replaces the scope's global rule for hits
+-- that name the organization (hit_rate_limit, check_rate_limit and
+-- check_rate_limits take organization_id). A null max_requests removes it.
+create or replace function better_supabase.set_organization_rate_limit(
+  scope text,
+  organization_id uuid,
+  max_requests integer,
+  period interval default interval '1 minute'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if organization_id is null then
+    raise exception 'set_organization_rate_limit needs an organization_id'
+      using errcode = '22023', hint = 'RATE_LIMIT_HITS';
+  end if;
+  if max_requests is null then
+    delete from "better_supabase"."rate_limit_rules" r
+    where r."scope" = set_organization_rate_limit.scope
+      and r."organization_id" = set_organization_rate_limit.organization_id;
+    return;
+  end if;
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  values (scope, organization_id, max_requests, period)
+  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+    set "max_requests" = excluded."max_requests", "period" = excluded."period";
+end
+$$;
+
+revoke execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
 -- by a replica), so only writes count. A POST to /rpc for a stable or
@@ -1309,7 +1515,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -1349,11 +1555,16 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- Data API writes: allowed, the hits left in the window and, when refused,
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
+-- The signatures before organization_id.
+drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
+drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 create or replace function better_supabase.hit_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns table (allowed boolean, remaining integer, retry_after integer)
 language plpgsql
@@ -1368,7 +1579,11 @@ declare
   used integer;
   started timestamptz;
 begin
-  select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit_rate_limit.scope;
+  select * into rule from "better_supabase"."rate_limit_rules" r
+  where r."scope" = hit_rate_limit.scope
+    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
+  order by (r."organization_id" is null)
+  limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
   if limit_max is null or limit_period is null then
@@ -1389,27 +1604,28 @@ begin
       else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
 end
 $$;
-revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 create or replace function better_supabase.check_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns jsonb
 language sql
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period, organization_id) h
 $$;
-revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 -- Counts one hit against several limits at once: hits is a JSON array of
--- { scope, key, max_requests?, period? }, each with its own scope and key.
+-- { scope, key, max_requests?, period?, organization_id? }, each with its own scope and key.
 -- The counters are locked in a fixed order and the hit counts only when every
 -- limit allows it, so a refused call leaves every counter as it was. Returns
 -- { allowed, blocked, retry_after, results }: blocked is the index of the first
@@ -1451,7 +1667,11 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit ->> 'scope';
+    select * into rule from "better_supabase"."rate_limit_rules" r
+    where r."scope" = hit ->> 'scope'
+      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."organization_id" is null)
+    limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
     if limit_max is null or limit_period is null then
@@ -1548,7 +1768,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope"
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
     where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -1568,6 +1788,9 @@ grant execute on function better_supabase.purge_rate_limits(integer) to service_
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."check_rate_limit"(text, text, integer, interval);
+drop function if exists "api"."hit_rate_limit"(text, text, integer, interval);
+
 create or replace function "api"."set_rate_limit"(scope text, max_requests integer, period interval default interval '1 minute', key_claim text default 'sub')
 returns void
 language sql
@@ -1576,6 +1799,15 @@ set search_path = ''
 as $$ select "better_supabase"."set_rate_limit"($1, $2, $3, $4) $$;
 revoke execute on function "api"."set_rate_limit"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "api"."set_rate_limit"(text, integer, interval, text) to service_role;
+
+create or replace function "api"."set_organization_rate_limit"(scope text, organization_id uuid, max_requests integer, period interval default interval '1 minute')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_organization_rate_limit"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_organization_rate_limit"(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function "api"."set_organization_rate_limit"(text, uuid, integer, interval) to service_role;
 
 create or replace function "api"."check_request"()
 returns void
@@ -1586,23 +1818,23 @@ as $$ select "better_supabase"."check_request"() $$;
 revoke execute on function "api"."check_request"() from public;
 grant execute on function "api"."check_request"() to anon, authenticated, service_role;
 
-create or replace function "api"."hit_rate_limit"(scope text, key text, max_requests integer default null, period interval default null)
+create or replace function "api"."hit_rate_limit"(scope text, key text, max_requests integer default null, period interval default null, organization_id uuid default null)
 returns table (allowed boolean, remaining integer, retry_after integer)
 language sql
 security invoker
 set search_path = ''
-as $$ select * from "better_supabase"."hit_rate_limit"($1, $2, $3, $4) $$;
-revoke execute on function "api"."hit_rate_limit"(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function "api"."hit_rate_limit"(text, text, integer, interval) to service_role;
+as $$ select * from "better_supabase"."hit_rate_limit"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."hit_rate_limit"(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function "api"."hit_rate_limit"(text, text, integer, interval, uuid) to service_role;
 
-create or replace function "api"."check_rate_limit"(scope text, key text, max_requests integer default null, period interval default null)
+create or replace function "api"."check_rate_limit"(scope text, key text, max_requests integer default null, period interval default null, organization_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."check_rate_limit"($1, $2, $3, $4) $$;
-revoke execute on function "api"."check_rate_limit"(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function "api"."check_rate_limit"(text, text, integer, interval) to service_role;
+as $$ select "better_supabase"."check_rate_limit"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."check_rate_limit"(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function "api"."check_rate_limit"(text, text, integer, interval, uuid) to service_role;
 
 create or replace function "api"."check_rate_limits"(hits jsonb)
 returns jsonb
@@ -1638,7 +1870,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1665,14 +1897,14 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
--- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:28fc356a2bdbf5fff8583f0c4d9736a34c0e22b198c386be1389b011b2d91673
+-- @bsb-block rate-limit@2 managed
+-- @bsb-hash sha256:1d3ca484609a8cf0f786350a250ce12fb91910934a890cd5a6a66e54ecfa2dd6
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1689,7 +1921,11 @@ alter table "better_supabase"."rate_limit_rules" add column if not exists "scope
 alter table "better_supabase"."rate_limit_rules" add column if not exists "max_requests" integer check ("max_requests" > 0);
 alter table "better_supabase"."rate_limit_rules" add column if not exists "period" interval check ("period" > interval '0');
 alter table "better_supabase"."rate_limit_rules" add column if not exists "key_claim" text not null default 'sub';
-create unique index if not exists "bsb_rate_limit_rules_scope_key" on "better_supabase"."rate_limit_rules" ("scope");
+alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+-- Rules from before organization_id are global rules.
+alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 -- better_supabase.rate_limits is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rate_limits" add column if not exists "scope" text;
@@ -1720,19 +1956,55 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") do update
+  on conflict ("scope") where "organization_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
 
 revoke execute on function better_supabase.set_rate_limit(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
+
+-- A rule for one organization: it replaces the scope's global rule for hits
+-- that name the organization (hit_rate_limit, check_rate_limit and
+-- check_rate_limits take organization_id). A null max_requests removes it.
+create or replace function better_supabase.set_organization_rate_limit(
+  scope text,
+  organization_id uuid,
+  max_requests integer,
+  period interval default interval '1 minute'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if organization_id is null then
+    raise exception 'set_organization_rate_limit needs an organization_id'
+      using errcode = '22023', hint = 'RATE_LIMIT_HITS';
+  end if;
+  if max_requests is null then
+    delete from "better_supabase"."rate_limit_rules" r
+    where r."scope" = set_organization_rate_limit.scope
+      and r."organization_id" = set_organization_rate_limit.organization_id;
+    return;
+  end if;
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  values (scope, organization_id, max_requests, period)
+  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+    set "max_requests" = excluded."max_requests", "period" = excluded."period";
+end
+$$;
+
+revoke execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.set_organization_rate_limit(text, uuid, integer, interval) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
 -- by a replica), so only writes count. A POST to /rpc for a stable or
@@ -1766,7 +2038,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -1806,11 +2078,16 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- Data API writes: allowed, the hits left in the window and, when refused,
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
+-- The signatures before organization_id.
+drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
+drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 create or replace function better_supabase.hit_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns table (allowed boolean, remaining integer, retry_after integer)
 language plpgsql
@@ -1825,7 +2102,11 @@ declare
   used integer;
   started timestamptz;
 begin
-  select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit_rate_limit.scope;
+  select * into rule from "better_supabase"."rate_limit_rules" r
+  where r."scope" = hit_rate_limit.scope
+    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
+  order by (r."organization_id" is null)
+  limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
   if limit_max is null or limit_period is null then
@@ -1846,27 +2127,28 @@ begin
       else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
 end
 $$;
-revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 create or replace function better_supabase.check_rate_limit(
   scope text,
   key text,
   max_requests integer default null,
-  period interval default null
+  period interval default null,
+  organization_id uuid default null
 )
 returns jsonb
 language sql
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period, organization_id) h
 $$;
-revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
-grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval, uuid) to service_role;
 
 -- Counts one hit against several limits at once: hits is a JSON array of
--- { scope, key, max_requests?, period? }, each with its own scope and key.
+-- { scope, key, max_requests?, period?, organization_id? }, each with its own scope and key.
 -- The counters are locked in a fixed order and the hit counts only when every
 -- limit allows it, so a refused call leaves every counter as it was. Returns
 -- { allowed, blocked, retry_after, results }: blocked is the index of the first
@@ -1908,7 +2190,11 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from "better_supabase"."rate_limit_rules" r where r."scope" = hit ->> 'scope';
+    select * into rule from "better_supabase"."rate_limit_rules" r
+    where r."scope" = hit ->> 'scope'
+      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."organization_id" is null)
+    limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
     if limit_max is null or limit_period is null then
@@ -2005,7 +2291,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope"
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
     where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -2037,7 +2323,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
--- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
+-- @bsb-hash sha256:3aaafbc7e4adf1c9768be0e5022fe9c996f9d99a8bb392368e2c4bc5b548a374
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2064,6 +2350,6 @@ $$;
 notify pgrst, 'reload config';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('rate-limit', 1, 'managed')
+values ('rate-limit', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

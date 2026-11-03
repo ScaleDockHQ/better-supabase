@@ -4,7 +4,10 @@ export type {
 } from "../../blocks/knowledge/knowledge.ts";
 
 export {
+  embeddingCacheMiddleware,
+  type EmbeddingCacheMiddlewareOptions,
   embedWith,
+  rerankHits,
   type EmbedWithOptions,
   modelName,
   type Reranker,
@@ -18,3 +21,12 @@ export {
   type SupabaseEmbedOptions,
   toSourceParts,
 } from "./embeddings.ts";
+
+export {
+  drainEmbeddings,
+  type EmbeddingBatch,
+  type EmbeddingDrainResult,
+  type EmbeddingJob,
+  embeddingWorker,
+  type EmbeddingWorkerOptions,
+} from "./worker.ts";
