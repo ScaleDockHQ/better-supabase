@@ -148,7 +148,12 @@ describe("createBetterSupabaseAdapter", () => {
       await failing.bulkDecide({
         flags: [{ key: "new_editor", defaultValue: true }],
       }),
-    ).toEqual({});
+    ).toEqual({ new_editor: true });
+    await expect(
+      failing.bulkDecide({
+        flags: [{ key: "new_editor", defaultValue: true }, { key: "other" }],
+      }),
+    ).rejects.toThrow("offline");
   });
 
   describe("null values", () => {

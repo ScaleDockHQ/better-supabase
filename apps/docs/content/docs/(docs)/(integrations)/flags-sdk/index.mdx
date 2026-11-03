@@ -157,6 +157,27 @@ export const checkoutTheme = flag<string, FlagsSdkEntities>({
 The flags block is still what policies check, so keep a flag that guards
 data in the flags block.
 
+While some flags live in each place, Flags Explorer needs both lists from one
+discovery route. `mergeProviderData` from `flags` combines the provider data
+of both adapters:
+
+```ts title="app/.well-known/vercel/flags/route.ts"
+import { getProviderData } from "better-supabase/flags-sdk";
+import { getProviderData as getVercelProviderData } from "@flags-sdk/vercel";
+import { createFlagsDiscoveryEndpoint, mergeProviderData } from "flags/next";
+
+import { bsFlags, newEditor } from "@/flags";
+
+export const GET = createFlagsDiscoveryEndpoint(() =>
+  mergeProviderData([
+    getProviderData(bsFlags, { flags: { newEditor } }),
+    getVercelProviderData({
+      edgeConfigConnectionString: process.env.EDGE_CONFIG,
+    }),
+  ]),
+);
+```
+
 ## Precompute
 
 A [precomputed](https://flags-sdk.dev/docs/frameworks/next/precompute) flag

@@ -364,7 +364,13 @@ export function createBetterSupabaseAdapter(
         definitions = new Map(
           (await lazy().definitions()).map((flag) => [flag.key, flag]),
         );
-      } catch {
+      } catch (error) {
+        const text = errorText(error);
+
+        for (const { key, defaultValue } of flags) {
+          decided[key] = fallback<V>(key, defaultValue, text);
+        }
+
         return decided;
       }
 
