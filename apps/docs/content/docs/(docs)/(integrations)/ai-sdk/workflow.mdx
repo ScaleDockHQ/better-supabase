@@ -124,6 +124,14 @@ the save on its own. Pass `enqueueCostBackfill` in `options` to queue the
 [cost backfill](/docs/ai-sdk#jobs) when the gateway hasn't reported the cost
 yet.
 
+A step maps a database failure to the Workflow SDK's step errors. A failure a
+retry can't fix (`forbidden`, `not_found`, `validation`, `conflict` and the
+other constraint kinds) throws a `FatalError`, so the step stops retrying.
+`rate_limited` and `quota_exceeded` throw a `RetryableError` that waits their
+`retryAfter`. Any other error, such as a network failure or a timeout, keeps the
+step's default retries. `durableStepError(error)` is the same mapping for an
+app's own steps.
+
 ## Routes
 
 `durableChat` is the server half. Its `assistant` is a

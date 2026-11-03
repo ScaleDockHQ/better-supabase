@@ -3,8 +3,8 @@ import type { UIMessage } from "ai";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type {
-  DurableAgentArgs,
-  DurableAgentResult,
+  DurableTurnAgentArgs,
+  DurableTurnAgentResult,
   DurableChatOptions,
   DurableTurnDeps,
   DurableTurnInput,
@@ -22,24 +22,24 @@ describe("durable turn types", () => {
       Settings | undefined
     >();
 
-    expectTypeOf<DurableAgentArgs<Settings>["context"]>().toEqualTypeOf<
+    expectTypeOf<DurableTurnAgentArgs<Settings>["context"]>().toEqualTypeOf<
       Settings | undefined
     >();
 
     expectTypeOf<DurableTurnDeps<Settings>["agent"]>()
       .parameter(0)
-      .toEqualTypeOf<DurableAgentArgs<Settings>>();
+      .toEqualTypeOf<DurableTurnAgentArgs<Settings>>();
   });
 
   it("gives the agent the user and the tenant", () => {
-    expectTypeOf<DurableAgentArgs["userId"]>().toEqualTypeOf<string>();
-    expectTypeOf<DurableAgentArgs["organizationId"]>().toEqualTypeOf<
+    expectTypeOf<DurableTurnAgentArgs["userId"]>().toEqualTypeOf<string>();
+    expectTypeOf<DurableTurnAgentArgs["organizationId"]>().toEqualTypeOf<
       string | undefined
     >();
   });
 
   it("accepts an error on the agent result", () => {
-    expectTypeOf<DurableAgentResult["error"]>().toEqualTypeOf<unknown>();
+    expectTypeOf<DurableTurnAgentResult["error"]>().toEqualTypeOf<unknown>();
   });
 
   it("builds the context from the turn of the app's UI message type", () => {

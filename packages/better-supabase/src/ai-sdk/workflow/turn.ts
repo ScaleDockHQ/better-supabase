@@ -58,7 +58,7 @@ export interface DurableStop {
 }
 
 /** What the agent function gets for one segment. */
-export interface DurableAgentArgs<CONTEXT = undefined> {
+export interface DurableTurnAgentArgs<CONTEXT = undefined> {
   readonly chatId: string;
   readonly userId: string;
   /** Missing for a chat outside a tenant. */
@@ -76,7 +76,7 @@ export interface DurableAgentArgs<CONTEXT = undefined> {
 }
 
 /** The part of a `WorkflowAgent.stream` result the turn reads. */
-export interface DurableAgentResult {
+export interface DurableTurnAgentResult {
   readonly messages: ModelMessage[];
   readonly steps: readonly {
     readonly sources?: readonly (ModelSource & { readonly type?: string })[];
@@ -212,8 +212,8 @@ export interface DurableTurnDeps<CONTEXT = undefined> {
   ) => Promise<void>;
   /** Runs the agent for one segment: `(args) => agent.stream(args)`. */
   readonly agent: (
-    args: DurableAgentArgs<CONTEXT>,
-  ) => Promise<DurableAgentResult>;
+    args: DurableTurnAgentArgs<CONTEXT>,
+  ) => Promise<DurableTurnAgentResult>;
   readonly step: DurableStep;
 }
 
@@ -279,7 +279,7 @@ function newRequests(
   return requests;
 }
 
-function sourcesOf(result: DurableAgentResult): ModelSource[] {
+function sourcesOf(result: DurableTurnAgentResult): ModelSource[] {
   return result.steps.flatMap((step) => step.sources ?? []);
 }
 

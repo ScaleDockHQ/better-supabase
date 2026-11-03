@@ -5,10 +5,12 @@ import {
   createModelCallToUIChunkTransform,
   normalizeUIMessageStreamParts,
 } from "@ai-sdk/workflow";
+import { FatalError, RetryableError } from "workflow";
 import { getRun } from "workflow/api";
 
 import type { AiChat } from "../../blocks/ai-chat/ai-chat.ts";
 import type { AiDataPart, AiMessage } from "../../blocks/ai-chat/message.ts";
+import type { DbErrorKind } from "../../core/errors.ts";
 import type { CostBackfillPayload } from "../gateway.ts";
 import type {
   DurableApprovalsInput,
@@ -23,6 +25,7 @@ import type {
 } from "./turn.ts";
 
 import { isRecord } from "../../core/block-helpers.ts";
+import { DbException } from "../../core/db-exception.ts";
 import { runRelease } from "../gateway.ts";
 import { AI_SDK_UI_FORMAT, toUIMessage } from "../messages.ts";
 
@@ -140,12 +143,77 @@ async function withExtras(input: DurableSaveInput): Promise<AiMessage> {
   };
 }
 
+/** Failures a retry can't fix: the same call fails the same way. */
+const PERMANENT_KINDS: ReadonlySet<DbErrorKind> = new Set<DbErrorKind>([
+  "forbidden",
+  "not_found",
+  "validation",
+  "conflict",
+  "foreign_key",
+  "check",
+  "not_null",
+  "exclusion",
+  "invalid_input",
+  "invalid_value",
+  "invalid_request",
+  "max_affected",
+  "multiple_rows",
+  "unsupported",
+]);
+
+/**
+ * Maps a database failure to the Workflow SDK's step errors: a permanent one
+ * (`forbidden`, `not_found`, `validation`, `conflict` and the other constraint
+ * kinds) becomes a `FatalError` so the step stops retrying; `rate_limited` and
+ * `quota_exceeded` become a `RetryableError` that waits their `retryAfter`. Any
+ * other error (a network failure, a timeout) is returned as it is, so the step
+ * keeps its default retries.
+ */
+export function durableStepError(error: unknown): unknown {
+  if (!(error instanceof DbException)) {
+    return error;
+  }
+
+  const { kind } = error.error;
+
+  if (PERMANENT_KINDS.has(kind)) {
+    return new FatalError(error.message);
+  }
+
+  if (kind === "rate_limited" || kind === "quota_exceeded") {
+    const seconds =
+      "retryAfter" in error.error ? error.error.retryAfter : undefined;
+
+    return new RetryableError(
+      error.message,
+      seconds === undefined ? {} : { retryAfter: seconds * 1000 },
+    );
+  }
+
+  return error;
+}
+
+async function mapped<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw durableStepError(error);
+  }
+}
+
 /**
  * Saves a turn's answer (service role) with its AI SDK form next to the
  * canonical one. The message id is the idempotency key: a retried step, or the
  * save after the next agent pass, updates the same message.
  */
-export async function saveMessagesStep(
+export function saveMessagesStep(
+  chats: AiChat,
+  input: DurableSaveInput,
+): Promise<void> {
+  return mapped(() => saveMessages(chats, input));
+}
+
+async function saveMessages(
   chats: AiChat,
   input: DurableSaveInput,
 ): Promise<void> {
@@ -247,16 +315,17 @@ export function durableSteps(
 ): DurableStepCalls {
   return {
     save: (input) => saveMessagesStep(chats, input),
-    approvals: (input) => recordApprovals(chats, input),
-    decisions: (input) => decisionsOf(chats, input),
-    release: (input) => release(chats, input, options),
+    approvals: (input) => mapped(() => recordApprovals(chats, input)),
+    decisions: (input) => mapped(() => decisionsOf(chats, input)),
+    release: (input) => mapped(() => release(chats, input, options)),
   };
 }
 
 /**
  * Runs one of a durable turn's database steps. Call it from the app's one `"use
  * step"` function, so the Workflow SDK records and retries each call; a
- * database error throws, which retries the step.
+ * permanent database error throws a `FatalError`, a rate limit a
+ * `RetryableError`, and any other error retries the step.
  */
 export function runDurableStep<K extends DurableStepName>(
   chats: AiChat,

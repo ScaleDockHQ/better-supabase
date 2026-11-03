@@ -4,8 +4,8 @@ import type { ModelMessage } from "ai";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-  DurableAgentArgs,
-  DurableAgentResult,
+  DurableTurnAgentArgs,
+  DurableTurnAgentResult,
   DurableHook,
   DurableSaveInput,
   DurableStep,
@@ -112,14 +112,14 @@ interface Harness {
   readonly stop: Controlled<object>;
   readonly turn: Controlled<{ streamId: string; runId: string }>;
   readonly calls: { name: string; input: unknown }[];
-  readonly agentArgs: DurableAgentArgs[];
+  readonly agentArgs: DurableTurnAgentArgs[];
   readonly namespaces: string[];
   phases: (string | undefined)[];
   readonly run: () => ReturnType<typeof durableTurn>;
 }
 
 function harness(
-  agent: (args: DurableAgentArgs) => Promise<DurableAgentResult>,
+  agent: (args: DurableTurnAgentArgs) => Promise<DurableTurnAgentResult>,
   decisions: () => unknown[] = () => [],
 ): Harness {
   const stop = controlled<object>();
@@ -131,7 +131,7 @@ function harness(
   ]);
 
   const calls: { name: string; input: unknown }[] = [];
-  const agentArgs: DurableAgentArgs[] = [];
+  const agentArgs: DurableTurnAgentArgs[] = [];
   const namespaces: string[] = [];
   const phases: (string | undefined)[] = [];
 
@@ -491,7 +491,7 @@ describe("durableTurn", () => {
       steps: [],
     }));
 
-    const seen: DurableAgentArgs<{ projectId: string }>[] = [];
+    const seen: DurableTurnAgentArgs<{ projectId: string }>[] = [];
     const contextual = { ...input, context: { projectId: "p1" } };
 
     await durableTurn(contextual, {
