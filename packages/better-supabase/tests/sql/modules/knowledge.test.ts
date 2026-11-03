@@ -66,6 +66,9 @@ describe("knowledge module", () => {
     expect(search).toContain("security invoker");
     expect(search).toContain("1.0 / (60 + ");
     expect(search).toContain("'relaxed_order'");
+    expect(search).toContain("priority_order boolean default true");
+    expect(search).toContain("'chunk_id'");
+    expect(search).toContain("'organization_id'");
   });
 
   it("keeps an embedding only while the content and model stay the same", () => {
@@ -256,7 +259,7 @@ describe("knowledge module", () => {
     const [plan] = upgradePlan([{ module: "knowledge", version: 4 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
-    expect(plan?.to).toBe(5);
+    expect(plan?.to).toBe(6);
     expect(sql).toContain('add column if not exists "organization_id" uuid;');
     expect(sql).toContain('set "organization_id" = c."organization_id"');
   });

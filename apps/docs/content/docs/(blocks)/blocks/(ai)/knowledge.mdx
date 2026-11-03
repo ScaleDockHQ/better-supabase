@@ -160,9 +160,10 @@ object.
 
 Set `dimensions` on `createKnowledge` to fail with the hint
 `KNOWLEDGE_DIMENSION_MISMATCH` when an embedder returns vectors of another
-length. `priorityOrder: false` (on the block or one search) reorders the hits
-by score on the client, ignoring collection priority; the database function
-doesn't take the option yet.
+length. `priorityOrder: false` (on the block or one search) ranks the hits by
+score alone in `knowledge_search`, ignoring collection priority. The
+function takes it as `priority_order` (default `true`) and returns `chunk_id`
+and `organization_id` in each hit.
 
 ## Collections
 

@@ -191,9 +191,9 @@ export interface KnowledgeSearchOptions {
   /** Matches documents whose metadata contains this object. */
   readonly filter?: Readonly<Record<string, unknown>>;
   /**
-   * `false` orders the hits by score alone instead of by collection priority
-   * first. Overrides the block's `priorityOrder` for this search. The database
-   * still picks the top `k` by priority, so this reorders those.
+   * `false` ranks the hits by score alone instead of by collection priority
+   * first, in the database. Overrides the block's `priorityOrder` for this
+   * search.
    */
   readonly priorityOrder?: boolean;
   readonly signal?: AbortSignal;
@@ -978,15 +978,10 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             k: searchOptions.k,
             filter: searchOptions.filter,
             collections: searchOptions.collections,
+            priority_order:
+              (searchOptions.priorityOrder ?? options.priorityOrder) !== false,
           },
-          (rows) => {
-            const hits = recordsOf(rows, "knowledge_search").map(hitOf);
-
-            return (searchOptions.priorityOrder ?? options.priorityOrder) ===
-              false
-              ? hits.toSorted((a, b) => b.score - a.score)
-              : hits;
-          },
+          (rows) => recordsOf(rows, "knowledge_search").map(hitOf),
         ),
       );
     },
