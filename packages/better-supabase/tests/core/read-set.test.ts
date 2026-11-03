@@ -852,3 +852,27 @@ describe("auth.can gates", () => {
     ]);
   });
 });
+
+describe("readSet.parse", () => {
+  const set = defineReadSet(betterSupabase, "parsed", {}, (s, _p, auth) => ({
+    names: s.customers.list({ select: ["id"] }),
+    total: s.customers.count(),
+    gated: s.when(auth.can("customer.read"), s.customers.count()),
+  }));
+
+  it("accepts the shape $many returns, with a refused gate as null", () => {
+    const parsed = set.parse({ names: [{ id: "1" }], total: 2, gated: null });
+
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("names each entry that has the wrong shape", () => {
+    const parsed = set.parse({ names: {}, total: "2", gated: 3 });
+
+    expect(parsed.ok).toBe(false);
+    expect(!parsed.ok && parsed.error.message).toBe(
+      'read set "parsed": names must be an array, total must be a number',
+    );
+    expect(set.parse(null).ok).toBe(false);
+  });
+});

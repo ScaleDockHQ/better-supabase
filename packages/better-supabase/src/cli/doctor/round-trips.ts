@@ -1,12 +1,12 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
-const PROMISE_ALL = /\bPromise\.all\s*\(\s*\[/g;
+export const PROMISE_ALL: RegExp = /\bPromise\.all\s*\(\s*\[/g;
 
 /**
  * Parts of the array literal that starts after `open`, split at top-level
  * commas.
  */
-function arrayEntries(text: string, open: number): string[] | undefined {
+export function arrayEntries(text: string, open: number): string[] | undefined {
   const entries: string[] = [];
   let depth = 0;
   let start = open;

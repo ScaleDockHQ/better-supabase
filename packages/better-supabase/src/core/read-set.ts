@@ -3,6 +3,7 @@ import type { BlockReadMap } from "./block-reads.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
+import type { Result } from "./result.ts";
 import type {
   InferEntryResult,
   ReadSetEntry,
@@ -12,6 +13,7 @@ import type {
 
 import { createBlockReadSpecs } from "./block-reads.ts";
 import { dbError } from "./errors.ts";
+import { err, ok } from "./result.ts";
 import {
   createFunctionSpecs,
   isFunctionSpec,
@@ -115,6 +117,13 @@ export interface ReadSet<
   /** The reads, with placeholders where parameters go. */
   readonly specs: S;
   readonly definition: BetterSupabase;
+  /**
+   * Checks a value that crossed a boundary, such as a cache or a Client
+   * Component prop, against the shape `db.$many(readSet, params)` returns:
+   * every key present, counts as numbers, lists as arrays, and a gated entry as
+   * `null`. It checks structure, not each column.
+   */
+  parse(value: unknown): Result<ReadSetResult<ReadSet<N, P, S>>>;
 }
 
 /** What `db.$many(readSet, params)` resolves to. */
@@ -313,7 +322,81 @@ export function defineReadSet<
     // SAFETY: the read set stores the definition without its schema generics.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
     definition: betterSupabase as unknown as ReadSet["definition"],
+    parse: (value) => parseReadSetResult(name, specs, value),
   };
+}
+
+function entryProblem(spec: ReadSetEntry, value: unknown): string | undefined {
+  if (spec.gate !== undefined && value === null) {
+    return undefined;
+  }
+
+  if (isFunctionSpec(spec)) {
+    return value === undefined ? "is missing" : undefined;
+  }
+
+  switch (spec.method) {
+    case "count": {
+      return typeof value === "number" ? undefined : "must be a number";
+    }
+
+    case "list": {
+      return Array.isArray(value) ? undefined : "must be an array";
+    }
+
+    case "get": {
+      return value === null ||
+        (typeof value === "object" && !Array.isArray(value))
+        ? undefined
+        : "must be an object or null";
+    }
+
+    case "page":
+    case "aggregate": {
+      return value !== null && typeof value === "object"
+        ? undefined
+        : "must be an object";
+    }
+
+    default: {
+      const never: never = spec.method;
+
+      return never;
+    }
+  }
+}
+
+function parseReadSetResult<S extends Readonly<Record<string, ReadSetEntry>>>(
+  name: string,
+  specs: S,
+  value: unknown,
+): Result<{ readonly [K in keyof S]: InferEntryResult<S[K]> }> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return err(
+      dbError("invalid_request", `read set "${name}" result must be an object`),
+    );
+  }
+
+  // SAFETY: the check above ruled out null and arrays, leaving a plain object.
+  const record = value as Record<string, unknown>;
+  const problems: string[] = [];
+
+  for (const [key, spec] of Object.entries(specs)) {
+    const problem = entryProblem(spec, record[key]);
+
+    if (problem !== undefined) {
+      problems.push(`${key} ${problem}`);
+    }
+  }
+
+  if (problems.length > 0) {
+    return err(
+      dbError("invalid_request", `read set "${name}": ${problems.join(", ")}`),
+    );
+  }
+
+  // SAFETY: every entry passed its structural check above.
+  return ok(record as { readonly [K in keyof S]: InferEntryResult<S[K]> });
 }
 
 /**

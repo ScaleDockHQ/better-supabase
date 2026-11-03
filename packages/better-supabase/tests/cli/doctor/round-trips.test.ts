@@ -44,6 +44,18 @@ describe("BS609", () => {
     expect(findings[0]?.location?.line).toBe(2);
   });
 
+  it("counts $rpc calls and block methods", () => {
+    expect(
+      check([
+        page([
+          'db.$rpc("a", {})',
+          'bsb.db().$rpc("b", {})',
+          "blocks.tags.list(id)",
+        ]),
+      ]),
+    ).toHaveLength(1);
+  });
+
   it("stays quiet for fewer reads or reads that aren't the database's", () => {
     expect(
       check([

@@ -243,3 +243,7 @@ See [Cache Components](/docs/frameworks/next-cache-components).
 [BS304](/docs/cli/doctor#bs304) reports a `read-sets` file that no longer
 matches the sets in `readSets`. Run `better-supabase gen` (or
 `better-supabase upgrade`), then `supabase db schema declarative sync`.
+
+## Check a result that crossed a boundary
+
+`readSet.parse(value)` checks that a value has the shape `db.$many(readSet, params)` returns. Use it where a read set result passes through a cache, a Server Component prop or JSON. It returns a `Result`, naming each key with the wrong shape. It checks structure (counts are numbers, lists are arrays, a gated entry may be `null`), not each column. The block row parsers `viewOf` (saved views) and `subscriptionOf` (notifications) parse single rows from a page payload.
