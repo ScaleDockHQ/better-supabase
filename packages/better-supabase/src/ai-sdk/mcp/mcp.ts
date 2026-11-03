@@ -73,6 +73,18 @@ export interface ConnectToolsOptions {
    * lists.
    */
   readonly schemas?: McpToolSchemas;
+  /**
+   * Retries a tool call after a transient transport failure this many times
+   * (the MCP client's `maxRetries`). Default 0.
+   */
+  readonly maxRetries?: number;
+  /**
+   * `true` makes every tool wait for the user's approval unless the server
+   * marks it `readOnlyHint: true`. A tool without the annotation asks. The
+   * annotations are the server's claim, so this only reduces prompts for a
+   * server you trust.
+   */
+  readonly askUnlessReadOnly?: boolean;
 }
 
 export interface ConnectedTools {
@@ -286,6 +298,28 @@ async function digestOf(fingerprints: Record<string, string>): Promise<string> {
   return `sha256:${await sha256Hex(JSON.stringify(entries))}`;
 }
 
+/** Makes the tools that aren't read-only wait for the user's approval. */
+function askingUnlessReadOnly(
+  tools: ToolSet,
+  definitions: ListToolsResult,
+): ToolSet {
+  const readOnly = new Set(
+    definitions.tools.flatMap((definition) =>
+      definition.annotations?.readOnlyHint === true ? [definition.name] : [],
+    ),
+  );
+
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, tool]) => [
+      name,
+      readOnly.has(name)
+        ? tool
+        : // oxlint-disable-next-line typescript/no-deprecated -- no replacement for a per-tool approval flag yet; `toolApproval` is per agent
+          { ...tool, needsApproval: true },
+    ]),
+  );
+}
+
 function prefixed(tools: ToolSet, prefix: string | undefined): ToolSet {
   if (prefix === undefined || prefix === "") {
     return tools;
@@ -361,6 +395,9 @@ export function connectTools(
               initialInitializeResult:
                 previous.initializeResult as InitializeResult,
             }),
+        ...(options.maxRetries === undefined
+          ? {}
+          : { maxRetries: options.maxRetries }),
         ...(options.protocolVersionDiscovery === undefined
           ? {}
           : { protocolVersionDiscovery: options.protocolVersionDiscovery }),
@@ -400,8 +437,14 @@ export function connectTools(
           ? splitMCPAppTools(definitions)
           : { modelVisible: definitions, appVisible: { tools: [] } };
 
-      const tools = client.toolsFromDefinitions(split.modelVisible);
-      const fingerprints = await fingerprintTools(tools);
+      const listed = client.toolsFromDefinitions(split.modelVisible);
+
+      const tools =
+        options.askUnlessReadOnly === true
+          ? askingUnlessReadOnly(listed, split.modelVisible)
+          : listed;
+
+      const fingerprints = await fingerprintTools(listed);
       const fingerprint = await digestOf(fingerprints);
 
       const status = await connectors.fingerprints.check({
@@ -431,9 +474,16 @@ export function connectTools(
         tools: prefixed(
           options.schemas === undefined
             ? tools
-            : client.toolsFromDefinitions(split.modelVisible, {
-                schemas: options.schemas,
-              }),
+            : options.askUnlessReadOnly === true
+              ? askingUnlessReadOnly(
+                  client.toolsFromDefinitions(split.modelVisible, {
+                    schemas: options.schemas,
+                  }),
+                  split.modelVisible,
+                )
+              : client.toolsFromDefinitions(split.modelVisible, {
+                  schemas: options.schemas,
+                }),
           options.prefix,
         ),
         appTools: prefixed(

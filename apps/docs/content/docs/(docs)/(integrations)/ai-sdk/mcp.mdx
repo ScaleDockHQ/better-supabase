@@ -116,6 +116,11 @@ await connectAll(servers, {
 });
 ```
 
+`maxRetries` retries a tool call after a transient transport failure (default
+0). `askUnlessReadOnly: true` makes every tool wait for the user's approval
+unless the server marks it `readOnlyHint: true`. The annotation is the server's
+own claim, so use the option only for a server you trust.
+
 ## Supabase's MCP server
 
 Supabase's [MCP server](https://supabase.com/docs/guides/getting-started/mcp)

@@ -8,7 +8,7 @@ import type {
   ToolSet,
 } from "ai";
 
-import { isStepCount, ToolLoopAgent } from "ai";
+import { isStepCount, pruneMessages, ToolLoopAgent } from "ai";
 
 import type { SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
@@ -281,7 +281,61 @@ export interface AgentRuntimeOptions {
     readonly tags?: readonly string[];
     readonly options?: GatewayOptions;
   };
+  /**
+   * Telemetry for the agent's calls. The runtime sets `functionId`
+   * (`agent:<id>`) and exposes the run's `organizationId` to the integrations,
+   * so `meterTelemetry` can meter the tenant; what you pass wins.
+   */
+  readonly telemetry?: RuntimeSettings["telemetry"];
+  /**
+   * Signs tool approval requests (AI SDK 7 `experimental_toolApprovalSecret`),
+   * so a client can't forge an approval.
+   */
+  readonly toolApprovalSecret?: string | Uint8Array;
+  /** Other `ToolLoopAgent` settings, such as `toolCallConcurrency` or `output`. */
+  readonly settings?: AgentPassthroughSettings;
+  /**
+   * Your `prepareCall`. It runs first; the library then merges its context and
+   * the gateway attribution into what it returns.
+   */
+  readonly prepareCall?: RuntimeSettings["prepareCall"];
+  /**
+   * Your `prepareStep`. It runs after the library's model check; its result is
+   * used, and its `messages` are pruned when `compact` is set.
+   */
+  readonly prepareStep?: RuntimeSettings["prepareStep"];
+  /** Prunes old reasoning and tool calls from the messages of every step. */
+  readonly compact?: AgentCompactOptions;
 }
+
+type RuntimeSettings = ToolLoopAgentSettings<never, ToolSet>;
+
+/** `pruneMessages` options for a long chat, applied before every step. */
+export type AgentCompactOptions = Omit<
+  Parameters<typeof pruneMessages>[0],
+  "messages"
+>;
+
+/**
+ * `ToolLoopAgent` settings the runtime passes through. The library owns the
+ * ones that carry its checks (`tools`, `toolApproval`, `runtimeContext`,
+ * `instructions`, `stopWhen`, `id` and `model`).
+ */
+export type AgentPassthroughSettings = Omit<
+  RuntimeSettings,
+  | "id"
+  | "model"
+  | "tools"
+  | "toolApproval"
+  | "instructions"
+  | "stopWhen"
+  | "runtimeContext"
+  | "prepareCall"
+  | "prepareStep"
+  | "telemetry"
+  | "experimental_telemetry"
+  | "experimental_toolApprovalSecret"
+>;
 
 type ProviderOptionsMap = NonNullable<
   ToolLoopAgentSettings<never, ToolSet>["providerOptions"]
@@ -478,7 +532,10 @@ export function createAgentRuntime(
   const parts = agentRuntimeParts(options);
   const { run } = parts;
 
+  const { prepareCall, prepareStep, compact } = options;
+
   return new ToolLoopAgent({
+    ...options.settings,
     id: agent.id,
     model: options.model(agent.model),
     tools: parts.tools,
@@ -486,19 +543,40 @@ export function createAgentRuntime(
     ...(parts.instructions === "" ? {} : { instructions: parts.instructions }),
     stopWhen: options.stopWhen ?? isStepCount(20),
     runtimeContext: run,
-    prepareCall: (call) => {
-      const providerOptions = parts.withGateway(call.providerOptions);
+    telemetry: {
+      functionId: `agent:${agent.id}`,
+      includeRuntimeContext: { organizationId: true },
+      ...options.telemetry,
+    },
+    ...(options.toolApprovalSecret === undefined
+      ? {}
+      : { experimental_toolApprovalSecret: options.toolApprovalSecret }),
+    prepareCall: async (call) => {
+      const own = prepareCall === undefined ? call : await prepareCall(call);
+      const providerOptions = parts.withGateway(own.providerOptions);
 
       return {
-        ...call,
-        runtimeContext: { ...call.runtimeContext, ...run },
+        ...own,
+        runtimeContext: { ...own.runtimeContext, ...run },
         ...(providerOptions === undefined ? {} : { providerOptions }),
       };
     },
-    prepareStep: async ({ model }) => {
-      await parts.checkModel(model);
+    prepareStep: async (step) => {
+      await parts.checkModel(step.model);
 
-      return {};
+      const own = prepareStep === undefined ? {} : await prepareStep(step);
+
+      if (compact === undefined) {
+        return own;
+      }
+
+      return {
+        ...own,
+        messages: pruneMessages({
+          ...compact,
+          messages: [...(own?.messages ?? step.messages)],
+        }),
+      };
     },
   });
 }

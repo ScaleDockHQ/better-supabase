@@ -105,6 +105,34 @@ describe("rerankWith", () => {
   });
 });
 
+describe("searchTool model output", () => {
+  it("is strict and can send the model only ids and trimmed text", async () => {
+    const { knowledge } = fakeKnowledge([hit("a", 0)]);
+    const plain = searchTool(knowledge, "org");
+
+    const trimmed = searchTool(knowledge, "org", {
+      modelOutput: { maxCharacters: 3 },
+    });
+
+    expect(plain.strict).toBe(true);
+    expect(plain.toModelOutput).toBeUndefined();
+
+    const output = await trimmed.execute?.({ query: "q" }, call);
+
+    const modelOutput = await trimmed.toModelOutput?.({
+      toolCallId: "c",
+      input: { query: "q" },
+      // SAFETY: the tool's own result, which `execute` returned.
+      output: output as never,
+    });
+
+    expect(modelOutput).toEqual({
+      type: "json",
+      value: { results: [{ id: "a#0", content: "a c" }] },
+    });
+  });
+});
+
 describe("searchTool", () => {
   it("searches as the caller and returns citable ids", async () => {
     const { knowledge, search } = fakeKnowledge([hit("a", 1), hit("b", 0)]);
@@ -148,7 +176,9 @@ describe("searchTool", () => {
     );
 
     expect(output).toMatchObject({ results: [{ id: "b#0" }, { id: "a#0" }] });
-    expect(reverse).toHaveBeenCalledWith("q", expect.any(Array), undefined);
+    expect(reverse).toHaveBeenCalledWith("q", expect.any(Array), {
+      organizationId: "org",
+    });
 
     const { knowledge: failing } = fakeKnowledge("fail");
     await expect(

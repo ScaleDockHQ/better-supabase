@@ -1,6 +1,7 @@
 export {
   createWorkflowAgentRuntime,
   type WorkflowAgentRuntimeOptions,
+  type WorkflowOmittedOptions,
 } from "./agent.ts";
 
 export {

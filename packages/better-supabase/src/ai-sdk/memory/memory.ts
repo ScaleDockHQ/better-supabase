@@ -254,6 +254,11 @@ export function extractMemories(
       // `maxItems` would fail the whole job when the model returns one more.
       output: Output.array({ element: jsonSchema<string>({ type: "string" }) }),
       abortSignal: signal,
+      runtimeContext: { organizationId: payload.organization_id },
+      telemetry: {
+        functionId: "memory:extract",
+        includeRuntimeContext: { organizationId: true },
+      },
     });
 
     const ns: MemoryNamespace = {

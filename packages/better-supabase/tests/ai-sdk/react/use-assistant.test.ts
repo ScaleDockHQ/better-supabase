@@ -139,8 +139,15 @@ describe("useAssistant", () => {
     });
     await chatOptions.transport.reconnectToStream({ chatId: "c 1" });
     expect(calls[1]?.url).toBe("/chat/c%201/stream");
+    let requestsWhenStopped = 0;
+
+    stopLocal.mockImplementation(async () => {
+      requestsWhenStopped = calls.length;
+    });
+
     await state.stop();
     expect(stopLocal).toHaveBeenCalledOnce();
+    expect(requestsWhenStopped).toBe(3);
     expect(calls[2]).toEqual({
       url: "/chat/c%201/stop",
       init: { method: "POST" },

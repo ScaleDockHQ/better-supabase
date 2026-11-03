@@ -161,6 +161,52 @@ describe("createAgentRuntime", () => {
     });
   });
 
+  it("chains the app's prepareCall and prepareStep and exposes the tenant to telemetry", async () => {
+    const mock = model("Done");
+    const contexts: unknown[] = [];
+    const steps: string[] = [];
+
+    const runtime = createAgentRuntime({
+      agent: agent(),
+      model: () => mock,
+      caller: { userId: "u1", organizationId: "o1" },
+      gateway: { tags: ["mine"] },
+      prepareCall: (call) => ({
+        ...call,
+        providerOptions: { gateway: { order: ["a"] } },
+      }),
+      prepareStep: () => {
+        steps.push("app");
+
+        return {};
+      },
+      compact: { toolCalls: "before-last-message" },
+      settings: { toolCallConcurrency: 2 },
+      telemetry: {
+        integrations: [
+          {
+            onStart: (event) => {
+              contexts.push(
+                "runtimeContext" in event ? event.runtimeContext : undefined,
+              );
+            },
+          },
+        ],
+      },
+    });
+
+    await runtime.generate({ prompt: "Hi" });
+    expect(steps).toEqual(["app"]);
+    expect(mock.doGenerateCalls[0]?.providerOptions).toMatchObject({
+      gateway: {
+        order: ["a"],
+        user: "u1",
+        tags: expect.arrayContaining(["mine"]),
+      },
+    });
+    expect(contexts).toEqual([{ organizationId: "o1" }]);
+  });
+
   it("waits for the user before running an ask tool", async () => {
     const execute = vi.fn(() => Promise.resolve("ran"));
 

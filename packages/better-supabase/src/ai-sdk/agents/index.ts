@@ -5,6 +5,8 @@ export {
   agentTools,
   agentToolApproval,
   agentRuntimeParts,
+  type AgentCompactOptions,
+  type AgentPassthroughSettings,
   type AgentRuntimeParts,
   createAgentRuntime,
   mergeGatewayOptions,

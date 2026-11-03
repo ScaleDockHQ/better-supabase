@@ -108,11 +108,13 @@ export function useAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
   const { stop: stopLocal } = chat;
 
   const stop = useCallback(async () => {
-    await stopLocal();
+    // The server stops first: aborting the local stream first would drop the
+    // connection before the server knows the stop was asked for.
     await fetch(`${api}/${encodeURIComponent(id)}/stop`, {
       method: "POST",
       ...(headers === undefined ? {} : { headers: { ...headers } }),
-    });
+    }).catch(() => {});
+    await stopLocal();
   }, [api, id, headers, stopLocal]);
 
   return { ...chat, stop };

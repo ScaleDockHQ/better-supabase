@@ -11,7 +11,19 @@ import type { AgentRunContext } from "../agents/authorization.ts";
 
 import { agentRuntimeParts } from "../agents/agents.ts";
 
-export interface WorkflowAgentRuntimeOptions extends AgentRuntimeOptions {
+/** The `createAgentRuntime` options a `WorkflowAgent` has no setting for. */
+export type WorkflowOmittedOptions =
+  | "compact"
+  | "prepareCall"
+  | "prepareStep"
+  | "settings"
+  | "telemetry"
+  | "toolApprovalSecret";
+
+export interface WorkflowAgentRuntimeOptions extends Omit<
+  AgentRuntimeOptions,
+  WorkflowOmittedOptions
+> {
   /**
    * The environment variable that holds the HMAC secret for tool approvals
    * (`experimental_toolApprovalSecret`). Only the name crosses workflow
@@ -90,8 +102,9 @@ function guardedTools(parts: AgentRuntimeParts): ToolSet {
 export function createWorkflowAgentRuntime(
   options: WorkflowAgentRuntimeOptions,
 ): WorkflowAgent<ToolSet, AgentRunContext> {
-  const { agent } = options;
-  const parts = agentRuntimeParts(options);
+  const { toolApprovalSecret, ...shared } = options;
+  const { agent } = shared;
+  const parts = agentRuntimeParts({ ...shared, agent });
 
   return new WorkflowAgent<ToolSet, AgentRunContext>({
     id: agent.id,
@@ -100,9 +113,9 @@ export function createWorkflowAgentRuntime(
     ...(parts.instructions === "" ? {} : { instructions: parts.instructions }),
     stopWhen: options.stopWhen ?? isStepCount(20),
     runtimeContext: parts.run,
-    ...(options.toolApprovalSecret === undefined
+    ...(toolApprovalSecret === undefined
       ? {}
-      : { experimental_toolApprovalSecret: options.toolApprovalSecret }),
+      : { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareCall: (call) => {
       const providerOptions = parts.withGateway(call.providerOptions);
 

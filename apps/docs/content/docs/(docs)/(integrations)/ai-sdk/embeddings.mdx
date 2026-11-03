@@ -50,6 +50,10 @@ const result = streamText({
 });
 ```
 
+`searchTool` is `strict`, and the reranker receives the tenant so the rerank
+call is metered. `modelOutput: { maxCharacters }` sends the model only each
+result's `id` and its trimmed content, while `onHits` still gets the full hits.
+
 `searchTool` gives the model a `query` input and returns up to `k` (8)
 chunks as `{ results: [{ id, title, content }] }`, with ids in the form
 `documentId#index` the model can cite. The search runs as the caller, so

@@ -212,6 +212,43 @@ The attribution is applied in `prepareCall`, merged into the call's own
 `providerOptions`: the library's `user` always wins, `tags` are the union, and
 any other gateway key you set keeps your value.
 
+## Telemetry, settings and long chats
+
+`createAgentRuntime` sets `telemetry.functionId` to `agent:<id>` and exposes the
+run's `organizationId` to the integrations (`includeRuntimeContext`), so
+`meterTelemetry` can meter the tenant. Without that setting the AI SDK drops
+the runtime context before telemetry sees it, so a `generateText` call you make
+yourself needs the same option. What you pass as `telemetry` wins. A per-call
+`telemetry.integrations` replaces the integrations you registered once, such as
+`meterTelemetry`, so list both.
+
+Other `ToolLoopAgent` settings go in `settings` (`toolCallConcurrency`,
+`repairToolCall`, `output`, `callOptionsSchema` and the sampling settings).
+Your `prepareCall` runs first and the library adds the run context and the
+gateway attribution to what it returns. Your `prepareStep` runs after the model
+check. `compact` takes the options of `pruneMessages` and prunes old reasoning
+and tool calls from the messages of every step. `toolApprovalSecret` signs
+approval requests with `experimental_toolApprovalSecret`.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  settings: { toolCallConcurrency: 2 },
+  compact: {
+    reasoning: "before-last-message",
+    toolCalls: "before-last-2-messages",
+  },
+  toolApprovalSecret: process.env.AI_APPROVAL_SECRET,
+});
+```
+
+An agent's `skills` are not sent to the model for you. Map them to your
+provider's options in `prepareCall`, such as Anthropic's `container.skills`
+under `providerOptions.anthropic`. For local debugging, register the AI SDK's
+DevTools integration only in development, and remember it too is replaced by
+a per-call `integrations` list.
+
 ## Workflow agent
 
 `createWorkflowAgentRuntime` from `better-supabase/ai-sdk/workflow` builds a
