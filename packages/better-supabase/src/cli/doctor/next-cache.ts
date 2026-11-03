@@ -56,6 +56,90 @@ function remoteWithoutHandler(context: DoctorContext): FindingInput[] {
   ];
 }
 
+/** A function whose first statement is the `"use cache: private"` directive. */
+const PRIVATE_FUNCTION =
+  /(?:function\s+(\w+)\s*\([^)]*\)[^{=]*|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\s*)?\([^)]*\)[^{=]*(?:=>)?\s*)\{\s*["']use cache: private["']/g;
+
+interface PrivateFunction {
+  readonly name: string;
+  readonly file: string;
+  readonly text: string;
+  readonly body: string;
+  readonly index: number;
+}
+
+/** The text of the `{ ... }` block that opens at `open`. */
+function blockAt(text: string, open: number): string {
+  let depth = 0;
+
+  for (let index = open; index < text.length; index += 1) {
+    const char = text.charAt(index);
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return text.slice(open, index + 1);
+      }
+    }
+  }
+
+  return text.slice(open);
+}
+
+function privateFunctions(sources: readonly TextFile[]): PrivateFunction[] {
+  return sources.flatMap((source) =>
+    [...source.text.matchAll(PRIVATE_FUNCTION)].flatMap((match) => {
+      const name = match[1] ?? match[2];
+
+      return name === undefined
+        ? []
+        : [
+            {
+              name,
+              file: source.path,
+              text: source.text,
+              body: blockAt(
+                source.text,
+                match.index + match[0].lastIndexOf("{"),
+              ),
+              index: match.index,
+            },
+          ];
+    }),
+  );
+}
+
+/**
+ * A `"use cache: private"` function that calls another one (BS610): Next.js
+ * doesn't allow private scopes inside each other, and each one resolves the
+ * session again. Read in the outer function and pass the values down, or hand
+ * every scope `bsb.sessionHandle()`.
+ */
+function nestedPrivateScopes(context: DoctorContext): FindingInput[] {
+  const functions = privateFunctions(context.sources);
+  const names = new Set(functions.map((fn) => fn.name));
+
+  return functions.flatMap((outer) =>
+    [...names]
+      .filter(
+        (name) =>
+          name !== outer.name &&
+          new RegExp(`\\b${name}\\s*\\(`).test(outer.body),
+      )
+      .map((inner) => ({
+        message: `${outer.file}: ${outer.name} runs in \`"use cache: private"\` and calls ${inner}, which has the same directive. Private cache scopes can't nest, and each one resolves the session again. Call ${inner} from the page and pass its result down, or read both in one scope.`,
+        target: `${outer.file}:${outer.name}:${inner}`,
+        location: {
+          file: outer.file,
+          line: outer.text.slice(0, outer.index).split("\n").length,
+        },
+      })),
+  );
+}
+
 export const NEXT_CACHE_RULES: readonly Rule[] = [
   {
     code: "BS608",
@@ -64,5 +148,13 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
     description:
       "`bsb.remote()` and `bsb.cached({ scope: \"remote\" })` run in `'use cache: remote'`. Vercel provides a shared remote handler; elsewhere Next.js falls back to an in-memory one per instance, so entries are never shared and every deploy starts cold. Set `cacheHandlers.remote` (`remoteCacheHandler` in `createNextConfig`).",
     check: remoteWithoutHandler,
+  },
+  {
+    code: "BS610",
+    severity: "warning",
+    title: "Nested private cache scopes",
+    description:
+      'A function with `"use cache: private"` calls another function with the same directive. Next.js doesn\'t nest private scopes, and each scope resolves the session again. Call the inner function from the page, or read both in one scope.',
+    check: nestedPrivateScopes,
   },
 ];

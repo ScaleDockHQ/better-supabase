@@ -2200,6 +2200,17 @@ function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
 See [read sets](/docs/repository/read-sets).
 
+### BS610
+
+**Warning: nested private cache scopes.** A function with
+`"use cache: private"` calls another function in the project that has the same
+directive. Next.js doesn't nest private scopes, and each scope resolves the
+session again. Call the inner function from the page and pass its result down,
+read both in one scope, or give every scope the same
+[session handle](/docs/frameworks/next-cache-components#skip-the-request-read-with-a-session-handle).
+The check reads source text, so it follows function declarations and arrow
+functions that carry the directive as their first statement.
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

@@ -21,9 +21,40 @@ export interface CacheEntryScope<C, P> {
   readonly warn: ((message: string) => void) | undefined;
 }
 
+/**
+ * Frames of Next.js's cache wrapper, one per `"use cache"` function on the
+ * stack.
+ */
+const CACHE_WRAPPER = /use-cache-wrapper/g;
+
+let warnedNested = false;
+
+/**
+ * Best effort, development only: a second cache wrapper frame on the async
+ * stack means this scope runs inside another one (see BS610). The stack format
+ * is Next.js's, so a build that names its frames differently stays quiet.
+ */
+export function warnIfNested(
+  warn: (message: string) => void,
+  stack: string | undefined = new Error("scope").stack,
+): void {
+  if (warnedNested || (stack?.match(CACHE_WRAPPER)?.length ?? 0) < 2) {
+    return;
+  }
+
+  warnedNested = true;
+  warn(
+    "bsb.cached() ran inside another cache scope. Private scopes don't nest and each one resolves the session again: call the inner function from the page, or pass the same bsb.sessionHandle() to both.",
+  );
+}
+
 /** Sets `cacheLife` and the session, support, table and row tags of an entry. */
 export function applyCacheEntry<C, P>(input: CacheEntryScope<C, P>): void {
   const { ctx, view, scope, tenant, entry } = input;
+
+  if (input.warn) {
+    warnIfNested(input.warn);
+  }
 
   cacheLife(
     cachedLife(view, scope, entry.life, input.warn ? { warn: input.warn } : {}),
