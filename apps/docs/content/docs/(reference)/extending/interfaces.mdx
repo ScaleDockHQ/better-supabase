@@ -349,7 +349,10 @@ conformance block.
 
 Turns texts into vectors for the knowledge and memory blocks. It has a
 `model` name and `embed(values, { signal })`, which returns one vector per
-value, all of one length. `testEmbedder` from `better-supabase/testing` is its
+value, all of one length. Version 1 (the default) returns the vectors. A
+version 2 embedder (`apiVersion: 2`) returns `{ embeddings, usage?: { tokens } }`;
+both are accepted, and `embedVectors(embedder, values)` normalizes a call.
+`testEmbedder` from `better-supabase/testing` is its
 conformance block.
 
 ## TextExtractor

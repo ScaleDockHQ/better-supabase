@@ -7,6 +7,7 @@ import { driveSubject } from "../../src/blocks/drive/index.ts";
 import {
   createKnowledge,
   sqlTransport,
+  embedVectors,
 } from "../../src/blocks/knowledge/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 import { wordEmbedder } from "./word-embedder.ts";
@@ -325,7 +326,7 @@ describe.skipIf(!live)("knowledge module", () => {
             );
           }
 
-          return inner.embed(values, options);
+          return (await embedVectors(inner, values, options)).embeddings;
         },
       };
 

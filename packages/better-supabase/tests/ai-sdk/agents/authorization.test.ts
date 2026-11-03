@@ -346,6 +346,8 @@ describe("createAgentRuntime results filter", () => {
       metadata: {},
       title: documentId,
       score: 1,
+      chunkId: `${documentId}#0`,
+      organizationId: undefined,
     });
 
     const search = vi.fn(() => AsyncResult.ok([hit("public"), hit("hidden")]));

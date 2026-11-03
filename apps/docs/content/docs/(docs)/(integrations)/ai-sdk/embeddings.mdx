@@ -25,7 +25,9 @@ const embedder = embedWith("openai/text-embedding-3-small");
 goes through the [AI Gateway](https://vercel.com/docs/ai-gateway). The
 embedder's `model` name (`openai/text-embedding-3-small`, or `name` when
 you pass one) is stored with each chunk, so `knowledge.reembed` can find
-what another model embedded.
+what another model embedded. The embedder has `apiVersion: 2`: `embed`
+returns `{ embeddings, usage: { tokens } }`, so the token count is available
+to callers that meter embeddings.
 
 `supabaseEmbed()` runs Supabase's built-in `gte-small` model in an Edge
 Function, through `Supabase.ai.Session`, with no API key. It returns 384

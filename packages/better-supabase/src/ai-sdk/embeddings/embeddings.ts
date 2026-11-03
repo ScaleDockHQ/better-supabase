@@ -9,6 +9,7 @@ import { embedMany, jsonSchema, rerank, tool } from "ai";
 
 import type {
   Embedder,
+  EmbedderV2,
   Knowledge,
   KnowledgeHit,
   KnowledgeSearchOptions,
@@ -39,16 +40,16 @@ export function modelName(
 export function embedWith(
   model: EmbeddingModel,
   options: EmbedWithOptions = {},
-): Embedder {
+): EmbedderV2 {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
     model: options.name ?? modelName(model),
     embed: async (values, embedOptions) => {
       if (values.length === 0) {
-        return [];
+        return { embeddings: [] };
       }
 
-      const { embeddings } = await embedMany({
+      const { embeddings, usage } = await embedMany({
         model,
         values: [...values],
         maxParallelCalls: options.maxParallelCalls ?? 4,
@@ -60,7 +61,7 @@ export function embedWith(
           : { abortSignal: embedOptions.signal }),
       });
 
-      return embeddings;
+      return { embeddings, usage: { tokens: usage.tokens } };
     },
   };
 }

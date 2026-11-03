@@ -26,6 +26,8 @@ const hit = (documentId: string, index: number, score = 1): KnowledgeHit => ({
   metadata: {},
   title: `Doc ${documentId}`,
   score,
+  chunkId: `${documentId}#${String(index)}`,
+  organizationId: undefined,
 });
 
 const call: ToolExecutionOptions<unknown> = {
@@ -61,11 +63,14 @@ describe("embedWith", () => {
     const embedder = embedWith(model, { providerOptions: { openai: {} } });
     expect(embedder.model).toBe("openai/text-embedding-3-small");
     const signal = new AbortController().signal;
-    expect(await embedder.embed(["ab", "abc"], { signal })).toEqual([
+    expect(embedder.apiVersion).toBe(2);
+    expect(
+      (await embedder.embed(["ab", "abc"], { signal })).embeddings,
+    ).toEqual([
       [2, 0],
       [3, 0],
     ]);
-    expect(await embedder.embed([])).toEqual([]);
+    expect((await embedder.embed([])).embeddings).toEqual([]);
     expect(model.doEmbedCalls).toHaveLength(1);
     expect(embedWith(model, { name: "custom" }).model).toBe("custom");
     expect(modelName("openai/text-embedding-3-large")).toBe(

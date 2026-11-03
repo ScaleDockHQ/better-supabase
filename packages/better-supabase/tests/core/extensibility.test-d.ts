@@ -403,7 +403,7 @@ describe("CredentialProvider", () => {
 
 describe("block injectables", () => {
   it("carry an optional apiVersion 1, and plain functions still fit", () => {
-    expectTypeOf<Embedder["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<Embedder["apiVersion"]>().toEqualTypeOf<1 | 2 | undefined>();
     expectTypeOf<AiTaskRunner["apiVersion"]>().toEqualTypeOf<1 | undefined>();
     expectTypeOf<GraphCompiler["apiVersion"]>().toEqualTypeOf<1 | undefined>();
     expectTypeOf<BuilderStarter["apiVersion"]>().toEqualTypeOf<1 | undefined>();

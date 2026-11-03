@@ -28,18 +28,56 @@ import {
 } from "../shared.ts";
 import { knowledgeCollections } from "./collections.ts";
 
-/**
- * Turns texts into vectors. `model` is stored with each document, so a document
- * embedded by another model can be found and embedded again.
- */
-export interface Embedder {
-  /** The embedder contract version. Omitted means 1. */
-  readonly apiVersion?: 1;
+/** What a version 2 embedder returns: the vectors and what they cost. */
+export interface EmbedResult {
+  readonly embeddings: readonly (readonly number[])[];
+  /** The tokens the provider counted, when it reports them. */
+  readonly usage?: { readonly tokens: number };
+}
+
+interface EmbedderBase {
+  /** The name stored with each document and embedding. */
   readonly model: string;
+}
+
+/** The first embedder contract: `embed` returns the vectors. */
+export interface EmbedderV1 extends EmbedderBase {
+  /** Omitted means 1. */
+  readonly apiVersion?: 1;
   embed(
     values: readonly string[],
     options?: { readonly signal?: AbortSignal },
   ): Promise<readonly (readonly number[])[]>;
+}
+
+/** The second embedder contract: `embed` returns the vectors and the usage. */
+export interface EmbedderV2 extends EmbedderBase {
+  readonly apiVersion: 2;
+  embed(
+    values: readonly string[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<EmbedResult>;
+}
+
+/**
+ * Turns texts into vectors. `model` is stored with each document, so a document
+ * embedded by another model can be found and embedded again. Version 1 returns
+ * the vectors; version 2 returns `{ embeddings, usage }`, and the blocks accept
+ * both.
+ */
+export type Embedder = EmbedderV1 | EmbedderV2;
+
+/** Embeds `values` with either embedder version and returns the version 2 shape. */
+export async function embedVectors(
+  embedder: Embedder,
+  values: readonly string[],
+  options?: { readonly signal?: AbortSignal },
+): Promise<EmbedResult> {
+  if (embedder.apiVersion === 2) {
+    return embedder.embed(values, options);
+  }
+
+  return { embeddings: await embedder.embed(values, options) };
 }
 
 export type KnowledgeScope =
@@ -120,6 +158,13 @@ export interface KnowledgeHit {
   readonly title: string;
   /** The fused reciprocal rank score; higher is better. */
   readonly score: number;
+  /** The chunk's id: `documentId#index` unless the database returns one. */
+  readonly chunkId: string;
+  /**
+   * The document's tenant; none for a system document or when the database
+   * omits it.
+   */
+  readonly organizationId: string | undefined;
 }
 
 export interface KnowledgeQuery {
@@ -145,6 +190,12 @@ export interface KnowledgeSearchOptions {
   readonly collections?: readonly string[];
   /** Matches documents whose metadata contains this object. */
   readonly filter?: Readonly<Record<string, unknown>>;
+  /**
+   * `false` orders the hits by score alone instead of by collection priority
+   * first. Overrides the block's `priorityOrder` for this search. The database
+   * still picks the top `k` by priority, so this reorders those.
+   */
+  readonly priorityOrder?: boolean;
   readonly signal?: AbortSignal;
 }
 
@@ -171,6 +222,17 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** Embeds chunks and queries; without one, search is full text only. */
   readonly embedder?: Embedder;
+  /**
+   * The vector size of the embeddings column (the module's `dimensions`). An
+   * embedder that returns another size fails with
+   * `KNOWLEDGE_DIMENSION_MISMATCH` before anything is written.
+   */
+  readonly dimensions?: number;
+  /**
+   * Orders search hits by collection priority first (default `true`), or by
+   * score alone when `false`. A search can override it.
+   */
+  readonly priorityOrder?: boolean;
   /** The ai-files block, for `ingest.file`. */
   readonly files?: AiFiles;
   /**
@@ -387,6 +449,7 @@ export function chunk(
 export function checkVectors(
   vectors: readonly (readonly number[])[],
   count: number,
+  dimensions?: number,
 ): DbError | undefined {
   const invalid = (message: string): DbError =>
     dbError("invalid_input", message, { hint: "EMBEDDING_INVALID" });
@@ -409,6 +472,14 @@ export function checkVectors(
     if (!vector.every(Number.isFinite)) {
       return invalid("The embedder returned a vector with a non-finite number");
     }
+  }
+
+  if (dimensions !== undefined && size !== dimensions) {
+    return dbError(
+      "invalid_input",
+      `The embedder returned vectors of ${size} dimensions, but the column holds ${dimensions}`,
+      { hint: "KNOWLEDGE_DIMENSION_MISMATCH" },
+    );
   }
 
   return undefined;
@@ -467,6 +538,14 @@ function hitOf(value: unknown): KnowledgeHit {
     metadata: recordOrEmpty(row["metadata"]),
     title: textOf(row["title"]),
     score: Number(row["score"]),
+    chunkId:
+      typeof row["chunk_id"] === "string"
+        ? row["chunk_id"]
+        : `${textOf(row["document_id"])}#${Number(row["idx"])}`,
+    organizationId:
+      typeof row["organization_id"] === "string"
+        ? row["organization_id"]
+        : undefined,
   };
 }
 
@@ -507,7 +586,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
 
   const batchSize = options.batchSize ?? 64;
   const extract = options.extract ?? defaultExtract;
-  const embedder = injectableOf("embedder", options.embedder);
+  const embedder = injectableOf("embedder", options.embedder, [1, 2]);
 
   const found = (value: unknown): AsyncResult<KnowledgeDocument> =>
     isRecord(value)
@@ -628,8 +707,12 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   ): AsyncResult<readonly (readonly number[])[]> =>
     embedder
       ? run(() =>
-          embedder.embed(values, signal === undefined ? undefined : { signal }),
-        )
+          embedVectors(
+            embedder,
+            values,
+            signal === undefined ? undefined : { signal },
+          ),
+        ).map((result) => result.embeddings)
       : AsyncResult.err(
           dbError("invalid_request", "createKnowledge has no embedder", {
             hint: "KNOWLEDGE_NO_EMBEDDER",
@@ -670,7 +753,11 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           return vectors;
         }
 
-        const invalid = checkVectors(vectors.data, pending.data.length);
+        const invalid = checkVectors(
+          vectors.data,
+          pending.data.length,
+          options.dimensions,
+        );
 
         if (invalid) {
           return err(invalid);
@@ -868,7 +955,13 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         text !== "";
 
       const vector: AsyncResult<readonly number[] | undefined> = embeds
-        ? embed([text], searchOptions.signal).map((vectors) => vectors[0])
+        ? embed([text], searchOptions.signal).andThen((vectors) => {
+            const invalid = checkVectors(vectors, 1, options.dimensions);
+
+            return invalid
+              ? AsyncResult.err(invalid)
+              : AsyncResult.ok(vectors[0]);
+          })
         : AsyncResult.ok(embedding);
 
       return vector.andThen((value) =>
@@ -886,7 +979,14 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             filter: searchOptions.filter,
             collections: searchOptions.collections,
           },
-          (rows) => recordsOf(rows, "knowledge_search").map(hitOf),
+          (rows) => {
+            const hits = recordsOf(rows, "knowledge_search").map(hitOf);
+
+            return (searchOptions.priorityOrder ?? options.priorityOrder) ===
+              false
+              ? hits.toSorted((a, b) => b.score - a.score)
+              : hits;
+          },
         ),
       );
     },
