@@ -81,6 +81,18 @@ function build(ctx: BlockSqlContext): string {
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 ${WORLD_POSTGRES_DDL}
+-- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
+do $$
+declare
+  c record;
+begin
+  for c in select table_name, column_name from information_schema.columns
+    where table_schema = 'workflow' and data_type = 'timestamp without time zone'
+  loop
+    execute format('alter table workflow.%I alter column %I type timestamptz using %I at time zone ''UTC''', c.table_name, c.column_name, c.column_name);
+  end loop;
+end
+$$;
 
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
@@ -167,8 +179,8 @@ begin
     v_actor,
     coalesce(new.attributes, '{}'::jsonb) - 'bsb.tenant' - 'bsb.actor' - 'bsb.subject' - 'bsb.principal_kind' - 'bsb.principal' - 'bsb.mode' - 'bsb.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
-    new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC',
+    new.started_at,
+    new.completed_at,
     v_subject_type,
     v_subject_id,
     v_principal_kind,
@@ -302,7 +314,7 @@ begin
   select coalesce(array_agg(x.id), '{}') into v_ids from (
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
-      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -340,6 +352,7 @@ returns table (
   tenant_id text,
   actor_id text,
   metadata jsonb,
+  metadata_cbor bytea,
   created_at timestamptz
 )
 language sql
@@ -349,7 +362,7 @@ set search_path = ''
 as $$
   select h.hook_id::text, h.run_id::text, r.name::text,
     r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
-    h.metadata, h.created_at at time zone 'UTC'
+    h.metadata, h.metadata_cbor, h.created_at
   from workflow.workflow_hooks h
   join workflow.workflow_runs r on r.id = h.run_id
   where r.status::text in ('pending', 'running')
@@ -478,7 +491,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -490,6 +503,12 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
       from: 2,
       description:
         "workflow.workflow_run_keys holds start idempotency keys (workflow_claim_run_key, workflow_set_run_key, workflow_release_run_key); workflow_open_hooks lists the hooks open runs wait on; workflow_purge_runs deletes ended runs, hourly when the retention option is set.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "The World tables follow @workflow/world-postgres 5.1: timestamps become timestamptz (read as UTC), hooks gain claims_token, runs gain start_hook_cbor and job_prefix, and workflow_start_hook_admissions is new. workflow_open_hooks returns metadata_cbor, which the World decodes.",
       sql: () => "",
     },
   ],

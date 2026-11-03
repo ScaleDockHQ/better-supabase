@@ -293,6 +293,9 @@ catalogs:
     '@solidjs/start':
       specifier: 2.1.0
       version: 2.1.0
+    '@streamdown/code':
+      specifier: 2.0.0
+      version: 2.0.0
     '@supabase-labs/middleware-openfeature':
       specifier: 0.2.0
       version: 0.2.0
@@ -405,11 +408,11 @@ catalogs:
       specifier: 5.0.6
       version: 5.0.6
     '@workflow/world':
-      specifier: 5.0.4
-      version: 5.0.4
+      specifier: 5.1.0
+      version: 5.1.0
     '@workflow/world-postgres':
-      specifier: 5.0.4
-      version: 5.0.4
+      specifier: 5.1.0
+      version: 5.1.0
     '@workflow/world-testing':
       specifier: 5.0.6
       version: 5.0.6
@@ -635,6 +638,9 @@ catalogs:
     sonner:
       specifier: 2.0.8
       version: 2.0.8
+    streamdown:
+      specifier: 2.7.1
+      version: 2.7.1
     stripe:
       specifier: 23.0.1
       version: 23.0.1
@@ -1045,10 +1051,10 @@ importers:
         version: 2.118.0(@opentelemetry/api@1.9.1)
       '@workflow/world':
         specifier: 'catalog:'
-        version: 5.0.4
+        version: 5.1.0
       '@workflow/world-postgres':
         specifier: 'catalog:'
-        version: 5.0.4(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
+        version: 5.1.0(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
       ai:
         specifier: 'catalog:'
         version: 7.0.159(zod@4.6.7)
@@ -1395,6 +1401,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: 'catalog:'
         version: 3.2.2(react@19.3.1)
+      '@streamdown/code':
+        specifier: 'catalog:'
+        version: 2.0.0(react@19.3.1)
       '@supabase/server':
         specifier: 'catalog:'
         version: 1.9.2(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@supabase/supabase-js@2.118.0(@opentelemetry/api@1.9.1))(elysia@1.4.30(@sinclair/typebox@0.34.52)(exact-mirror@1.2.6)(file-type@22.1.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@7.0.2))(h3@2.0.5(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0))(hono@4.13.14)(pg@8.23.1)(typescript@7.0.2)
@@ -1427,10 +1436,10 @@ importers:
         version: 3.6.1
       '@workflow/world':
         specifier: 'catalog:'
-        version: 5.0.4
+        version: 5.1.0
       '@workflow/world-postgres':
         specifier: 'catalog:'
-        version: 5.0.4(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
+        version: 5.1.0(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
       '@wrksz/themes':
         specifier: 'catalog:'
         version: 2.1.1(next@16.4.3(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
@@ -1491,6 +1500,9 @@ importers:
       sonner:
         specifier: 'catalog:'
         version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      streamdown:
+        specifier: 'catalog:'
+        version: 2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@8.1.1)
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.7.0
@@ -1918,10 +1930,10 @@ importers:
         version: 5.0.6(@opentelemetry/api@1.9.1)(@swc/helpers@0.5.23)(supports-color@8.1.1)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vitest@5.0.5)(ws@8.22.0)
       '@workflow/world':
         specifier: 'catalog:'
-        version: 5.0.4
+        version: 5.1.0
       '@workflow/world-postgres':
         specifier: 'catalog:'
-        version: 5.0.4(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
+        version: 5.1.0(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)
       '@workflow/world-testing':
         specifier: 'catalog:'
         version: 5.0.6(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@12.1.2(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@8.1.1))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.4.3(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@8.1.1)(typescript@7.0.2)(vitest@5.0.5)(ws@8.22.0)
@@ -7121,6 +7133,12 @@ packages:
   '@standard-server/shared@0.11.0':
     resolution: {integrity: sha512-TwZiJ2S2GoVaWNMfRnpn5LJOxWGqu4l/DX0ttG7MW/3yzxk4vgCp+XiBVgSTKpyAGpxRj8zhUlLmCjvBmI7OOg==}
 
+  '@streamdown/code@2.0.0':
+    resolution: {integrity: sha512-sSyX/9gOOcivbP7204+sfAam+gotxjUNV+T4EuN3aa6i5x1LaqtB6Ln/Mxzd1XGvm0vNApO4oKLZs+7gzFI1kQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: 19.3.1
+
   '@supabase-labs/middleware-openfeature@0.2.0':
     resolution: {integrity: sha512-nXxMaYxFf6LKBQDx1MIHUu8JFhozJp3Mq8f5DQIU8heWCqc6tJtBH15sAHQrydxfbrhxFzuYxN5YxKu+/j8VCA==}
     engines: {node: '>=22'}
@@ -8484,6 +8502,15 @@ packages:
     resolution: {integrity: sha512-ko6ATeRUlHZMB5hLFdC7+/Q1dI2f3NX3gZHxtpALdkxurwjD5HFHGWYF+4o+4SF0E47jg6KzcHknmRpHcKgJ5A==}
     engines: {node: '>= 20'}
 
+  '@vercel/queue@0.10.0':
+    resolution: {integrity: sha512-GKrt5p+D/drm5bkDr8j2EqEkYs29AMLAtun18iXA4PLorVzaHk39YorQ8TdCCeN9H5CDQV4ElMnfxDrbxou8Aw==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.0.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+
   '@vercel/queue@0.8.0':
     resolution: {integrity: sha512-Rwaoq8DbSN2/qVPMdHzBdBXqpoD2h2s7+gOSaE3Gff9XI1NjNh281uMesP30k1kbsnjgeaibLTSiuYDlNPlw+g==}
     engines: {node: '>=20.0.0'}
@@ -8682,11 +8709,11 @@ packages:
       '@opentelemetry/api':
         optional: true
 
-  '@workflow/errors@5.0.4':
-    resolution: {integrity: sha512-frC0qRYqPdzSJbN3eq29KPsvRITceKT8svIxkcVAPrR9nyyLpvoSpq4dBiBg5tNul91WJyPTclBXTZyl3XPpzA==}
-
   '@workflow/errors@5.0.5':
     resolution: {integrity: sha512-aPf+vFXJRK5jOtbYg+o2q+x5PxeTXYLrCbi+Ftevdu5jklBxiW52ArfSyLtrkQv2fD1Xm6zU5D3qdQR/IqfaIw==}
+
+  '@workflow/errors@5.1.0':
+    resolution: {integrity: sha512-++fn9P1AofCWjh166YP36Yr/hk3ynGQQio73jrYn4Fs2Ix2ECA6B9HK8zcjFpnAfZ0xqf7wpXUZQTmK3toAgxA==}
 
   '@workflow/nest@5.1.4':
     resolution: {integrity: sha512-lB+Av4Pl6oF6dNevmhsVseJeRYr0QE4TOivjcgv1jN1PPFnzacH/mfUXq/M3zZwH//iEdN5/ElybguqRcxH8Xg==}
@@ -8757,14 +8784,6 @@ packages:
   '@workflow/web@5.0.6':
     resolution: {integrity: sha512-WrKULOo/Ku0u4kJcTcd6dWPU9ak+nxPxvDubyu+vhlUrrdrBVhcYVCaymdAnBwrjFOszsdY5AdjlQljKc6aZkQ==}
 
-  '@workflow/world-local@5.1.1':
-    resolution: {integrity: sha512-y1ofGZC6xi92sD1+wwfq/uBV4+05cSlPp7WOBhdXXzPGb3/4wdwnlzC5ANh6xdcZz6rFsdd0j4Vd+WcQQDTNOg==}
-    peerDependencies:
-      '@opentelemetry/api': '1'
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-
   '@workflow/world-local@5.1.2':
     resolution: {integrity: sha512-QGyWRpYfAVqnY2UWA4xjNuVdwlYsCURk4mgqyxV1R78KfVwq7OaV26XJbMADppiIr8eWVmxcgYOrAqw5jieT5g==}
     peerDependencies:
@@ -8773,8 +8792,16 @@ packages:
       '@opentelemetry/api':
         optional: true
 
-  '@workflow/world-postgres@5.0.4':
-    resolution: {integrity: sha512-i3pmOlbUCO0JKnDHyNecV+AWh3SZi7wnzOzjOaIReby4OV7LPz2hpQ4mm8CZAFbVizk2+k9LRlVNVak5l31Kyg==}
+  '@workflow/world-local@5.2.0':
+    resolution: {integrity: sha512-BUSuozzXA9luWohgOyQdWDqG+dYcDdx9i7gbNI285GjvbkCJE1QJI1kwZqzgKh5FxiGl6dzoLguDSIQugdGnUA==}
+    peerDependencies:
+      '@opentelemetry/api': '1'
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+
+  '@workflow/world-postgres@5.1.0':
+    resolution: {integrity: sha512-rcu2povOoE2otaOvwltarfMAfDVNe8XDMNnt3gRn98DVISY6OyEVfBXLw585Jvn6k6eECiye4bfIJUh/IAW6oQ==}
     hasBin: true
 
   '@workflow/world-testing@5.0.6':
@@ -8790,11 +8817,11 @@ packages:
       '@opentelemetry/api':
         optional: true
 
-  '@workflow/world@5.0.4':
-    resolution: {integrity: sha512-Z6vMtfl03vBShRNj83yGdKvF8F7WieL6hNA0im6f/EJlVPVNAHYCtiqTMUS6BVYNOYVpTXtzsArbXAw28S5qDg==}
-
   '@workflow/world@5.0.5':
     resolution: {integrity: sha512-/Kg87kfZheyLrGjUo0HYXIs0yHSI/8VMWUeoBjfFfecmOgX9XufnsWisYiGiqX6mRzrl+6exorgw043BnLWnXQ==}
+
+  '@workflow/world@5.1.0':
+    resolution: {integrity: sha512-+4hDxk76WPGef6Albro6mES9QprGCO6pWva/p9Zfb89mU01srzde5RHAN8f0oir85PJ/YLhE3XFiPxw+jMO1Pw==}
 
   '@wrksz/themes@2.1.1':
     resolution: {integrity: sha512-43gM888C0KmFJpVQAaVvyNcIhtbnA1l0MEY6SWspnANYVSfw3P4VFUlYwLZK0TS70gej/GaWRzLRPMBd9ezy5Q==}
@@ -11473,8 +11500,17 @@ packages:
   hast-util-from-dom@5.0.1:
     resolution: {integrity: sha512-N+LqofjR2zuzTjCPzyDUdSshy4Ma6li7p/c3pA78uTwzFgENbgbUrm2ugwsOdcjI1muO+o6Dgzp9p8WHtn/39Q==}
 
+  hast-util-from-parse5@8.0.4:
+    resolution: {integrity: sha512-Yq7XlXor0Cpb71sI2E0zpv8QxQ5a6rfhDEETk4bcgrFX2SvJAY2PHocWwFtL6U9qyfiyByW3wZ6sZEfP2kW81g==}
+
   hast-util-parse-selector@4.0.0:
     resolution: {integrity: sha512-wkQCkSYoOGCRKERFWcxMVMOcYE2K1AaNLU8DXS9arxnLOUEWbOXKXiJUNzEpqZ3JOKpnha3jkFrumEjVliDe7A==}
+
+  hast-util-raw@9.1.0:
+    resolution: {integrity: sha512-Y8/SBAHkZGoNkpzqqfCldijcuUKh7/su31kEBp67cFY09Wy0mTRgtsLYsiIxMJxlu0f6AA5SUTbDR8K0rxnbUw==}
+
+  hast-util-sanitize@5.0.2:
+    resolution: {integrity: sha512-3yTWghByc50aGS7JlGhk61SPenfE/p1oaFeNwkOOyrscaOkMGrcW9+Cy/QAIOBpZxP1yqDIzFMR0+Np0i0+usg==}
 
   hast-util-to-estree@3.1.3:
     resolution: {integrity: sha512-48+B/rJWAp0jamNbAAf9M7Uf//UVqAoMmgXhBdxTDJLGKY+LRnZ99qcG+Qjl5HfMpYNzS5v4EAwVEF34LeAj7w==}
@@ -11484,6 +11520,9 @@ packages:
 
   hast-util-to-jsx-runtime@2.3.6:
     resolution: {integrity: sha512-zl6s8LwNyo1P9uw+XJGvZtdFF1GdAkOg8ujOw+4Pyb76874fLps4ueHXDhXWdk6YHQ6OgUtinliG7RsYvCbbBg==}
+
+  hast-util-to-parse5@8.0.1:
+    resolution: {integrity: sha512-MlWT6Pjt4CG9lFCjiz4BH7l9wmrMkfkJYCxFwKQic8+RTZgWPuWxwAfjJElsXkex7DJjfSJsQIt931ilUgmwdA==}
 
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
@@ -11537,6 +11576,9 @@ packages:
 
   html-to-image@1.11.13:
     resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
+
+  html-url-attributes@3.0.1:
+    resolution: {integrity: sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==}
 
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
@@ -12393,6 +12435,11 @@ packages:
     engines: {node: '>=16.0.0'}
     peerDependencies:
       marked: '>=1 <16'
+
+  marked@18.1.2:
+    resolution: {integrity: sha512-DfOnvLAQ6WYeWxWO1u4RyFOeqyHup6dks5PPqnoFiooU7ipRvidO/2j8plhAHIiZg574E9ZlzSjUiPMLAzFkgg==}
+    engines: {node: '>= 20'}
+    hasBin: true
 
   marked@9.1.6:
     resolution: {integrity: sha512-jcByLnIFkd5gSXZmjNvS1TlmRhCXZjIzHYlaGkPlLIekG55JDR2Z4va9tZwCiP+/RDERiNhMOFu01xd6O5ct1Q==}
@@ -14217,8 +14264,17 @@ packages:
     resolution: {integrity: sha512-ycwFAS14Jw4mppvmK4GR/J6u3WpWpjkEApehuHtLc/8VpPNpDMbQ4WjqwplXifGeyKOzHSFLmSPqzksDQE2Sfg==}
     hasBin: true
 
+  rehype-harden@1.1.8:
+    resolution: {integrity: sha512-Qn7vR1xrf6fZCrkm9TDWi/AB4ylrHy+jqsNm1EHOAmbARYA6gsnVJBq/sdBh6kmT4NEZxH5vgIjrscefJAOXcw==}
+
+  rehype-raw@7.0.0:
+    resolution: {integrity: sha512-/aE8hCfKlQeA8LmyeyQvQF3eBiLRGNlfBJEvWH7ivp9sBqs7TNqBL5X3v157rM4IFETqDnIOO+z5M/biZbo9Ww==}
+
   rehype-recma@1.0.0:
     resolution: {integrity: sha512-lqA4rGUf1JmacCNWWZx0Wv1dHqMwxzsDWYMTowuplHF3xH0N/MmrZ/G3BDZnzAkRmxDadujCjaKM2hqYdCBOGw==}
+
+  rehype-sanitize@6.0.0:
+    resolution: {integrity: sha512-CsnhKNsyI8Tub6L4sm5ZFsme4puGfc6pYylvXo1AeqaGbjOYyzNv3qZPwvs0oMJ39eryyeOdmxwUIo94IpEhqg==}
 
   remark-gfm@4.0.1:
     resolution: {integrity: sha512-1quofZ2RQ9EWdeN34S79+KExV1764+wCUGop5CPL1WGdD0ocPpu91lzPGbwWMECpEpd42kJGQwzRfyov9j4yNg==}
@@ -14769,6 +14825,12 @@ packages:
   stream-buffers@2.2.0:
     resolution: {integrity: sha512-uyQK/mx5QjHun80FLJTfaWE7JtwfRMKBLkMne6udYOmvH0CawotVa7TfgYHzAnpphn4+TweIx1QKMnRIbipmUg==}
     engines: {node: '>= 0.10.0'}
+
+  streamdown@2.7.1:
+    resolution: {integrity: sha512-pIz4XOB+e7iyqSJABXC9PoyHifBZVQx/7U0Qo/vdOIERqGXfgEhJxkXENsuWMO8TGXkaQ5ewV9jnliK7q47T8w==}
+    peerDependencies:
+      react: 19.3.1
+      react-dom: 19.3.1
 
   streamx@2.28.1:
     resolution: {integrity: sha512-zEzXb0s5Cds7tqMH6rhZ05lcJydCWiQPEwiNngVqzsxCc962vLY4Uw+mW7od8kDH258k2Uz/JrOkdIAAhSh9VA==}
@@ -15624,6 +15686,9 @@ packages:
   verkit@0.5.0:
     resolution: {integrity: sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g==}
     engines: {node: '>=18.12.0'}
+
+  vfile-location@5.0.3:
+    resolution: {integrity: sha512-5yXvWDEgqeiYiBe1lbxYF7UMAIm/IcopxMHrMQDq3nvKcjPKIhZklUKL+AE7J7uApI4kwe2snsK+eI6UTj9EHg==}
 
   vfile-message@4.0.3:
     resolution: {integrity: sha512-QTHzsGd1EhbZs4AsQ20JX1rC3cOlt/IWJruk893DfLRr57lcnOeMaWG4K0JrRta4mIJZKth2Au3mM3u03/JWKw==}
@@ -21905,6 +21970,11 @@ snapshots:
 
   '@standard-server/shared@0.11.0': {}
 
+  '@streamdown/code@2.0.0(react@19.3.1)':
+    dependencies:
+      react: 19.3.1
+      shiki: 4.5.0
+
   '@supabase-labs/middleware-openfeature@0.2.0(typescript@7.0.2)':
     dependencies:
       '@openfeature/core': 1.12.0
@@ -23228,6 +23298,15 @@ snapshots:
       '@vercel/cli-exec': 1.0.1
       jose: 5.10.0
 
+  '@vercel/queue@0.10.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@vercel/oidc': 3.8.8
+      minimatch: 10.2.6
+      mixpart: 0.0.6
+      picocolors: 1.1.1
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+
   '@vercel/queue@0.8.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@vercel/oidc': 3.8.5
@@ -23607,16 +23686,16 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@workflow/errors@5.0.4':
-    dependencies:
-      '@workflow/utils': 5.0.2
-      '@workflow/world': 5.0.4
-      ms: 2.1.3
-
   '@workflow/errors@5.0.5':
     dependencies:
       '@workflow/utils': 5.0.2
       '@workflow/world': 5.0.5
+      ms: 2.1.3
+
+  '@workflow/errors@5.1.0':
+    dependencies:
+      '@workflow/utils': 5.0.2
+      '@workflow/world': 5.1.0
       ms: 2.1.3
 
   '@workflow/nest@5.1.4(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@12.1.2(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@8.1.1))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(supports-color@8.1.1)(ws@8.22.0)':
@@ -23803,20 +23882,6 @@ snapshots:
       - '@opentelemetry/api'
       - react
 
-  '@workflow/world-local@5.1.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@vercel/queue': 0.8.0(@opentelemetry/api@1.9.1)
-      '@workflow/errors': 5.0.4
-      '@workflow/utils': 5.0.2
-      '@workflow/world': 5.0.4
-      async-sema: 3.1.1
-      proper-lockfile: 4.1.2
-      ulid: 3.0.2
-      undici: 7.30.1
-      zod: 4.6.7
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-
   '@workflow/world-local@5.1.2(@opentelemetry/api@1.9.1)':
     dependencies:
       '@vercel/queue': 0.8.0(@opentelemetry/api@1.9.1)
@@ -23831,13 +23896,27 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
-  '@workflow/world-postgres@5.0.4(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)':
+  '@workflow/world-local@5.2.0(@opentelemetry/api@1.9.1)':
     dependencies:
-      '@vercel/queue': 0.8.0(@opentelemetry/api@1.9.1)
-      '@workflow/errors': 5.0.4
+      '@vercel/queue': 0.10.0(@opentelemetry/api@1.9.1)
+      '@workflow/errors': 5.1.0
       '@workflow/utils': 5.0.2
-      '@workflow/world': 5.0.4
-      '@workflow/world-local': 5.1.1(@opentelemetry/api@1.9.1)
+      '@workflow/world': 5.1.0
+      async-sema: 3.1.1
+      proper-lockfile: 4.1.2
+      ulid: 3.0.2
+      undici: 7.30.1
+      zod: 4.6.7
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+
+  '@workflow/world-postgres@5.1.0(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(supports-color@8.1.1)(typescript@7.0.2)':
+    dependencies:
+      '@vercel/queue': 0.10.0(@opentelemetry/api@1.9.1)
+      '@workflow/errors': 5.1.0
+      '@workflow/utils': 5.0.2
+      '@workflow/world': 5.1.0
+      '@workflow/world-local': 5.2.0(@opentelemetry/api@1.9.1)
       cbor-x: 1.6.0
       dotenv: 17.3.1
       drizzle-orm: 0.45.2(@electric-sql/pglite@0.4.5)(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1))(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.28.17)(pg@8.20.0)
@@ -23928,12 +24007,12 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@workflow/world@5.0.4':
+  '@workflow/world@5.0.5':
     dependencies:
       ulid: 3.0.2
       zod: 4.6.7
 
-  '@workflow/world@5.0.5':
+  '@workflow/world@5.1.0':
     dependencies:
       ulid: 3.0.2
       zod: 4.6.7
@@ -26910,9 +26989,42 @@ snapshots:
       hastscript: 9.0.1
       web-namespaces: 2.0.1
 
+  hast-util-from-parse5@8.0.4:
+    dependencies:
+      '@types/hast': 3.0.5
+      '@types/unist': 3.0.3
+      devlop: 1.1.0
+      hastscript: 9.0.1
+      property-information: 7.2.0
+      vfile: 6.0.3
+      vfile-location: 5.0.3
+      web-namespaces: 2.0.1
+
   hast-util-parse-selector@4.0.0:
     dependencies:
       '@types/hast': 3.0.5
+
+  hast-util-raw@9.1.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      '@types/unist': 3.0.3
+      '@ungap/structured-clone': 1.4.0
+      hast-util-from-parse5: 8.0.4
+      hast-util-to-parse5: 8.0.1
+      html-void-elements: 3.0.0
+      mdast-util-to-hast: 13.2.1
+      parse5: 7.3.0
+      unist-util-position: 5.0.0
+      unist-util-visit: 5.1.0
+      vfile: 6.0.3
+      web-namespaces: 2.0.1
+      zwitch: 2.0.4
+
+  hast-util-sanitize@5.0.2:
+    dependencies:
+      '@types/hast': 3.0.5
+      '@ungap/structured-clone': 1.4.0
+      unist-util-position: 5.0.0
 
   hast-util-to-estree@3.1.3(supports-color@8.1.1):
     dependencies:
@@ -26969,6 +27081,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  hast-util-to-parse5@8.0.1:
+    dependencies:
+      '@types/hast': 3.0.5
+      comma-separated-tokens: 2.0.3
+      devlop: 1.1.0
+      property-information: 7.2.0
+      space-separated-tokens: 2.0.2
+      web-namespaces: 2.0.1
+      zwitch: 2.0.4
+
   hast-util-whitespace@3.0.0:
     dependencies:
       '@types/hast': 3.0.5
@@ -27018,6 +27140,8 @@ snapshots:
   html-escaper@3.0.3: {}
 
   html-to-image@1.11.13: {}
+
+  html-url-attributes@3.0.1: {}
 
   html-void-elements@3.0.0: {}
 
@@ -27821,6 +27945,8 @@ snapshots:
       marked: 9.1.6
       node-emoji: 2.2.0
       supports-hyperlinks: 3.2.0
+
+  marked@18.1.2: {}
 
   marked@9.1.6: {}
 
@@ -30986,6 +31112,16 @@ snapshots:
     dependencies:
       jsesc: 3.1.0
 
+  rehype-harden@1.1.8:
+    dependencies:
+      unist-util-visit: 5.1.0
+
+  rehype-raw@7.0.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      hast-util-raw: 9.1.0
+      vfile: 6.0.3
+
   rehype-recma@1.0.0(supports-color@8.1.1):
     dependencies:
       '@types/estree': 1.0.9
@@ -30993,6 +31129,11 @@ snapshots:
       hast-util-to-estree: 3.1.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
+
+  rehype-sanitize@6.0.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      hast-util-sanitize: 5.0.2
 
   remark-gfm@4.0.1(supports-color@8.1.1):
     dependencies:
@@ -31665,6 +31806,28 @@ snapshots:
   stdin-discarder@0.2.2: {}
 
   stream-buffers@2.2.0: {}
+
+  streamdown@2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@8.1.1):
+    dependencies:
+      clsx: 2.1.1
+      hast-util-to-jsx-runtime: 2.3.6(supports-color@8.1.1)
+      html-url-attributes: 3.0.1
+      marked: 18.1.2
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+      rehype-harden: 1.1.8
+      rehype-raw: 7.0.0
+      rehype-sanitize: 6.0.0
+      remark-gfm: 4.0.1(supports-color@8.1.1)
+      remark-parse: 11.0.0(supports-color@8.1.1)
+      remark-rehype: 11.1.2
+      remend: 1.4.0
+      tailwind-merge: 3.7.0
+      unified: 11.0.5
+      unist-util-visit: 5.1.0
+      unist-util-visit-parents: 6.0.2
+    transitivePeerDependencies:
+      - supports-color
 
   streamx@2.28.1:
     dependencies:
@@ -32717,6 +32880,11 @@ snapshots:
     optional: true
 
   verkit@0.5.0: {}
+
+  vfile-location@5.0.3:
+    dependencies:
+      '@types/unist': 3.0.3
+      vfile: 6.0.3
 
   vfile-message@4.0.3:
     dependencies:

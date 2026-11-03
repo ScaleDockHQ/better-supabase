@@ -12,10 +12,12 @@ const inner = vi.fn(
 );
 
 const baseClose = vi.fn(async () => undefined);
+const created: Record<string, unknown>[] = [];
 const reenqueue = vi.fn(async () => undefined);
 
 vi.mock("@workflow/world-postgres", () => ({
-  createWorld: () => ({
+  createWorld: (config: Record<string, unknown>) => ({
+    ...(created.push(config), {}),
     runs: {},
     createQueueHandler: () => inner,
     close: baseClose,
@@ -30,6 +32,7 @@ vi.mock("@workflow/world", async (importOriginal) => ({
 const {
   createSupabaseWorld,
   createWorld,
+  usesTransactionPooler,
   deriveRunKey,
   parseMasterKey,
   resolveFlowUrl,
@@ -504,34 +507,202 @@ describe("createSupabaseWorld", () => {
     await world.close();
   });
 
-  it("reports the messages of a batch it could not store", async () => {
-    let calls = 0;
-
-    const { pool } = fakePool({
-      enqueue_job: () => {
-        calls += 1;
-
-        if (calls === 2) {
-          throw new Error("full");
-        }
-
-        return [];
-      },
-    });
-
+  it("enqueues a batch in one statement and reports a failed one per message", async () => {
+    const { pool, queries } = fakePool({ enqueue_job: () => [] });
     const world = createSupabaseWorld({ pool, delivery: "pg_net" });
 
     const results = await world.queueBatch!("__wkf_step_x", [
-      { message: { a: 1 } as never },
-      { message: { a: 2 } as never },
+      { message: { a: 1 } as never, opts: { idempotencyKey: "k" } },
+      { message: { a: 2 } as never, opts: { delaySeconds: 3 } },
     ]);
 
-    expect(results[0]?.messageId).toMatch(/^msg_/);
-    expect(results[1]).toEqual({
-      messageId: null,
-      error: "full",
-      retryable: true,
+    expect(results.map((result) => result.messageId)).toEqual([
+      expect.stringMatching(/^msg_/),
+      expect.stringMatching(/^msg_/),
+    ]);
+    expect(queries).toHaveLength(1);
+
+    const [, max, payloads, delays, keys] = queries[0]!.params as [
+      string,
+      number,
+      string[],
+      number[],
+      string[],
+    ];
+
+    expect(max).toBe(73);
+    expect(payloads).toHaveLength(2);
+    expect(delays).toEqual([0, 3]);
+    expect(keys[0]).toBe("k");
+    expect(JSON.parse(payloads[0]!)).toMatchObject({
+      queueName: "__wkf_step_x",
+      attempt: 1,
+      createdAt: expect.any(String),
     });
+    expect(await world.queueBatch!("__wkf_step_x", [])).toEqual([]);
+
+    const failing = {
+      query: vi.fn(async () => {
+        throw new Error("full");
+      }),
+      end: vi.fn(async () => undefined),
+    };
+
+    // SAFETY: the World only calls query and end on its pool.
+    const broken = createSupabaseWorld({ pool: failing as unknown as Pool });
+
+    expect(
+      await broken.queueBatch!("__wkf_step_x", [
+        { message: { a: 1 } as never },
+      ]),
+    ).toEqual([{ messageId: null, error: "full", retryable: true }]);
+    await broken.close();
+    await world.close();
+  });
+
+  it("sends the delivery count and creation time to the flow route", async () => {
+    const created = "2026-11-03T10:00:00.000Z";
+
+    const { pool } = fakePool({
+      claim_jobs: () => [
+        {
+          id: 1,
+          attempts: 3,
+          message: { payload: stored(1, { createdAt: created }) },
+        },
+        { id: 2, attempts: 1, message: { payload: stored(1) } },
+      ],
+      complete_job: () => [],
+      vault: () => [],
+    });
+
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({}),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+    const world = createSupabaseWorld({ pool, flowUrl: "https://app.test/f" });
+    await world.deliverOnce();
+    const first = new Headers(fetch.mock.calls[0]![1].headers);
+    const second = new Headers(fetch.mock.calls[1]![1].headers);
+    expect(first.get("x-vqs-message-delivery-count")).toBe("3");
+    expect(first.get("x-vqs-message-attempt")).toBe("3");
+    expect(first.get("x-vqs-message-created-at")).toBe(created);
+    expect(second.get("x-vqs-message-created-at")).toBeNull();
+    await world.close();
+  });
+
+  it("calls onDeadLetter once when fail_job dead-letters a message", async () => {
+    const { pool } = fakePool({
+      claim_jobs: () => [
+        { id: 9, attempts: 73, message: { payload: stored(1) } },
+        { id: 10, attempts: 2, message: { payload: stored(1) } },
+      ],
+      fail_job: (params) => [
+        { fail_job: String(params[1]) === "9" ? "dead" : "queued" },
+      ],
+      vault: () => [],
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("no", { status: 500 })),
+    );
+
+    const seen: unknown[] = [];
+    const errors: string[] = [];
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/f",
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: (message) => errors.push(message),
+      },
+      onDeadLetter: (info) => {
+        seen.push(info);
+        throw new Error("hook broke");
+      },
+    });
+
+    await world.deliverOnce();
+    expect(seen).toEqual([
+      {
+        jobId: "9",
+        attempts: 73,
+        error: "Flow route answered 500: no",
+        queueName: "__wkf_workflow_test",
+        messageId: "msg_1",
+        runId: "wrun_1",
+      },
+    ]);
+    expect(errors).toEqual([
+      "A workflow message was dead-lettered",
+      "onDeadLetter threw",
+    ]);
+    await world.close();
+  });
+
+  it("warns about the transaction pooler and passes the 5.1 options on", async () => {
+    const warnings: string[] = [];
+
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (message: string) => warnings.push(message),
+      error: () => undefined,
+    };
+
+    expect(
+      usesTransactionPooler("postgres://u:p@aws.pooler.supabase.com:6543/db"),
+    ).toBe(true);
+    expect(usesTransactionPooler("postgres://u:p@h:5432/db")).toBe(false);
+    expect(usesTransactionPooler("not a url")).toBe(false);
+    expect(usesTransactionPooler(undefined)).toBe(false);
+
+    const world = createSupabaseWorld({
+      connectionString: "postgres://u:p@aws.pooler.supabase.com:6543/db",
+      logger,
+      enableInvoke: true,
+      streamFlushIntervalMs: 0,
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("LISTEN/NOTIFY");
+    expect(created.at(-1)).toMatchObject({
+      enableInvoke: true,
+      streamFlushIntervalMs: 0,
+    });
+    await world.close();
+
+    const { pool } = fakePool({});
+    createSupabaseWorld({ pool, logger });
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("shares one World per connection and namespace, and forgets it on close", async () => {
+    vi.stubEnv("WORKFLOW_POSTGRES_URL", "postgres://u:p@h:5432/one");
+    const first = createWorld();
+    expect(createWorld()).toBe(first);
+
+    vi.stubEnv("WORKFLOW_QUEUE_NAMESPACE", "other");
+    const other = createWorld();
+    expect(other).not.toBe(first);
+
+    await first.close();
+    vi.stubEnv("WORKFLOW_QUEUE_NAMESPACE", "");
+    const again = createWorld();
+    expect(again).not.toBe(first);
+    await again.close();
+    await other.close();
+  });
+
+  it("fails start() when the installed migrations differ from the DDL", async () => {
+    const { pool } = fakePool({ claim_jobs: () => [] });
+    const world = createSupabaseWorld({ pool });
+    await expect(world.start()).resolves.toBeUndefined();
     await world.close();
   });
 

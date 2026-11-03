@@ -26,6 +26,8 @@ function fakeCall(answers: Record<string, unknown[][]>): {
   };
 }
 
+const noKey = async (): Promise<undefined> => undefined;
+
 afterEach(() => {
   provideTemporal(undefined);
 });
@@ -36,7 +38,7 @@ describe("createMaintenance", () => {
       workflow_claim_run_key: [[{ claimed: false, run_id: "wrun_1" }], []],
     });
 
-    const { runKeys } = createMaintenance(call);
+    const { runKeys } = createMaintenance(call, noKey);
 
     expect(await runKeys.claim("k")).toEqual({
       claimed: false,
@@ -67,7 +69,7 @@ describe("createMaintenance", () => {
       ],
     });
 
-    const total = await createMaintenance(call).purgeRuns({
+    const total = await createMaintenance(call, noKey).purgeRuns({
       olderThan: "7 days",
       statuses: ["failed"],
       batch: 2,
@@ -80,7 +82,7 @@ describe("createMaintenance", () => {
   it("purges ended runs older than 30 days by default", async () => {
     const { sent, call } = fakeCall({});
 
-    expect(await createMaintenance(call).purgeRuns()).toBe(0);
+    expect(await createMaintenance(call, noKey).purgeRuns()).toBe(0);
     expect(sent[0]?.args).toEqual([
       "30 days",
       ["completed", "failed", "cancelled"],
@@ -101,13 +103,16 @@ describe("createMaintenance", () => {
             tenant_id: null,
             actor_id: "user_1",
             metadata: { step: 1 },
+            metadata_cbor: null,
             created_at: "2026-10-27T10:00:00.000Z",
           },
         ],
       ],
     });
 
-    const [hook] = await createMaintenance(call).openHooks({ tenantId: "t1" });
+    const [hook] = await createMaintenance(call, noKey).openHooks({
+      tenantId: "t1",
+    });
 
     expect(hook).toMatchObject({
       hookId: "hook_1",

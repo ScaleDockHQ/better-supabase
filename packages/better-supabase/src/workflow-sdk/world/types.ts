@@ -10,11 +10,39 @@ import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
  * one. Its tables come from `@workflow/world-postgres` at
  * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.0.4";
+export const WORKFLOW_WORLD_PROTOCOL = "5.1.0";
 
 export type { WorkflowDeliveryMode };
 
+/** A message the queue gave up on after `MAX_DELIVERIES` failed deliveries. */
+export interface DeadLetter {
+  readonly queueName: string;
+  readonly jobId: string;
+  readonly messageId?: string;
+  /** The run the message belongs to, when its body names one. */
+  readonly runId?: string | undefined;
+  /** Deliveries of this message, the last one included. */
+  readonly attempts: number;
+  /** The last error. */
+  readonly error: string;
+}
+
 export interface SupabaseWorldOptions {
+  /**
+   * Called once when a message is dead-lettered. A throw is logged and ignored;
+   * the message stays in the queue's archive with `dead = true`.
+   */
+  readonly onDeadLetter?: (info: DeadLetter) => void | Promise<void>;
+  /**
+   * Turns on world-postgres's experimental `invoke()` delivery (one Graphile
+   * execution queue per run). Off by default.
+   */
+  readonly enableInvoke?: boolean;
+  /**
+   * Milliseconds between flushes of buffered stream writes (world-postgres
+   * default 10; 0 flushes at once).
+   */
+  readonly streamFlushIntervalMs?: number;
   /**
    * A Postgres connection string with access to the `workflow` schema and the
    * jobs functions.
@@ -130,6 +158,11 @@ export interface StoredMessage {
   readonly queueName: string;
   readonly messageId: string;
   readonly attempt: number;
+  /**
+   * When the message was first queued (ISO 8601), sent as
+   * `x-vqs-message-created-at`.
+   */
+  readonly createdAt?: string;
   /**
    * The serialized message, base64: jsonb can't hold the NUL bytes payloads may
    * contain.

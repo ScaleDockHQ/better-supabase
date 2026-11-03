@@ -85,7 +85,21 @@ export function worldOptionsFromEnv(
     read("WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS"),
   );
 
+  const enableInvoke = read("WORKFLOW_POSTGRES_ENABLE_INVOKE");
+
+  const streamFlushIntervalMs = Number(
+    read("WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS") ?? "",
+  );
+
   return {
+    ...(enableInvoke === undefined
+      ? {}
+      : { enableInvoke: enableInvoke === "1" || enableInvoke === "true" }),
+    ...(Number.isFinite(streamFlushIntervalMs) &&
+    streamFlushIntervalMs >= 0 &&
+    read("WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS") !== undefined
+      ? { streamFlushIntervalMs: Math.trunc(streamFlushIntervalMs) }
+      : {}),
     ...(connectionString === undefined ? {} : { connectionString }),
     ...(delivery === undefined ? {} : { delivery }),
     ...(flowUrl === undefined ? {} : { flowUrl }),
