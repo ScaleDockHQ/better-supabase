@@ -2,7 +2,13 @@ import type { ReadType } from "../core/read-type.ts";
 import type { BlockSqlLink } from "./links.ts";
 
 /** The type of a read's argument; `id` is the module's id type. */
-export type BlockSqlReadArgType = "bool" | "date" | "id" | "int" | "text";
+export type BlockSqlReadArgType =
+  | "bool"
+  | "date"
+  | "id"
+  | "int"
+  | "text"
+  | "text[]";
 
 /** One argument of a block read. */
 export interface BlockSqlReadArg {
@@ -50,6 +56,7 @@ export function readArgSqlType(type: BlockSqlReadArgType): string {
     id: "{id}",
     int: "integer",
     text: "text",
+    "text[]": "text[]",
   }[type];
 }
 
@@ -61,6 +68,7 @@ export function readArgSource(type: BlockSqlReadArgType): string {
     id: "string",
     int: "number",
     text: "string",
+    "text[]": "readonly string[]",
   }[type];
 }
 

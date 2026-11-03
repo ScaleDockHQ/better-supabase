@@ -1,4 +1,5 @@
 import type { TagsEvents } from "../../blocks/tags/events.ts";
+import type { ReadType } from "../../core/read-type.ts";
 import type {
   ExtraColumn,
   BlockSqlContext,
@@ -12,6 +13,7 @@ import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
+import { declareRead } from "../reads.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -51,9 +53,44 @@ const EVENTS: BlockSqlEvents<TagsEvents> = {
   },
 };
 
+/** The core of a tag in `list_tags`; extra columns come under `fields`. */
+const TAG_RESULT: ReadType = {
+  id: "text",
+  kind: "text",
+  name: "text",
+  slug: "text",
+  color: "text?",
+  description: "text?",
+};
+
 const NAMES: BlockSqlNames = {
   entities: { tag: { table: "tags", singular: "tag", primary: true } },
   events: EVENTS,
+  reads: [
+    declareRead(
+      "list",
+      "list_tags",
+      {
+        tenant: { param: "tenant", type: "id" },
+        kind: { param: "kind", type: "text", optional: true },
+      },
+      [TAG_RESULT],
+      "The tenant's tags of one kind, or of every kind, in rank order.",
+      ["tags"],
+    ),
+    declareRead(
+      "forSubjects",
+      "subjects_tags",
+      {
+        tenant: { param: "tenant", type: "id" },
+        subjectType: { param: "subject_type", type: "text" },
+        subjectIds: { param: "subject_ids", type: "text[]" },
+      },
+      "json",
+      "The tags on several records of one type, as an object keyed by record id.",
+      ["tags", "taggings"],
+    ),
+  ],
   hooks: ["before_tag_apply", "after_tag_apply"],
   options: ["extraColumns", "patch"],
   tables: {
@@ -577,7 +614,21 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
-${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}${
+${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}
+
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function ${fn("subjects_tags")}(tenant ${ctx.idType}, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, ${fn("subject_tags")}(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+${userGrant(`${fn("subjects_tags")}(${ctx.idType}, text, text[])`)}${
     taggings === ""
       ? ""
       : subjectMergeHandler(
@@ -667,6 +718,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
     { name: "list_tags", args: ["{id}", "text"], returns: "jsonb" },
     { name: "subject_tags", args: ["{id}", "text", "text"], returns: "jsonb" },
+    {
+      name: "subjects_tags",
+      args: ["{id}", "text", "text[]"],
+      returns: "jsonb",
+    },
     ...(ctx.has("tags", "rank")
       ? [{ name: "rank_tag", args: ["uuid", "text"], returns: "boolean" }]
       : []),

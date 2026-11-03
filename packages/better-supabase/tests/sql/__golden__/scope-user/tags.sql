@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:7fef1a35f0ba71f1ee96fea4f148ac3ddf95146a2b7841eb95e5429a45808f96
+-- @bsb-hash sha256:d1c70f2cf5721a360dffbb1a102a6c66ea88f929aa42342e4c621990337e0b54
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -350,6 +350,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -11,6 +11,7 @@ import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { declareRead } from "../reads.ts";
 import {
   addCheck,
   addExtraColumns,
@@ -75,6 +76,31 @@ const EVENTS: BlockSqlEvents<NotificationsEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
+  reads: [
+    declareRead(
+      "inbox",
+      "notification_page",
+      {
+        tenant: { param: "tenant", type: "id", optional: true },
+        status: { param: "status", type: "text", optional: true },
+        maxItems: { param: "max_items", type: "int", optional: true },
+      },
+      { items: ["json"], total: "number" },
+      "The signed-in user's notifications, newest first, with the total.",
+      ["notification_recipients", "notification_events"],
+    ),
+    declareRead(
+      "counts",
+      "notification_counts",
+      {
+        tenant: { param: "tenant", type: "id", optional: true },
+        actionable: { param: "actionable", type: "text[]", optional: true },
+      },
+      "json",
+      "The unread count and the actionable counts of the signed-in user.",
+      ["notification_recipients", "notification_events"],
+    ),
+  ],
   options: [
     "channelDefaults",
     "channels",

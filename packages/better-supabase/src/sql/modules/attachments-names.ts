@@ -1,6 +1,8 @@
 import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
 import type { BlockSqlEvents, BlockSqlNames } from "../context.ts";
 
+import { declareRead } from "../reads.ts";
+
 const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
   "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
   "attachment.uploaded": {
@@ -63,6 +65,20 @@ export const NAMES: BlockSqlNames = {
     "extraColumns",
     "topic",
     "sources",
+  ],
+  reads: [
+    declareRead(
+      "list",
+      "list_attachments",
+      {
+        tenant: { param: "tenant", type: "id" },
+        subjectType: { param: "subject_type", type: "text", optional: true },
+        subjectId: { param: "subject_id", type: "text", optional: true },
+      },
+      ["json"],
+      "The files on one record, or the tenant's files, oldest first.",
+      ["attachments"],
+    ),
   ],
   tables: {
     attachments: {

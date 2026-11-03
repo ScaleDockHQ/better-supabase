@@ -9,6 +9,7 @@ import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { declareRead } from "../reads.ts";
 import {
   SERVICE_CALLER,
   schemaPreamble,
@@ -37,6 +38,33 @@ const NAMES: BlockSqlNames = {
     "after_comment_create",
     "before_comment_assign",
     "after_comment_assign",
+  ],
+  reads: [
+    declareRead(
+      "list",
+      "list_comments",
+      {
+        tenant: { param: "tenant", type: "id" },
+        subjectType: { param: "subject_type", type: "text" },
+        subjectId: { param: "subject_id", type: "text" },
+        maxRows: { param: "max_rows", type: "int", optional: true },
+      },
+      ["json"],
+      "A record's comments and replies, oldest first.",
+      ["messages", "conversations"],
+    ),
+    declareRead(
+      "counts",
+      "comment_counts",
+      {
+        tenant: { param: "tenant", type: "id" },
+        subjectType: { param: "subject_type", type: "text" },
+        subjectIds: { param: "subject_ids", type: "text[]" },
+      },
+      "json",
+      "The number of comments per record, as an object keyed by record id.",
+      ["messages", "conversations"],
+    ),
   ],
   options: ["follow", "mentionGroups", "notify"],
   tables: {

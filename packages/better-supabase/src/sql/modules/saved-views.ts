@@ -11,6 +11,7 @@ import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
+import { declareRead } from "../reads.ts";
 import {
   addExtraColumns,
   columnsObject,
@@ -60,6 +61,33 @@ const NAMES: BlockSqlNames = {
     saved_view: { table: "views", singular: "saved_view", primary: true },
   },
   events: EVENTS,
+  reads: [
+    declareRead(
+      "list",
+      "list_views",
+      {
+        tenant: { param: "tenant", type: "id" },
+        list: { param: "list", type: "text" },
+      },
+      [
+        {
+          id: "text",
+          list: "text",
+          scope: "text",
+          ownerId: "text?",
+          teamId: "text?",
+          name: "text",
+          kind: "text",
+          state: "json",
+          rank: "text",
+          isDefault: "bool",
+          updatedAt: "text",
+        },
+      ],
+      "The saved views of one list the caller can see, in rank order.",
+      ["saved_views"],
+    ),
+  ],
   hooks: ["before_view_save", "after_view_save"],
   options: ["extraColumns"],
   tables: {
