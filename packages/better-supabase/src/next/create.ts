@@ -13,6 +13,7 @@ import type {
   PermissionRef,
 } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -57,6 +58,7 @@ import {
   accessOf,
   bootstrapSchema,
   bootstrapWith,
+  mapBootstrapMemo,
 } from "../server/bootstrap.ts";
 import { serverCore } from "../server/entries/core.ts";
 import { outageResponse } from "../server/entries/session.ts";
@@ -643,13 +645,13 @@ export function createNext<
       };
     },
 
-    async bootstrap<T>(
-      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>>,
-    ): Promise<Bootstrap<C, P, T>> {
+    async bootstrap<T, S extends ReadSet = ReadSet>(
+      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
+    ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
       const calls = bootstrapCalls();
 
-      const result = await bootstrapWith<C, P, T>(
+      const result = await bootstrapWith<C, P, T, S>(
         {
           schema: (call) => bootstrapSchema(call, options, betterSupabase),
           evictSession,
@@ -664,16 +666,7 @@ export function createNext<
         ctx,
         bootstrapOptions,
         tenant,
-        (key, run) => {
-          let call = calls.get(key);
-
-          if (!call) {
-            call = run();
-            calls.set(key, call);
-          }
-
-          return call;
-        },
+        mapBootstrapMemo(calls),
       );
 
       if (result.session.kind === "user" && !result.sessionActive) {

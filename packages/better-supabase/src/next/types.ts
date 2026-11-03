@@ -19,7 +19,7 @@ import type {
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { RequestContext } from "../core/plugin.ts";
-import type { ReadSet } from "../core/read-set.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
@@ -382,9 +382,9 @@ export interface BetterNext<
    * runs the call once per request and key. A `false` `sessionActive` evicts
    * the user's entries and redirects to `redirect` when it is set.
    */
-  bootstrap<T = unknown>(
-    options: BootstrapOptions<Extract<keyof M, string>>,
-  ): Promise<Bootstrap<C, P, T>>;
+  bootstrap<T = unknown, S extends ReadSet = ReadSet>(
+    options: BootstrapOptions<Extract<keyof M, string>, S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
    * The context, tenant and permission checks for a bootstrap result (or a
    * snapshot), bound to its authorization version, so islands stop rebuilding
@@ -960,8 +960,11 @@ export type CachedOptions<T extends string = string> =
   | PrivateCachedOptions<T>
   | RemoteCachedOptions<T>;
 
-export type BootstrapOptions<T extends string = string> = CachedOptions<T> &
-  Omit<BootstrapCallOptions, "tenant"> & {
+export type BootstrapOptions<
+  T extends string = string,
+  S extends ReadSet = ReadSet,
+> = CachedOptions<T> &
+  Omit<BootstrapCallOptions<S>, "tenant"> & {
     /**
      * Where to send the caller when `session_active()` is false, with
      * `?reason=session_not_found`, or `?reason=user_banned` for a banned user.

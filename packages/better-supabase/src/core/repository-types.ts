@@ -599,6 +599,15 @@ export interface DbHelpers<
     options?: { readonly signal?: AbortSignal },
   ): AsyncResult<{ -readonly [K in keyof S]: InferResult<S[K]> }>;
   /**
+   * Decodes the payload of a read set function that ran elsewhere, such as in a
+   * bootstrap wrapper, into the shape `db.$many(readSet, params)` returns.
+   */
+  $decodeReadSet<S extends ReadSet>(
+    readSet: S,
+    params: InferReadSetParams<S>,
+    payload: unknown,
+  ): AsyncResult<ReadSetResult<S>>;
+  /**
    * The `k` rows nearest to `vector`, nearest first, through the
    * `search_<table>` function of the `vector-search` SQL module. RLS applies
    * inside the search; `where` filters the `k` rows it returns.

@@ -288,6 +288,7 @@ describe("bsb.bootstrap()", () => {
       endReason: null,
       tenant: null,
       data: { unread: 3 },
+      reads: null,
     });
     expect(calls).toEqual([
       {
@@ -397,6 +398,7 @@ describe("bsb.bootstrap()", () => {
       stale: false,
       tenant: null,
       data: null,
+      reads: null,
     });
     expect(calls).toEqual([]);
   });

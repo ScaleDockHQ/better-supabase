@@ -491,8 +491,43 @@ When the sessions block has an API schema (`blocks.sessions.api` or
 `bsb.bootstrap()` calls it there. Set `bootstrapSchema` in `createNext()` or
 `schema` on the call to pick another one.
 
+### Load a read set with the session check
+
+List read sets instead of one function and the caller picks one per call. The
+wrapper runs the chosen read set in the same query, and the answer is
+`reads`, decoded as `db.$many(readSet, params)` returns it.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sessions: {
+    options: {
+      bootstrap: {
+        home: { readSets: ["customers_hub", "customer_detail"], shell: "app.home_data" },
+      },
+    },
+  },
+}
+```
+
+```ts
+const boot = await bsb.bootstrap({
+  rpc: "home",
+  readSet: customerHub,
+  params: { organizationId },
+});
+
+boot.reads?.customers;
+```
+
+`shell` is optional; without it `data` is null. The wrapper accepts only the
+listed names and refuses any other with `unknown read set`. When another call
+of the same request already ran the wrapper, such as the layout, a page call
+with a read set runs only `db.$many(readSet, params)`, so the session check
+is not repeated. The old one-argument wrapper is dropped when `gen` renders the
+new one, so run `db diff` after changing the option.
+
 `app.home_data(args jsonb)` receives `args` plus the tenant. The result is
-plain data (`session`, `sessionActive`, `authzVersion`, `tenant`, `data`), so
+plain data (`session`, `sessionActive`, `authzVersion`, `tenant`, `data`, `reads`), so
 it can cross into Client Components. When the Auth session ended,
 `sessionActive` is false, the entry is not kept, the user's tags are evicted,
 and with `redirect` the caller goes to `/sign-in?reason=session_not_found`,

@@ -24,6 +24,7 @@ import type {
 } from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { StatsRecorder, DbStats } from "../core/stats.ts";
@@ -551,10 +552,10 @@ export interface BetterServer<
    * Calls with the same key share one query per request. A false
    * `sessionActive` evicts the user.
    */
-  bootstrapFor<T = unknown>(
+  bootstrapFor<T = unknown, S extends ReadSet = ReadSet>(
     request: Request,
-    options: BootstrapCallOptions,
-  ): Promise<Bootstrap<C, P, T>>;
+    options: BootstrapCallOptions<S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
    * The context, tenant and permission checks for a request or a snapshot,
    * bound to one authorization version (the bootstrap's when you pass it).

@@ -682,6 +682,27 @@ export class BetterSupabase<
       },
       $run: (spec: unknown, options?: { signal?: AbortSignal }) =>
         runSpec(db, spec, options?.signal),
+      $decodeReadSet: (
+        set: ReadSet,
+        values: Readonly<Record<string, unknown>> | undefined,
+        payload: unknown,
+      ) =>
+        AsyncResult.from(async () => {
+          const problems = checkParams(set, values);
+
+          if (problems.length > 0) {
+            return err(
+              dbError(
+                "invalid_request",
+                `db.$decodeReadSet(${set.name}): ${problems.join(", ")}`,
+              ),
+            );
+          }
+
+          const { specs: bound } = bindParams(set, values, context);
+
+          return this.#decodeReadSet(source, context, set, bound, payload);
+        }),
       $many: (target: unknown, ...rest: unknown[]) => {
         if (isReadSet(target)) {
           // SAFETY: the $many overloads take values and options after a read set.

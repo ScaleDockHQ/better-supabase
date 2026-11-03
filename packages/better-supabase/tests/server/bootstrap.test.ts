@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { defineReadSet } from "../../src/core/read-set.ts";
 import { bootstrapWith } from "../../src/server/bootstrap.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -21,7 +22,17 @@ const signer = await createTestSigner();
 const seed = vi.fn<(userId: string, version: number) => void>();
 const evicted = vi.fn<(userId: string) => void>();
 
-const server = createServer(defineSupabase(schema), {
+const definition = defineSupabase(schema);
+
+const hub = defineReadSet(definition, "hub", {}, (s) => ({
+  customers: s.customers.count(),
+}));
+
+const other = defineReadSet(definition, "other", {}, (s) => ({
+  customers: s.customers.count(),
+}));
+
+const server = createServer(definition, {
   env,
   auth: { jwks: signer.jwks },
   versions: {
@@ -94,6 +105,46 @@ describe("server.bootstrapFor()", () => {
 
     await server.bootstrapFor(await signedIn(), { rpc: "home" });
     expect(calls).toHaveLength(2);
+  });
+
+  it("runs a read set in the wrapper call and decodes its reads", async () => {
+    row = { ...row, reads: { customers: { rows: null, count: 4 } } };
+
+    const boot = await server.bootstrapFor(await signedIn(), {
+      rpc: "home",
+      readSet: hub,
+      params: {},
+    });
+
+    expect(boot.reads).toEqual({ customers: 4 });
+    expect(calls).toEqual([
+      {
+        url: `${PROJECT_URL}/rest/v1/rpc/bootstrap_home`,
+        body: { args: {}, read_set: "hub", read_params: {} },
+      },
+    ]);
+  });
+
+  it("runs only the read set when the request already ran the wrapper", async () => {
+    const request = await signedIn();
+
+    await server.bootstrapFor(request, { rpc: "home" });
+    expect(calls).toHaveLength(1);
+
+    row = { customers: { rows: null, count: 9 } };
+
+    const boot = await server.bootstrapFor(request, {
+      rpc: "home",
+      readSet: other,
+      params: {},
+    });
+
+    expect(boot.reads).toEqual({ customers: 9 });
+    expect(boot.data).toEqual({ unread: 3 });
+    expect(calls.map((call) => call.url.split("?")[0])).toEqual([
+      `${PROJECT_URL}/rest/v1/rpc/bootstrap_home`,
+      `${PROJECT_URL}/rest/v1/rpc/rs_other`,
+    ]);
   });
 
   it("makes no call for a signed-out caller", async () => {
