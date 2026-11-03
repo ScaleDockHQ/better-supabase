@@ -501,11 +501,11 @@ counterpart becomes a `data` part, so a conversion never drops content.
 ### JSON Schema
 
 The same format is published as JSON Schema 2020-12 at
-`https://unpkg.com/better-supabase/schemas/ai-message-v1.json`
+`https://unpkg.com/better-supabase/schemas/ai-message-v2.json`
 (`AI_MESSAGE_SCHEMA_ID`). Use it to validate messages outside TypeScript or
 in a `jsonb` check constraint. The version is pinned as
 `SPEC_PINS.aiMessage`; a change to the format ships as a new schema file and
-a new pin, never as an edit to version 1. See [Standards](/docs/standards).
+a new pin, never as an edit to a published version. Version 2 adds the AI SDK 7 tool and approval fields; `ai-message-v1.json` stays published. See [Standards](/docs/standards).
 
 ## Your own fields
 

@@ -177,6 +177,7 @@ describe("shipped JSON Schemas", () => {
 
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "ai-message-v1.json",
+      "ai-message-v2.json",
       "cli-commands-v1.json",
       "cli-result-v1.json",
       "config-v1.json",

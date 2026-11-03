@@ -15,7 +15,7 @@ const validate = (value: unknown) =>
 describe("aiMessageSchema", () => {
   it("names the published JSON Schema and every part type", () => {
     expect(AI_MESSAGE_SCHEMA_ID).toBe(
-      "https://unpkg.com/better-supabase/schemas/ai-message-v1.json",
+      "https://unpkg.com/better-supabase/schemas/ai-message-v2.json",
     );
     expectTypeOf<AiMessagePartType>().toEqualTypeOf<
       (typeof AI_MESSAGE_PART_TYPES)[number]

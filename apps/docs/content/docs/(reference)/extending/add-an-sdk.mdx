@@ -28,7 +28,7 @@ The [AI chat block](/docs/blocks/ai-chat) stores every message as an
 `AiMessage`: an `id`, a `role` (`system`, `user`, `assistant` or `tool`),
 `parts` and optional `metadata`. A part is `text`, `reasoning`, `file`,
 `tool-call`, `tool-result`, `tool-approval`, `source`, `data` or `step`.
-The JSON Schema is `schemas/ai-message-v1.json`, and `aiMessageSchema` is
+The JSON Schema is `schemas/ai-message-v2.json`, and `aiMessageSchema` is
 the same check as a Standard Schema.
 
 An adapter writes two functions, one in each direction:

@@ -13,7 +13,7 @@ import { validate } from "../../src/core/standard.ts";
 
 const schema = JSON.parse(
   await readFile(
-    new URL("../../schemas/ai-message-v1.json", import.meta.url),
+    new URL("../../schemas/ai-message-v2.json", import.meta.url),
     "utf-8",
   ),
 ) as Record<string, unknown>;
@@ -94,9 +94,9 @@ const INVALID: readonly unknown[] = [
   message(["text"]),
 ];
 
-describe("AI message v1", () => {
+describe("AI message v2", () => {
   it("is the pinned version", () => {
-    expect(SPEC_PINS.aiMessage).toBe("1");
+    expect(SPEC_PINS.aiMessage).toBe("2");
     expect(schema["$id"]).toBe(AI_MESSAGE_SCHEMA_ID);
     expect(AI_MESSAGE_SCHEMA_ID).toContain(
       `ai-message-v${SPEC_PINS.aiMessage}.json`,
