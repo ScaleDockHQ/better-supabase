@@ -5,7 +5,7 @@ import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import {
   createAiGuardrails,
   evaluateGuardrails,
-  guardrailMiddleware,
+  guardText,
 } from "../../../src/blocks/ai-guardrails/index.ts";
 
 const AT = "2026-01-01T00:00:00Z";
@@ -299,7 +299,7 @@ describe("evaluateGuardrails", () => {
   });
 });
 
-describe("guardrailMiddleware", () => {
+describe("guardText", () => {
   it("passes tenant, chat and tool depth to every check", async () => {
     const seen: Record<string, unknown>[] = [];
 
@@ -319,7 +319,7 @@ describe("guardrailMiddleware", () => {
       },
     };
 
-    const result = await guardrailMiddleware(
+    const result = await guardText(
       // SAFETY: the stub implements the one method the middleware calls.
       guardrails as never,
       { agent: "bot", organizationId: "org1", chatId: "c1" },
@@ -351,7 +351,7 @@ describe("guardrailMiddleware", () => {
         }),
     };
 
-    const result = await guardrailMiddleware(
+    const result = await guardText(
       // SAFETY: the stub implements the one method the middleware calls.
       guardrails as never,
       { agent: "bot" },
@@ -367,7 +367,7 @@ describe("guardrailMiddleware", () => {
         Promise.resolve({ ok: false as const, error: { kind: "unknown" } }),
     };
 
-    const result = await guardrailMiddleware(
+    const result = await guardText(
       // SAFETY: the stub implements the one method the middleware calls.
       failing as never,
       { agent: "bot", failOpen: true },

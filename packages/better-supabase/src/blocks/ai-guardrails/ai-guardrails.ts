@@ -457,7 +457,7 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
   });
 }
 
-/** What `guardrailMiddleware` returns to the caller. */
+/** What `guardText` returns to the caller. */
 export interface GuardedResult {
   /** The text to show: the model's answer, redacted, or `refusal`. */
   readonly text: string;
@@ -467,7 +467,7 @@ export interface GuardedResult {
   readonly output: GuardrailVerdict | undefined;
 }
 
-export interface GuardrailMiddlewareOptions {
+export interface GuardTextOptions {
   readonly agent: string;
   readonly organizationId?: string;
   readonly chatId?: string;
@@ -487,9 +487,9 @@ const DEFAULT_REFUSAL = "This request can't be processed.";
  * with the (possibly redacted) input, then checks the answer. It reads and
  * rewrites text only; a repository `Result` is never touched.
  */
-export function guardrailMiddleware(
+export function guardText(
   guardrails: Pick<AiGuardrails, "check">,
-  options: GuardrailMiddlewareOptions,
+  options: GuardTextOptions,
 ): (
   text: string,
   next: (text: string) => Promise<string>,

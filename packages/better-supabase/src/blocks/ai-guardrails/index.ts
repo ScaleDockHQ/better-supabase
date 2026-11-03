@@ -6,7 +6,7 @@ export {
   type GuardrailCheckInput,
   type GuardrailDecision,
   type GuardrailLogEntry,
-  type GuardrailMiddlewareOptions,
+  type GuardTextOptions,
   type GuardrailPolicy,
   type GuardrailPolicyConfig,
   type GuardrailReason,
@@ -15,7 +15,7 @@ export {
   type PiiAction,
   createAiGuardrails,
   evaluateGuardrails,
-  guardrailMiddleware,
+  guardText,
 } from "./ai-guardrails.ts";
 
 export {
