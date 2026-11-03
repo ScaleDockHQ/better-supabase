@@ -15,6 +15,7 @@ import {
 import { aiChatExtras } from "./ai-chat-extras.ts";
 import { aiChatMessages } from "./ai-chat-messages.ts";
 import { aiChatParticipants } from "./ai-chat-participants.ts";
+import { aiChatSharing } from "./ai-chat-sharing.ts";
 import {
   asText,
   assignments,
@@ -47,6 +48,7 @@ function chatJson(
       ["title", "title"],
       ["model", "model"],
       ["visibility", "visibility"],
+      ["mode", "mode"],
       ["pinned", "pinned", "false"],
       ["archived_at", "archivedAt"],
       ["is_temporary", "temporary"],
@@ -127,6 +129,7 @@ function chats(ctx: BlockSqlContext, names: AiChatNames): string {
     ["title", "\n    coalesce(v_fields ->> 'title', '')"],
     ["model", "v_fields ->> 'model'"],
     ["visibility", ctx.cast("chats", "visibility", "v_visibility")],
+    ["mode", "v_fields ->> 'mode'"],
     ["temporary", "v_temporary"],
     [
       "expiresAt",
@@ -158,9 +161,10 @@ function chats(ctx: BlockSqlContext, names: AiChatNames): string {
   const ownProject = (project: string, owner: string, tenant: string): string =>
     `exists (select 1 from ${t.projects} pr where pr.${p.id} = ${project} and pr.${p.owner} = ${owner} and pr.${p.tenant} is not distinct from ${tenant})`;
 
-  return `-- Whether the caller may read a chat: its owner, the service role, a
--- participant, or a member with ${perm.read} when the chat is shared with
--- the organization.
+  return `-- Whether the caller may read a chat: its owner, the service role, a member
+-- with ${perm.read} when the chat is visible to the organization, or someone
+-- who takes part in a shared chat: a participant, a member of a participating
+-- team or a customer with guest access. A private chat is its owner's alone.
 create or replace function ${fn("ai_chat_can_read")}(chat uuid)
 returns boolean
 language sql
@@ -205,7 +209,8 @@ revoke execute on function ${fn("ai_chat_notify")}(uuid, uuid, text, jsonb, bool
 
 -- Creates a chat for the caller in a tenant (${perm.create}). fields may set
 -- id (a client-generated uuid, so a retry returns the same chat), title,
--- model, project_id, agent_id, visibility and is_temporary; the service
+-- model, project_id, agent_id, mode, visibility (private, organization or
+-- shared) and is_temporary; the service
 -- role also sets owner_id. Temporary chats expire after
 -- ${names.temporaryTtl} and stay out of the sidebar.
 create or replace function ${fn("create_ai_chat")}(tenant ${ctx.idType}, fields jsonb default '{}')
@@ -262,7 +267,7 @@ $$;
 ${userGrant(`${fn("create_ai_chat")}(${ctx.idType}, jsonb)`)}
 
 -- Changes the caller's chat. fields may set title, model, project_id,
--- agent_id, visibility (organization needs ${perm.share}), pinned,
+-- agent_id, mode, visibility (organization needs ${perm.share}), pinned,
 -- archived, and is_temporary = false to keep a temporary chat.
 create or replace function ${fn("update_ai_chat")}(chat uuid, fields jsonb)
 returns jsonb
@@ -301,6 +306,11 @@ begin
           "agent",
           () =>
             `case when v_fields ? 'agent_id' then v_fields ->> 'agent_id' else x.${ch.agent} end`,
+        ],
+        [
+          "mode",
+          () =>
+            `case when v_fields ? 'mode' then v_fields ->> 'mode' else x.${ch.mode} end`,
         ],
       ],
     )}
@@ -498,6 +508,8 @@ export function aiChatFunctions(
   return `${chats(ctx, names)}
 
 ${aiChatParticipants(ctx, names)}
+
+${aiChatSharing(ctx, names)}
 
 ${aiChatMessages(ctx, names)}
 

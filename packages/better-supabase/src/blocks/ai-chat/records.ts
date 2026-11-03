@@ -2,7 +2,12 @@ import type { FinalRunState } from "../../core/run-state.ts";
 import type { AiRunState } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
 
-export type AiChatVisibility = "private" | "organization";
+/**
+ * `private` is the owner's alone, `organization` every member with
+ * `ai_chat.read`, and `shared` the owner, the participants, the members of
+ * participating teams and anyone holding the live link.
+ */
+export type AiChatVisibility = "private" | "organization" | "shared";
 
 export interface AiChatRecord {
   readonly id: string;
@@ -14,6 +19,8 @@ export interface AiChatRecord {
   readonly title: string;
   readonly model: string | undefined;
   readonly visibility: AiChatVisibility;
+  /** The app's own label for the kind of chat; `undefined` when none is set. */
+  readonly mode?: string | undefined;
   readonly pinned: boolean;
   readonly archivedAt: Temporal.Instant | undefined;
   /** A temporary chat expires at `expiresAt` and never reaches the chat list. */
@@ -38,6 +45,7 @@ export interface AiChatInput {
   readonly agentId?: string | null;
   /** `organization` needs `ai_chat.share`. */
   readonly visibility?: AiChatVisibility;
+  readonly mode?: string | null;
   readonly pinned?: boolean;
   readonly temporary?: boolean;
   /** The service role only: the user the chat belongs to. */
@@ -49,6 +57,7 @@ export interface AiChatPatch {
   readonly model?: string | null;
   readonly projectId?: string | null;
   readonly visibility?: AiChatVisibility;
+  readonly mode?: string | null;
   readonly pinned?: boolean;
   readonly archived?: boolean;
 }
@@ -314,17 +323,39 @@ export interface AiModerationInput {
   readonly score?: number;
 }
 
-/** Who besides the owner takes part in a chat. */
+/** What a participant may do: write, or only read. */
 export type AiChatParticipantRole = "viewer" | "editor";
+
+/** How someone takes part: as themselves, through a team or as an outsider. */
+export type AiChatParticipantKind = "user" | "team" | "customer" | "external";
+
+/**
+ * Who a chat is shared with besides its users: every member of a team, a
+ * customer with guest access, or an email address that reads only through the
+ * live link.
+ */
+export type AiChatParty =
+  | { readonly kind: "team"; readonly teamId: string }
+  | { readonly kind: "customer"; readonly userId: string }
+  | { readonly kind: "external"; readonly email: string };
 
 /**
  * A participant: a viewer reads the chat, an editor also sends messages, stops
- * an answer and switches branches.
+ * an answer and switches branches. The list's first entry is the owner, with
+ * the role `owner`.
  */
 export interface AiChatParticipant {
+  /** `undefined` for the owner's entry in a list. */
+  readonly id: string | undefined;
   readonly chatId: string;
-  readonly userId: string;
-  readonly role: AiChatParticipantRole;
+  readonly kind: AiChatParticipantKind;
+  /** The user of a `user` participant, and the owner's entry. */
+  readonly userId: string | undefined;
+  readonly teamId: string | undefined;
+  /** The user of a `customer` participant. */
+  readonly customerUserId: string | undefined;
+  readonly email: string | undefined;
+  readonly role: AiChatParticipantRole | "owner";
   readonly addedBy: string | undefined;
   readonly createdAt: Temporal.Instant | undefined;
   /** The participant table's extra columns. */
@@ -357,4 +388,22 @@ export interface AiChatMessageStorage {
   readonly tree?: boolean;
   /** `native` stores the SDK's own parts. Default `canonical`. */
   readonly parts?: "canonical" | "native";
+}
+
+/** Who a chat is shared with, as `chats.shareSummaries` returns it. */
+export interface AiChatShareSummary {
+  readonly chatId: string;
+  /** The people with access as users, the owner first. */
+  readonly users: readonly {
+    readonly userId: string;
+    readonly role: AiChatParticipantRole | "owner";
+  }[];
+  readonly teamCount: number;
+  readonly hasLink: boolean;
+}
+
+/** The live link of a chat. The token changes when the link is rotated. */
+export interface AiChatLink {
+  readonly chatId: string;
+  readonly token: string;
 }

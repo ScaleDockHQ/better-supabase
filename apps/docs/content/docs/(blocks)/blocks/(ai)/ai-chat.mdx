@@ -19,7 +19,8 @@ better-supabase add ai-chat   # adds tenant, access and streams as well
 | ---------------------- | ---------------------------------------------------------------------------------------------------- |
 | `ai_projects`          | Folders of chats with shared instructions, per owner and tenant                                      |
 | `ai_chats`             | `title`, `model`, `visibility`, `pinned`, `archived_at`, `temporary`, the leaf and the active stream |
-| `ai_chat_participants` | The viewers and editors of a chat besides its owner                                                  |
+| `ai_chat_participants` | Who a chat is shared with: users, teams, customers and external emails, as viewers or editors        |
+| `ai_chat_links`        | The live link of a chat: one salt per chat, rotatable                                                |
 | `ai_messages`          | The tree: `parent_id`, `role`, `author_id`, `parts` in the message format below, `native`, `status`  |
 | `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost, the engine     |
 | `ai_run_steps`         | The progress of a long run, one row per step key                                                     |
@@ -42,7 +43,10 @@ better-supabase add ai-chat   # adds tenant, access and streams as well
 | `ai_chat.moderate` | read the tenant's moderation events                  | `owner`, `admin`           |
 | `ai_chat.manage`   | set tool policies and delete any chat in the tenant  | `owner`, `admin`           |
 
-Private chats are readable by their owner and its participants. Assistant
+A chat is `private` (its owner alone), `organization` (every member holding
+`ai_chat.read`) or `shared` (its owner, its participants, the members of
+participating teams and anyone holding the live link). An organization member
+who is not a participant can't read a shared chat. Assistant
 messages, runs, approvals and the model catalog are written by the service
 role, so a client can't forge an answer.
 
@@ -73,20 +77,21 @@ const rows = useAiChat({ limit: 50 });
 `better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
 `sqlTransport(postgres.admin)`.
 
-| Group          | Methods                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| `chats`        | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats)              |
-| `projects`     | `create`, `update`, `list`, `remove`                                                        |
-| `participants` | `add`, `remove`, `list`                                                                     |
-| `messages`     | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                           |
-| `runs`         | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals` |
-| `sandboxes`    | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`     |
-| `approvals`    | `request`, `decide`, `list`, `setPolicy`, `policies`                                        |
-| `inputs`       | `open`, `answer`                                                                            |
-| `feedback`     | `rate`                                                                                      |
-| `shares`       | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                         |
-| `models`       | `allowed` (what the tenant's plans allow), `upsert`                                         |
-| `moderation`   | `record`, `list`                                                                            |
+| Group          | Methods                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| `chats`        | `create`, `get`, `list`, `update`, `remove`, `shareSummaries`, `purge` (expired temporary chats) |
+| `projects`     | `create`, `update`, `list`, `remove`                                                             |
+| `participants` | `add`, `remove`, `addParty`, `removeParty`, `list`                                               |
+| `links`        | `create`, `rotate`, `revoke`, `get`                                                              |
+| `messages`     | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                                |
+| `runs`         | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals`      |
+| `sandboxes`    | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`          |
+| `approvals`    | `request`, `decide`, `list`, `setPolicy`, `policies`                                             |
+| `inputs`       | `open`, `answer`                                                                                 |
+| `feedback`     | `rate`                                                                                           |
+| `shares`       | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                              |
+| `models`       | `allowed` (what the tenant's plans allow), `upsert`                                              |
+| `moderation`   | `record`, `list`                                                                                 |
 
 Every method returns a `Result`. Database errors are `DbError` values, never
 exceptions.
@@ -121,6 +126,38 @@ them. `chats.list` returns the chats the caller owns or takes part in. Each
 user message records its writer in `author_id` (`authorId` on `path`).
 Adding and removing someone sends `participant.added` and
 `participant.removed` on the chat's topic.
+
+### Teams, customers and external people
+
+`participants.addParty({ chatId, party, role })` shares a chat with a team
+(`{ kind: "team", teamId }`), a customer (`{ kind: "customer", userId }`) or an
+email address (`{ kind: "external", email }`). Adding a party to a private
+chat makes it `shared`, and so does `participants.add`.
+
+| Kind       | Reads the chat through                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `user`     | their own participant row                                                                  |
+| `team`     | membership of the team, checked when they read (the teams module's, or your own)           |
+| `customer` | guest access to the chat (the `guests` module); the customer needs no membership           |
+| `external` | the live link only; the address is stored lowercased and receives nothing from the library |
+
+The `teamMembership` option names an app function `(team uuid, user uuid)
+returns boolean` that answers whether a user belongs to a team. It defaults to
+the teams module's members when that module is installed. Without either,
+adding a team raises `AI_CHAT_INVALID`.
+
+`participants.list` returns the owner first, with the role `owner`.
+`chats.shareSummaries(chatIds)` returns, for each chat the caller reads, its
+users (owner first), the number of teams and whether it has a live link, so a
+chat list shows who shares each chat in one call.
+
+```ts
+await db.aiChat.participants
+  .addParty({ chatId, party: { kind: "team", teamId }, role: "editor" })
+  .orThrow();
+const [summary] = await db.aiChat.chats.shareSummaries([chatId]).orThrow();
+// summary.users[0] is the owner
+```
 
 ## Without a tenant
 
@@ -309,6 +346,16 @@ next run tries again.
 `shares.create(chatId)` returns a token once and stores only its hash. The
 link shows the branch it was made from, frozen at that message.
 `shares.get(token)` reads it without signing in; `revoke` ends it.
+
+### Live link
+
+`links.create(chatId)` returns `{ chatId, token }` for a link that always shows
+the chat's active branch, and makes the chat `shared`. The token is
+`<chat>.<sha256(salt || chat)>`; the salt stays in `ai_chat_links`.
+`links.rotate(chatId)` gives the link a new salt, so every earlier token stops
+working, and `links.revoke(chatId)` deletes it. `links.get(token)` reads the
+chat without signing in. It fails for an unknown, rotated or revoked token, and
+when the chat is private again.
 
 ## Client
 

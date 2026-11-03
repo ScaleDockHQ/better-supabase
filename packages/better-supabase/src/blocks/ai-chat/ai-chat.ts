@@ -36,8 +36,11 @@ import type {
   AiModelInput,
   AiModerationEvent,
   AiModerationInput,
+  AiChatLink,
   AiChatParticipantRole,
   AiChatParticipant,
+  AiChatParty,
+  AiChatShareSummary,
   AiUserMessageOptions,
 } from "./records.ts";
 import type { AiSandboxes } from "./sandboxes.ts";
@@ -84,6 +87,8 @@ import {
   canonical,
   nativeMessage,
   participantOf,
+  linkOf,
+  shareSummaryOf,
 } from "./rows.ts";
 import { aiSandboxes } from "./sandboxes.ts";
 
@@ -123,8 +128,12 @@ export type {
   AiModerationAction,
   AiModerationEvent,
   AiModerationInput,
+  AiChatLink,
+  AiChatParticipantKind,
   AiChatParticipantRole,
   AiChatParticipant,
+  AiChatParty,
+  AiChatShareSummary,
   AiUserMessageOptions,
 } from "./records.ts";
 
@@ -183,6 +192,13 @@ export interface AiChat<F extends object = Record<never, never>> {
       patch: AiChatPatch & Partial<F>;
     }): AsyncResult<AiChatRecord & F>;
     remove(chatId: string): AsyncResult<boolean>;
+    /**
+     * Who each chat is shared with: the users (owner first), the number of
+     * teams and whether a live link exists. Chats you can't read are omitted.
+     */
+    shareSummaries(
+      chatIds: readonly string[],
+    ): AsyncResult<readonly AiChatShareSummary[]>;
     /** Deletes expired temporary chats (service role); returns how many. */
     purge(batch?: number): AsyncResult<number>;
   };
@@ -215,7 +231,32 @@ export interface AiChat<F extends object = Record<never, never>> {
     ): AsyncResult<AiChatParticipant>;
     /** The owner removes anyone; a participant removes themselves. */
     remove(input: { chatId: string; userId: string }): AsyncResult<boolean>;
+    /**
+     * Shares the chat with a team, a customer or an external email, and makes
+     * it shared. Adding a team needs the teams module or `teamMembership`.
+     */
+    addParty(input: {
+      chatId: string;
+      party: AiChatParty;
+      role?: AiChatParticipantRole | undefined;
+    }): AsyncResult<AiChatParticipant>;
+    removeParty(input: {
+      chatId: string;
+      party: AiChatParty;
+    }): AsyncResult<boolean>;
+    /** The owner first (role `owner`), then everyone the chat is shared with. */
     list(chatId: string): AsyncResult<readonly AiChatParticipant[]>;
+  };
+  /**
+   * The live link: one token per chat that always shows the active branch.
+   * Rotating it invalidates the old token; a snapshot link stays in `shares`.
+   */
+  readonly links: {
+    create(chatId: string): AsyncResult<AiChatLink>;
+    rotate(chatId: string): AsyncResult<AiChatLink>;
+    revoke(chatId: string): AsyncResult<boolean>;
+    /** Reads the chat behind a token; anyone with the token may. */
+    get(token: string): AsyncResult<SharedAiChat>;
   };
   readonly messages: {
     /**
@@ -369,6 +410,18 @@ export function aiChatListTopic(userId: string, prefix = "ai-chats"): string {
   return `${prefix}:${userId}`;
 }
 
+function partyValue(party: AiChatParty): string {
+  if (party.kind === "team") {
+    return party.teamId;
+  }
+
+  if (party.kind === "customer") {
+    return party.userId;
+  }
+
+  return party.email;
+}
+
 const CHAT_INPUT: ReadonlySet<string> = new Set([
   "id",
   "title",
@@ -376,6 +429,7 @@ const CHAT_INPUT: ReadonlySet<string> = new Set([
   "projectId",
   "agentId",
   "visibility",
+  "mode",
   "pinned",
   "temporary",
   "ownerId",
@@ -471,6 +525,10 @@ export function createAiChat<
           ).andThen(typed),
         ),
       remove: (chatId) => call("delete_ai_chat", { chat: chatId }, isTrue),
+      shareSummaries: (chatIds) =>
+        call("ai_chat_share_summaries", { chats: [...chatIds] }, (value) =>
+          recordsOf(value, "ai_chat_share_summaries").map(shareSummaryOf),
+        ),
       purge: (batch) => service("purge_ai_chats", { batch }, count),
     },
     projects: {
@@ -519,10 +577,33 @@ export function createAiChat<
           { chat: chatId, participant: userId },
           isTrue,
         ),
+      addParty: ({ chatId, party, role }) =>
+        call(
+          "add_ai_chat_party",
+          {
+            chat: chatId,
+            party_kind: party.kind,
+            party: partyValue(party),
+            participant_role: role,
+          },
+          participantOf,
+        ),
+      removeParty: ({ chatId, party }) =>
+        call(
+          "remove_ai_chat_party",
+          { chat: chatId, party_kind: party.kind, party: partyValue(party) },
+          isTrue,
+        ),
       list: (chatId) =>
         call("list_ai_chat_participants", { chat: chatId }, (value) =>
           recordsOf(value, "list_ai_chat_participants").map(participantOf),
         ),
+    },
+    links: {
+      create: (chatId) => call("create_ai_chat_link", { chat: chatId }, linkOf),
+      rotate: (chatId) => call("rotate_ai_chat_link", { chat: chatId }, linkOf),
+      revoke: (chatId) => call("revoke_ai_chat_link", { chat: chatId }, isTrue),
+      get: (token) => call("get_ai_chat_by_link", { token }, sharedOf),
     },
     messages: {
       appendUser: ({ chatId, message, ...appendOptions }) =>

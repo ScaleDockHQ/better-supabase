@@ -166,23 +166,61 @@ export function appKey(
 }
 
 /**
- * A condition true when the caller takes part in chat `chat` (an expression)
- * through `ai_chat_participants`, in one of `roles` (any role when empty).
+ * A condition true when the caller takes part in the chat row `row` (a table
+ * alias or name) in one of `roles` (any role when empty): as a user, as a
+ * member of a participating team or, through guest access, as a customer. A
+ * private chat has no participants; only its owner reads it.
+ *
+ * `member` adds the tenant check a security definer function needs, since it
+ * skips the tenant scope policy: users and teams must still belong to the
+ * chat's tenant. Guests are never members, so guest access stands alone.
  */
 function participates(
+  ctx: BlockSqlContext,
   names: AiChatNames,
-  chat: string,
-  roles: readonly ("viewer" | "editor")[] = [],
+  row: string,
+  roles: readonly ("viewer" | "editor")[],
+  member: boolean,
 ): string {
+  const ch = names.c.chats;
   const pa = names.c.participants;
+  const kinds = ctx.has("participants", "kind");
+  const kind = (value: string): string => `pa.${pa.kind}::text = '${value}'`;
+  const tenant = `${row}.${ch.tenant}`;
+  const tenantMember = `(${tenant} is null or ${tenant} in (select ${ctx.scope.members()}))`;
+  const uid = "(select auth.uid())";
+  const user = `pa.${pa.user} = ${uid}`;
 
-  return `exists (select 1 from ${names.t.participants} pa where pa.${pa.chat} = ${chat} and pa.${pa.user} = (select auth.uid())${roles.length === 0 ? "" : ` and pa.${pa.role}::text in (${roles.map(sqlString).join(", ")})`})`;
+  const team =
+    kinds && ctx.has("participants", "team")
+      ? names.teamMember(`pa.${pa.team}`, uid)
+      : undefined;
+
+  const customer =
+    kinds && ctx.has("participants", "customerUser")
+      ? ctx.scope.guest(tenant, "'ai-chat'", `${row}.${ch.id}::text`, "read")
+      : "false";
+
+  const members = [
+    kinds ? `(${kind("user")} and ${user})` : user,
+    ...(team === undefined ? [] : [`(${kind("team")} and ${team})`]),
+  ].join(" or ");
+
+  const grants = [
+    member ? `((${members}) and ${tenantMember})` : `(${members})`,
+    ...(customer === "false"
+      ? []
+      : [
+          `(${kind("customer")} and pa.${pa.customerUser} = ${uid} and ${customer})`,
+        ]),
+  ].join(" or ");
+
+  return `(${asText(ctx, "chats", `${row}.${ch.visibility}`)} <> 'private' and exists (select 1 from ${names.t.participants} pa where pa.${pa.chat} = ${row}.${ch.id}${roles.length === 0 ? "" : ` and pa.${pa.role}::text in (${roles.map(sqlString).join(", ")})`} and (${grants})))`;
 }
 
 /**
  * `participates` for a chat row in a security definer function, which skips the
- * tenant scope policy: in a chat with a tenant the caller must also still be a
- * member of it.
+ * tenant scope policy.
  */
 export function participatesIn(
   ctx: BlockSqlContext,
@@ -190,10 +228,7 @@ export function participatesIn(
   row: string,
   roles: readonly ("viewer" | "editor")[] = [],
 ): string {
-  const ch = names.c.chats;
-  const tenant = `${row}.${ch.tenant}`;
-
-  return `(${participates(names, `${row}.${ch.id}`, roles)} and (${tenant} is null or ${tenant} in (select ${ctx.scope.members()})))`;
+  return participates(ctx, names, row, roles, true);
 }
 
 /**
@@ -210,6 +245,60 @@ function nullableTenant(
   }
 
   return `\nalter table ${ctx.table(table)} alter column ${ctx.col(table, "tenant")} drop not null;`;
+}
+
+/** The last constraint of `ai_chat_participants`: which columns each kind fills. */
+function participantRule(ctx: BlockSqlContext, names: AiChatNames): string {
+  const pa = names.c.participants;
+
+  if (!ctx.has("participants", "kind")) {
+    return `primary key (${pa.chat}, ${pa.user})`;
+  }
+
+  const filled = (column: string, field: string): string =>
+    ctx.has("participants", column) ? `${field} is not null` : "false";
+
+  return `check (
+    (${pa.kind} = 'user' and ${pa.user} is not null)
+    or (${pa.kind} = 'team' and ${filled("team", pa.team)})
+    or (${pa.kind} = 'customer' and ${filled("customerUser", pa.customerUser)})
+    or (${pa.kind} = 'external' and ${filled("email", pa.email)})
+  )`;
+}
+
+/**
+ * The unique index each kind of participant has per chat. `create table if not
+ * exists` keeps an older table's key, so the upgrade step swaps it.
+ */
+function participantKeys(ctx: BlockSqlContext, names: AiChatNames): string {
+  const pa = names.c.participants;
+  const t = names.t.participants;
+
+  const name = (what: string): string =>
+    ctx.naming.rename(`ai_chat_participants_${what}_key`);
+
+  if (!ctx.has("participants", "kind")) {
+    return appKey(ctx, "participants", "user", ["chat", "user"]).trim();
+  }
+
+  const unique = (
+    what: string,
+    column: string,
+    where: string,
+    label = what,
+  ): string =>
+    ctx.has("participants", what)
+      ? `create unique index if not exists ${name(label)} on ${t} (${pa.chat}, ${column}) where ${pa.kind} = '${where}';`
+      : "";
+
+  return [
+    `create unique index if not exists ${name("user")} on ${t} (${pa.chat}, ${pa.user}) where ${pa.kind} = 'user';`,
+    unique("team", pa.team, "team"),
+    unique("customerUser", pa.customerUser, "customer", "customer"),
+    unique("email", `lower(${pa.email})`, "external"),
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 /** The ai-chat tables, their indexes and policies. */
@@ -229,6 +318,7 @@ export function aiChatTables(ctx: BlockSqlContext, names: AiChatNames): string {
   const s = c.sources;
   const f = c.feedback;
   const sh = c.shares;
+  const lk = c.links;
   const mo = c.models;
   const md = c.moderation;
   const rs = c.steps;
@@ -281,6 +371,7 @@ export function aiChatTables(ctx: BlockSqlContext, names: AiChatNames): string {
   const moOpt = opt("models");
   const mdOpt = opt("moderation");
   const hsOpt = opt("harness");
+  const paOpt = opt("participants");
 
   return `-- Projects group chats and carry instructions and a default model.
 create table if not exists ${t.projects} (
@@ -306,7 +397,7 @@ create table if not exists ${t.chats} (
   ${ch.project} uuid references ${t.projects} (${p.id}) on delete set null,${chOpt("agent", (name) => `text check (length(${name}) <= 200)`)}
   ${ch.title} text not null default '' check (length(${ch.title}) <= 300),
   ${ch.model} text check (length(${ch.model}) <= 200),
-  ${ch.visibility} text not null default 'private' check (${ch.visibility} in ('private', 'organization')),${chOpt("pinned", () => "boolean not null default false")}${chOpt("archivedAt", () => "timestamptz")}
+  ${ch.visibility} text not null default 'private' check (${ch.visibility} in ('private', 'organization', 'shared')),${chOpt("mode", (name) => `text check (length(${name}) <= 100)`)}${chOpt("pinned", () => "boolean not null default false")}${chOpt("archivedAt", () => "timestamptz")}
   ${ch.temporary} boolean not null default false,
   ${ch.expiresAt} timestamptz,
   ${ch.leaf} ${mode.idType},
@@ -325,15 +416,18 @@ create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.ch
 ${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
 
--- People besides the owner who may read a chat (viewer) or also write to it
--- (editor). Each person sees only their own rows.
-create table if not exists ${t.participants} (
+-- People besides the owner who may read a shared chat (viewer) or also write
+-- to it (editor): a user, every member of a team, a customer with guest
+-- access, or an external email that reads only through the live link. Each
+-- user sees only their own rows.
+create table if not exists ${t.participants} (${paOpt("id", () => "uuid primary key default gen_random_uuid()")}
   ${pa.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
-  ${pa.user} uuid not null references auth.users (id) on delete cascade,
-  ${pa.role} text not null default 'viewer' check (${pa.role} in ('viewer', 'editor')),${opt("participants")("addedBy", () => "uuid references auth.users (id) on delete set null")}${opt("participants")("createdAt", () => "timestamptz not null default now()")}
-  primary key (${pa.chat}, ${pa.user})
+  ${pa.user} uuid references auth.users (id) on delete cascade,${paOpt("kind", (name) => `text not null default 'user' check (${name} in ('user', 'team', 'customer', 'external'))`)}${paOpt("team", () => "uuid")}${paOpt("customerUser", () => "uuid references auth.users (id) on delete cascade")}${paOpt("email", (name) => `text check (length(${name}) <= 320)`)}
+  ${pa.role} text not null default 'viewer' check (${pa.role} in ('viewer', 'editor')),${paOpt("addedBy", () => "uuid references auth.users (id) on delete set null")}${paOpt("createdAt", () => "timestamptz not null default now()")}
+  ${participantRule(ctx, names)}
 );
-create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${appKey(ctx, "participants", "user", ["chat", "user"])}${addExtraColumns(t.participants, extras.participants)}
+${participantKeys(ctx, names)}
+create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${addExtraColumns(t.participants, extras.participants)}
 ${lockTable(t.participants)}
 grant select on ${t.participants} to authenticated;
 ${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { drop: true, target: t.participants })}
@@ -345,7 +439,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `${ch.owner} = (select auth.uid())
     or (${asText(ctx, "chats", ch.visibility)} = 'organization' and ${visible})
-    or ${participates(names, `${t.chats}.${ch.id}`)}`,
+    or ${participates(ctx, names, t.chats, [], false)}`,
   }),
   { drop: true, target: t.chats },
 )}
@@ -483,6 +577,17 @@ create table if not exists ${t.shares} (
 create index if not exists ${ctx.naming.rename("ai_chat_shares_chat_idx")} on ${t.shares} (${sh.chat});
 create index if not exists ${ctx.naming.rename("ai_chat_shares_created_by_idx")} on ${t.shares} (${sh.createdBy});${appKey(ctx, "shares", "token", ["tokenHash"])}${addExtraColumns(t.shares, extras.shares)}
 ${lockTable(t.shares)}
+
+-- The live link of a chat: one row, whose salt makes the token
+-- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
+-- Only the SQL functions read the salt.
+create table if not exists ${t.links} (
+  ${lk.chat} uuid primary key references ${t.chats} (${ch.id}) on delete cascade,
+  ${lk.salt} text not null check (length(${lk.salt}) >= 16),
+  ${lk.createdBy} uuid not null references auth.users (id) on delete cascade${opt("links")("rotatedAt", () => "timestamptz not null default now()", true)}
+);
+create index if not exists ${ctx.naming.rename("ai_chat_links_created_by_idx")} on ${t.links} (${lk.createdBy});${appKey(ctx, "links", "chat", ["chat"])}
+${lockTable(t.links)}
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.

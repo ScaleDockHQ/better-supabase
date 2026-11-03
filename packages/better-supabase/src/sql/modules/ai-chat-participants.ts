@@ -8,12 +8,22 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { rowJson, variableConflict, writtenPairs } from "./ai-chat-tables.ts";
+import {
+  asText,
+  rowJson,
+  variableConflict,
+  writtenPairs,
+} from "./ai-chat-tables.ts";
 
-function participantJson(ctx: BlockSqlContext, row: string): string {
+export function participantJson(ctx: BlockSqlContext, row: string): string {
   return rowJson(ctx, "participants", row, [
+    ["id", "id"],
     ["chat_id", "chat"],
     ["user_id", "user"],
+    ["kind", "kind", "'user'"],
+    ["team_id", "team"],
+    ["customer_user_id", "customerUser"],
+    ["email", "email"],
     ["role", "role"],
     ["added_by", "addedBy"],
     ["created_at", "createdAt"],
@@ -22,7 +32,8 @@ function participantJson(ctx: BlockSqlContext, row: string): string {
 
 /**
  * The people besides its owner who take part in a chat: a viewer reads it, an
- * editor also sends messages, stops a reply and switches branches.
+ * editor also sends messages, stops a reply and switches branches. A chat with
+ * participants is shared: adding one to a private chat makes it so.
  */
 export function aiChatParticipants(
   ctx: BlockSqlContext,
@@ -39,6 +50,9 @@ export function aiChatParticipants(
   const [columns, values] = writtenPairs(ctx, "participants", [
     ["chat", "v_chat.id"],
     ["user", "add_ai_chat_participant.participant"],
+    ...(ctx.has("participants", "kind")
+      ? ([["kind", ctx.cast("participants", "kind", "'user'")]] as const)
+      : []),
     ["role", ctx.cast("participants", "role", "v_role")],
     ["addedBy", "auth.uid()"],
   ]);
@@ -78,8 +92,9 @@ begin
   end if;
   insert into ${t.participants} (${columns}${inserted.columns})
   values (${values}${inserted.values})
-  on conflict (${pa.chat}, ${pa.user}) do update set ${pa.role} = excluded.${pa.role}
+  on conflict (${pa.chat}, ${pa.user})${ctx.has("participants", "kind") ? ` where ${pa.kind} = 'user'` : ""} do update set ${pa.role} = excluded.${pa.role}
   returning * into v_row;${writeExtraColumns(t.participants, extras, fields, `x.${pa.chat} = v_row.${pa.chat} and x.${pa.user} = v_row.${pa.user}`, "v_row")}
+  ${markShared(ctx, names, "v_chat.id")}
   perform ${fn("ai_chat_notify")}(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
   return ${participantJson(ctx, "v_row")};
 end;
@@ -108,7 +123,7 @@ begin
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "remove_ai_chat_participant.chat")}
   end if;
   delete from ${t.participants} x
-  where x.${pa.chat} = remove_ai_chat_participant.chat and x.${pa.user} = remove_ai_chat_participant.participant;
+  where x.${pa.chat} = remove_ai_chat_participant.chat and x.${pa.user} = remove_ai_chat_participant.participant${ctx.has("participants", "kind") ? ` and x.${pa.kind}::text = 'user'` : ""};
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform ${fn("ai_chat_notify")}(remove_ai_chat_participant.chat, remove_ai_chat_participant.participant, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.participant), true);
@@ -118,7 +133,8 @@ end;
 $$;
 ${userGrant(`${fn("remove_ai_chat_participant")}(uuid, uuid)`)}
 
--- The people who take part in a chat, oldest first, for anyone who reads it.
+-- The people who take part in a chat, for anyone who reads it: the owner
+-- first (role owner), then the rest oldest first.
 create or replace function ${fn("list_ai_chat_participants")}(chat uuid)
 returns jsonb
 language plpgsql
@@ -131,11 +147,30 @@ begin
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "list_ai_chat_participants.chat")}
   end if;
   return (
-    select coalesce(jsonb_agg(${participantJson(ctx, "x")} order by ${ctx.has("participants", "createdAt") ? `x.${pa.createdAt}, ` : ""}x.${pa.user}), '[]'::jsonb)
-    from ${t.participants} x
-    where x.${pa.chat} = list_ai_chat_participants.chat
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c.${ch.id}, 'user_id', c.${ch.owner}, 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', ${ctx.has("chats", "createdAt") ? `c.${ch.createdAt}` : "null"}))
+      || coalesce((
+        select jsonb_agg(${participantJson(ctx, "x")} order by ${ctx.has("participants", "createdAt") ? `x.${pa.createdAt}, ` : ""}${ctx.has("participants", "id") ? `x.${pa.id}` : `x.${pa.user}`})
+        from ${t.participants} x
+        where x.${pa.chat} = list_ai_chat_participants.chat
+      ), '[]'::jsonb)
+    from ${t.chats} c where c.${ch.id} = list_ai_chat_participants.chat
   );
 end;
 $$;
 ${userGrant(`${fn("list_ai_chat_participants")}(uuid)`)}`;
+}
+
+/**
+ * The statement that moves a private chat to `shared`: whoever takes part in a
+ * chat, or holds its link, makes it readable beyond its owner.
+ */
+export function markShared(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  chat: string,
+): string {
+  const ch = names.c.chats;
+
+  return `update ${names.t.chats} c set ${ch.visibility} = ${ctx.cast("chats", "visibility", "'shared'")}, ${ch.updatedAt} = now()
+  where c.${ch.id} = ${chat} and ${asText(ctx, "chats", `c.${ch.visibility}`)} = 'private';`;
 }

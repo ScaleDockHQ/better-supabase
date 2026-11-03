@@ -808,7 +808,7 @@ describe("createAiChat", () => {
 
     const { user, chat } = fake({
       add_ai_chat_participant: participant,
-      list_ai_chat_participants: [{ ...participant, role: "owner" }],
+      list_ai_chat_participants: [{ ...participant, role: "viewer" }],
       remove_ai_chat_participant: true,
     });
 
