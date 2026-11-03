@@ -107,6 +107,18 @@ describe("supportClaims", () => {
       expiresAt: 100,
     });
     expect(supportOf({ kind: "none", reason: "none" })).toBeUndefined();
+    expect(
+      supportOf(
+        toSession({
+          kind: "user",
+          token: "",
+          claims: { role: "authenticated", sub: "t" } as never,
+          user: { id: "t" },
+          source: "support",
+          expiresAt: 100,
+        }),
+      ),
+    ).toBeUndefined();
   });
 });
 
