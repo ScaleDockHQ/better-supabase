@@ -374,7 +374,8 @@ grant execute on function better_supabase.left_out() to authenticated;`;
     });
 
     for (const [name, types] of [
-      ["check_rate_limit", "text, text, integer, interval"],
+      ["check_rate_limit", "text, text, integer, interval, uuid"],
+      ["set_organization_rate_limit", "text, uuid, integer, interval"],
       ["check_rate_limits", "jsonb"],
       ["purge_rate_limits", "integer"],
     ] as const) {

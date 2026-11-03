@@ -41,9 +41,38 @@ export interface MeterTelemetryOptions {
    */
   readonly tenant?: (event: TelemetryStart) => string | undefined;
   readonly meters?: TelemetryMeters;
-  /** The `source` of each usage row. Default `ai:telemetry`. */
-  readonly source?: string;
+  /**
+   * The `source` of each usage row, for the usage history and its breakdown.
+   * Default `ai:<functionId>` (`ai:inbox.suggest-actions`), or `ai:telemetry`
+   * for an operation without a `functionId`.
+   */
+  readonly source?: string | ((event: TelemetryStart) => string);
+  /**
+   * The base of each row's idempotency key, so a retried run counts once, for
+   * example one key per source message. Each row adds its own suffix (the
+   * response, embedding call or rerank), so the calls of one agent run don't
+   * collide. Return `undefined` for the default, `ai-call:<callId>`.
+   */
+  readonly idempotencyKey?: (event: TelemetryStart) => string | undefined;
+  /**
+   * The user a row is recorded for. Default: `runtimeContext.userId` when it is
+   * a string.
+   */
+  readonly actor?: (event: TelemetryStart) => string | undefined;
+  /** More detail kept with each history row, such as a document id. */
+  readonly metadata?: (
+    event: TelemetryStart,
+  ) => Readonly<Record<string, unknown>> | undefined;
   readonly onError?: (error: DbError) => void;
+}
+
+/** What `meterTelemetry` keeps of an operation until it ends. */
+interface CallState {
+  readonly tenant: string;
+  readonly source: string;
+  readonly key: string;
+  readonly actor: string | undefined;
+  readonly metadata: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
@@ -110,34 +139,56 @@ const count = (value: unknown): number =>
  * meters: input and output tokens of each language model call (agent steps
  * included), embedding tokens, and rerank calls. Register it once with
  * `registerTelemetry(meterTelemetry({ usage }))`; each call's rows carry an
- * idempotency key (`ai-call:<callId>:<responseId>`), so a retried event is
- * counted once. In-flight calls are bounded to 1,000 and released on end, abort
- * and error. Don't also record the same tokens with `usageEntries`.
+ * idempotency key (`ai-call:<callId>:<responseId>`, or your `idempotencyKey`
+ * base plus the same suffix), so a retried event is counted once, a `source`
+ * (`ai:<functionId>`), and the `actor` and `metadata` you resolve. In-flight
+ * calls are bounded to 1,000 and released on end, abort and error. Don't also
+ * record the same tokens with `usageEntries`.
  */
 export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
-  const tenants = boundedMap<string>();
+  const tenants = boundedMap<CallState>();
   const calls = boundedMap<number>();
   const tenantOf = options.tenant ?? tenantOfEvent;
   const meters = options.meters ?? {};
-  const source = options.source ?? "ai:telemetry";
+
+  const sourceOf = (event: TelemetryStart): string =>
+    typeof options.source === "function"
+      ? options.source(event)
+      : (options.source ??
+        (event.functionId === undefined || event.functionId === ""
+          ? "ai:telemetry"
+          : `ai:${event.functionId}`));
+
+  const actorOf = (event: TelemetryStart): string | undefined => {
+    if (options.actor !== undefined) {
+      return options.actor(event);
+    }
+
+    const context = event.runtimeContext;
+    const id = isRecord(context) ? context["userId"] : undefined;
+
+    return typeof id === "string" && id.length > 0 ? id : undefined;
+  };
 
   const record = async (
     callId: string,
-    key: string,
+    suffix: string,
     entries: readonly UsageEntry[],
   ): Promise<void> => {
-    const tenant = tenants.get(callId);
+    const state = tenants.get(callId);
     const kept = entries.filter((entry) => (entry.quantity ?? 0) > 0);
 
-    if (tenant === undefined || kept.length === 0) {
+    if (state === undefined || kept.length === 0) {
       return;
     }
 
     const saved = await options.usage.recordMany({
-      organizationId: tenant,
+      organizationId: state.tenant,
       entries: kept,
-      idempotencyKey: `ai-call:${key}`,
-      source,
+      idempotencyKey: `${state.key}:${suffix}`,
+      source: state.source,
+      ...(state.actor === undefined ? {} : { actor: state.actor }),
+      ...(state.metadata === undefined ? {} : { metadata: state.metadata }),
     });
 
     if (!saved.ok) {
@@ -155,7 +206,13 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
       const tenant = tenantOf(event);
 
       if (tenant !== undefined) {
-        tenants.set(event.callId, tenant);
+        tenants.set(event.callId, {
+          tenant,
+          source: sourceOf(event),
+          key: options.idempotencyKey?.(event) ?? `ai-call:${event.callId}`,
+          actor: actorOf(event),
+          metadata: options.metadata?.(event),
+        });
       }
     },
     onLanguageModelCallEnd: (event) => {
@@ -165,7 +222,7 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
       const response =
         event.responseId === "" ? String(step) : event.responseId;
 
-      return record(event.callId, `${event.callId}:${response}`, [
+      return record(event.callId, response, [
         {
           meter: meters.input ?? "ai.input_tokens",
           quantity: count(event.usage.inputTokens),
@@ -177,14 +234,14 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
       ]);
     },
     onEmbedEnd: (event) =>
-      record(event.callId, `${event.callId}:${event.embedCallId}`, [
+      record(event.callId, event.embedCallId, [
         {
           meter: meters.embedding ?? "ai.embedding_tokens",
           quantity: count(event.usage.tokens),
         },
       ]),
     onRerankEnd: (event) =>
-      record(event.callId, `${event.callId}:rerank`, [
+      record(event.callId, "rerank", [
         { meter: meters.rerank ?? "ai.rerank_calls", quantity: 1 },
       ]),
     onEnd: (event) => {

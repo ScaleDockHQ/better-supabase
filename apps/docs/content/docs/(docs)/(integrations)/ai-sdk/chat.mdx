@@ -303,3 +303,9 @@ The Next.js example has an assistant at `/assistant`
 (`apps/examples/nextjs/src/features/assistant`). Without `AI_GATEWAY_API_KEY`
 it answers with a scripted `MockLanguageModelV4`, so the stored messages,
 the stream store and resuming after a reload work on the local stack.
+
+## Compact generated UI specs
+
+`assistant({ parts: { compact } })` rewrites the response message before it is saved. Pair it with
+`collapseSpecParts` from [`better-supabase/json-render`](/docs/ai-sdk/json-render) so a streamed UI
+spec is stored as one part.

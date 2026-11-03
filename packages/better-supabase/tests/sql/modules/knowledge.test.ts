@@ -259,7 +259,7 @@ describe("knowledge module", () => {
     const [plan] = upgradePlan([{ module: "knowledge", version: 4 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
-    expect(plan?.to).toBe(6);
+    expect(plan?.to).toBe(7);
     expect(sql).toContain('add column if not exists "organization_id" uuid;');
     expect(sql).toContain('set "organization_id" = c."organization_id"');
   });

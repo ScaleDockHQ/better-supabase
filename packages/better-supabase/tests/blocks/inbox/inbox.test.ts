@@ -26,6 +26,7 @@ const answers = {
   assign_conversation: { ...conversationRow, assignee_id: "u1" },
   set_conversation_status: { ...conversationRow, status: "resolved" },
   set_bot_mode: { ...conversationRow, bot_mode: "human" },
+  set_active_stream: { ...conversationRow, active_stream_id: "s1" },
   mark_conversation_read: AT,
   set_typing: true,
   list_conversation_events: [
@@ -210,6 +211,12 @@ describe("createInbox", () => {
     ).toBe("human");
     await inbox.conversations
       .setBotMode({ conversationId: "c1", mode: "bot" })
+      .orThrow();
+    await inbox.conversations
+      .setActiveStream({ conversationId: "c1", streamId: "s1" })
+      .orThrow();
+    await inbox.conversations
+      .setActiveStream({ conversationId: "c1", streamId: null })
       .orThrow();
     expect(
       (await inbox.conversations.markRead("c1").orThrow()).toString(),
@@ -539,5 +546,54 @@ describe("inboxes.setup", () => {
       "create_inbox",
       "set_inbox_member",
     ]);
+  });
+});
+
+describe("inbox reply", () => {
+  it("sends, resolves when asked and returns the failure of either step", async () => {
+    const { transport, call } = fakeTransport(answers);
+    const inbox = createInbox({ transport });
+    const input = { body: "hi" };
+
+    const plain = await inbox.conversations
+      .reply({ conversationId: "c1", input })
+      .orThrow();
+
+    const resolving = await inbox.conversations
+      .reply({ conversationId: "c1", input, resolve: true })
+      .orThrow();
+
+    expect(plain.id).toBe(resolving.id);
+    expect(call.mock.calls.map(([, fn]) => fn)).toEqual([
+      "send_inbox_message",
+      "send_inbox_message",
+      "set_conversation_status",
+    ]);
+
+    const failing = fakeTransport({
+      ...answers,
+      set_conversation_status: () => {
+        throw new Error("boom");
+      },
+    });
+
+    const failed = await createInbox({
+      transport: failing.transport,
+    }).conversations.reply({ conversationId: "c1", input, resolve: true });
+
+    expect(failed.ok).toBe(false);
+
+    const unsent = fakeTransport({
+      ...answers,
+      send_inbox_message: () => {
+        throw new Error("nope");
+      },
+    });
+
+    const notSent = await createInbox({
+      transport: unsent.transport,
+    }).conversations.reply({ conversationId: "c1", input });
+
+    expect(notSent.ok).toBe(false);
   });
 });

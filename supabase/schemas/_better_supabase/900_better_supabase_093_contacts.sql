@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
--- @bsb-block contacts@2 managed
--- @bsb-hash sha256:fe6a31ac2541997eedcf8cee3e77c5cd41fe50e44468e32085c79b237bed952c
+-- @bsb-block contacts@3 managed
+-- @bsb-hash sha256:ed14ed92bbee92d978dee9ba3000245716fae239d7bf84ff83e3963eaf1cc7c5
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1432,6 +1432,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;
 
 -- A person's identities, by channel and address.
 create or replace function "better_supabase"."list_person_identities"(person uuid)
@@ -1773,6 +1774,9 @@ $$;
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."resolve_person"(uuid, jsonb);
 
 drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
 drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);

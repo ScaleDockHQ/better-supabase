@@ -445,6 +445,74 @@ as $$
   limit 1
 $$;
 
+-- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
+-- a null quota_limit is unlimited. A tenant quota overrides the plan's.
+create or replace function ${fn("set_usage_quota")}(
+  tenant ${id},
+  plan text,
+  meter text,
+  quota_limit numeric,
+  period text default 'month'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  changed integer;
+begin
+  if (tenant is null) = (plan is null) then
+    ${raise("set_usage_quota needs a tenant or a plan, not both", "22023", "USAGE_QUOTA_TARGET")}
+  end if;
+${
+  ctx.owns("quotas")
+    ? `  update ${quotas} q
+  set ${qc("limit")} = quota_limit, ${qc("period")} = coalesce(period, 'month')
+  where q.${qc("meter")} = meter
+    and q.${qc("tenant")} is not distinct from tenant
+    and q.${qc("plan")} is not distinct from plan;
+  if not found then
+    insert into ${quotas} (${qc("tenant")}, ${qc("plan")}, ${qc("meter")}, ${qc("limit")}, ${qc("period")})
+    values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
+  end if;`
+    : `  -- The app's period column can be an enum, which a text value can't be assigned to.
+  execute format(
+    'update ${quotas} q set ${qc("limit")} = $1, ${qc("period")} = %L where q.${qc("meter")} = $2 and q.${qc("tenant")} is not distinct from $3 and q.${qc("plan")} is not distinct from $4',
+    coalesce(period, 'month')
+  ) using quota_limit, meter, tenant, plan;
+  get diagnostics changed = row_count;
+  if changed = 0 then
+    execute format(
+      'insert into ${quotas} (${qc("tenant")}, ${qc("plan")}, ${qc("meter")}, ${qc("limit")}, ${qc("period")}) values ($1, $2, $3, $4, %L)',
+      coalesce(period, 'month')
+    ) using tenant, plan, meter, quota_limit;
+  end if;`
+}
+end
+$$;
+
+-- Removes the quota of one tenant or plan on a meter; true when there was one.
+create or replace function ${fn("remove_usage_quota")}(tenant ${id}, plan text, meter text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if (tenant is null) = (plan is null) then
+    ${raise("remove_usage_quota needs a tenant or a plan, not both", "22023", "USAGE_QUOTA_TARGET")}
+  end if;
+  delete from ${quotas} q
+  where q.${qc("meter")} = meter
+    and q.${qc("tenant")} is not distinct from tenant
+    and q.${qc("plan")} is not distinct from plan;
+  return found;
+end
+$$;
+
 -- The window of a period for tenant: the current UTC day, week, month or
 -- year, or with 'billing' the app's usage_billing_period(tenant) (the
 -- subscription's current period, say), falling back to the month.
@@ -913,6 +981,10 @@ grant execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolea
 revoke execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) from public, anon, authenticated;
 revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
+revoke execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) from public, anon, authenticated;
+revoke execute on function ${fn("remove_usage_quota")}(${id}, text, text) from public, anon, authenticated;
+grant execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) to service_role;
+grant execute on function ${fn("remove_usage_quota")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenticated, service_role;
@@ -972,6 +1044,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "usage_breakdown", args: ["{id}", "text"], returns: "jsonb" },
     {
+      name: "set_usage_quota",
+      args: ["{id}", "text", "text", "numeric", "text"],
+      returns: "void",
+    },
+    {
+      name: "remove_usage_quota",
+      args: ["{id}", "text", "text"],
+      returns: "boolean",
+    },
+    {
       name: "mark_usage_reported",
       args: ["{id}", "text", "date", "numeric"],
       returns: "boolean",
@@ -991,7 +1073,7 @@ export const USAGE: BlockSqlDefinition = {
   providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -1033,6 +1115,12 @@ export const USAGE: BlockSqlDefinition = {
       from: 6,
       description:
         "With options.history and the invoices block, usage_meter_prices and usage_billed_periods hold the meter prices and the billed periods, and bill_usage_period rates a period's history into a draft invoice.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "set_usage_quota and remove_usage_quota let the service role set and remove the quota of a tenant or a plan.",
       sql: () => "",
     },
   ],

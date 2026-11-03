@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
--- @bsb-block knowledge@6 managed
+-- @bsb-block knowledge@7 managed
 -- @bsb-hash sha256:1d10b7c645611edb4f1134555204186ae04bbb583cf5b7a063b209ce0e4f3a4e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -867,13 +867,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:3f13f31c5c7b941b26fb88f737ed1d1413bf1a46b5f012b865b9d0bda15adaf7
+-- @bsb-hash sha256:31229537e7fd8ac633d9c419d45cd77587d9d01d8e8ecb4cc956111f5a29f98c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 6, 'managed')
+values ('knowledge', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

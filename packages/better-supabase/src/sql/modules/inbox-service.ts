@@ -39,6 +39,10 @@ export function inboxServiceFunctions(q: InboxSql): string {
       ],
       ["error", "record_delivery.error"],
       ["attempts", "1"],
+      [
+        "failedAt",
+        "case when coalesce(record_delivery.status, 'sent') = 'failed' then now() end",
+      ],
     ] as const
   ).filter(([column]) => has("deliveries", column));
 
@@ -94,6 +98,11 @@ begin
   on conflict (${dl("message")}, ${dl("channel")}) do update set
     ${dl("externalId")} = coalesce(excluded.${dl("externalId")}, d.${dl("externalId")}),
     ${dl("status")} = excluded.${dl("status")}${
+      has("deliveries", "failedAt")
+        ? `,
+    ${dl("failedAt")} = case when excluded.${dl("status")} = 'failed' then now() else d.${dl("failedAt")} end`
+        : ""
+    }${
       has("deliveries", "error")
         ? `,
     ${dl("error")} = excluded.${dl("error")}`
@@ -125,7 +134,19 @@ as $$
 declare
   v_count integer;
 begin
-  update ${T("deliveries")} d set ${dl("status")} = ${q.cast("deliveries", "status", "status")}${has("deliveries", "error") ? `, ${dl("error")} = coalesce(error, d.${dl("error")})` : ""}
+  update ${T("deliveries")} d set ${dl("status")} = ${q.cast("deliveries", "status", "status")}${has("deliveries", "error") ? `, ${dl("error")} = coalesce(error, d.${dl("error")})` : ""}${
+    has("deliveries", "deliveredAt")
+      ? `, ${dl("deliveredAt")} = case when status in ('delivered', 'read') then coalesce(d.${dl("deliveredAt")}, now()) else d.${dl("deliveredAt")} end`
+      : ""
+  }${
+    has("deliveries", "readAt")
+      ? `, ${dl("readAt")} = case when status = 'read' then coalesce(d.${dl("readAt")}, now()) else d.${dl("readAt")} end`
+      : ""
+  }${
+    has("deliveries", "failedAt")
+      ? `, ${dl("failedAt")} = case when status = 'failed' then coalesce(d.${dl("failedAt")}, now()) else d.${dl("failedAt")} end`
+      : ""
+  }
   where d.${dl("channel")} = channel and d.${dl("externalId")} = external_id
     and (case status when 'failed' then d.${dl("status")} in ('queued', 'sent')
       else array_position(array['queued', 'sent', 'delivered', 'read'], status)
@@ -160,7 +181,11 @@ end;
 $$;
 ${serviceGrant(`${fn("store_inbound_event")}(text, text, text, jsonb, uuid, ${id})`)}
 
-create or replace function ${fn("set_inbound_event_status")}(event uuid, status text, error text default null)
+-- Moves an inbound event through its states. 'processing' counts one attempt
+-- and takes a lease of lease seconds, after which pending_inbound_events
+-- offers the row again. 'failed' with retry_in delays the next attempt by that
+-- interval, 'processed' and 'ignored' end it.
+create or replace function ${fn("set_inbound_event_status")}(event uuid, status text, error text default null, retry_in interval default null, lease interval default '5 minutes')
 returns boolean
 language plpgsql
 set search_path = ''
@@ -173,8 +198,18 @@ begin
         ? `
     ${ie("error")} = error,`
         : ""
+    }${
+      has("inbound", "availableAt")
+        ? `
+    ${ie("availableAt")} = case when status = 'failed' then now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, e.${ie("attempts")}))) else e.${ie("availableAt")} end,`
+        : ""
+    }${
+      has("inbound", "lockedUntil")
+        ? `
+    ${ie("lockedUntil")} = case when status = 'processing' then now() + coalesce(lease, interval '5 minutes') else null end,`
+        : ""
     }
-    ${ie("attempts")} = e.${ie("attempts")} + 1${
+    ${ie("attempts")} = e.${ie("attempts")} + case when status = 'processing' then 1 else 0 end${
       has("inbound", "processedAt")
         ? `,
     ${ie("processedAt")} = case when status in ('processed', 'ignored') then now() else e.${ie("processedAt")} end`
@@ -184,9 +219,11 @@ begin
   return found;
 end;
 $$;
-${serviceGrant(`${fn("set_inbound_event_status")}(uuid, text, text)`)}
+${serviceGrant(`${fn("set_inbound_event_status")}(uuid, text, text, interval, interval)`)}
 
--- Inbound events still waiting, oldest first, for a retry sweep.
+-- Inbound events still waiting, oldest first, for a retry sweep: received or
+-- failed rows whose available_at passed, and processing rows whose lease ran
+-- out, that have fewer than max_attempts attempts.
 create or replace function ${fn("pending_inbound_events")}(max integer default 100, max_attempts integer default 5)
 returns jsonb
 language sql
@@ -196,7 +233,19 @@ as $$
   select coalesce(jsonb_agg(${q.json("inbound", "e")} order by e.${ie("receivedAt")}), '[]'::jsonb)
   from (
     select * from ${T("inbound")} x
-    where x.${ie("status")} in ('received', 'failed') and x.${ie("attempts")} < coalesce(max_attempts, 5)
+    where x.${ie("attempts")} < coalesce(max_attempts, 5)
+      and (
+        (x.${ie("status")} in ('received', 'failed')${
+          has("inbound", "availableAt")
+            ? ` and x.${ie("availableAt")} <= now()`
+            : ""
+        })${
+          has("inbound", "lockedUntil")
+            ? `
+        or (x.${ie("status")} = 'processing' and x.${ie("lockedUntil")} < now())`
+            : ""
+        }
+      )
     order by x.${ie("receivedAt")}
     limit ${pageSize("max", 100, 1000)}
   ) e;

@@ -74,3 +74,52 @@ searchTool(knowledge, organizationId, {
 
 `rerankWith` reorders the hits with the SDK's `rerank` and keeps the
 `topN` best, with the reranker's score.
+
+## Cache embeddings
+
+`embeddingCacheMiddleware` wraps an embedding model so the same text is embedded once per model and
+`dimensions`. `rerankHits` reorders any list of hits with a reranker, and `embedWith` takes
+`dimensions` for models that shorten their output.
+
+## Embed table rows automatically
+
+`renderAutoEmbedding` from `better-supabase/sql` renders the SQL that keeps an embedding column
+current for one table: a `halfvec` column with an HNSW cosine index, a trigger that clears the vector
+and queues the row on pgmq when the content changes, and a pg_cron job that posts queued rows to
+your worker through pg_net. The worker URL and bearer token come from Vault (`embedding_worker_url`
+and `embedding_worker_token`).
+
+```ts
+import { renderAutoEmbedding } from "better-supabase/sql";
+
+const sql = renderAutoEmbedding({
+  table: "articles",
+  content: ["title", "body"],
+  dimensions: 1536,
+});
+```
+
+Serve the worker with `embeddingWorker`. `apply` calls the generated `<table>_apply_embedding`
+function, which stores the vector only while the row still hashes to the text that was embedded.
+
+```ts
+import { embeddingWorker, embedWith } from "better-supabase/ai-sdk/embeddings";
+
+export const POST = embeddingWorker({
+  embedder: embedWith("openai/text-embedding-3-small", { dimensions: 1536 }),
+  token: process.env.EMBEDDING_WORKER_TOKEN!,
+  apply: async (batch, job, embedding) => {
+    const { data } = await admin.rpc(`${batch.table}_apply_embedding`, {
+      row_id: job.id,
+      embedding_json: embedding,
+      content_hash: job.hash,
+      msg_id: job.msgId,
+    });
+
+    return data === true;
+  },
+});
+```
+
+`drainEmbeddings(batch, options)` runs the same steps without HTTP, for a job or a script. The
+`appTables.<name>.embedding` (or the `@bsb embedding` tag, see [tables](/docs/repository/tables#embeddings)) renders the SQL for you, and doctor reports jobs read five times or more ([BS241](/docs/cli/doctor#bs241)) and failed pg_net requests ([BS242](/docs/cli/doctor#bs242)). `blocks.knowledge.options.autoEmbed` sends the pending chunks of [knowledge](/docs/blocks/knowledge) documents to the same worker, one job per chunk with the id `<document id>:<chunk index>`; apply each with `set_knowledge_embeddings`.

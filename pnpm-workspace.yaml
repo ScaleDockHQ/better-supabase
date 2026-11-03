@@ -33,6 +33,8 @@ catalog:
   "@expo/log-box": 57.0.4
   "@expo/metro-runtime": 57.0.16
   "@manypkg/get-packages": 3.1.0
+  "@json-render/core": 0.21.4
+  "@json-render/react": 0.21.4
   "@modelcontextprotocol/client": 2.4.0
   "@modelcontextprotocol/server": 2.4.0
   "@nestjs/common": 12.1.3
@@ -109,7 +111,9 @@ catalog:
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.3
   "@chat-adapter/catalog": 4.43.0
+  "@chat-adapter/state-pg": 4.43.0
   "@chat-adapter/tests": 4.43.0
+  "@chat-adapter/whatsapp": 4.43.0
   chat: 4.43.0
   citty: 0.2.2
   class-variance-authority: 0.7.1
@@ -170,6 +174,7 @@ catalog:
   react: 19.3.1
   reflect-metadata: 0.2.2
   redis: 6.3.0
+  resumable-stream: 2.2.13
   rxjs: 7.8.2
   yjs: 13.6.33
   fast-xml-parser: 5.11.2
@@ -252,6 +257,8 @@ catalogs:
     "@ai-sdk/react": ">=4 <5"
     # 2.0 is the WorkflowAgent for ai 7; it pins ai exactly, so the AI set moves together.
     "@ai-sdk/workflow": ">=2 <3"
+    # 0.21 is the release the spec patch format and the flat spec shape come from.
+    "@json-render/core": ">=0.21 <1"
     # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
     "@modelcontextprotocol/server": ">=2.3.0 <3"
     "@solidjs/start": ">=2 <3"
@@ -262,6 +269,8 @@ catalogs:
     astro: ">=7 <8"
     # 4.43.0 is the first release of the Chat SDK catalog adapter; it types the catalog structurally.
     "@chat-adapter/catalog": ">=4.43 <5"
+    # 4.43.0 is the Chat SDK release that `sendWithinWindowOrTemplate` was checked against.
+    "@chat-adapter/whatsapp": ">=4.43 <5"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
     chat: ">=4.41 <5"
     # 11 is the oldest major that runs on Node 24; @Ctx() requires it synchronously.
@@ -325,6 +334,8 @@ catalogs:
     vue: "^3.3"
     # 5.0.0 is the first node-redis with the camelCase commands the Redis stream store sends.
     redis: ">=5 <7"
+    # 2.2.13 is the tested release; it exports the generic entry point the Postgres publisher and subscriber target.
+    resumable-stream: ">=2.2.13 <3"
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.
     stripe: ">=17 <24"
     temporal-polyfill: ">=1"

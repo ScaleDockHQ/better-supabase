@@ -340,6 +340,7 @@ function fakeRegistry(): { registry: StartOnceRegistry; rows: FakeRow[] } {
       ? undefined
       : {
           id: row.id,
+          engine: "workflow-sdk",
           externalId: row.externalId,
           idempotencyKey: row.key,
         }) as never;
@@ -422,7 +423,7 @@ describe("startOnce on the run registry", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("leaves the lease to expire when the start fails", async () => {
+  it("releases the dispatch claim when the start fails", async () => {
     start.mockRejectedValueOnce(new Error("down"));
 
     const { registry, rows } = fakeRegistry();
@@ -431,6 +432,12 @@ describe("startOnce on the run registry", () => {
       startOnce(user, approve, ["i1"], { key: "k1", registry }),
     ).rejects.toThrow("down");
     expect(rows[0]?.externalId.startsWith("pending:")).toBe(true);
+    expect(rows[0]?.leased).toBe(false);
+
+    const run = await startOnce(user, approve, ["i1"], { key: "k1", registry });
+
+    expect(run.runId).toBe("wrun_new");
+    expect(rows).toHaveLength(1);
   });
 
   it("throws a typed error without a registry or run keys", async () => {

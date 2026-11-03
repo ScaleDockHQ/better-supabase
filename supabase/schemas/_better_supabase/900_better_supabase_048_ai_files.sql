@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
--- @bsb-block ai-files@2 managed
--- @bsb-hash sha256:e0621557a4e74ee4836d29e3ff625e5f71fef2bf4a36fed546574bcffac24137
+-- @bsb-block ai-files@3 managed
+-- @bsb-hash sha256:fe8d5f08da355ea402988e9c13e7900a49111ae141cac8a5d4f9e33483e2719c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -122,7 +122,7 @@ create table if not exists "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image')),
+  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
   "title" text not null check (length("title") between 1 and 500),
   "current_version" integer not null default 1 check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),

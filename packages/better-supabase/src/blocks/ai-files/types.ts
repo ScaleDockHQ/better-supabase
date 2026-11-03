@@ -131,7 +131,7 @@ export interface AiProviderFile {
   readonly expiresAt: Temporal.Instant | undefined;
 }
 
-export type AiDocumentKind = "text" | "code" | "sheet" | "image";
+export type AiDocumentKind = "text" | "code" | "sheet" | "image" | "spec";
 
 export interface AiDocument {
   readonly id: string;

@@ -324,6 +324,22 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0209: Start once on the run registry, with an idempotency key and a dispatch lease.
 - 0210: Move the Supabase World to @workflow/world-postgres 5.1; one exact-version release age exception.
 - 0211: Hash shared configs per task and build the library once before the unit shards.
+- 0212: Replay chat webhooks with a receive and process pair, and keep WhatsApp windows and column broadcasts in the inbox.
+- 0213: Approvals take items with their own permission, dependencies and created records.
+- 0214: Queue leases claim a scoped key with a bounded wait.
+- 0215: Remove enum values by type swap, and rewrite JSONB arrays with `db backfill`.
+- 0216: Column groups guard updates with a trigger, not grants.
+- 0217: Meter background AI runs with a source, an idempotency key and per-organization rate limits.
+- 0220: Run resumable-stream on Postgres and match its semantics.
+- 0221: Cache embeddings, rerank hits and upload files to the provider.
+- 0222: Sync agent skills to provider skill stores.
+- 0223: Store json-render specs as one part and as documents.
+- 0224: Keep MCP event subscriptions in Vault.
+- 0225: Add an AI SDK transcriber, a realtime token route and a catalog tool search.
+- 0226: Realtime ChatTransport.
+- 0227: Video webhook correlation table.
+- 0228: Decision log and harness session store.
+- 0229: Embed app table rows through pgmq, pg_net and pg_cron.
 
 ## Pre-release pins
 

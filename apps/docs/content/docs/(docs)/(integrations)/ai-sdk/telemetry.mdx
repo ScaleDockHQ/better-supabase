@@ -64,12 +64,67 @@ A call that passes `telemetry: { integrations }` uses those instead of the
 registered ones, so list `meterTelemetry` there too or the call isn't
 metered.
 
-Each row carries the idempotency key `ai-call:<callId>:<responseId>`, so a
-retried event is counted once. The integration keeps at most 1,000 calls in
+Without an `idempotencyKey` option, each row carries the key
+`ai-call:<callId>:<responseId>`, so a retried event is counted once. The integration keeps at most 1,000 calls in
 flight and releases a call on `onEnd`, `onAbort` and `onError`, so an aborted
 stream leaves nothing behind. Don't also record the same tokens with `usageEntries`, or
 they count twice. A failed write goes to `onError`; it never fails the
 model call.
+
+## Source, idempotency key, actor and metadata
+
+Each row's `source` is `ai:<functionId>` (for example
+`ai:inbox.suggest-actions`) when the call sets `telemetry: { functionId }`,
+and `ai:telemetry` otherwise. The usage history and `usage.breakdown` group
+by it, so a background run shows up under its own name. Pass `source` as a
+string or a function of the start event to choose another.
+
+A background run that can be retried needs a key per unit of work, not per
+call. `idempotencyKey(event)` returns the base of the key, such as one key per
+source message, and each row adds its own suffix, so the steps of one agent
+run don't collide. `actor(event)` names the user a row is recorded for (it
+defaults to `runtimeContext.userId`), and `metadata(event)` keeps more detail
+with the history row:
+
+```ts title="instrumentation.ts"
+meterTelemetry({
+  usage: serviceUsage,
+  idempotencyKey: (event) =>
+    isRecord(event.runtimeContext)
+      ? `message:${String(event.runtimeContext["messageId"])}`
+      : undefined,
+  metadata: (event) => ({ functionId: event.functionId }),
+});
+```
+
+## Refusing calls before they run
+
+`rateLimitMiddleware` from `better-supabase/ai-sdk` counts each model call
+against a [rate limit](/docs/rate-limit#per-organization-rules) and throws
+before the model runs when the limit is used up. Wrap the model with it:
+
+```ts title="lib/ai.ts"
+import { wrapLanguageModel } from "ai";
+import { rateLimitMiddleware } from "better-supabase/ai-sdk";
+
+export const model = (organizationId: string, userId: string) =>
+  wrapLanguageModel({
+    model: "openai/gpt-5.4",
+    middleware: rateLimitMiddleware({
+      rateLimit: serviceRateLimit,
+      scope: "ai:calls",
+      key: userId,
+      organizationId,
+    }),
+  });
+```
+
+A refused call throws a `DbException` whose error is `rate_limited` with the
+code `AI_RATE_LIMITED` and `retryAfter` in seconds. `aiErrorToDbError` returns
+it unchanged, so a route answers it with the same 429 as any other limit.
+`key` is a string or a function of the call that returns `undefined` to skip
+the limit. When the limit itself can't be checked, the call fails with that
+database error; set `failOpen: true` to let it through instead.
 
 ## Nightly spend reconciliation
 

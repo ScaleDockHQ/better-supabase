@@ -5,6 +5,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 
+import { ITEM_TABLES } from "./approvals-items.ts";
 import { TENANT_POLICY_TABLES } from "./approvals-tenant.ts";
 
 const PAYLOAD = [
@@ -138,6 +139,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
       optional: ["delegateTo", "comment"],
       typed: ["decision"],
     },
+    ...ITEM_TABLES,
     ...TENANT_POLICY_TABLES,
   },
 };

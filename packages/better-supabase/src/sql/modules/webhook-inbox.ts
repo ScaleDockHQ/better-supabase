@@ -262,6 +262,7 @@ drop function if exists better_supabase.purge_webhooks(interval, boolean, intege
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 drop function if exists better_supabase.complete_webhook(bigint, text);
 drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
+drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
 drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);${jsonbDrops}
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
@@ -361,14 +362,15 @@ create or replace function better_supabase.fail_webhook(
   worker text,
   error text,
   retry_in interval default null,
-  attempt integer default null
+  attempt integer default null,
+  permanent boolean default false
 )
 returns text
 language sql
 set search_path = ''
 as $$
   update ${t}
-  set ${c("status")} = case when ${c("attempts")} >= ${maxAttempts("")} then 'dead' else 'pending' end,
+  set ${c("status")} = case when permanent or ${c("attempts")} >= ${maxAttempts("")} then 'dead' else 'pending' end,
       ${set(
         [
           [
@@ -487,7 +489,7 @@ ${serviceOnly([
   `receive_webhook(text, text, text, jsonb, jsonb, text, integer${extra.type})`,
   "claim_webhooks(text, text, integer, interval)",
   "complete_webhook(bigint, text, integer)",
-  "fail_webhook(bigint, text, text, interval, integer)",
+  "fail_webhook(bigint, text, text, interval, integer, boolean)",
   "extend_webhook(bigint, text, integer, interval)",
   "checkpoint_webhook(bigint, text, jsonb, integer)",
   "list_webhooks(text, text, text, integer)",
@@ -534,7 +536,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
       },
     },
   },
-  version: 8,
+  version: 9,
   upgrades: [
     {
       from: 1,
@@ -584,6 +586,13 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
       description:
         "purge_webhooks keeps messages for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
+    },
+    {
+      from: 8,
+      description:
+        "fail_webhook takes permanent, which marks the message dead without further attempts.",
+      sql: () =>
+        "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);",
     },
   ],
   build: webhookInboxSql,

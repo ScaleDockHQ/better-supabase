@@ -471,7 +471,7 @@ await approvals.approve(request.id, "Looks right").orThrow();
 
 ## Decide and guard by subject
 
-`decideForSubject({ subject, action, decision })` approves or rejects the pending request for `action` on a record, so a button doesn't need the request id. It fails with `not_found` when nothing is pending.
+`decideForSubject({ subject, action, decision })` approves or rejects the pending request for `action` on a record, so a button doesn't need the request id. It fails with `not_found` when nothing is pending. The service role passes `decidedBy` to decide for the user who clicked.
 
 `guarded({ subject, action, run })` runs `run` when the action is approved and otherwise files a request and returns it, as `{ ran: true, value }` or `{ ran: false, request }`.
 
@@ -484,3 +484,39 @@ const sent = await approvals
   })
   .orThrow();
 ```
+
+## Requests with items
+
+A request can ask for several things at once, such as the invoice, the contract and the email an agent wants to create. Pass `items` to `request`: each item has a `key`, and may carry a `label`, a `payload`, a `permission` that its decider holds, and `dependsOn`, the keys of items listed before it. Items are stored in `approval_items`, and `get` returns them. A request with items takes no extra columns and is not available for a subject type another module decides.
+
+```ts
+const request = await approvals
+  .request({
+    subject: { type: "chat", id: chatId },
+    input: {
+      action: "run",
+      items: [
+        {
+          key: "invoice",
+          label: "Create the invoice",
+          permission: "invoices.approve",
+        },
+        { key: "send", label: "Email it", dependsOn: ["invoice"] },
+      ],
+    },
+  })
+  .orThrow();
+
+await approvals
+  .decideItems({
+    id: request.id,
+    decisions: [{ key: "invoice", decision: "approve" }],
+  })
+  .orThrow();
+```
+
+`decideItems` checks each item's own permission; an item without one follows the policy's approvers, and the requester can't decide unless the policy allows it. An item can't be approved while an item it depends on is pending or rejected (`APPROVAL_ITEM_BLOCKED`), and rejecting an item rejects the pending items that depend on it. The request settles when no item is pending: it is approved when any item was approved and rejected otherwise, with the same `approval.approved` and `approval.rejected` events as a request without items. `approve` and `reject` refuse a request with items (`APPROVAL_ITEMS_REQUIRED`).
+
+After an approved item runs, `recordCreated({ id, key, type, recordId })` stores the record it created, once per item, so a retried run finds it. The service role closes a request that nobody will decide with `settle({ id, outcome, reason })`. It writes a decision without an approver, settles the pending items to the outcome and records the same events, so `requestAndWait` and the workflow waiter wake.
+
+The `approvals` module is at version 2 for the new table and functions, so run `better-supabase upgrade`.

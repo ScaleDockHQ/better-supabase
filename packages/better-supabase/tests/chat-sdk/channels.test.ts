@@ -804,39 +804,166 @@ describe("deliver", () => {
   });
 });
 
+describe("inboundHandler replay options", () => {
+  const stored = (body = "{}") => ({
+    id: "e1",
+    adapter: "whatsapp",
+    externalId: null,
+    inboxId: null,
+    tenant: null,
+    headers: {},
+    body,
+    attempts: 0,
+    receivedAt: Temporal.Instant.from(AT),
+  });
+
+  function build(options: Record<string, unknown> = {}) {
+    const whatsapp = vi.fn(
+      async (_request: Request, _options?: unknown) => new Response("ok"),
+    );
+
+    const { transport } = fakeTransport({
+      set_inbound_event_status: true,
+      set_delivery_status: 1,
+    });
+
+    const { chat } = chatOf({ whatsapp });
+
+    const handler = inboundHandler({
+      chat,
+      inbox: createInbox({ transport }),
+      inboxes: { whatsapp: "i1" },
+      ...options,
+    });
+
+    return { whatsapp, handler };
+  }
+
+  it("checks for duplicates on the first attempt only by default", async () => {
+    const { whatsapp, handler } = build();
+
+    await handler.process({ ...stored(), attempt: 1 });
+    await handler.process({ ...stored(), attempt: 2 });
+    await handler.process(stored());
+    expect(whatsapp.mock.calls[0]?.[1]).not.toHaveProperty("deduplicate");
+    expect(whatsapp.mock.calls[1]?.[1]).toMatchObject({ deduplicate: false });
+    expect(whatsapp.mock.calls[2]?.[1]).not.toHaveProperty("deduplicate");
+  });
+
+  it("follows deduplicate: always and never", async () => {
+    const always = build({ deduplicate: "always" });
+    const never = build({ deduplicate: "never" });
+
+    await always.handler.process({ ...stored(), attempt: 4 });
+    await never.handler.process({ ...stored(), attempt: 1 });
+    expect(always.whatsapp.mock.calls[0]?.[1]).not.toHaveProperty(
+      "deduplicate",
+    );
+    expect(never.whatsapp.mock.calls[0]?.[1]).toMatchObject({
+      deduplicate: false,
+    });
+  });
+
+  it("counts the attempt when drain replays a pending event", async () => {
+    const whatsapp = vi.fn(
+      async (_request: Request, _options?: unknown) => new Response("ok"),
+    );
+
+    const { transport } = fakeTransport({
+      set_inbound_event_status: true,
+      pending_inbound_events: [
+        { ...storedEventRow, adapter: "whatsapp", attempts: 2 },
+      ],
+    });
+
+    const handler = inboundHandler({
+      chat: chatOf({ whatsapp }).chat,
+      inbox: createInbox({ transport }),
+      inboxes: {},
+    });
+
+    await handler.drain();
+    expect(whatsapp.mock.calls[0]?.[1]).toMatchObject({ deduplicate: false });
+  });
+
+  const reply = JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [
+                {
+                  from: "3199",
+                  id: "wamid.1",
+                  type: "interactive",
+                  interactive: {
+                    type: "button_reply",
+                    button_reply: { id: "approve", title: "Approve" },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  it("feeds button replies to onAction and skips the replay", async () => {
+    const onAction = vi.fn();
+    const { whatsapp, handler } = build({ onAction });
+
+    await handler.process(stored(reply));
+    expect(onAction).toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: "approve", from: "3199" }),
+      expect.objectContaining({ adapter: "whatsapp" }),
+    );
+    expect(whatsapp).not.toHaveBeenCalled();
+  });
+
+  it("drops a reply that chatActions refuses", async () => {
+    const onAction = vi.fn();
+
+    const actions = vi.fn(async () => ({
+      allowed: false as const,
+      reason: "no",
+    }));
+
+    const { handler } = build({ onAction, actions });
+
+    await handler.process(stored(reply));
+    expect(actions).toHaveBeenCalledOnce();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+});
+
 describe("whatsappWindowOpen", () => {
-  const inboxWith = (rows: unknown[]) =>
+  const inboxWith = (row: unknown) =>
     createInbox({
-      transport: fakeTransport({ list_inbox_messages: rows }).transport,
+      transport: fakeTransport({ get_conversation: row }).transport,
     });
 
   const at = Temporal.Instant.from(AT);
 
-  it("is open within 24 hours of the contact's last message", async () => {
-    const rows = [
-      messageRow,
-      {
-        ...messageRow,
-        id: "out",
-        direction: "outbound",
-        created_at: "2026-01-02T00:00:00Z",
-      },
-    ];
+  it("is open within 24 hours of conversations.last_inbound_at", async () => {
+    const inbox = inboxWith(conversationRow);
 
-    expect(
-      await whatsappWindowOpen(inboxWith(rows), "c1", at.add({ hours: 23 })),
-    ).toBe(true);
-    expect(
-      await whatsappWindowOpen(inboxWith(rows), "c1", at.add({ hours: 25 })),
-    ).toBe(false);
+    expect(await whatsappWindowOpen(inbox, "c1", at.add({ hours: 23 }))).toBe(
+      true,
+    );
+    expect(await whatsappWindowOpen(inbox, "c1", at.add({ hours: 25 }))).toBe(
+      false,
+    );
     expect(
       await whatsappWindowOpen(
-        inboxWith([{ ...messageRow, kind: "note" }]),
+        inboxWith({ ...conversationRow, last_inbound_at: null }),
         "c1",
         at,
       ),
     ).toBe(false);
-    expect(await whatsappWindowOpen(inboxWith([]), "c1")).toBe(false);
+    expect(await whatsappWindowOpen(inboxWith(null), "c1")).toBe(false);
   });
 });
 

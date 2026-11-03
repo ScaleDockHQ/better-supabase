@@ -14,7 +14,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   activities:
     "activities_of amend_activity complete_activity delete_activity log_activity mark_activity_error next_activity open_activities update_activity",
   agents:
-    "delete_agent get_agent install_agent list_agents publish_agent rate_agent save_agent set_agent_skills",
+    "delete_agent get_agent install_agent list_agents publish_agent rate_agent record_skill_sync save_agent set_agent_skills",
   prompts:
     "create_prompt_version get_prompt list_prompt_versions set_prompt_label",
   "ai-evals":
@@ -35,7 +35,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "api-keys":
     "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:
-    "approval_requirement cancel_approval consume_approval decide_approval delegate_approval get_approval is_approved list_approval_policies list_approvals remove_approval_policy request_approval save_approval_policy",
+    "approval_requirement cancel_approval consume_approval decide_approval decide_approval_items delegate_approval get_approval is_approved list_approval_policies list_approvals record_approval_created remove_approval_policy request_approval request_approval_items save_approval_policy settle_approval",
   assets:
     "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets release_asset run_asset_depreciation set_asset_link update_asset update_asset_location",
   assignment:
@@ -138,7 +138,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   imports:
     "cancel_import_run finish_import_run get_import_run import_resolve import_upsert_batch list_import_runs mark_import_running start_import start_import_run",
   inbox:
-    "assign_conversation cancel_inbox_message create_inbox create_inbox_attachment create_inbox_team delete_message_template discard_inbox_draft edit_inbox_message get_conversation get_inbox_message inbox_counts inbox_file_failed list_conversation_events list_inbox_conversations list_inbox_drafts list_inbox_messages list_scheduled_inbox_messages mark_conversation_read pending_inbound_events pending_inbox_files publish_due_inbox_messages purge_contact purge_inbound_events react_to_inbox_message record_delivery record_inbound reschedule_inbox_message save_inbox_draft schedule_inbox_message send_inbox_draft send_inbox_message set_bot_mode set_conversation_status set_delivery_status set_inbound_event_status set_inbox_member set_inbox_team_member start_conversation store_inbound_event suggest_inbox_draft update_inbox upsert_message_template wake_snoozed_conversations",
+    "assign_conversation cancel_inbox_message create_inbox create_inbox_attachment create_inbox_team delete_message_template discard_inbox_draft edit_inbox_message get_conversation get_inbox_message inbox_counts inbox_file_failed list_conversation_events list_inbox_conversations list_inbox_drafts list_inbox_messages list_scheduled_inbox_messages mark_conversation_read pending_inbound_events pending_inbox_files publish_due_inbox_messages purge_contact purge_inbound_events react_to_inbox_message record_delivery record_inbound reschedule_inbox_message save_inbox_draft schedule_inbox_message send_inbox_draft send_inbox_message set_active_stream set_bot_mode set_conversation_status set_delivery_status set_inbound_event_status set_inbox_member set_inbox_team_member start_conversation store_inbound_event suggest_inbox_draft update_inbox upsert_message_template wake_snoozed_conversations",
   incidents:
     "delete_status_component get_incident get_incident_regulatory_profile get_status_page list_incident_filings list_incidents list_status_components open_incident post_incident_update public_status_page publish_incident_postmortem save_incident_postmortem save_incident_regulatory_profile save_status_component save_status_page set_incident_impacts submit_incident_filing update_incident",
   inspections:
@@ -229,11 +229,12 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   qualifications:
     "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement revoke_qualification save_qualification_type",
   queue:
-    "advance_schedule claim_due_schedules claim_jobs complete_job enqueue_job enqueue_job_once extend_job_lease fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive replay_dead_job retry_dead_jobs schedule_job unschedule_job unschedule_tenant",
+    "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive release_lease_claim replay_dead_job retry_dead_jobs schedule_job unschedule_job unschedule_tenant",
   quotes:
     "create_quote decide_quote expire_quotes portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote withdraw_quote",
   rank: "move rebalance_ranks",
-  "rate-limit": "check_rate_limit check_rate_limits purge_rate_limits",
+  "rate-limit":
+    "check_rate_limit check_rate_limits purge_rate_limits set_organization_rate_limit",
   reactions:
     "delete_custom_emoji list_custom_emoji react reaction_summary save_custom_emoji vote vote_summary",
   relations:
@@ -276,7 +277,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "state-machine":
     "list_status_history list_status_stages pause_lifecycle resume_lifecycle set_lifecycle_flag status_state transition",
   streams:
-    "purge_streams stream_append stream_cancel stream_close stream_open stream_read stream_status",
+    "purge_streams stream_append stream_cancel stream_close stream_kv_get stream_kv_incr stream_kv_publish stream_kv_set stream_open stream_read stream_status",
   subjects:
     "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
@@ -291,7 +292,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   timeline: "list_activity record_activity",
   trash: "list_trash purge_trash restore_trash trash",
   usage:
-    "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_status",
+    "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch remove_usage_quota set_usage_quota unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_status",
   "vercel-marketplace":
     "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_resource marketplace_resources record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
   versions:

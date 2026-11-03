@@ -3253,6 +3253,79 @@ describe("createWebhookInbox", () => {
     ]);
   });
 
+  it("fails a message with the delay its handler returns as retryIn", async () => {
+    const row = (id: number) => ({
+      id: String(id),
+      source: "stripe",
+      message_id: `msg_${id}`,
+      event_type: null,
+      payload: {},
+      headers: {},
+      attempts: 1,
+      received_at: "2026-09-24T10:00:00Z",
+    });
+
+    const fake = fakeSql([
+      ["claim_webhooks", sequence(rowsOf(row(1), row(2)))],
+      ["extend_webhook", [{ value: 300 }]],
+    ]);
+
+    const result = await createWebhookInbox({
+      transport: sqlTransport(fake.sql),
+      source: "stripe",
+      worker: "w1",
+    }).process({
+      handler: (message) =>
+        message.id === 1 ? { retryIn: "2 minutes" } : { retryIn: 30 },
+    });
+
+    expect(result).toEqual({ succeeded: 0, failed: 2 });
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("fail_webhook"))
+        .map((call) => call.values),
+    ).toEqual([
+      [1, "w1", "The handler asked to retry", "2 minutes", 1],
+      [2, "w1", "The handler asked to retry", "30 seconds", 1],
+    ]);
+  });
+
+  it("marks a message dead when its handler returns permanent", async () => {
+    const fake = fakeSql([
+      [
+        "claim_webhooks",
+        sequence(
+          rowsOf({
+            id: "5",
+            source: "stripe",
+            message_id: "msg_5",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 1,
+            received_at: "2026-09-24T10:00:00Z",
+          }),
+        ),
+      ],
+      ["extend_webhook", [{ value: 300 }]],
+    ]);
+
+    const result = await createWebhookInbox({
+      transport: sqlTransport(fake.sql),
+      source: "stripe",
+      worker: "w1",
+    }).process({ handler: () => ({ permanent: true }) });
+
+    expect(result).toEqual({ succeeded: 0, failed: 1 });
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("fail_webhook"))
+        .map((call) => call.values),
+    ).toEqual([
+      [5, "w1", "The handler marked the message as permanent", null, 1, true],
+    ]);
+  });
+
   it("skips a message whose lease another claim took and doesn't count a lost completion", async () => {
     const row = (id: number) => ({
       id,

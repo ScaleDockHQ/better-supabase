@@ -53,6 +53,7 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | `server`        | Names the columns signed-in users can't select, so `gen` types them as not selectable.                   |
 | `search`        | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.              |
 | `events`        | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`. |
+| `embedding`     | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.         |
 
 ### The subject tag
 
@@ -79,6 +80,34 @@ the blocks register for their own tables stay there as well.
 `server` lists the columns that signed-in users can't select. Revoke the
 column grant in SQL, and name the column in the tag so the generated types
 leave it out of the readable shape.
+
+## Column groups
+
+A column grant can only allow or deny a column. When signed-in users may edit
+a row but only some of them may change certain columns, list those columns in
+a group of the table's `columnGroups` config entry, with the permission that
+allows the change:
+
+```ts
+export default defineConfig({
+  tables: {
+    projects: {
+      columnGroups: {
+        budget: { columns: ["budget", "cost_rate"], update: "projects.budget" },
+      },
+    },
+  },
+});
+```
+
+`sql sync` renders a `before update` trigger on the table. When a caller
+signed in as `authenticated` or `anon` changes a listed column and doesn't hold
+the permission in the row's tenant, the trigger raises `42501`. The service
+role and other roles skip the check. The table needs tenant scope, a column
+belongs to one group, and a group lists columns of the table. Column grants can't
+depend on a permission, which is why this is a trigger (ADR 0216).
+Doctor reports an update policy that checks a `.read` or `.view` permission
+([BS362](/docs/cli/doctor#bs362)).
 
 ## Encrypted columns
 
@@ -126,6 +155,22 @@ encrypted; `search columns="name, notes"` names the columns instead. Query it
 with `search_tsv @@ websearch_to_tsquery('simple', 'term')`. The column uses
 the `simple` configuration, so it needs no language setting and stays
 immutable, which Postgres requires for a generated column.
+
+## Embeddings
+
+`embedding` keeps a vector column current from the table's text columns. The
+config key is `appTables.<name>.embedding` with `content` (own plain `text`
+columns, not encrypted), `dimensions` (up to 4000 for `halfvec`, 2000 for
+`vector`), and optionally `type` (`halfvec` by default), `schedule` (`10 seconds`)
+and `batch` (20). It adds an `embedding` column with an HNSW cosine index, a
+trigger that clears the vector and queues the row on a pgmq queue when the content
+changes, a pg_cron job that posts the queued rows to your worker through pg_net,
+and `<table>_apply_embedding`, which the worker calls with the service role. The
+worker URL and token come from the Vault secrets `embedding_worker_url` and
+`embedding_worker_token`. Serve the worker with
+[`embeddingWorker`](/docs/integrations/ai-sdk/embeddings#embed-table-rows-automatically).
+Doctor reports jobs the worker can't finish ([BS241](/docs/cli/doctor#bs241)) and
+failed requests ([BS242](/docs/cli/doctor#bs242)).
 
 ## History
 

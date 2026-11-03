@@ -1,6 +1,7 @@
 audit
 memberships
 invitations
+rate-limit
 permissions
 impersonation
 organizations

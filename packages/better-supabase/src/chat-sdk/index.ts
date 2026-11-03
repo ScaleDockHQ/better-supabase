@@ -95,7 +95,32 @@ export {
 } from "./scheduler.ts";
 
 export {
+  type InteractiveParser,
+  type ChatInteractiveAction,
+  type ParsedInteractive,
+  INTERACTIVE_PARSERS,
+  whatsappInteractive,
+  whatsappInteractiveOf,
+} from "./interactive.ts";
+
+export {
+  type ChatWebhookPipeline,
+  type ChatWebhookPipelineOptions,
+  chatWebhookPipeline,
+} from "./pipeline.ts";
+
+export {
+  ChatWindowClosedError,
+  sendWithinWindowOrTemplate,
+  type SendWithinWindowOptions,
+  type WhatsappTemplate,
+  type WhatsappTemplateAdapter,
+  type WindowedThread,
+} from "./whatsapp.ts";
+
+export {
   chatEventOf,
+  type ChatWebhookResult,
   type ChatInboundEvent,
   type ChatInboundStore,
   type ChatOutboundMessage,

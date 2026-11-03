@@ -49,6 +49,32 @@ A scope without a rule and without a per-call `rule` fails with
 `RATE_LIMIT_UNKNOWN`. `purge_rate_limits()` removes counters without a rule
 after a day, so keep a per-call `period` under a day or define the rule.
 
+## Per-organization rules
+
+A scope has one global rule and one rule per organization. `setRule` stores
+the organization's rule with a service role, and a `check` or `checkAll` hit
+that passes `organizationId` uses it instead of the global one. Hits without an
+organization, and organizations without a rule, keep the global rule.
+`max: null` removes the organization's rule.
+
+```ts
+await limits
+  .setRule({ scope: "ai:calls", organizationId, max: 200, period: "1 hour" })
+  .orThrow();
+
+await limits
+  .check({ scope: "ai:calls", key: userId, organizationId })
+  .orThrow();
+```
+
+`set_organization_rate_limit(scope, organization_id, max_requests, period)` is
+the SQL function behind it. The Data API hook (`check_request`) reads only the
+global rules, because it doesn't know the organization. Installed databases
+get the `organization_id` column from `better-supabase upgrade`.
+For model calls, `rateLimitMiddleware` in
+[Metering](/docs/ai-sdk/telemetry#refusing-calls-before-they-run) applies a
+rule before the model runs.
+
 ## Several limits at once
 
 `checkAll(hits)` counts one hit against several limits in one round trip, such

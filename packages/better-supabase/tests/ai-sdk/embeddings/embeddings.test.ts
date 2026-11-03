@@ -1,16 +1,20 @@
 import type { ToolExecutionOptions } from "ai";
 
+import { embed, embedMany, wrapEmbeddingModel } from "ai";
 import { MockEmbeddingModelV4, MockRerankingModelV4 } from "ai/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AiCache } from "../../../src/blocks/ai-cache/index.ts";
 import type {
   Knowledge,
   KnowledgeHit,
 } from "../../../src/blocks/knowledge/index.ts";
 
 import {
+  embeddingCacheMiddleware,
   embedWith,
   modelName,
+  rerankHits,
   rerankWith,
   searchTool,
   supabaseEmbed,
@@ -277,5 +281,160 @@ describe("supabaseEmbed", () => {
     await expect(
       supabaseEmbed({ model: "other", session }).embed(["a"]),
     ).rejects.toThrow("no vector for other");
+  });
+});
+
+describe("embedWith dimensions and single values", () => {
+  it("passes dimensions and takes the single-value path", async () => {
+    const seen: { values: string[]; dimensions: number | undefined }[] = [];
+
+    const model = new MockEmbeddingModelV4({
+      maxEmbeddingsPerCall: 10,
+      doEmbed: async ({ values, dimensions }) => {
+        seen.push({ values, dimensions });
+
+        return {
+          embeddings: values.map(() => [1, 2]),
+          usage: { tokens: values.length },
+          warnings: [],
+        };
+      },
+    });
+
+    const embedder = embedWith(model, { dimensions: 2 });
+    const one = await embedder.embed(["a"]);
+    expect(one.embeddings).toEqual([[1, 2]]);
+    await embedder.embed(["a", "b"]);
+    expect(seen).toEqual([
+      { values: ["a"], dimensions: 2 },
+      { values: ["a", "b"], dimensions: 2 },
+    ]);
+  });
+});
+
+function embedCache() {
+  const entries = new Map<string, unknown>();
+  const keys: string[] = [];
+
+  const cache: Pick<AiCache, "get" | "upsert"> = {
+    get: (key) =>
+      AsyncResult.ok(
+        entries.has(key)
+          ? {
+              key,
+              organizationId: undefined,
+              kind: "embed",
+              model: undefined,
+              // SAFETY: the test reads back what it stored.
+              value: entries.get(key) as never,
+              hits: 1,
+              createdAt: Temporal.Now.instant(),
+              lastHitAt: undefined,
+              expiresAt: Temporal.Now.instant(),
+            }
+          : undefined,
+      ),
+    upsert: ({ key, value }) => {
+      entries.set(key, value);
+      keys.push(key);
+
+      return AsyncResult.ok({
+        key,
+        organizationId: undefined,
+        kind: "embed",
+        model: undefined,
+        hits: 0,
+        createdAt: Temporal.Now.instant(),
+        lastHitAt: undefined,
+        expiresAt: Temporal.Now.instant(),
+      });
+    },
+  };
+
+  return { cache, keys };
+}
+
+describe("embeddingCacheMiddleware", () => {
+  it("sends only uncached values to the model", async () => {
+    const calls: string[][] = [];
+
+    const base = new MockEmbeddingModelV4({
+      maxEmbeddingsPerCall: 10,
+      doEmbed: async ({ values }) => {
+        calls.push(values);
+
+        return {
+          embeddings: values.map((value) => [value.length]),
+          warnings: [],
+        };
+      },
+    });
+
+    const { cache, keys } = embedCache();
+
+    const model = wrapEmbeddingModel({
+      model: base,
+      middleware: embeddingCacheMiddleware({ cache, ttl: 60 }),
+    });
+
+    const first = await embedMany({ model, values: ["a", "bb"] });
+    expect(first.embeddings).toEqual([[1], [2]]);
+    const second = await embedMany({ model, values: ["bb", "ccc", "a"] });
+    expect(second.embeddings).toEqual([[2], [3], [1]]);
+    expect(calls).toEqual([["a", "bb"], ["ccc"]]);
+    expect(new Set(keys).size).toBe(3);
+
+    const third = await embed({ model, value: "a" });
+    expect(third.embedding).toEqual([1]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps entries apart by dimensions and tenant", async () => {
+    const base = new MockEmbeddingModelV4({
+      doEmbed: async ({ values }) => ({
+        embeddings: values.map(() => [0]),
+        warnings: [],
+      }),
+    });
+
+    const { cache, keys } = embedCache();
+
+    const wrap = (organizationId: string) =>
+      wrapEmbeddingModel({
+        model: base,
+        middleware: embeddingCacheMiddleware({ cache, ttl: 1, organizationId }),
+      });
+
+    await embed({ model: wrap("o1"), value: "a" });
+    await embed({ model: wrap("o2"), value: "a" });
+    await embed({ model: wrap("o1"), value: "a", dimensions: 8 });
+    expect(new Set(keys).size).toBe(3);
+  });
+});
+
+describe("rerankHits", () => {
+  it("reranks any hit shape", async () => {
+    const model = new MockRerankingModelV4({
+      doRerank: async () => ({
+        ranking: [
+          { index: 1, relevanceScore: 0.9 },
+          { index: 0, relevanceScore: 0.1 },
+        ],
+      }),
+    });
+
+    const rerank = rerankHits<{ id: string; body: string }>(model, {
+      text: (hit) => hit.body,
+    });
+
+    const hits = [
+      { id: "a", body: "x" },
+      { id: "b", body: "y" },
+    ];
+
+    expect((await rerank("q", hits)).map((hit) => hit.id)).toEqual(["b", "a"]);
+    expect(await rerank("q", [hits[0] ?? { id: "", body: "" }])).toHaveLength(
+      1,
+    );
   });
 });

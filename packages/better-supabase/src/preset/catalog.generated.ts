@@ -12908,6 +12908,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AgentSkill"
         },
         {
+          "name": "AgentSkillFile"
+        },
+        {
+          "name": "AgentSkillProviderRef"
+        },
+        {
           "name": "AgentsOptions"
         },
         {

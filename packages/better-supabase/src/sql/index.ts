@@ -275,3 +275,8 @@ export type {
   BlockSqlReadArg,
   BlockSqlReadArgType,
 } from "./reads.ts";
+
+export {
+  type AutoEmbeddingConfig,
+  renderAutoEmbedding,
+} from "./auto-embeddings.ts";

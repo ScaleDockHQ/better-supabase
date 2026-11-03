@@ -120,6 +120,8 @@ export function conversationOf(value: unknown): Conversation {
     threadId: textOf(row["thread_id"]),
     snoozedUntil: nullableInstant(row["snoozed_until"]),
     lastMessageAt: nullableInstant(row["last_message_at"]),
+    lastInboundAt: nullableInstant(row["last_inbound_at"]),
+    activeStreamId: nullableText(row["active_stream_id"]),
     preview: nullableText(row["last_message_preview"]),
     firstResponseAt: nullableInstant(row["first_response_at"]),
     resolvedAt: nullableInstant(row["resolved_at"]),
@@ -163,6 +165,15 @@ export function messageOf(value: unknown): InboxMessage {
                 channel: textOf(delivery["channel"]),
                 status: deliveryStatusOf(delivery["status"]),
                 error: nullableText(delivery["error"]),
+                ...(delivery["delivered_at"] === undefined
+                  ? {}
+                  : { deliveredAt: nullableInstant(delivery["delivered_at"]) }),
+                ...(delivery["read_at"] === undefined
+                  ? {}
+                  : { readAt: nullableInstant(delivery["read_at"]) }),
+                ...(delivery["failed_at"] === undefined
+                  ? {}
+                  : { failedAt: nullableInstant(delivery["failed_at"]) }),
               }
             : null,
         }),

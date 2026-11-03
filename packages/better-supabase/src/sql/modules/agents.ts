@@ -16,6 +16,7 @@ import {
   revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
+  serviceGrant,
   userGrant,
   withExtraFields,
   writeExtraColumns,
@@ -64,6 +65,11 @@ const SKILLS = {
   agent: "agent_id",
   provider: "provider",
   reference: "reference",
+  name: "name",
+  files: "files",
+  contentHash: "content_hash",
+  latestVersion: "latest_version",
+  providerRefs: "provider_refs",
   createdAt: "created_at",
 } as const;
 
@@ -395,7 +401,14 @@ create table if not exists ${skills} (
   ${s.id} uuid primary key default gen_random_uuid(),
   ${s.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
   ${s.provider} text not null check (length(${s.provider}) between 1 and 100),
-  ${s.reference} jsonb not null check (jsonb_typeof(${s.reference}) = 'object')${ctx.has("skills", "createdAt") ? `,\n  ${s.createdAt} timestamptz not null default now()` : ""}
+  ${s.reference} jsonb not null check (jsonb_typeof(${s.reference}) = 'object'),
+  -- Skill files kept in Storage (a list of {path, object}), the hash of their
+  -- bytes, and the reference each provider returned for that hash.
+  ${s.name} text,
+  ${s.files} jsonb not null default '[]' check (jsonb_typeof(${s.files}) = 'array'),
+  ${s.contentHash} text,
+  ${s.latestVersion} text,
+  ${s.providerRefs} jsonb not null default '{}' check (jsonb_typeof(${s.providerRefs}) = 'object')${ctx.has("skills", "createdAt") ? `,\n  ${s.createdAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("agent_skills_agent_idx")} on ${skills} (${s.agent});
 alter table ${skills} enable row level security;
@@ -520,7 +533,7 @@ begin
     return null;
   end if;
   return ${json("v_row")} || jsonb_build_object(
-    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k.${s.id}, 'provider', k.${s.provider}, 'reference', k.${s.reference}) order by k.${ctx.has("skills", "createdAt") ? s.createdAt : s.id}) from ${skills} k where k.${s.agent} = v_row.${a.id}), '[]'),
+    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k.${s.id}, 'provider', k.${s.provider}, 'reference', k.${s.reference}, 'name', k.${s.name}, 'files', k.${s.files}, 'content_hash', k.${s.contentHash}, 'latest_version', k.${s.latestVersion}, 'provider_refs', k.${s.providerRefs}) order by k.${ctx.has("skills", "createdAt") ? s.createdAt : s.id}) from ${skills} k where k.${s.agent} = v_row.${a.id}), '[]'),
     'installed', exists (select 1 from ${installs} n where n.${i.agent} = v_row.${a.id} and n.${i.user} = auth.uid()),
     'my_rating', (select g.${r.rating} from ${ratings} g where g.${r.agent} = v_row.${a.id} and g.${r.user} = auth.uid())
   );
@@ -641,13 +654,38 @@ begin
     ${raise("skills must be a list", "22023", "AGENT_INVALID")}
   end if;
   delete from ${skills} k where k.${s.agent} = v_row.${a.id};
-  insert into ${skills} (${s.agent}, ${s.provider}, ${s.reference})
-  select v_row.${a.id}, e ->> 'provider', e -> 'reference' from jsonb_array_elements(v_items) e;
+  insert into ${skills} (${s.agent}, ${s.provider}, ${s.reference}, ${s.name}, ${s.files}, ${s.contentHash}, ${s.latestVersion}, ${s.providerRefs})
+  select v_row.${a.id}, e ->> 'provider', coalesce(e -> 'reference', '{}'), e ->> 'name', coalesce(e -> 'files', '[]'), e ->> 'content_hash', e ->> 'latest_version', coalesce(e -> 'provider_refs', '{}')
+  from jsonb_array_elements(v_items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-${userGrant(`${fn("set_agent_skills")}(uuid, jsonb)`)}`;
+${userGrant(`${fn("set_agent_skills")}(uuid, jsonb)`)}
+
+-- Records what a provider returned for a skill's current content: its
+-- reference and the hash it was uploaded from. syncSkill calls it as the
+-- service role after uploadSkill, and skips the upload while the hash matches.
+create or replace function ${fn("record_skill_sync")}(skill_id uuid, provider text, reference jsonb, content_hash text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_row ${skills}%rowtype;
+begin
+  update ${skills} k
+  set ${s.providerRefs} = k.${s.providerRefs} || jsonb_build_object(record_skill_sync.provider, jsonb_build_object('reference', record_skill_sync.reference, 'content_hash', record_skill_sync.content_hash)),
+      ${s.contentHash} = record_skill_sync.content_hash
+  where k.${s.id} = record_skill_sync.skill_id
+  returning * into v_row;
+  if not found then
+    ${notFound("record_skill_sync.skill_id")}
+  end if;
+  return v_row.${s.providerRefs};
+end;
+$$;
+${serviceGrant(`${fn("record_skill_sync")}(uuid, text, jsonb, text)`)}`;
 }
 
 export const AGENTS_MODULE: BlockSqlDefinition = {
@@ -658,7 +696,25 @@ export const AGENTS_MODULE: BlockSqlDefinition = {
     "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",
   requires: ["memberships", "permissions"],
   target: "schema",
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Adds name, files, content_hash, latest_version and provider_refs to agent skills, and record_skill_sync.",
+      sql: (ctx) => {
+        const skills = ctx.table("skills");
+        const s = presentColumns(ctx, "skills", SKILLS);
+
+        return `alter table ${skills}
+  add column if not exists ${s.name} text,
+  add column if not exists ${s.files} jsonb not null default '[]',
+  add column if not exists ${s.contentHash} text,
+  add column if not exists ${s.latestVersion} text,
+  add column if not exists ${s.providerRefs} jsonb not null default '{}';`;
+      },
+    },
+  ],
   names: NAMES,
   build,
 };

@@ -192,4 +192,38 @@ end;
 $$;`),
     ).resolves.toBeUndefined();
   });
+
+  it("sets and removes quotas over an enum period column", async () => {
+    await expect(
+      run(`do $$
+begin
+  ${SERVICE}
+  perform better_supabase.set_usage_quota('${TENANT}', null, 'api.calls', 10, 'day');
+  perform better_supabase.set_usage_quota('${TENANT}', null, 'api.calls', 20);
+  if (select count(*) from public.plan_limits) <> 1
+    or (select "limit" from public.plan_limits) <> 20
+    or (select period::text from public.plan_limits) <> 'month' then
+    raise exception 'quotas %', (select jsonb_agg(q) from public.plan_limits q);
+  end if;
+  perform better_supabase.set_usage_quota(null, 'free', 'api.calls', null, 'week');
+  if (select count(*) from public.plan_limits where plan = 'free' and "limit" is null) <> 1 then
+    raise exception 'plan quota';
+  end if;
+  begin
+    perform better_supabase.set_usage_quota('${TENANT}', 'free', 'api.calls', 1);
+    raise exception 'accepted a tenant and a plan';
+  exception when sqlstate '22023' then
+    null;
+  end;
+  if not better_supabase.remove_usage_quota('${TENANT}', null, 'api.calls')
+    or better_supabase.remove_usage_quota('${TENANT}', null, 'api.calls') then
+    raise exception 'remove result';
+  end if;
+  if (select count(*) from public.plan_limits) <> 1 then
+    raise exception 'left %', (select jsonb_agg(q) from public.plan_limits q);
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
 });

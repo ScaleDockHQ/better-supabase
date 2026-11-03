@@ -5581,7 +5581,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(
         (
           await pool.query<{ allowed: boolean }>(
-            "select has_function_privilege('authenticated', 'better_supabase.hit_rate_limit(text, text, integer, interval)', 'execute') as allowed",
+            "select has_function_privilege('authenticated', 'better_supabase.hit_rate_limit(text, text, integer, interval, uuid)', 'execute') as allowed",
           )
         ).rows[0]!.allowed,
       ).toBe(false);

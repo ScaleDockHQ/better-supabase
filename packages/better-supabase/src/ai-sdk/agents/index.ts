@@ -37,3 +37,15 @@ export {
 } from "./authorization.ts";
 
 export { type AgentActOptions, agentClaims } from "../../auth/actor.ts";
+
+export {
+  anthropicSkillOptions,
+  harnessSkills,
+  type HarnessSkill,
+  openaiShellSkills,
+  type ReadSkillFile,
+  type SkillsApi,
+  syncSkill,
+  type SyncedSkill,
+  type SyncSkillOptions,
+} from "./skills.ts";

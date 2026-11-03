@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
@@ -86,6 +87,17 @@ describe("parties module identities", () => {
     );
     expect(sql).toContain('"better_supabase"."find_person_by_identity"');
     expect(sql).toContain("PARTY_IDENTITY_TAKEN");
+  });
+
+  it("grants resolve_person to service_role, and upgrades version 2", () => {
+    const grant =
+      'grant execute on function "better_supabase"."resolve_person"(uuid, jsonb) to service_role;';
+
+    expect(sqlOf()).toContain(grant);
+
+    const [plan] = upgradePlan([{ module: "contacts", version: 2 }]);
+    expect(plan?.to).toBe(3);
+    expect(plan?.steps.map((step) => step.sql)).toContain(grant);
   });
 });
 

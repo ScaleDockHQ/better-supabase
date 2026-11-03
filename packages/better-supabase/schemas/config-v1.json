@@ -5904,6 +5904,12 @@
               "notify": {
                 "type": "boolean",
                 "default": true
+              },
+              "realtimeColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -6180,6 +6186,10 @@
               "ingestQueue": {
                 "type": "string",
                 "default": "knowledge_ingest"
+              },
+              "autoEmbed": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -7847,6 +7857,14 @@
               "topic": {
                 "type": "string",
                 "default": "stream"
+              },
+              "purgeSchedule": {
+                "type": "string",
+                "default": ""
+              },
+              "purgeOlderThan": {
+                "type": "string",
+                "default": "1 day"
               }
             }
           }

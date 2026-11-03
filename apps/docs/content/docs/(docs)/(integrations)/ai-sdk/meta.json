@@ -9,6 +9,7 @@
     "embeddings",
     "memory",
     "agents",
+    "json-render",
     "mcp",
     "providers",
     "telemetry",

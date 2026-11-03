@@ -30,6 +30,7 @@ const DOCUMENT_KINDS: readonly AiDocumentKind[] = [
   "text",
   "code",
   "sheet",
+  "spec",
   "image",
 ];
 

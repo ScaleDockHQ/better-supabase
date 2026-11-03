@@ -75,6 +75,10 @@ export interface Conversation {
   readonly threadId: string;
   readonly snoozedUntil: Temporal.Instant | null;
   readonly lastMessageAt: Temporal.Instant | null;
+  /** When the contact last wrote, or `null` before they did. */
+  readonly lastInboundAt: Temporal.Instant | null;
+  /** The stream a bot is writing now (`conversations.setActiveStream`), if any. */
+  readonly activeStreamId: string | null;
   readonly preview: string | null;
   readonly firstResponseAt: Temporal.Instant | null;
   readonly resolvedAt: Temporal.Instant | null;
@@ -136,6 +140,10 @@ export interface MessageDelivery {
   readonly channel: string;
   readonly status: DeliveryStatus;
   readonly error: string | null;
+  /** When the platform first reported it delivered (or read), if it did. */
+  readonly deliveredAt?: Temporal.Instant | null;
+  readonly readAt?: Temporal.Instant | null;
+  readonly failedAt?: Temporal.Instant | null;
 }
 
 /**

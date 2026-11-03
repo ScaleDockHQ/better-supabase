@@ -171,3 +171,16 @@ Supabase's server and better-supabase's MCP tools answer different needs.
 Supabase's tools administer a project (SQL, migrations, logs, branches) for
 the people who run it. [`createMcp`](/docs/frameworks/mcp) tools are typed,
 RLS-scoped tools over your tables for your app's own users.
+
+## Event subscriptions
+
+`postgresMcpEventStore({ vault, scope })` implements the AI SDK's `MCPEventStore` with Vault, so the
+signing secret of a subscription never sits in a table a browser can read. `update` merges without a
+lock; serialize deliveries for one subscription. `dedupeMcpEvents(handlers, { claim })` makes a
+delivery that the server sent twice run once, keyed on the subscription id and the `eventId` or
+`messageId`. Refreshing subscriptions before `refreshBefore` is the app's job; see ADR 0224.
+
+## Tool search over a catalog
+
+`toolSearchFrom({ catalog })` is the SDK's `toolSearch` with your catalog's ranking, for example a
+pgvector search over a tools table under the caller's RLS. A catalog error throws a `DbException`.

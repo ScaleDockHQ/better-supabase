@@ -554,6 +554,14 @@ const droppedLibraryFunction: Check = (parsed, statement) => {
   return `drops ${names} without creating it again with the same arguments. A call with positional arguments, or a grant on the old signature, fails once this runs.`;
 };
 
+const ENUM_VALUE_CHANGE =
+  /^(?:alter\s+type\s+[^\s]+\s+rename\s+value\b|delete\s+from\s+(?:pg_catalog\.)?pg_enum\b)/iu;
+
+const changedEnumValue: Check = (_parsed, statement) =>
+  ENUM_VALUE_CHANGE.test(statement.text)
+    ? "renames or removes an enum value. Rows and app code that still use the old value fail once this runs, and Postgres can't drop a value from a type that a column uses. Create the new type, move the column with `alter column ... type ... using`, then drop the old type (/docs/cli/doctor#bs240)."
+    : undefined;
+
 const EXPAND =
   "Expand and contract: add the new shape, deploy app code that uses it, then remove the old one in a later migration.";
 
@@ -612,5 +620,13 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     description:
       "A migration drops a `better_supabase` function and doesn't create it again with the same number of arguments. A schema diff does this when a better-supabase release changes a function's signature, such as `audit()` in 0.12. Calls with positional arguments and grants on the old signature fail once it runs. Read the upgrade notes for the release (/docs/migration), then update your calls and grants in the same migration.",
     check: perStatement(droppedLibraryFunction),
+  },
+  {
+    code: "BS240",
+    severity: "warning",
+    title: "Migration renames or removes an enum value",
+    description:
+      "A migration runs `alter type ... rename value` or deletes from `pg_enum`. Rows and app code that use the old value break, and editing `pg_enum` by hand corrupts indexes and stored data. Create the new type, move the column with `alter column ... type ... using`, then drop the old type.",
+    check: perStatement(changedEnumValue),
   },
 ];

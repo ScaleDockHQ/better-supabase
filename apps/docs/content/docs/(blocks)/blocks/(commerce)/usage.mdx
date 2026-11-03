@@ -56,6 +56,33 @@ insert into better_supabase.usage_quotas (plan, meter, "limit", period)
   values ('enterprise', 'api_calls', null, 'month');
 ```
 
+### Setting quotas from code
+
+`usage.setQuota` and `usage.removeQuota` write the same rows with a service
+transport. Give either `organizationId` or `plan`, never both:
+
+```ts
+await serviceUsage
+  .setQuota({ meter: "ai.input_tokens", organizationId, limit: 2_000_000 })
+  .orThrow();
+
+await serviceUsage
+  .setQuota({
+    meter: "ai.input_tokens",
+    plan: "free",
+    limit: null,
+    period: "day",
+  })
+  .orThrow();
+
+const removed = await serviceUsage
+  .removeQuota({ meter: "ai.input_tokens", organizationId })
+  .orThrow();
+```
+
+`limit: null` is unlimited and `period` defaults to `month`. `removeQuota`
+resolves to whether a quota existed.
+
 ### Billing periods
 
 Calendar periods reset at the start of the UTC day, week, month or year.
@@ -518,6 +545,8 @@ Stripe client of your own.
 | `usage_meters()`                                                           | everyone                        | the meter catalog                                                                                                       |
 | `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                                                   |
 | `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                                                   |
+| `set_usage_quota(tenant, plan, meter, quota_limit, period)`                | `service_role`                  | nothing; sets the quota of a tenant or a plan                                                                           |
+| `remove_usage_quota(tenant, plan, meter)`                                  | `service_role`                  | whether the quota existed                                                                                               |
 | `set_usage_price(meter, currency, unit_amount, included, label)`           | `service_role`                  | the price, with `options.history` and `invoices`                                                                        |
 | `bill_usage_period(tenant, period_start, period_end, currency, attrs)`     | `service_role`                  | `{ invoice_id, created, lines }`, with `options.history` and `invoices`                                                 |
 | `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                                                          |

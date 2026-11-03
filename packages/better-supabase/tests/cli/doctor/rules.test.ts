@@ -4656,3 +4656,70 @@ describe("block writes through a view Postgres can't update (BS349)", () => {
     expect(await run("BS349", context(withView(true), {}, config))).toEqual([]);
   });
 });
+
+describe("update policy checks a read permission (BS362)", () => {
+  const withPolicy = (using: string, command: "update" | "select" | "all") =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+
+      notes.policies = [
+        {
+          name: "notes_policy",
+          command,
+          roles: ["authenticated"],
+          permissive: true,
+          using,
+          check: null,
+        },
+      ];
+    });
+
+  it("reports an update policy that checks a .read key", async () => {
+    const findings = await run(
+      "BS362",
+      context(
+        withPolicy("better_supabase.can(tenant_id, 'notes.read')", "update"),
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        message: expect.stringContaining('"notes.read"'),
+      }),
+    ]);
+  });
+
+  it("reports a .view key in tenant_ids_with for all", async () => {
+    expect(
+      await run(
+        "BS362",
+        context(
+          withPolicy(
+            "tenant_id in (select better_supabase.tenant_ids_with('notes.view'))",
+            "all",
+          ),
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("passes a write key and a select policy", async () => {
+    expect(
+      await run(
+        "BS362",
+        context(
+          withPolicy("better_supabase.can(tenant_id, 'notes.write')", "update"),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS362",
+        context(
+          withPolicy("better_supabase.can(tenant_id, 'notes.read')", "select"),
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

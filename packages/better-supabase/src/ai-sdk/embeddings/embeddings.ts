@@ -1,12 +1,14 @@
 import type {
   EmbeddingModel,
+  EmbeddingModelMiddleware,
   RerankingModel,
   SourceDocumentUIPart,
   Tool,
 } from "ai";
 
-import { embedMany, jsonSchema, rerank, tool } from "ai";
+import { embed, embedMany, jsonSchema, rerank, tool } from "ai";
 
+import type { AiCache } from "../../blocks/ai-cache/ai-cache.ts";
 import type {
   Embedder,
   EmbedderV2,
@@ -14,7 +16,9 @@ import type {
   KnowledgeHit,
   KnowledgeSearchOptions,
 } from "../../blocks/knowledge/knowledge.ts";
+import type { DbError } from "../../core/errors.ts";
 
+import { cacheKey } from "../../blocks/ai-cache/ai-cache.ts";
 import { DbException } from "../../core/db-exception.ts";
 
 type ProviderOptions = Parameters<typeof embedMany>[0]["providerOptions"];
@@ -25,6 +29,11 @@ export interface EmbedWithOptions {
   readonly providerOptions?: ProviderOptions;
   /** The name stored with each embedding; the provider and model id by default. */
   readonly name?: string;
+  /**
+   * The output size to request from the model (`embed` and `embedMany`
+   * `dimensions`). An explicit setting in `providerOptions` wins.
+   */
+  readonly dimensions?: number;
 }
 
 /** The name of an SDK model: the string itself, or `provider/modelId`. */
@@ -49,20 +58,187 @@ export function embedWith(
         return { embeddings: [] };
       }
 
-      const { embeddings, usage } = await embedMany({
+      const shared = {
         model,
-        values: [...values],
-        maxParallelCalls: options.maxParallelCalls ?? 4,
         ...(options.providerOptions === undefined
           ? {}
           : { providerOptions: options.providerOptions }),
+        ...(options.dimensions === undefined
+          ? {}
+          : { dimensions: options.dimensions }),
         ...(embedOptions?.signal === undefined
           ? {}
           : { abortSignal: embedOptions.signal }),
+      };
+
+      const [only] = values;
+
+      if (values.length === 1 && only !== undefined) {
+        const { embedding, usage } = await embed({ ...shared, value: only });
+
+        return { embeddings: [embedding], usage: { tokens: usage.tokens } };
+      }
+
+      const { embeddings, usage } = await embedMany({
+        ...shared,
+        values: [...values],
+        maxParallelCalls: options.maxParallelCalls ?? 4,
       });
 
       return { embeddings, usage: { tokens: usage.tokens } };
     },
+  };
+}
+
+export interface EmbeddingCacheMiddlewareOptions {
+  /** The AI cache block with a service transport. */
+  readonly cache: Pick<AiCache, "get" | "upsert">;
+  /** Seconds an entry lives, capped by the module's `maxTtl`. */
+  readonly ttl: number;
+  /** Keeps tenants' entries apart, so `clear` and tenant deletion find them. */
+  readonly organizationId?: string;
+  /** Called when the cache can't be read or written; the call still runs. */
+  readonly onError?: (error: DbError) => void;
+}
+
+type EmbedCall = Parameters<
+  NonNullable<EmbeddingModelMiddleware["wrapEmbed"]>
+>[0];
+
+/**
+ * A `wrapEmbeddingModel` middleware that answers repeated values from the AI
+ * cache block (kind `embed`). Each value has its own entry, keyed by the
+ * tenant, provider, model, dimensions, provider options and the value's hash,
+ * so a call with some cached values only sends the others to the model. A cache
+ * that fails only costs the lookup.
+ */
+export function embeddingCacheMiddleware(
+  options: EmbeddingCacheMiddlewareOptions,
+): EmbeddingModelMiddleware {
+  const keyOf = (call: EmbedCall, value: string): Promise<string> =>
+    cacheKey({
+      type: "embed",
+      tenant: options.organizationId ?? null,
+      provider: call.model.provider,
+      model: call.model.modelId,
+      dimensions: call.params.dimensions ?? null,
+      providerOptions: call.params.providerOptions ?? null,
+      value,
+    });
+
+  const isVector = (value: unknown): value is number[] =>
+    Array.isArray(value) && value.every((x) => typeof x === "number");
+
+  return {
+    specificationVersion: "v4",
+    wrapEmbed: async (call) => {
+      const { values } = call.params;
+      const keys = await Promise.all(values.map((v) => keyOf(call, v)));
+
+      const found = await Promise.all(
+        keys.map(async (key) => {
+          const entry = await options.cache.get(key);
+
+          if (!entry.ok) {
+            options.onError?.(entry.error);
+
+            return;
+          }
+
+          return isVector(entry.data?.value) ? entry.data.value : undefined;
+        }),
+      );
+
+      const missing = found.flatMap((vector, index) =>
+        vector === undefined ? [index] : [],
+      );
+
+      if (missing.length === 0) {
+        return { embeddings: found.filter(isVector), warnings: [] };
+      }
+
+      const result = await call.model.doEmbed({
+        ...call.params,
+        values: missing.map((index) => values[index] ?? ""),
+      });
+
+      await Promise.all(
+        missing.map(async (index, position) => {
+          const vector = result.embeddings[position];
+          const key = keys[index];
+
+          if (vector === undefined || key === undefined) {
+            return;
+          }
+
+          found[index] = vector;
+
+          const saved = await options.cache.upsert({
+            key,
+            value: vector,
+            options: {
+              ttl: options.ttl,
+              kind: "embed",
+              model: `${call.model.provider}/${call.model.modelId}`,
+              ...(options.organizationId === undefined
+                ? {}
+                : { organizationId: options.organizationId }),
+            },
+          });
+
+          if (!saved.ok) {
+            options.onError?.(saved.error);
+          }
+        }),
+      );
+
+      return { ...result, embeddings: found.filter(isVector) };
+    },
+  };
+}
+
+/**
+ * Reorders the hits of any search (the vector search of the search block, a
+ * memory lookup, a SQL function) with a reranking model. `text` reads the text
+ * to rank from a hit, and the hits keep their other fields.
+ */
+export function rerankHits<T>(
+  model: RerankingModel,
+  options: {
+    readonly topN?: number;
+    readonly text: (hit: T) => string;
+    /** Writes the rerank score onto the hit; the hit is kept as is by default. */
+    readonly withScore?: (hit: T, score: number) => T;
+  },
+): (
+  query: string,
+  hits: readonly T[],
+  rerankOptions?: { readonly signal?: AbortSignal },
+) => Promise<readonly T[]> {
+  return async (query, hits, rerankOptions) => {
+    if (hits.length <= 1) {
+      return hits;
+    }
+
+    const { ranking } = await rerank({
+      model,
+      query,
+      documents: hits.map(options.text),
+      ...(options.topN === undefined ? {} : { topN: options.topN }),
+      ...(rerankOptions?.signal === undefined
+        ? {}
+        : { abortSignal: rerankOptions.signal }),
+    });
+
+    return ranking.flatMap((entry) => {
+      const hit = hits[entry.originalIndex];
+
+      if (hit === undefined) {
+        return [];
+      }
+
+      return [options.withScore ? options.withScore(hit, entry.score) : hit];
+    });
   };
 }
 

@@ -45,6 +45,13 @@ interface RedisStreamSharedOptions {
   readonly pollMs?: number;
   /** Chunks per read. Defaults to 1000. */
   readonly batch?: number;
+  /**
+   * The user this store instance reads and cancels for. A stream opened with a
+   * different `owner` then looks like it doesn't exist to `read`, `status`,
+   * `isCancelled` and `cancel`, as RLS does in the Postgres store. Leave it out
+   * for the writer (the service role), which sees every stream.
+   */
+  readonly reader?: string;
 }
 
 export type RedisStreamStoreOptions = RedisStreamSharedOptions &
@@ -199,6 +206,24 @@ export function redisStreamStore(
     return fields;
   };
 
+  const visibleState = async (
+    id: string,
+  ): Promise<Record<string, string> | undefined> => {
+    const fields = await state(id);
+    const owner = fields?.["owner"];
+
+    if (
+      fields &&
+      options.reader !== undefined &&
+      owner !== undefined &&
+      owner !== options.reader
+    ) {
+      return undefined;
+    }
+
+    return fields;
+  };
+
   const length = async (id: string): Promise<number> =>
     Number(await (await redis()).lLen(list(id)));
 
@@ -212,7 +237,7 @@ export function redisStreamStore(
 
   const status = (id: string): AsyncResult<StreamStatus | undefined> =>
     attempt(async () => {
-      const fields = await state(id);
+      const fields = await visibleState(id);
 
       if (!fields) {
         return;
@@ -227,7 +252,8 @@ export function redisStreamStore(
 
   const mark = (id: string, field: "closed" | "cancelled") =>
     attempt(async () => {
-      const fields = await state(id);
+      const fields =
+        field === "cancelled" ? await visibleState(id) : await state(id);
 
       if (!fields || fields[field] !== undefined) {
         return false;
@@ -380,7 +406,7 @@ export function redisStreamStore(
           : {}),
         fetch: (from) =>
           attempt(async (): Promise<StreamPage> => {
-            const fields = await state(id);
+            const fields = await visibleState(id);
 
             if (!fields) {
               return { chunks: [], next: from, done: true };

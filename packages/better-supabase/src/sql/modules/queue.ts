@@ -3,6 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, serviceOnly, revokeTable } from "../shared.ts";
+import { LEASE_FUNCTIONS, LEASES_TABLE, leasesSql } from "./queue-leases.ts";
 import { MESSAGES_TABLE, table } from "./queue-table.ts";
 
 export type JobsBackend = "pgmq" | "table";
@@ -757,6 +758,7 @@ const GRANTS = (backend: JobsBackend): string =>
     "job_queue_stats(text)",
     "list_dead_jobs(text, integer, bigint)",
     "retry_dead_jobs(text, bigint[], integer)",
+    ...LEASE_FUNCTIONS,
   ]);
 
 // Both tables exist only with their option: messages with backend "table",
@@ -765,6 +767,7 @@ const NAMES: BlockSqlNames = {
   options: ["backend", "scheduler"],
   tables: {
     messages: MESSAGES_TABLE,
+    leases: LEASES_TABLE,
     schedules: {
       name: "job_schedules",
       app: { writes: false },
@@ -796,6 +799,7 @@ function jobsSql(ctx: BlockSqlContext): string {
       ? pgmq(archiveGuard(ctx))
       : table(ctx, archiveGuard(ctx)),
     scheduler === "pg_cron" ? PG_CRON(backend) : drain(ctx),
+    leasesSql(ctx),
     GRANTS(backend),
   ].join("\n\n");
 }
@@ -808,13 +812,19 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 9,
+  version: 10,
   names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
       : "",
   upgrades: [
+    {
+      from: 9,
+      description:
+        "claim_lease, extend_lease_claim, complete_lease and release_lease_claim keep leases on any scope and key in job_leases.",
+      sql: () => "",
+    },
     {
       from: 8,
       description:

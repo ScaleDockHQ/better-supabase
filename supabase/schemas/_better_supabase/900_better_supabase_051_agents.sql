@@ -1,6 +1,6 @@
 -- better-supabase module: agents
--- @bsb-block agents@1 managed
--- @bsb-hash sha256:7339b258455c5bb51c86e3fe1d048de058dff0de9c9b8517e1e6d1d425ecc023
+-- @bsb-block agents@2 managed
+-- @bsb-hash sha256:54b8e86c02ebe4636f56916681b14fbb14fa854e728075ee46f00fb912139bbe
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -140,6 +140,13 @@ create table if not exists "better_supabase"."agent_skills" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "provider" text not null check (length("provider") between 1 and 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  -- Skill files kept in Storage (a list of {path, object}), the hash of their
+  -- bytes, and the reference each provider returned for that hash.
+  "name" text,
+  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "content_hash" text,
+  "latest_version" text,
+  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
@@ -331,7 +338,7 @@ begin
     return null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
-    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
+    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
   );
@@ -489,14 +496,40 @@ begin
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";
-  insert into "better_supabase"."agent_skills" ("agent_id", "provider", "reference")
-  select v_row."id", e ->> 'provider', e -> 'reference' from jsonb_array_elements(v_items) e;
+  insert into "better_supabase"."agent_skills" ("agent_id", "provider", "reference", "name", "files", "content_hash", "latest_version", "provider_refs")
+  select v_row."id", e ->> 'provider', coalesce(e -> 'reference', '{}'), e ->> 'name', coalesce(e -> 'files', '[]'), e ->> 'content_hash', e ->> 'latest_version', coalesce(e -> 'provider_refs', '{}')
+  from jsonb_array_elements(v_items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
+
+-- Records what a provider returned for a skill's current content: its
+-- reference and the hash it was uploaded from. syncSkill calls it as the
+-- service role after uploadSkill, and skips the upload while the hash matches.
+create or replace function "better_supabase"."record_skill_sync"(skill_id uuid, provider text, reference jsonb, content_hash text)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agent_skills"%rowtype;
+begin
+  update "better_supabase"."agent_skills" k
+  set "provider_refs" = k."provider_refs" || jsonb_build_object(record_skill_sync.provider, jsonb_build_object('reference', record_skill_sync.reference, 'content_hash', record_skill_sync.content_hash)),
+      "content_hash" = record_skill_sync.content_hash
+  where k."id" = record_skill_sync.skill_id
+  returning * into v_row;
+  if not found then
+    raise exception 'agent % not found', record_skill_sync.skill_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  return v_row."provider_refs";
+end;
+$$;
+revoke execute on function "better_supabase"."record_skill_sync"(uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_skill_sync"(uuid, text, jsonb, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -656,6 +689,15 @@ set search_path = ''
 as $$ select "better_supabase"."set_agent_skills"($1, $2) $$;
 revoke execute on function "api"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "api"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."record_skill_sync"(skill_id uuid, provider text, reference jsonb, content_hash text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_skill_sync"($1, $2, $3, $4) $$;
+revoke execute on function "api"."record_skill_sync"(uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."record_skill_sync"(uuid, text, jsonb, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

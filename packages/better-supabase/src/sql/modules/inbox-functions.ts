@@ -219,7 +219,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(x.item || ${q.json("details", "d")} || jsonb_build_object('delivery', case when ${fn("inbox_note_readable")}(d.${dt("conversation")}) then (
-      select jsonb_build_object('status', l.${dl("status")}, 'channel', l.${dl("channel")}, 'error', ${or("deliveries", "l", "error")}, 'updated_at', l.${dl("updatedAt")})
+      select jsonb_build_object('status', l.${dl("status")}, 'channel', l.${dl("channel")}, 'error', ${or("deliveries", "l", "error")}, 'updated_at', l.${dl("updatedAt")}, 'delivered_at', ${or("deliveries", "l", "deliveredAt")}, 'read_at', ${or("deliveries", "l", "readAt")}, 'failed_at', ${or("deliveries", "l", "failedAt")})
       from ${T("deliveries")} l where l.${dl("message")} = d.${dt("message")}
       order by l.${dl("createdAt")} limit 1
     ) end) order by x.n), '[]'::jsonb)
@@ -454,6 +454,11 @@ begin
     v_reopened := inbox_add_message.direction = 'inbound' and v_conv.${cv("status")} in ('resolved', 'snoozed');
     update ${T("conversations")} set
       ${cv("lastMessageAt")} = v_at,${
+        has("conversations", "lastInboundAt")
+          ? `
+      ${cv("lastInboundAt")} = case when inbox_add_message.direction = 'inbound' then v_at else ${cv("lastInboundAt")} end,`
+          : ""
+      }${
         has("conversations", "preview")
           ? `
       ${cv("preview")} = left(v_body, 140),`
@@ -693,6 +698,7 @@ ${authed(`${fn("create_inbox_attachment")}(uuid, text, text, bigint)`)}
 create or replace function ${fn("record_inbound")}(input jsonb)
 returns jsonb
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -897,6 +903,43 @@ begin
 end;
 $$;
 ${authed(`${fn("set_bot_mode")}(uuid, text, text)`)}
+
+-- Claims or releases the stream a bot is writing into the conversation, so
+-- staff and the contact see it live. A claim while another stream is active
+-- fails; the same id claims again; a null stream_id releases. The change is
+-- broadcast as 'stream' on the conversation's own topic. Without the table's
+-- active_stream_id column it refuses.
+create or replace function ${fn("set_active_stream")}(conversation uuid, stream_id text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv ${T("conversations")}%rowtype;
+begin
+  ${loadConversation("set_active_stream.conversation")}
+  if not (${service} or ${command("set_bot_mode", "reply")}) then
+    ${forbidden("not allowed to change this conversation")}
+  end if;${
+    has("conversations", "activeStreamId")
+      ? `
+  if set_active_stream.stream_id is not null
+    and v_conv.${cv("activeStreamId")} is not null
+    and v_conv.${cv("activeStreamId")} is distinct from set_active_stream.stream_id then
+    ${fail("INBOX_STREAM_ACTIVE", "another stream is active in this conversation", "55006")}
+  end if;
+  update ${T("conversations")} set ${cv("activeStreamId")} = set_active_stream.stream_id where ${cv("id")} = v_conv.${cv("id")};`
+      : `
+  ${fail("INBOX_STREAM_UNSUPPORTED", "the conversations table has no active_stream_id column", "0A000")}`
+  }
+  if ${ready} then
+    perform realtime.send(jsonb_build_object('conversation_id', v_conv.${cv("id")}, 'stream_id', set_active_stream.stream_id), 'stream', ${core.topic(`v_conv.${cv("id")}`)}, true);
+  end if;
+  return ${conversationJson}(v_conv.${cv("id")});
+end;
+$$;
+${authed(`${fn("set_active_stream")}(uuid, text)`)}
 
 -- Marks the conversation read for the caller on their core member row. A
 -- contact's read pings the conversation topic, for staff read receipts.

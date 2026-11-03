@@ -42,6 +42,28 @@ const ARGS = {
       "Set this SQL literal instead: a quoted string with an optional cast, a number, true or false",
     valueHint: "literal",
   },
+  array: {
+    type: "string",
+    description:
+      "Change the elements of the jsonb array at this dot-separated key path inside the column (. for the column itself) instead of filling nulls; needs --match and --delete or --merge",
+    valueHint: "path",
+  },
+  match: {
+    type: "string",
+    description:
+      "With --array: the JSON object an element must contain (jsonb @>) to change",
+    valueHint: "json",
+  },
+  delete: {
+    type: "boolean",
+    description: "With --array: remove the matching elements",
+  },
+  merge: {
+    type: "string",
+    description:
+      "With --array: merge this JSON object into each matching element (jsonb ||)",
+    valueHint: "json",
+  },
   "batch-size": {
     type: "string",
     description: "Rows to update per statement (default 1000)",
@@ -49,7 +71,8 @@ const ARGS = {
   },
   "dry-run": {
     type: "boolean",
-    description: "Count the rows it would fill, and change nothing",
+    description:
+      "Count the rows (and, with --array, the elements) it would change, and change nothing",
   },
 } as const;
 
@@ -171,6 +194,93 @@ select count(*)::int as filled from filled`,
   }
 }
 
+/** What `--array` does to each element that contains `match`. */
+export interface ArrayChange {
+  /** Key path of the array inside the jsonb value; empty for the value itself. */
+  readonly path: readonly string[];
+  /** A JSON object, as text. */
+  readonly match: string;
+  /** A JSON object, as text; absent when the elements are deleted. */
+  readonly merge?: string;
+}
+
+const sqlJson = (text: string): string =>
+  `'${text.replaceAll("'", "''")}'::jsonb`;
+
+/**
+ * The statements for an array change. `pending` counts the rows with an element
+ * to change, `elements` counts those elements, and `batch` changes at most
+ * `size` rows and returns how many rows and elements it changed. A merge only
+ * counts the elements it would alter, so the command can run again.
+ */
+export function arrayStatements(
+  target: ColumnPath,
+  change: ArrayChange,
+  size: number,
+): {
+  readonly pending: string;
+  readonly elements: string;
+  readonly batch: string;
+} {
+  const table = tableRef(target);
+  const column = `t.${sqlIdent(target.column)}`;
+
+  const path = `'{${change.path.join(",")}}'::text[]`;
+  const match = sqlJson(change.match);
+
+  const current = `(case when jsonb_typeof(${column} #> ${path}) = 'array' then ${column} #> ${path} else '[]'::jsonb end)`;
+
+  const merge = change.merge === undefined ? undefined : sqlJson(change.merge);
+
+  const changes =
+    merge === undefined
+      ? `e @> ${match}`
+      : `e @> ${match} and (e || ${merge}) is distinct from e`;
+
+  const next =
+    merge === undefined
+      ? `coalesce((select jsonb_agg(e order by ord) from jsonb_array_elements(${current}) with ordinality as x(e, ord) where not (e @> ${match})), '[]'::jsonb)`
+      : `coalesce((select jsonb_agg(case when e @> ${match} then e || ${merge} else e end order by ord) from jsonb_array_elements(${current}) with ordinality as x(e, ord)), '[]'::jsonb)`;
+
+  const value =
+    change.path.length === 0 ? next : `jsonb_set(${column}, ${path}, ${next})`;
+
+  const counted = `from ${table} t cross join lateral (select count(*)::int as n from jsonb_array_elements(${current}) e where ${changes}) c where c.n > 0`;
+
+  return {
+    pending: `select count(*)::bigint::text as count ${counted}`,
+    elements: `select coalesce(sum(c.n), 0)::bigint::text as count ${counted}`,
+    batch: `with batch as (
+  select t.ctid as row_id, c.n ${counted}
+  limit ${String(size)}
+  for update of t skip locked
+), changed as (
+  update ${table} t set ${sqlIdent(target.column)} = ${value}
+  from batch where t.ctid = batch.row_id
+  returning batch.n
+)
+select count(*)::int as filled, coalesce(sum(n), 0)::int as elements from changed`,
+  };
+}
+
+async function columnIsJsonb(
+  client: PgQueryable,
+  path: ColumnPath,
+): Promise<boolean> {
+  const { rows } = await client.query<{ found: boolean }>(
+    `select exists (
+  select 1 from pg_catalog.pg_attribute a
+  join pg_catalog.pg_class c on c.oid = a.attrelid
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = $1 and c.relname = $2 and a.attname = $3
+    and a.atttypid = 'pg_catalog.jsonb'::regtype
+) as found`,
+    [path.schema, path.table, path.column],
+  );
+
+  return rows[0]?.found === true;
+}
+
 async function columnExists(
   client: PgQueryable,
   path: ColumnPath,
@@ -221,7 +331,90 @@ interface Parsed {
   readonly from?: ColumnPath;
   readonly via?: string;
   readonly value?: string;
+  readonly array?: ArrayChange;
   readonly size: number;
+}
+
+const KEY = /^[A-Za-z0-9_-]+$/u;
+
+/** A non-empty JSON object, normalised, or a usage error naming `flag`. */
+function jsonObject(text: string | undefined, flag: string): string {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text ?? "");
+  } catch {
+    throw new CliError(
+      "invalid_value",
+      `${flag} takes a JSON object such as '{"key":"value"}', got ${text ?? "nothing"}.`,
+      { flag },
+    );
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length === 0
+  ) {
+    throw new CliError(
+      "invalid_value",
+      `${flag} takes a non-empty JSON object, got ${text ?? "nothing"}.`,
+      { flag },
+    );
+  }
+
+  return JSON.stringify(parsed);
+}
+
+function arrayChange(
+  args: BackfillFlags,
+  via: string | undefined,
+): ArrayChange {
+  if (
+    args.from !== undefined ||
+    args.value !== undefined ||
+    via !== undefined
+  ) {
+    throw new CliError(
+      "usage",
+      "--array changes array elements; it can't be combined with --from, via or --value.",
+      { flag: "--array" },
+    );
+  }
+
+  if (args.match === undefined) {
+    throw new CliError("usage", "--array needs --match <json>.", {
+      flag: "--match",
+    });
+  }
+
+  if ((args.delete === true) === (args.merge !== undefined)) {
+    throw new CliError(
+      "usage",
+      "--array needs exactly one of --delete or --merge <json>.",
+      { flag: "--delete" },
+    );
+  }
+
+  const raw = args.array ?? "";
+  const path = raw === "." ? [] : raw.split(".");
+
+  if (path.some((key) => !KEY.test(key))) {
+    throw new CliError(
+      "invalid_value",
+      `--array takes a dot-separated key path such as items or settings.tags, or . for the column itself. Got "${raw}".`,
+      { flag: "--array" },
+    );
+  }
+
+  return {
+    path,
+    match: jsonObject(args.match, "--match"),
+    ...(args.merge === undefined
+      ? {}
+      : { merge: jsonObject(args.merge, "--merge") }),
+  };
 }
 
 function parseArgs(args: BackfillFlags): Parsed {
@@ -248,14 +441,6 @@ function parseArgs(args: BackfillFlags): Parsed {
 
   const target = parseColumnPath(column, "column");
 
-  if ((args.from === undefined) === (args.value === undefined)) {
-    throw new CliError(
-      "usage",
-      "Pass --from <table.column> with via <column>, or --value <literal>.",
-      { flag: "--from" },
-    );
-  }
-
   const size =
     args["batch-size"] === undefined
       ? DEFAULT_BATCH
@@ -266,6 +451,30 @@ function parseArgs(args: BackfillFlags): Parsed {
       "invalid_value",
       `--batch-size takes a whole number above 0, got "${args["batch-size"] ?? ""}".`,
       { flag: "--batch-size" },
+    );
+  }
+
+  if (args.array !== undefined) {
+    return { target, array: arrayChange(args, via), size };
+  }
+
+  if (
+    args.match !== undefined ||
+    args.delete !== undefined ||
+    args.merge !== undefined
+  ) {
+    throw new CliError(
+      "usage",
+      "--match, --delete and --merge go with --array.",
+      { flag: "--array" },
+    );
+  }
+
+  if ((args.from === undefined) === (args.value === undefined)) {
+    throw new CliError(
+      "usage",
+      "Pass --from <table.column> with via <column>, or --value <literal>.",
+      { flag: "--from" },
     );
   }
 
@@ -317,8 +526,110 @@ const DEFAULT_DEPS: BackfillDeps = {
   requireConsent: () => {},
 };
 
+const elementsText = (count: number): string =>
+  `${String(count)} element${count === 1 ? "" : "s"}`;
+
 const rowsText = (count: number): string =>
   `${String(count)} row${count === 1 ? "" : "s"}`;
+
+async function runArray(
+  client: PgQueryable,
+  target: ColumnPath,
+  change: ArrayChange,
+  size: number,
+  dryRun: boolean,
+  log: (line: string) => void,
+): Promise<CommandResult> {
+  if (!(await columnExists(client, target))) {
+    throw new CliError(
+      "not_found",
+      `The database has no column ${label(target)}.`,
+    );
+  }
+
+  if (!(await columnIsJsonb(client, target))) {
+    throw new CliError(
+      "invalid_input",
+      `${label(target)} isn't a jsonb column; --array changes jsonb arrays.`,
+    );
+  }
+
+  const statements = arrayStatements(target, change, size);
+
+  const count = async (text: string): Promise<number> =>
+    Number((await client.query<{ count: string }>(text)).rows[0]?.count ?? 0);
+
+  const action = change.merge === undefined ? "delete" : "merge";
+  const where = change.path.length === 0 ? "." : change.path.join(".");
+
+  const data = {
+    column: label(target),
+    array: where,
+    match: change.match,
+    action,
+    ...(change.merge === undefined ? {} : { merge: change.merge }),
+  };
+
+  const verb = action === "delete" ? "delete" : "merge into";
+
+  if (dryRun) {
+    const rows = await count(statements.pending);
+    const elements = await count(statements.elements);
+
+    return {
+      code: 0,
+      output: `Would ${verb} ${elementsText(elements)} in ${rowsText(rows)} of ${label(target)} (${where}).`,
+      data: {
+        ...data,
+        dryRun: true,
+        rows,
+        elements,
+        batches: 0,
+        remaining: rows,
+      },
+    };
+  }
+
+  let rows = 0;
+  let elements = 0;
+  let batches = 0;
+
+  for (;;) {
+    const result = await client.query<{ filled: number; elements: number }>(
+      statements.batch,
+    );
+
+    const done = result.rows[0]?.filled ?? 0;
+
+    if (done === 0) {
+      break;
+    }
+
+    rows += done;
+    elements += result.rows[0]?.elements ?? 0;
+    batches += 1;
+    log(
+      `Changed ${elementsText(elements)} in ${rowsText(rows)} of ${label(target)} (batch ${String(batches)}).`,
+    );
+  }
+
+  const remaining = await count(statements.pending);
+
+  return {
+    code: 0,
+    output: [
+      rows === 0
+        ? `${label(target)} has no matching elements in ${where}.`
+        : `Changed ${elementsText(elements)} in ${rowsText(rows)} of ${label(target)} in ${String(batches)} batch${batches === 1 ? "" : "es"}.`,
+      ...(remaining > 0
+        ? [
+            `${rowsText(remaining)} still ${remaining === 1 ? "has" : "have"} matching elements because another session held them. Run this again.`,
+          ]
+        : []),
+    ].join("\n"),
+    data: { ...data, dryRun: false, rows, elements, batches, remaining },
+  };
+}
 
 /**
  * Fills the null values of a column in batches, from a column of the table a
@@ -354,6 +665,17 @@ export async function runBackfill(
   const { client, close } = await open(url);
 
   try {
+    if (parsed.array !== undefined) {
+      return await runArray(
+        client,
+        target,
+        parsed.array,
+        parsed.size,
+        dryRun,
+        log,
+      );
+    }
+
     for (const path of [target, ...(parsed.from ? [parsed.from] : [])]) {
       if (!(await columnExists(client, path))) {
         throw new CliError(

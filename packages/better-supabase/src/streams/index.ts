@@ -4,6 +4,8 @@ export {
 } from "./postgres.ts";
 
 export {
+  type ConsumeSseStreamOptions,
+  consumeSseStreamInto,
   type ResumableStreamAdapterOptions,
   type ResumableStreamContext,
   resumableStreamContext,

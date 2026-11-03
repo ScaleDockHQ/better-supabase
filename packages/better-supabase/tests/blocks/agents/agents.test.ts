@@ -104,7 +104,12 @@ describe("createAgents", () => {
       { scope: "organization", id: "o1" },
     ]);
     expect(created.skills).toEqual([
-      { id: "s1", provider: "vercel", reference: { slug: "pdf" } },
+      {
+        id: "s1",
+        provider: "vercel",
+        reference: { slug: "pdf" },
+        providerRefs: {},
+      },
     ]);
     expect(created.publishedAt?.toString()).toBe(AT);
 
@@ -216,5 +221,52 @@ describe("createAgents", () => {
       ],
       ["delete_agent", { id: "a1" }],
     ]);
+  });
+});
+
+describe("skills, remaining paths", () => {
+  it("maps files, hashes and provider refs, and records a sync", async () => {
+    const { transport, calls } = fakeTransport({
+      get_agent: () =>
+        agentRow({
+          skills: [
+            {
+              id: "s2",
+              provider: "vercel",
+              name: "pdf",
+              files: [{ path: "SKILL.md", object: "skills/s2/SKILL.md" }],
+              content_hash: "h1",
+              latest_version: "v2",
+              provider_refs: {
+                vercel: { reference: { id: "r1" }, content_hash: "h1" },
+                broken: "no",
+              },
+            },
+          ],
+        }),
+      record_skill_sync: () => 1,
+    });
+
+    const agents = createAgents({ transport });
+    const agent = await agents.get("a1").orThrow();
+
+    expect(agent.skills[0]).toMatchObject({
+      name: "pdf",
+      contentHash: "h1",
+      latestVersion: "v2",
+      files: [{ path: "SKILL.md", object: "skills/s2/SKILL.md" }],
+      providerRefs: { vercel: { reference: { id: "r1" }, contentHash: "h1" } },
+    });
+
+    await agents
+      .recordSkillSync({
+        skillId: "s2",
+        provider: "vercel",
+        reference: { id: "r1" },
+        contentHash: "h1",
+      })
+      .orThrow();
+
+    expect(calls.at(-1)?.fn).toBe("record_skill_sync");
   });
 });

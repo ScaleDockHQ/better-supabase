@@ -329,6 +329,51 @@
           "auditReads": {
             "type": "boolean"
           },
+          "embedding": {
+            "type": "object",
+            "properties": {
+              "content": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dimensions": {
+                "type": "number"
+              },
+              "type": {
+                "enum": ["vector", "halfvec"],
+                "type": "string"
+              },
+              "schedule": {
+                "type": "string"
+              },
+              "batch": {
+                "type": "number"
+              }
+            },
+            "required": ["content", "dimensions"],
+            "additionalProperties": false
+          },
+          "columnGroups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "update": {
+                  "type": "string"
+                }
+              },
+              "required": ["columns", "update"],
+              "additionalProperties": false
+            }
+          },
           "subject": {
             "type": "object",
             "properties": {

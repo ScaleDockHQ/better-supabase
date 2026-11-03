@@ -172,6 +172,17 @@ calls throw `ChatError` (a `RateLimitError` for `rate_limited`) with the
 `DbError` as `cause`, and `deliver` retries a platform `RATE_LIMITED` reply
 after its `retryAfterMs`.
 
+Embeddings and files: `embeddingCacheMiddleware` caches embeddings, `rerankHits`
+reranks, `uploadToProvider` and `providerFileParts` reuse provider file
+references, and `renderAutoEmbedding` (from `better-supabase/sql`) with
+`embeddingWorker` keeps a table's vector column current through pgmq, pg_net and
+pg_cron. `syncSkill` uploads agent skills once per content hash.
+`better-supabase/json-render` stores a streamed UI spec as one part
+(`assistant({ parts: { compact: collapseSpecParts } })`). `postgresMcpEventStore`
+keeps MCP event subscriptions in Vault, `aiTranscriber` feeds the activities
+block, `realtimeTokenRoute` guards realtime tokens and `toolSearchFrom` ranks
+deferred tools from a catalog.
+
 Docs: https://bettersupabase.com/docs/ai-sdk.md (and `agents`, `mcp`,
 `embeddings`, `memory`, `files`, `batches` under `/docs/ai-sdk/`),
 https://bettersupabase.com/docs/eve.md and

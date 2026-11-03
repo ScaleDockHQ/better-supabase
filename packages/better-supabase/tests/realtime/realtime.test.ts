@@ -911,6 +911,39 @@ describe("trigger with betterSupabase", () => {
     expect(sql).toContain("if tg_when <> 'AFTER' then");
   });
 
+  it("sends only the listed columns, and only when one of them changed", () => {
+    const sql = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      columns: ["organizationId"],
+    });
+
+    expect(sql).toContain(
+      `'columns', (jsonb_build_object('organization_id', to_jsonb(rec."organization_id")))`,
+    );
+    expect(sql).toContain(
+      `old."organization_id" is distinct from new."organization_id"`,
+    );
+  });
+
+  it("rejects columns that are empty or combined with when or payload", () => {
+    const base = {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+    } as const;
+
+    expect(() =>
+      customers.trigger("customers", { ...base, columns: [] }),
+    ).toThrow(TypeError);
+    expect(() =>
+      customers.trigger("customers", {
+        ...base,
+        columns: ["organizationId"],
+        when: { changed: ["organizationId"] },
+      }),
+    ).toThrow(/columns replaces when and payload/);
+  });
+
   it("names composite keys by column and reads no key for a keyless table", () => {
     const tagged = defineTopic("customer:{customerId}");
 

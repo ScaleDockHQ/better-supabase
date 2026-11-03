@@ -287,4 +287,31 @@ describe("withTableTags", () => {
 
     expect(next).toBe(config);
   });
+
+  it("turns an embedding tag into config", async () => {
+    const { name } = await first();
+    const config = resolveConfig({ blocks: {} }, "/tmp");
+
+    const next = withTableTags(
+      config,
+      await tagged(
+        name,
+        '@bsb embedding content=title,body dimensions=768 type=vector schedule="30 seconds"',
+      ),
+    );
+
+    expect(next.appTables[name]?.embedding).toEqual({
+      content: ["title", "body"],
+      dimensions: 768,
+      type: "vector",
+      schedule: "30 seconds",
+    });
+
+    const ignored = withTableTags(
+      config,
+      await tagged(name, "@bsb embedding content=title"),
+    );
+
+    expect(ignored.appTables[name]?.embedding).toBeUndefined();
+  });
 });

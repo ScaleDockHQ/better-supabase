@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   postgresStreamStore,
+  consumeSseStreamInto,
   resumableStreamContext,
   resumeFromStore,
   teeToStore,
@@ -368,6 +369,7 @@ describe("resumableStreamContext", () => {
 
     const context = resumableStreamContext(store, {
       flushMs: 1,
+      replayFinished: true,
       waitUntil: (promise) => pending.push(promise),
     });
 
@@ -384,7 +386,103 @@ describe("resumableStreamContext", () => {
     expect(await text((await context.resumeExistingStream("r1", 3))!)).toBe(
       "lo world",
     );
-    expect(await context.resumeExistingStream("missing")).toBeNull();
+    expect(await context.resumeExistingStream("missing")).toBeUndefined();
+  });
+
+  it("matches resumable-stream: undefined when missing, null when finished", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    const pending: Promise<unknown>[] = [];
+
+    const context = resumableStreamContext(store, {
+      flushMs: 1,
+      waitUntil: (promise) => pending.push(promise),
+    });
+
+    expect(await context.resumeExistingStream("n1")).toBeUndefined();
+
+    const first = await context.resumableStream("n1", () =>
+      fromChunks(["ab", "cd"]),
+    );
+
+    expect(await text(first!)).toBe("abcd");
+    await Promise.all(pending);
+
+    expect(await context.resumeExistingStream("n1")).toBeNull();
+    expect(
+      await context.resumableStream("n1", () => fromChunks(["never"])),
+    ).toBeNull();
+  });
+
+  it("joins a running stream with resumableStream instead of restarting it", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    let makes = 0;
+    const context = resumableStreamContext(store, { flushMs: 1 });
+
+    const make = () => {
+      makes += 1;
+
+      return new ReadableStream<string>({
+        async start(controller) {
+          controller.enqueue("one ");
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 30);
+          });
+          controller.enqueue("two");
+          controller.close();
+        },
+      });
+    };
+
+    const live = await context.resumableStream("j1", make);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    const joined = await context.resumableStream("j1", make, 4);
+    expect(await text(joined!)).toBe("two");
+    expect(await text(live!)).toBe("one two");
+    expect(makes).toBe(1);
+  });
+});
+
+describe("consumeSseStreamInto", () => {
+  it("stores the response's SSE text under an id the app can save", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    const ids: string[] = [];
+    const pending: Promise<unknown>[] = [];
+
+    await consumeSseStreamInto(store, {
+      streamId: "s-1",
+      flushMs: 1,
+      onStreamId: (id) => {
+        ids.push(id);
+      },
+      waitUntil: (promise) => pending.push(promise),
+    })({ stream: fromChunks(["data: a\n\n", "data: b\n\n"]) });
+    await Promise.all(pending);
+
+    expect(ids).toEqual(["s-1"]);
+    expect(await text(store.read("s-1", 0))).toBe("data: a\n\ndata: b\n\n");
+  });
+});
+
+describe("redisStreamStore reader", () => {
+  it("hides another owner's stream from a reader and keeps it for the writer", async () => {
+    const { client } = fakeRedis();
+    const writer = redisStreamStore({ client });
+    const mine = redisStreamStore({ client, reader: "u1" });
+    const theirs = redisStreamStore({ client, reader: "u2" });
+
+    await writer.open("o1", { owner: "u1" }).orThrow();
+    await writer.append("o1", 0, ["hi"]).orThrow();
+
+    expect((await mine.status("o1").orThrow())?.next).toBe(1);
+    expect(await theirs.status("o1").orThrow()).toBeUndefined();
+    expect(await text(theirs.read("o1", 0))).toBe("");
+    expect(await theirs.cancel("o1").orThrow()).toBe(false);
+    expect(await mine.cancel("o1").orThrow()).toBe(true);
   });
 });
 

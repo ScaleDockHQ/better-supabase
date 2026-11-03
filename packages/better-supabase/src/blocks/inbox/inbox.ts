@@ -307,6 +307,17 @@ export interface Inbox {
     }): AsyncResult<Conversation>;
     markRead(conversationId: string): AsyncResult<Temporal.Instant>;
     /**
+     * Claims or releases the stream a bot is writing into the conversation,
+     * like `runs.claim` and `runs.release` of ai-chat. A `streamId` marks it
+     * active and broadcasts `stream` on the conversation's messaging topic; a
+     * `null` releases it. A claim while another stream is active fails with
+     * `INBOX_STREAM_ACTIVE`.
+     */
+    setActiveStream(input: {
+      conversationId: string;
+      streamId: string | null;
+    }): AsyncResult<Conversation>;
+    /**
      * A typing ping on the conversation's messaging topic; the service names
      * the bot in `actor`.
      */
@@ -461,10 +472,19 @@ export interface Inbox {
       readonly inboxId?: string;
       readonly tenant?: string;
     }): AsyncResult<{ readonly id: string; readonly duplicate: boolean }>;
+    /**
+     * Moves a stored event along. `processing` counts one attempt and leases
+     * the event for `lease` (seconds or an interval, default 5 minutes), so
+     * `pending` offers it again once the lease ran out. `failed` waits
+     * `retryIn` (seconds or an interval) before `pending` offers it again;
+     * without it the wait doubles per attempt, up to an hour.
+     */
     setStatus(input: {
       id: string;
       status: "processing" | "processed" | "ignored" | "failed";
       error?: string | undefined;
+      retryIn?: number | string | undefined;
+      lease?: number | string | undefined;
     }): AsyncResult<boolean>;
     pending(options?: {
       readonly limit?: number;
@@ -626,6 +646,19 @@ export function createInbox(options: InboxOptions): Inbox {
       conversationOf,
     );
 
+  const setActiveStream = ({
+    conversationId,
+    streamId,
+  }: {
+    conversationId: string;
+    streamId: string | null;
+  }): AsyncResult<Conversation> =>
+    call(
+      "set_active_stream",
+      { conversation: conversationId, stream_id: streamId },
+      conversationOf,
+    );
+
   const send = ({
     conversationId,
     input,
@@ -779,6 +812,7 @@ export function createInbox(options: InboxOptions): Inbox {
       handoff: ({ conversationId, reason }) =>
         setBotMode({ conversationId, mode: "human", reason }),
       setBotMode,
+      setActiveStream,
       markRead: (conversationId) =>
         call(
           "mark_conversation_read",
@@ -1008,10 +1042,16 @@ export function createInbox(options: InboxOptions): Inbox {
             };
           },
         ),
-      setStatus: ({ id, status, error }) =>
+      setStatus: ({ id, status, error, retryIn, lease }) =>
         call(
           "set_inbound_event_status",
-          { event: id, status, error },
+          {
+            event: id,
+            status,
+            error,
+            retry_in: retryIn === undefined ? undefined : seconds(retryIn),
+            lease: lease === undefined ? undefined : seconds(lease),
+          },
           (value) => value === true,
         ),
       pending: (pending = {}) =>

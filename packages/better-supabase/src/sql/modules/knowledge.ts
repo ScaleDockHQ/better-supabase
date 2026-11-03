@@ -65,7 +65,14 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["dimensions", "type", "textSearch", "embedQueue", "ingestQueue"],
+  options: [
+    "dimensions",
+    "type",
+    "textSearch",
+    "embedQueue",
+    "ingestQueue",
+    "autoEmbed",
+  ],
   tables: {
     documents: {
       name: "knowledge_documents",
@@ -937,7 +944,75 @@ begin
   return v_count;
 end;
 $$;
-${serviceGrant(`${fn("reembed_knowledge")}(${id}, text)`)}`;
+${serviceGrant(`${fn("reembed_knowledge")}(${id}, text)`)}${autoEmbedSql(ctx)}`;
+}
+
+/**
+ * `blocks.knowledge.options.autoEmbed` (ADR 0229): a pg_cron job that sends the
+ * pending chunks of waiting documents to an embedding worker through pg_net.
+ * Each chunk is one job with the id `<document id>:<chunk index>` and no queue
+ * message (`msgId` 0). The worker stores them with `set_knowledge_embeddings`,
+ * which is idempotent (it checks each chunk's hash), so a batch sent twice does
+ * no harm. The worker URL and token come from the Vault secrets
+ * `embedding_worker_url` and `embedding_worker_token`.
+ */
+function autoEmbedSql(ctx: BlockSqlContext): string {
+  if (!ctx.flag("autoEmbed", false)) {
+    return "";
+  }
+
+  const fn = (name: string): string => ctx.fn(name);
+
+  return `
+-- Sends the pending documents to the embedding worker (options.autoEmbed).
+create extension if not exists pg_net;
+
+create or replace function ${fn("process_knowledge_embeddings")}(batch integer default 5) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_url text;
+  v_token text;
+  v_jobs jsonb;
+begin
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'embedding_worker_url';
+  select decrypted_secret into v_token from vault.decrypted_secrets where name = 'embedding_worker_token';
+
+  if v_url is null or v_token is null then
+    return;
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'msgId', 0,
+    'readCount', 0,
+    'id', (d.value #>> '{}') || ':' || (c.value ->> 'idx'),
+    'content', c.value ->> 'content',
+    'hash', c.value ->> 'hash'
+  )), '[]'::jsonb) into v_jobs
+  from jsonb_array_elements(${fn("pending_knowledge_documents")}(process_knowledge_embeddings.batch)) d
+  cross join lateral jsonb_array_elements(${fn("pending_knowledge_chunks")}((d.value #>> '{}')::uuid)) c;
+
+  if jsonb_array_length(v_jobs) = 0 then
+    return;
+  end if;
+
+  perform net.http_post(
+    url := v_url,
+    headers := jsonb_build_object('content-type', 'application/json', 'authorization', 'Bearer ' || v_token),
+    body := jsonb_build_object('queue', 'knowledge', 'table', 'knowledge', 'jobs', v_jobs)
+  );
+end;
+$$;
+
+revoke all on function ${fn("process_knowledge_embeddings")}(integer) from public, anon, authenticated;
+
+do $bsb$
+begin
+  if pg_catalog.to_regprocedure('cron.schedule(text, text, text)') is not null then
+    perform cron.schedule('knowledge_embeddings', '10 seconds', ${sqlString(`select ${fn("process_knowledge_embeddings")}()`)});
+  end if;
+end;
+$bsb$;
+`;
 }
 
 export const KNOWLEDGE: BlockSqlDefinition = {
@@ -949,7 +1024,7 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat", "ai-files", "queue", "subjects", "teams"],
   target: "schema",
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -983,6 +1058,12 @@ export const KNOWLEDGE: BlockSqlDefinition = {
       description:
         "knowledge_search takes priority_order (default true; false ranks by score alone) and returns chunk_id and organization_id in each hit; the earlier signature is dropped.",
       sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "options.autoEmbed adds process_knowledge_embeddings and a pg_cron job that sends pending chunks to an embedding worker through pg_net.",
+      sql: autoEmbedSql,
     },
   ],
   names: NAMES,

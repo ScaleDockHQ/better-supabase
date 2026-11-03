@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@9 managed
--- @bsb-hash sha256:fc5c54300553ce3ed4b98f5d853ef4ad58571f202b04ad3f240fba3a707a6b58
+-- @bsb-block queue@10 managed
+-- @bsb-hash sha256:9fa44120ccbbc09c4b14306e757463517ac65e8a30bbb75585a14e3221d35d4a
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -496,6 +496,113 @@ as $$
   select 0;
 $$;
 
+-- Leases: claim_lease answers claimed (the caller holds it until expires_at),
+-- busy (another holder does; retry_after_ms says when it ends) or completed
+-- (a holder finished it, and it stays finished until its keep time ends).
+create table if not exists "better_supabase"."job_leases" (
+  "scope" text not null default '',
+  "key" text not null,
+  "holder" uuid not null,
+  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
+);
+alter table "better_supabase"."job_leases" enable row level security;
+revoke all on "better_supabase"."job_leases" from public, anon, authenticated;
+grant all on "better_supabase"."job_leases" to service_role;
+
+create or replace function better_supabase.claim_lease(scope text, key text, lease_seconds integer default 60)
+returns table (lease_state text, lease_holder uuid, lease_expires_at timestamptz, retry_after_ms integer)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  token uuid := gen_random_uuid();
+  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  taken "better_supabase"."job_leases"%rowtype;
+begin
+  -- A held lease that ran out, or a completed one past its keep time, is taken
+  -- over; the new holder token makes the former holder's calls return false.
+  insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
+  values (scope, key, token, 'held', lease_until)
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning * into taken;
+  if found then
+    return query select 'claimed'::text, token, lease_until, 0;
+    return;
+  end if;
+
+  select * into taken from "better_supabase"."job_leases" l
+  where l."scope" = claim_lease.scope and l."key" = claim_lease.key;
+  if not found then
+    -- Released between the insert and the read: the caller can retry at once.
+    return query select 'busy'::text, null::uuid, null::timestamptz, 0;
+    return;
+  end if;
+  return query select
+    case when taken."state" = 'completed' then 'completed' else 'busy' end,
+    null::uuid,
+    taken."expires_at",
+    greatest(ceil(extract(epoch from taken."expires_at" - now()) * 1000)::integer, 0);
+end;
+$$;
+
+-- Moves the expiry of a held lease the holder still has; false once it ran out
+-- or another holder took it over.
+create or replace function better_supabase.extend_lease_claim(scope text, key text, holder uuid, lease_seconds integer default 60)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update "better_supabase"."job_leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(coalesce(extend_lease_claim.lease_seconds, 60), 1))
+    where l."scope" = extend_lease_claim.scope and l."key" = extend_lease_claim.key
+      and l."holder" = extend_lease_claim.holder and l."state" = 'held'
+      and l."expires_at" > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
+-- Marks the work done: later claims answer completed for keep_seconds (a day by
+-- default), then the key can be claimed again. False when another holder took
+-- the lease over.
+create or replace function better_supabase.complete_lease(scope text, key text, holder uuid, keep_seconds integer default 86400)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with done as (
+    update "better_supabase"."job_leases" l
+    set "state" = 'completed',
+        "expires_at" = now() + make_interval(secs => greatest(coalesce(complete_lease.keep_seconds, 86400), 1))
+    where l."scope" = complete_lease.scope and l."key" = complete_lease.key
+      and l."holder" = complete_lease.holder and l."state" = 'held'
+    returning 1
+  )
+  select exists (select 1 from done)
+$$;
+
+-- On failure: gives the lease up so the next claim succeeds at once. False when
+-- another holder has it now, or it was completed.
+create or replace function better_supabase.release_lease_claim(scope text, key text, holder uuid)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with released as (
+    delete from "better_supabase"."job_leases" l
+    where l."scope" = release_lease_claim.scope and l."key" = release_lease_claim.key
+      and l."holder" = release_lease_claim.holder and l."state" = 'held'
+    returning 1
+  )
+  select exists (select 1 from released)
+$$;
+
 revoke execute on function better_supabase.index_job_queue(text) from public, anon, authenticated;
 grant execute on function better_supabase.index_job_queue(text) to service_role;
 revoke execute on function better_supabase.ensure_job_queue(text) from public, anon, authenticated;
@@ -534,6 +641,14 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
+grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
+revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) to service_role;
+revoke execute on function better_supabase.complete_lease(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function better_supabase.complete_lease(text, text, uuid, integer) to service_role;
+revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

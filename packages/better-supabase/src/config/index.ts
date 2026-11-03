@@ -101,6 +101,7 @@ export {
   type AppRollupConfig,
   type AppTableConfig,
   type AppTableEventKind,
+  type AppTableEmbedding,
   type AppTableEvents,
   type AppTableVersions,
   type AppTableSubject,

@@ -24,6 +24,11 @@ import type {
   CredentialToken,
 } from "../credentials/provider.ts";
 import type { DeliveryParser, ParsedDeliveries } from "./delivery.ts";
+import type { ChatActionDecision } from "./identity.ts";
+import type {
+  ChatInteractiveAction,
+  InteractiveParser,
+} from "./interactive.ts";
 import type { ChatScheduler } from "./scheduler.ts";
 import type {
   ChatInboundEvent,
@@ -34,6 +39,8 @@ import type {
 import { errorText, isRecord } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { DELIVERY_PARSERS } from "./delivery.ts";
+import { chatActionOf } from "./identity.ts";
+import { INTERACTIVE_PARSERS } from "./interactive.ts";
 import { isInboundStore, storeOf } from "./store.ts";
 
 /**
@@ -316,6 +323,49 @@ export interface InboundHandlerOptions {
    * where Chat SDK logs the error and the event counts as processed.
    */
   readonly propagateHandlerErrors?: boolean;
+  /**
+   * Whether Chat SDK's duplicate check runs on a replay. Chat SDK remembers
+   * each message id it handled, so a retry of an event whose handler threw
+   * would be dropped as a duplicate and lost.
+   *
+   * - `"first-attempt"` (the default) checks on the first attempt and skips the
+   *   check from the second, so a retry reaches the handlers.
+   * - `"always"` always checks. Use it when the Chat instance that replays has
+   *   its own state and no retry should reprocess a message.
+   * - `"never"` never checks: use it when the store or the queue already dedupes,
+   *   as `chatWebhookPipeline` does.
+   *
+   * The attempt comes from `ChatInboundEvent.attempt`.
+   */
+  readonly deduplicate?: "first-attempt" | "always" | "never";
+  /**
+   * Interactive reply parsers by adapter name. Defaults to WhatsApp's button
+   * and list replies (`whatsappInteractiveOf`).
+   */
+  readonly interactive?: Readonly<Record<string, InteractiveParser>>;
+  /**
+   * `chatActions(...)`: decides whether the contact behind a button reply may
+   * act. A reply it refuses never reaches `onAction`. Without it every reply
+   * reaches `onAction`, undecided.
+   */
+  readonly actions?: (
+    action: ReturnType<typeof chatActionOf>,
+  ) => Promise<ChatActionDecision>;
+  /**
+   * Runs for each button, list or quick reply in a replayed event. An event of
+   * nothing but replies is not replayed into Chat SDK afterwards; one with
+   * messages as well is. Without it replies reach Chat SDK like any message. A
+   * throw fails the event, so it retries.
+   */
+  readonly onAction?: (
+    action: ChatInteractiveAction,
+    context: {
+      readonly adapter: string;
+      readonly event: ChatInboundEvent;
+      /** The decision of `actions`; `undefined` without it. */
+      readonly decision?: ChatActionDecision;
+    },
+  ) => Promise<void> | void;
 }
 
 export interface DrainResult {
@@ -391,6 +441,8 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
   const inbox = isInboundStore(options.inbox) ? undefined : options.inbox;
   const parsers = options.parsers ?? DELIVERY_PARSERS;
   const baseUrl = options.baseUrl ?? "https://inbox.local";
+  const interactiveParsers = options.interactive ?? INTERACTIVE_PARSERS;
+  const dedupe = options.deduplicate ?? "first-attempt";
 
   const applyDeliveries = async (
     adapter: string,
@@ -424,6 +476,66 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
       .orThrow();
   };
 
+  const deduplicates = (event: ChatInboundEvent): boolean => {
+    switch (dedupe) {
+      case "always": {
+        return true;
+      }
+
+      case "never": {
+        return false;
+      }
+
+      case "first-attempt": {
+        return (event.attempt ?? 1) <= 1;
+      }
+
+      default: {
+        const unreachable: never = dedupe;
+
+        return unreachable;
+      }
+    }
+  };
+
+  // Returns true when the event held nothing but replies.
+  const applyActions = async (event: ChatInboundEvent): Promise<boolean> => {
+    if (options.onAction === undefined) {
+      return false;
+    }
+
+    const parsed = interactiveParsers[event.adapter]?.(event) ?? null;
+
+    if (parsed === null || parsed.actions.length === 0) {
+      return false;
+    }
+
+    for (const action of parsed.actions) {
+      const decision = options.actions
+        ? await options.actions(
+            chatActionOf({
+              actionId: action.actionId,
+              ...(action.title === undefined ? {} : { value: action.title }),
+              user: { userId: action.from },
+              adapter: { name: event.adapter },
+            }),
+          )
+        : undefined;
+
+      if (decision !== undefined && !decision.allowed) {
+        continue;
+      }
+
+      await options.onAction(action, {
+        adapter: event.adapter,
+        event,
+        ...(decision === undefined ? {} : { decision }),
+      });
+    }
+
+    return parsed.only;
+  };
+
   const process = async (event: ChatInboundEvent): Promise<void> => {
     await mark(event, "processing");
 
@@ -435,6 +547,12 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
       }
 
       if (parsed?.only) {
+        await mark(event, "processed");
+
+        return;
+      }
+
+      if (await applyActions(event)) {
         await mark(event, "processed");
 
         return;
@@ -461,6 +579,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           ...(options.propagateHandlerErrors === true
             ? { propagateHandlerErrors: true }
             : {}),
+          ...(deduplicates(event) ? {} : { deduplicate: false }),
         },
       );
 
@@ -529,7 +648,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
 
       for (const event of events) {
         try {
-          await process(event);
+          await process({ ...event, attempt: event.attempts + 1 });
           processed += 1;
         } catch {
           failed += 1;

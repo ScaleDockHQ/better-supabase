@@ -117,7 +117,7 @@ A preset such as `psa` (professional services), `ats` (recruiting), `intranet`, 
 
 ## AI SDK
 
-`better-supabase/ai-sdk` connects the AI blocks to AI SDK 7 without making it a dependency of the blocks. It converts stored chat messages to `UIMessage`s, builds a resumable chat route (`createAssistant`) and a durable one on the Workflow SDK, runs stored agents as a `ToolLoopAgent` or `WorkflowAgent`, meters usage per tenant through a `Telemetry` integration, and wraps a model in `guardrailsMiddleware`. See the [AI SDK docs](https://bettersupabase.com/docs/ai-sdk).
+`better-supabase/ai-sdk` connects the AI blocks to AI SDK 7 without making it a dependency of the blocks. It converts stored chat messages to `UIMessage`s, builds a resumable chat route (`createAssistant`) and a durable one on the Workflow SDK, runs stored agents as a `ToolLoopAgent` or `WorkflowAgent`, meters usage per tenant through a `Telemetry` integration, wraps a model in `guardrailsMiddleware`, caches embeddings, syncs agent skills and files to provider stores, and stores json-render UI specs (`better-supabase/json-render`). See the [AI SDK docs](https://bettersupabase.com/docs/ai-sdk).
 
 ```ts
 import { wrapLanguageModel } from "ai";

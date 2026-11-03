@@ -70,3 +70,9 @@ file, and uploads the file once through your callback when there is none
 or it expired. Pass `expiresAt` for providers whose files expire, such as
 Gemini's 48 hours, and refresh them from a job with
 `files.providerFiles.expiring()`.
+
+## Upload to the provider
+
+`uploadToProvider` sends an `ai-files` file to a provider's Files API with the SDK's `uploadFile`
+and stores the provider reference on the file. `providerFileParts` turns the stored references into
+file parts for a prompt, so a later call sends the reference and not the bytes.

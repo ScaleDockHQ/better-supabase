@@ -617,6 +617,59 @@ describe("purge", () => {
   });
 });
 
+describe("quotas", () => {
+  it("sets and removes a tenant or plan quota", async () => {
+    const { transport, calls } = fakeTransport((fn) =>
+      fn === "remove_usage_quota" ? true : null,
+    );
+
+    const usage = createUsage({ transport });
+
+    await usage
+      .setQuota({ meter: "ai.input_tokens", organizationId: "o1", limit: 1000 })
+      .orThrow();
+    await usage
+      .setQuota({
+        meter: "ai.input_tokens",
+        plan: "free",
+        limit: null,
+        period: "day",
+      })
+      .orThrow();
+    expect(
+      await usage
+        .removeQuota({ meter: "ai.input_tokens", organizationId: "o1" })
+        .orThrow(),
+    ).toBe(true);
+    expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
+      [
+        "set_usage_quota",
+        {
+          tenant: "o1",
+          plan: undefined,
+          meter: "ai.input_tokens",
+          quota_limit: 1000,
+          period: "month",
+        },
+      ],
+      [
+        "set_usage_quota",
+        {
+          tenant: undefined,
+          plan: "free",
+          meter: "ai.input_tokens",
+          quota_limit: null,
+          period: "day",
+        },
+      ],
+      [
+        "remove_usage_quota",
+        { tenant: "o1", plan: undefined, meter: "ai.input_tokens" },
+      ],
+    ]);
+  });
+});
+
 describe("billing", () => {
   it("sets prices in minor units and bills a period", async () => {
     const { transport, calls } = fakeTransport((fn) =>

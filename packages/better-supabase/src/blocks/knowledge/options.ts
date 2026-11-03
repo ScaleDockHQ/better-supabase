@@ -9,6 +9,8 @@ export type KnowledgeSqlOptions = {
   readonly textSearch?: string;
   readonly embedQueue?: string;
   readonly ingestQueue?: string;
+  /** Sends pending chunks to an embedding worker with pg_net (ADR 0229). */
+  readonly autoEmbed?: boolean;
 };
 
 export const knowledgeSqlOptions: BlockOptionsSchema<KnowledgeSqlOptions> =
@@ -18,4 +20,5 @@ export const knowledgeSqlOptions: BlockOptionsSchema<KnowledgeSqlOptions> =
     textSearch: option.string({ default: "simple" }),
     embedQueue: option.string({ default: "knowledge_embed" }),
     ingestQueue: option.string({ default: "knowledge_ingest" }),
+    autoEmbed: option.boolean({ default: false }),
   });

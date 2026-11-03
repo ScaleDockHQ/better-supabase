@@ -465,6 +465,16 @@
       "types": "./dist/streams/index.d.ts",
       "default": "./dist/streams/index.js"
     },
+    "./json-render": {
+      "@better-supabase/source": "./src/json-render/index.ts",
+      "types": "./dist/json-render/index.d.ts",
+      "default": "./dist/json-render/index.js"
+    },
+    "./streams/resumable": {
+      "@better-supabase/source": "./src/streams/resumable/index.ts",
+      "types": "./dist/streams/resumable/index.d.ts",
+      "default": "./dist/streams/resumable/index.js"
+    },
     "./streams/redis": {
       "@better-supabase/source": "./src/streams/redis/index.ts",
       "types": "./dist/streams/redis/index.d.ts",
@@ -1736,6 +1746,14 @@
         "types": "./dist/streams/index.d.ts",
         "default": "./dist/streams/index.js"
       },
+      "./json-render": {
+        "types": "./dist/json-render/index.d.ts",
+        "default": "./dist/json-render/index.js"
+      },
+      "./streams/resumable": {
+        "types": "./dist/streams/resumable/index.d.ts",
+        "default": "./dist/streams/resumable/index.js"
+      },
       "./streams/redis": {
         "types": "./dist/streams/redis/index.d.ts",
         "default": "./dist/streams/redis/index.js"
@@ -2514,9 +2532,12 @@
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/typescript-config": "workspace:*",
     "@chat-adapter/catalog": "catalog:",
+    "@chat-adapter/state-pg": "catalog:",
     "@chat-adapter/tests": "catalog:",
+    "@chat-adapter/whatsapp": "catalog:",
     "@clack/prompts": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@json-render/core": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@nestjs/common": "catalog:",
@@ -2593,6 +2614,7 @@
     "react-router": "catalog:",
     "redis": "catalog:",
     "reflect-metadata": "catalog:",
+    "resumable-stream": "catalog:",
     "rxjs": "catalog:",
     "smol-toml": "catalog:",
     "solid-js": "catalog:",
@@ -2618,6 +2640,8 @@
     "@ai-sdk/sandbox-vercel": "catalog:peers",
     "@ai-sdk/workflow": "catalog:peers",
     "@chat-adapter/catalog": "catalog:peers",
+    "@chat-adapter/whatsapp": "catalog:peers",
+    "@json-render/core": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
@@ -2665,6 +2689,7 @@
     "react": "catalog:peers",
     "react-router": "catalog:peers",
     "redis": "catalog:peers",
+    "resumable-stream": "catalog:peers",
     "solid-js": "catalog:peers",
     "stripe": "catalog:peers",
     "svelte": "catalog:peers",
@@ -2687,6 +2712,9 @@
       "optional": true
     },
     "@ai-sdk/workflow": {
+      "optional": true
+    },
+    "@json-render/core": {
       "optional": true
     },
     "@modelcontextprotocol/server": {
@@ -2764,6 +2792,9 @@
     "@chat-adapter/catalog": {
       "optional": true
     },
+    "@chat-adapter/whatsapp": {
+      "optional": true
+    },
     "astro": {
       "optional": true
     },
@@ -2828,6 +2859,9 @@
       "optional": true
     },
     "redis": {
+      "optional": true
+    },
+    "resumable-stream": {
       "optional": true
     },
     "solid-js": {

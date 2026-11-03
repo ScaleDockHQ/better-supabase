@@ -1,6 +1,7 @@
 import type { BlockOptions } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Embedder as KnowledgeEmbedder } from "../knowledge/knowledge.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -80,9 +81,31 @@ export interface PendingEmbedding {
 }
 
 /** Embeds texts in order, one vector per text: an AI SDK `embedMany` call. */
-export type Embedder = (
+export type EmbedFunction = (
   texts: readonly string[],
 ) => Promise<readonly (readonly number[])[]>;
+
+/**
+ * What `embedPending` accepts: a function, or the `Embedder` object of the
+ * knowledge and memory blocks (`embedWith(model)`), so one embedder serves
+ * every block.
+ */
+export type Embedder = EmbedFunction | KnowledgeEmbedder;
+
+async function embedAll(
+  embedder: Embedder,
+  texts: readonly string[],
+): Promise<readonly (readonly number[])[]> {
+  if (typeof embedder === "function") {
+    return embedder(texts);
+  }
+
+  if (embedder.apiVersion === 2) {
+    return (await embedder.embed(texts)).embeddings;
+  }
+
+  return embedder.embed(texts);
+}
 
 export interface Search {
   /**
@@ -291,7 +314,10 @@ export function createSearch(options: SearchOptions): Search {
             return 0;
           }
 
-          const vectors = await embed(pending.map((item) => item.text));
+          const vectors = await embedAll(
+            embed,
+            pending.map((item) => item.text),
+          );
 
           if (vectors.length !== pending.length) {
             throw new TypeError(

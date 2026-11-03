@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@8 managed
--- @bsb-hash sha256:1b7eaa15d1aa805718869832f74a71fa9ffe21ae181693818853c50ee75d7b05
+-- @bsb-block webhook-inbox@9 managed
+-- @bsb-hash sha256:ea939caa00521c189e4963202f78722aedb225636092d89658594ebfb812c7f8
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,6 +19,7 @@ drop function if exists better_supabase.purge_webhooks(interval, boolean, intege
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 drop function if exists better_supabase.complete_webhook(bigint, text);
 drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
+drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
 drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
@@ -125,14 +126,15 @@ create or replace function better_supabase.fail_webhook(
   worker text,
   error text,
   retry_in interval default null,
-  attempt integer default null
+  attempt integer default null,
+  permanent boolean default false
 )
 returns text
 language sql
 set search_path = ''
 as $$
   update "centrakit"."inbound_webhook_events"
-  set "status" = case when "attempts" >= 8 then 'dead' else 'pending' end,
+  set "status" = case when permanent or "attempts" >= 8 then 'dead' else 'pending' end,
       "available_at" = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, "attempts"))),
       "last_error" = left(error, 4000),
       "locked_by" = null,
@@ -249,8 +251,8 @@ revoke execute on function better_supabase.claim_webhooks(text, text, integer, i
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
-revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer) to service_role;
+revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
+grant execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) to service_role;
 revoke execute on function better_supabase.extend_webhook(bigint, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.extend_webhook(bigint, text, integer, interval) to service_role;
 revoke execute on function better_supabase.checkpoint_webhook(bigint, text, jsonb, integer) from public, anon, authenticated;

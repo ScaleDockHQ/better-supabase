@@ -819,6 +819,50 @@ granted to `service_role`, and the wrappers inherit those grants. Over
 `sqlTransport`, a set-returning function such as `claim_jobs` returns only
 its first row, so pass the SQL client itself there.
 
+## Leases
+
+`createLeases` holds one lease per `(scope, key)` in the `job_leases` table,
+for work that must run once at a time and can finish for good, such as one
+import per file or one drain per tenant. `claim` answers `claimed` with the
+held lease, `busy` with `retryAfterMs` while another holder has it, or
+`completed` once a holder finished the work:
+
+```ts
+import { createLeases } from "better-supabase/blocks/queue";
+
+const leases = createLeases(postgres.admin);
+
+const outcome = await leases
+  .withLease(
+    {
+      scope: "imports",
+      key: file.id,
+      timeoutMs: 2000,
+      leaseSeconds: 60,
+      completeFor: true,
+    },
+    async (lease) => importFile(file, lease),
+  )
+  .orThrow();
+
+if (outcome.status === "busy") {
+  // Another worker holds it; try again after outcome.retryAfterMs.
+}
+```
+
+`timeoutMs` bounds the wait. `claim` retries with backoff (50 ms, doubling to
+one second, and no later than the holder's expiry) and then returns `busy`, so
+pass what is left of a drain's `budgetMs`. The default is one attempt.
+`withLease` extends the lease while the callback runs, releases it when the
+callback throws, and marks it completed when you pass `completeFor` (seconds,
+or `true` for a day). A lease that ran out is taken over by the next claim, and
+the former holder's `extend`, `complete` and `release` return `false`. Over a
+transport, `createLeases(transport, { schema: "api" })` calls the functions
+`claim_lease`, `extend_lease_claim`, `complete_lease` and `release_lease_claim`.
+
+The older `withLease(source, key, fn)` helper uses the `idempotency` block's
+`acquire_lease` functions and has no completed state.
+
 ## Idempotency keys
 
 `handle` wraps a handler so that a retried request with the same
@@ -946,6 +990,10 @@ a new message and `200` for a duplicate. A message id is unique per source
 and tenant, so two tenants of one provider can send the same id. A failed
 verification gets a Problem Details response, and a body over `maxBodyBytes`
 (1 MiB by default) gets `413` before it is read in full.
+
+A handler can choose the delay itself by returning `{ retryIn }` (seconds, or
+an interval such as `"2 minutes"`): the message fails with that delay instead
+of the exponential backoff and counts as failed in the result.
 
 A failed message is retried with exponential backoff until `maxAttempts`
 (8 by default, set per source on `createWebhookInbox`), then marked dead. Each

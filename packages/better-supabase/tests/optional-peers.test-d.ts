@@ -3,6 +3,8 @@ import type { anthropic } from "@ai-sdk/anthropic";
 // oxlint-disable-next-line eslint/no-restricted-imports -- vercelSandboxes types the session adapter structurally; the test checks it against the real one.
 import type * as SandboxSessions from "@ai-sdk/sandbox-vercel";
 import type * as ChatCatalog from "@chat-adapter/catalog";
+import type { WhatsAppAdapter } from "@chat-adapter/whatsapp";
+import type { Spec } from "@json-render/core";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -28,10 +30,12 @@ import type {
   Identify,
   ProviderData,
 } from "flags";
+import type { Publisher, Subscriber } from "resumable-stream/generic";
 
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AnthropicMemoryTools } from "../src/ai-sdk/memory/index.ts";
+import type { WhatsappTemplateAdapter } from "../src/chat-sdk/index.ts";
 import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
@@ -52,7 +56,12 @@ import type {
   FlagsSdkOption,
   FlagsSdkProviderData,
 } from "../src/flags-sdk/index.ts";
+import type { JsonRenderSpec } from "../src/json-render/index.ts";
 import type { SyncedDatabaseLike } from "../src/powersync/index.ts";
+import type {
+  postgresPublisher,
+  postgresSubscriber,
+} from "../src/streams/resumable/index.ts";
 import type {
   VercelConnectChatModule,
   VercelConnectModule,
@@ -79,6 +88,10 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<
       typeof SandboxSessions
     >().toExtend<VercelSandboxSessionModule>();
+  });
+
+  it("@chat-adapter/whatsapp's adapter sends the template shape sendWithinWindowOrTemplate passes", () => {
+    expectTypeOf<WhatsAppAdapter>().toExtend<WhatsappTemplateAdapter>();
   });
 
   it("@chat-adapter/catalog has the lookups the chat-sdk helpers will read", () => {
@@ -130,5 +143,13 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<CommonPowerSyncDatabase>().toExtend<
       SyncedDatabaseLike<PowerSyncBackendConnector>
     >();
+  });
+
+  it("a json-render spec and the Postgres publisher and subscriber fit the packages' types", () => {
+    expectTypeOf<Spec>().toExtend<JsonRenderSpec>();
+    expectTypeOf<ReturnType<typeof postgresPublisher>>().toExtend<Publisher>();
+    expectTypeOf<
+      ReturnType<typeof postgresSubscriber>
+    >().toExtend<Subscriber>();
   });
 });

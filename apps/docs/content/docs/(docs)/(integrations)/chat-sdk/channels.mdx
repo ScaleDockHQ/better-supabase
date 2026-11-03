@@ -166,6 +166,62 @@ export async function GET() {
 `read` defaults to fetching `file.source.url`; pass it for sources with
 only a `path`, such as the files the upgrade moved from `inbox-files`.
 
+### Receive now, process later
+
+`chatWebhookPipeline` splits the webhook into two steps so a slow or failing
+bot never makes the platform retry the delivery. `receive` is the route
+handler: a handler-less Chat instance on its own state prefix verifies the
+request, the sink stores it, and the platform gets its answer. `process`
+replays a stored event from a queue job with `deduplicate: false` and
+`propagateHandlerErrors: true`, so a handler error fails the job and the
+queue retries it.
+
+```ts title="lib/chat.ts"
+import { chatWebhookPipeline } from "better-supabase/chat-sdk";
+
+export const pipeline = chatWebhookPipeline({
+  chat: bot,
+  receiveChat: receiver,
+  adapter: "slack",
+  inbox,
+  inboxes: { slack: inboxId },
+  retry: () => ({ retryIn: "1 minute" }),
+});
+
+export const POST = pipeline.receive;
+```
+
+`receiver` is a second `Chat` with the same adapters and no handlers. Give
+each Chat its own `keyPrefix` (`chat-sdk` and `chat-sdk:receive`): the
+pipeline throws a `TypeError` when the prefixes or the state objects match,
+because the receiver would then mark the event as seen and `process` would
+skip it. `retry(error, event)` may return `{ retryIn }`; a queue handler
+that returns it makes the webhook inbox fail the job and run it again after
+that delay.
+
+`inboundHandler` takes `deduplicate`: `"first-attempt"` (the default) lets
+Chat SDK drop duplicates on the first attempt only, `"always"` on every
+attempt and `"never"` on none. `ChatInboundEvent.attempt` counts the replay
+(1 for the first), and the inbound store leases an event while it is
+`processing`, so a crashed worker's event returns after its lease expires.
+
+### WhatsApp windows, templates and replies
+
+`sendWithinWindowOrTemplate(thread, message, { inbox, conversationId,
+template })` posts the message while the 24-hour window is open and sends the
+template (`{ name, language, components }`) through the adapter's
+`sendTemplate` once it has closed. Without a template, or when the adapter
+has no `sendTemplate`, it throws a `ChatWindowClosedError` with the code
+`CHAT_WINDOW_CLOSED`. The window reads `last_inbound_at` on the
+conversation, which each recorded inbound message sets.
+
+`whatsappInteractiveOf(payload)` lists the button replies, list replies and
+template quick replies in a WhatsApp webhook body. Pass `onAction` (and
+`actions: chatActions(...)`) to `inboundHandler` and each reply runs through
+the same authorization as a Chat SDK action; a body that holds nothing but
+replies is not replayed. Deliveries record `delivered_at`, `read_at` and
+`failed_at`, and a read message stays read when a late `delivered` arrives.
+
 ## Delivering staff replies
 
 A staff reply on a channel inbox queues an `inbox_outbound` job.

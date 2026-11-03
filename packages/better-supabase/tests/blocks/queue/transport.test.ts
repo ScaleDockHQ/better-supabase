@@ -455,3 +455,19 @@ describe("purge", () => {
     expect(await createRateLimit({ sql: fake.sql }).purge().orThrow()).toBe(7);
   });
 });
+
+describe("purgeWebhookInbox over a SQL client", () => {
+  it("runs purge_webhooks and returns the count", async () => {
+    const { sql: client, calls } = fakeSql([
+      ["purge_webhooks", [{ purged: 7 }]],
+    ]);
+
+    const none = fakeSql([["purge_webhooks", []]]);
+
+    expect(await purgeWebhookInbox(client, { tenant: "acme" }).orThrow()).toBe(
+      7,
+    );
+    expect(await purgeWebhookInbox(none.sql).orThrow()).toBe(0);
+    expect(calls[0]?.values).toEqual(["30 days", false, 10_000, "acme"]);
+  });
+});

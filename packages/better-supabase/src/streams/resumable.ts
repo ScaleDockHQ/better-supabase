@@ -1,14 +1,25 @@
 import type { StreamStore } from "./store.ts";
 import type { TeeToStoreOptions } from "./tee.ts";
 
-import { teeToStore } from "./tee.ts";
+import { teeToStore, writeToStore } from "./tee.ts";
 
 /**
  * The context `resumable-stream` returns from `createResumableStreamContext`,
  * typed structurally so the package stays optional. The AI SDK's
- * `consumeSseStream` and resume routes call these three methods.
+ * `consumeSseStream` and resume routes call these methods. It matches the
+ * package: `resumeExistingStream` resolves `undefined` for a stream that was
+ * never created and `null` for one that finished.
  */
 export interface ResumableStreamContext {
+  /**
+   * Creates the stream and returns it, or resumes the one under `streamId`.
+   * Resolves `null` when it already finished.
+   */
+  resumableStream(
+    streamId: string,
+    makeStream: () => ReadableStream<string>,
+    skipCharacters?: number,
+  ): Promise<ReadableStream<string> | null>;
   createNewResumableStream(
     streamId: string,
     makeStream: () => ReadableStream<string>,
@@ -27,6 +38,12 @@ export interface ResumableStreamAdapterOptions extends TeeToStoreOptions {
    * the response: `waitUntil` or `after`.
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
+  /**
+   * Replays a finished stream instead of resolving `null`, as versions before
+   * 0.48 did: a client that reconnects after the end gets the whole text.
+   * Default `false`, which is what `resumable-stream` does.
+   */
+  readonly replayFinished?: boolean;
 }
 
 /** Drops the first `count` characters of a text stream. */
@@ -72,41 +89,102 @@ export function resumableStreamContext(
   store: StreamStore,
   options: ResumableStreamAdapterOptions = {},
 ): ResumableStreamContext {
-  const { waitUntil, ...tee } = options;
+  const { waitUntil, replayFinished = false, ...tee } = options;
+
+  const statusOf = async (streamId: string) => {
+    const status = await store.status(streamId);
+
+    if (!status.ok) {
+      throw new Error(status.error.message);
+    }
+
+    return status.data;
+  };
+
+  const create: ResumableStreamContext["createNewResumableStream"] = (
+    streamId,
+    makeStream,
+    skip = 0,
+  ) => {
+    const teed = teeToStore(store, streamId, makeStream(), tee);
+    waitUntil?.(Promise.resolve(teed.persisted));
+
+    return Promise.resolve(skipCharacters(teed.stream, skip));
+  };
+
+  const resume: ResumableStreamContext["resumeExistingStream"] = async (
+    streamId,
+    skip = 0,
+  ) => {
+    const status = await statusOf(streamId);
+
+    if (status === undefined) {
+      return;
+    }
+
+    if (status.closed && !replayFinished) {
+      return null;
+    }
+
+    return skipCharacters(store.read(streamId, 0), skip);
+  };
 
   return {
-    createNewResumableStream(streamId, makeStream, skip = 0) {
-      const teed = teeToStore(store, streamId, makeStream(), tee);
-      const settled = Promise.resolve(teed.persisted);
-      waitUntil?.(settled);
+    createNewResumableStream: create,
+    resumeExistingStream: resume,
+    async resumableStream(streamId, makeStream, skip = 0) {
+      const resumed = await resume(streamId, skip);
 
-      return Promise.resolve(skipCharacters(teed.stream, skip));
-    },
-    async resumeExistingStream(streamId, skip = 0) {
-      const status = await store.status(streamId);
-
-      if (!status.ok) {
-        throw new Error(status.error.message);
-      }
-
-      if (status.data === undefined) {
-        return null;
-      }
-
-      return skipCharacters(store.read(streamId, 0), skip);
+      return resumed === undefined
+        ? create(streamId, makeStream, skip)
+        : resumed;
     },
     async hasExistingStream(streamId) {
-      const status = await store.status(streamId);
+      const status = await statusOf(streamId);
 
-      if (!status.ok) {
-        throw new Error(status.error.message);
-      }
-
-      if (status.data === undefined) {
+      if (status === undefined) {
         return null;
       }
 
-      return status.data.closed ? "DONE" : true;
+      return status.closed ? "DONE" : true;
     },
+  };
+}
+
+export interface ConsumeSseStreamOptions extends TeeToStoreOptions {
+  /** The id to store the stream under. Default: a random UUID. */
+  readonly streamId?: string | (() => string);
+  /**
+   * Called with the id before the first chunk is stored, so the app can save it
+   * (such as `conversations.setActiveStream`) for the resume route.
+   */
+  readonly onStreamId?: (streamId: string) => void | PromiseLike<void>;
+  /** Keeps the copy alive after the response ends: `waitUntil` or `after`. */
+  readonly waitUntil?: (promise: Promise<unknown>) => void;
+}
+
+/**
+ * The `consumeSseStream` option of `createUIMessageStreamResponse` and
+ * `toUIMessageStreamResponse`: it stores the response's SSE text in `store`, so
+ * an app that doesn't use a resumable stream context can still serve
+ * `resumeFromStore` after a disconnect.
+ */
+export function consumeSseStreamInto(
+  store: StreamStore,
+  options: ConsumeSseStreamOptions = {},
+): (input: { readonly stream: ReadableStream<string> }) => Promise<void> {
+  const { streamId, onStreamId, waitUntil, ...tee } = options;
+
+  return async ({ stream }) => {
+    const id =
+      typeof streamId === "function"
+        ? streamId()
+        : (streamId ?? crypto.randomUUID());
+
+    await onStreamId?.(id);
+
+    const persisted = Promise.resolve(writeToStore(store, id, stream, tee));
+    waitUntil?.(persisted);
+    void persisted.catch(() => {});
   };
 }

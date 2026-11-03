@@ -30,6 +30,7 @@
     "@dnd-kit/core": "catalog:",
     "@dnd-kit/sortable": "catalog:",
     "@dnd-kit/utilities": "catalog:",
+    "@json-render/react": "catalog:",
     "@streamdown/code": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:",

@@ -701,8 +701,12 @@ Options
   --from <table.column>  Copy the value from this column of the table the foreign key references (table.column or schema.table.column)
   --via <column>         The foreign key column of the filled table that points at the --from table
   --value <literal>      Set this SQL literal instead: a quoted string with an optional cast, a number, true or false
+  --array <path>         Change the elements of the jsonb array at this dot-separated key path inside the column (. for the column itself) instead of filling nulls; needs --match and --delete or --merge
+  --match <json>         With --array: the JSON object an element must contain (jsonb @>) to change
+  --delete               With --array: remove the matching elements
+  --merge <json>         With --array: merge this JSON object into each matching element (jsonb ||)
   --batch-size <n>       Rows to update per statement (default 1000)
-  --dry-run              Count the rows it would fill, and change nothing
+  --dry-run              Count the rows (and, with --array, the elements) it would change, and change nothing
   --db-url-stdin         Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
   --stack <name>         Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
 
@@ -723,6 +727,8 @@ Examples
   $ better-supabase db backfill invoices.organization_id --from projects.organization_id via project_id
   # Counts the rows it would set to EUR
   $ better-supabase db backfill invoices.currency --value "'EUR'" --dry-run
+  # Counts the rows and array elements it would remove from the tags array
+  $ better-supabase db backfill projects.settings --array tags --match '{"name":"old"}' --delete --dry-run
 
 Side effects: Writes to the database.
 Docs: https://bettersupabase.com/docs/cli/db#backfill
