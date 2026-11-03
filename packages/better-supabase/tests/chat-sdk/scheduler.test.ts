@@ -62,7 +62,35 @@ describe("stateScheduler", () => {
     expect(await scheduler.publishDue(chat, { now: later })).toMatchObject({
       published: 0,
     });
-    expect(await state.get("chat:scheduled")).toEqual([]);
+    expect(await state.get("better-supabase:scheduled")).toEqual([]);
+  });
+
+  it("reads posts under the old key and moves them on the next write", async () => {
+    const { scheduler, state, adapter } = setup();
+
+    const old = {
+      id: "old",
+      adapter: "slack",
+      threadId: "slack:C1:1",
+      message: "kept",
+      postAt: new Date(Date.now() + HOUR).toISOString(),
+      attempts: 0,
+    };
+
+    await state.set("chat:scheduled", [old]);
+
+    expect(await scheduler.pending()).toEqual([old]);
+
+    await scheduler.schedule({
+      adapter,
+      threadId: "slack:C1:2",
+      message: "new",
+      postAt: new Date(Date.now() + 2 * HOUR),
+    });
+
+    expect((await scheduler.pending()).map((post) => post.id)).toContain("old");
+    expect(await state.get("chat:scheduled")).toBeNull();
+    expect(await state.get("better-supabase:scheduled")).toHaveLength(2);
   });
 
   it("lists, cancels and limits posts soonest first", async () => {

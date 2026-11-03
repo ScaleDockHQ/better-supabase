@@ -1,8 +1,16 @@
 export {
+  CHAT_CATALOG_MISSING,
+  type ChatAdapterCapabilities,
+  type ChatCapabilitySupport,
+  capabilitiesOf,
+} from "./capabilities.ts";
+
+export {
   channelAdapter,
   type ChannelAdapterOptions,
   type ChatLike,
   deliver,
+  type DeliverFile,
   type DeliverOptions,
   type DrainResult,
   type ImportFilesOptions,
@@ -33,11 +41,16 @@ export {
   chatErrorOf,
   conversationIdOf,
   decodeInboxThreadId,
+  INBOX_STOP_ACTION,
+  type InboxActionEvent,
+  type InboxActor,
   type InboxAdapter,
   inboxAdapter,
   type InboxAdapterOptions,
   type InboxBotJob,
   inboxIdentityOf,
+  type InboxOutgoingFile,
+  type InboxReactionEvent,
   type InboxThread,
   inboxThreadId,
 } from "./inbox-adapter.ts";
@@ -80,6 +93,17 @@ export {
   stateScheduler,
   type StateSchedulerOptions,
 } from "./scheduler.ts";
+
+export {
+  chatEventOf,
+  type ChatInboundEvent,
+  type ChatInboundStore,
+  type ChatOutboundMessage,
+  type ChatWebhookEvent,
+  type ChatWebhookPayload,
+  type ChatWebhookSink,
+  inboxStore,
+} from "./store.ts";
 
 export {
   createSupabaseState,

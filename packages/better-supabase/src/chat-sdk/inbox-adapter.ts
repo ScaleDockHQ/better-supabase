@@ -1,40 +1,34 @@
 import type {
   Adapter,
   AdapterPostableMessage,
-  Attachment,
   ChatInstance,
-  EmojiValue,
   FetchOptions,
   FetchResult,
   ListThreadsOptions,
   ListThreadsResult,
   RawMessage,
-  Root,
-  StreamChunk,
   ThreadInfo,
   ThreadSummary,
   WebhookOptions,
 } from "chat";
 
-import {
-  BaseFormatConverter,
-  ChatError,
-  defaultEmojiResolver,
-  Message,
-  NotImplementedError,
-  parseMarkdown,
-  RateLimitError,
-  stringifyMarkdown,
-} from "chat";
+import { ChatError, Message, NotImplementedError, parseMarkdown } from "chat";
 
 import type { Inbox } from "../blocks/inbox/inbox.ts";
-import type { Conversation, InboxMessage } from "../blocks/inbox/types.ts";
+import type {
+  Conversation,
+  InboxMessage,
+  InboxUpload,
+} from "../blocks/inbox/types.ts";
 import type { MessageFile } from "../blocks/messaging/messaging.ts";
 import type { IdentityRef } from "../core/contracts/authorization-hooks.ts";
-import type { DbError, DbErrorKind } from "../core/errors.ts";
-import type { AsyncResult } from "../core/result.ts";
 import type { StreamStore } from "../streams/store.ts";
 import type { BotJobsOptions } from "./identity.ts";
+import type {
+  InboxActionEvent,
+  InboxOutgoingFile,
+  InboxReactionEvent,
+} from "./inbox-adapter-parts.ts";
 
 import {
   isRecord,
@@ -44,20 +38,37 @@ import {
 } from "../core/block-helpers.ts";
 import { writeToStore } from "../streams/tee.ts";
 import { botJobs } from "./identity.ts";
+import { eventDispatchers } from "./inbox-adapter-events.ts";
+import {
+  attachmentsOf,
+  bodyOf,
+  cardOf,
+  converter,
+  decodeCursor,
+  emojiOf,
+  encodeCursor,
+  inboxIdOfChannel,
+  must,
+  PREFIX,
+  textOnly,
+} from "./inbox-adapter-helpers.ts";
+import {
+  aiGeneratedOf,
+  byteLength,
+  emptyMessage,
+  outgoingFilesOf,
+} from "./inbox-adapter-parts.ts";
 
-const PREFIX = "inbox:";
+export { chatErrorOf } from "./inbox-adapter-helpers.ts";
+
+export type {
+  InboxActionEvent,
+  InboxActor,
+  InboxOutgoingFile,
+  InboxReactionEvent,
+} from "./inbox-adapter-parts.ts";
+
 const KNOWN_THREADS = 1000;
-
-class MarkdownConverter extends BaseFormatConverter {
-  fromAst(ast: Root): string {
-    return stringifyMarkdown(ast).trimEnd();
-  }
-  toAst(text: string): Root {
-    return parseMarkdown(text);
-  }
-}
-
-const converter = new MarkdownConverter();
 
 /**
  * The job the `inbox` module queues for a contact message while `bot_mode =
@@ -112,6 +123,26 @@ export interface InboxAdapterOptions {
    * `postEphemeral` are not available.
    */
   readonly dmInbox?: string;
+  /**
+   * Writes the bytes of a file the bot posts, to the `bucket` and `path` of
+   * `target` (for example `supabase.storage.from(bucket).upload(path, data)`
+   * with the service role). The adapter creates the attachment before and
+   * confirms it after. Without it, posting a message with files throws.
+   */
+  readonly upload?: (
+    target: InboxUpload,
+    file: InboxOutgoingFile,
+  ) => Promise<void>;
+  /**
+   * Marks a streamed reply as AI generated (`metadata.ai_generated`), so a
+   * client can label it. Defaults to true; a streamed reply is the model's.
+   */
+  readonly aiGeneratedStreams?: boolean;
+  /**
+   * The action id that stops the bot's turn: `dispatchAction` calls `abortTurn`
+   * for the thread instead of the bot's handlers. Defaults to `chat:stop`.
+   */
+  readonly stopActionId?: string;
 }
 
 /** The parts of an inbox thread id, `inbox:<inbox id>:<conversation id>`. */
@@ -135,7 +166,23 @@ export interface InboxAdapter extends Adapter<InboxThread, InboxMessage> {
    * visitor, after `dispatch` returns, or without the `identities` option.
    */
   ticketOf(message: Message<InboxMessage>): string | undefined;
+  /**
+   * Hands a card button press to Chat SDK's `onAction` handlers. The stop
+   * action (`stopActionId`) aborts the thread's running turn instead.
+   */
+  dispatchAction(
+    event: InboxActionEvent,
+    options?: WebhookOptions,
+  ): Promise<void>;
+  /** Hands a reaction to Chat SDK's `onReaction` handlers. */
+  dispatchReaction(
+    event: InboxReactionEvent,
+    options?: WebhookOptions,
+  ): Promise<void>;
 }
+
+/** The action id `inboxAdapter` treats as "stop the bot" by default. */
+export const INBOX_STOP_ACTION = "chat:stop";
 
 /**
  * The `IdentityRef` of an inbox contact: `kind: "chat"`, `provider: "inbox"`
@@ -174,194 +221,6 @@ export function decodeInboxThreadId(threadId: string): InboxThread {
 /** The conversation id of an inbox thread id. */
 export function conversationIdOf(threadId: string): string {
   return decodeInboxThreadId(threadId).conversationId;
-}
-
-const CHAT_ERROR_CODES: Readonly<Record<DbErrorKind, string>> = {
-  not_found: "NOT_FOUND",
-  unauthorized: "AUTH_FAILED",
-  forbidden: "PERMISSION_DENIED",
-  conflict: "CONFLICT",
-  foreign_key: "VALIDATION_ERROR",
-  check: "VALIDATION_ERROR",
-  not_null: "VALIDATION_ERROR",
-  exclusion: "CONFLICT",
-  invalid_input: "VALIDATION_ERROR",
-  invalid_value: "VALIDATION_ERROR",
-  raised: "VALIDATION_ERROR",
-  timeout: "NETWORK_ERROR",
-  serialization: "CONFLICT",
-  network: "NETWORK_ERROR",
-  aborted: "ABORTED",
-  invalid_request: "VALIDATION_ERROR",
-  validation: "VALIDATION_ERROR",
-  multiple_rows: "CONFLICT",
-  stale: "CONFLICT",
-  max_affected: "CONFLICT",
-  rate_limited: "RATE_LIMITED",
-  quota_exceeded: "RATE_LIMITED",
-  unsupported: "NOT_IMPLEMENTED",
-  unexpected: "UNEXPECTED",
-};
-
-/**
- * A `DbError` as the error Chat SDK adapters throw: `RateLimitError` with
- * `retryAfterMs` for `rate_limited` and `quota_exceeded`, `NotImplementedError`
- * for `unsupported`, and otherwise a `ChatError` whose code follows the adapter
- * codes (`NOT_FOUND`, `AUTH_FAILED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`,
- * `NETWORK_ERROR`). The `DbError` is the `cause`.
- */
-export function chatErrorOf(error: DbError): ChatError {
-  if (error.kind === "rate_limited" || error.kind === "quota_exceeded") {
-    return new RateLimitError(
-      error.message,
-      error.retryAfter === undefined ? undefined : error.retryAfter * 1000,
-      error,
-    );
-  }
-
-  if (error.kind === "unsupported") {
-    return new NotImplementedError(error.message, error.table, error);
-  }
-
-  return new ChatError(error.message, CHAT_ERROR_CODES[error.kind], error);
-}
-
-async function must<T>(result: AsyncResult<T>): Promise<T> {
-  const settled = await result;
-
-  if (!settled.ok) {
-    throw chatErrorOf(settled.error);
-  }
-
-  return settled.data;
-}
-
-/** The card in a message, kept in `metadata.card` for a client to render. */
-function cardOf(message: AdapterPostableMessage): unknown {
-  if (typeof message !== "object") {
-    return undefined;
-  }
-
-  if ("card" in message) {
-    return message.card;
-  }
-
-  return "type" in message ? message : undefined;
-}
-
-function bodyOf(message: AdapterPostableMessage): {
-  readonly body: string;
-  readonly format: "text" | "markdown";
-} {
-  if (typeof message === "string") {
-    return { body: message, format: "text" };
-  }
-
-  if ("raw" in message) {
-    return { body: message.raw, format: "text" };
-  }
-
-  if ("markdown" in message) {
-    return { body: message.markdown, format: "markdown" };
-  }
-
-  return { body: converter.renderPostable(message), format: "markdown" };
-}
-
-function inboxIdOfChannel(channelId: string): string {
-  const inboxId = channelId.startsWith(PREFIX)
-    ? channelId.slice(PREFIX.length)
-    : "";
-
-  if (inboxId.length === 0 || inboxId.includes(":")) {
-    throw new ChatError(
-      `"${channelId}" is not an inbox channel id`,
-      "INVALID_CHANNEL_ID",
-    );
-  }
-
-  return inboxId;
-}
-
-type ConversationCursor = Pick<Conversation, "id" | "lastMessageAt">;
-
-function encodeCursor(conversation: ConversationCursor): string {
-  return JSON.stringify({
-    id: conversation.id,
-    lastMessageAt: conversation.lastMessageAt?.toString() ?? null,
-  });
-}
-
-function decodeCursor(cursor: string): ConversationCursor {
-  let value: unknown;
-
-  try {
-    value = JSON.parse(cursor);
-  } catch {
-    value = undefined;
-  }
-
-  if (
-    !isRecord(value) ||
-    typeof value["id"] !== "string" ||
-    (value["lastMessageAt"] !== null &&
-      typeof value["lastMessageAt"] !== "string")
-  ) {
-    throw new ChatError("invalid listThreads cursor", "VALIDATION_ERROR");
-  }
-
-  return {
-    id: value["id"],
-    lastMessageAt:
-      value["lastMessageAt"] === null
-        ? null
-        : toInstant(value["lastMessageAt"]),
-  };
-}
-
-const emojiOf = (value: EmojiValue | string): string =>
-  defaultEmojiResolver.toDiscord(value);
-
-function attachmentsOf(
-  message: InboxMessage,
-  download: InboxAdapterOptions["download"],
-): Attachment[] {
-  return message.attachments.flatMap((file) => {
-    if (file.status !== "clean") {
-      return [];
-    }
-
-    const type = file.mimeType?.startsWith("image/")
-      ? "image"
-      : file.mimeType?.startsWith("video/")
-        ? "video"
-        : file.mimeType?.startsWith("audio/")
-          ? "audio"
-          : "file";
-
-    return [
-      {
-        type,
-        name: file.name,
-        fetchMetadata: { attachmentId: file.id },
-        ...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
-        ...(file.size === undefined ? {} : { size: file.size }),
-        ...(download === undefined ? {} : { fetchData: () => download(file) }),
-      },
-    ];
-  });
-}
-
-async function* textOnly(
-  source: AsyncIterable<string | StreamChunk>,
-): AsyncIterable<string> {
-  for await (const chunk of source) {
-    if (typeof chunk === "string") {
-      yield chunk;
-    } else if (chunk.type === "markdown_text") {
-      yield chunk.text;
-    }
-  }
 }
 
 /**
@@ -474,6 +333,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     format: "text" | "markdown",
     metadata?: Readonly<Record<string, unknown>>,
     replyTo?: string,
+    attachments?: readonly string[],
   ): Promise<RawMessage<InboxMessage>> =>
     rawOf(
       await must(
@@ -485,28 +345,107 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
             authorType: "bot",
             metadata: { author_name: userName, ...metadata },
             ...(replyTo === undefined ? {} : { replyTo }),
+            ...(attachments === undefined || attachments.length === 0
+              ? {}
+              : { attachments }),
           },
         }),
       ),
       threadId,
     );
 
-  const postMessage = (
+  const uploadAll = async (
+    conversationId: string,
+    files: readonly InboxOutgoingFile[],
+  ): Promise<string[]> => {
+    if (files.length === 0) {
+      return [];
+    }
+
+    if (options.upload === undefined) {
+      throw new NotImplementedError(
+        "inboxAdapter: posting files needs the `upload` option",
+        "upload",
+      );
+    }
+
+    const ids: string[] = [];
+
+    for (const file of files) {
+      const target = await must(
+        inbox.messages.createUpload({
+          conversationId,
+          file: {
+            name: file.name,
+            size: byteLength(file.data),
+            ...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
+          },
+        }),
+      );
+
+      await options.upload(target, file);
+      await must(inbox.messages.confirmUpload(target.id));
+      ids.push(target.id);
+    }
+
+    return ids;
+  };
+
+  const postMessage = async (
     threadId: string,
     message: AdapterPostableMessage,
     replyTo?: string,
   ): Promise<RawMessage<InboxMessage>> => {
     const { body, format } = bodyOf(message);
     const card = cardOf(message);
+    const { conversationId } = remember(threadId);
+
+    const attachments = await uploadAll(
+      conversationId,
+      await outgoingFilesOf(message),
+    );
+
+    const metadata = {
+      ...(card === undefined ? {} : { card }),
+      ...(aiGeneratedOf(message) ? { ai_generated: true } : {}),
+    };
 
     return post(
       threadId,
       body,
       format,
-      card === undefined ? undefined : { card },
+      Object.keys(metadata).length === 0 ? undefined : metadata,
       replyTo,
+      attachments,
     );
   };
+
+  /** The thread id of a conversation: the cache, the event's inbox or a read. */
+  const threadIdFor = async (
+    conversationId: string,
+    inboxId: string | undefined,
+  ): Promise<string | undefined> => {
+    const known = threads.get(conversationId);
+
+    if (known !== undefined) {
+      return known;
+    }
+
+    const owner =
+      inboxId ?? (await must(inbox.conversations.get(conversationId)))?.inboxId;
+
+    return owner === undefined
+      ? undefined
+      : inboxThreadId({ inboxId: owner, conversationId });
+  };
+
+  const { dispatchAction, dispatchReaction } = eventDispatchers({
+    chat: () => chat,
+    adapter: () => adapter,
+    threadFor: threadIdFor,
+    remember,
+    stopActionId: options.stopActionId ?? INBOX_STOP_ACTION,
+  });
 
   const summaryOf = async (
     conversation: Conversation,
@@ -668,6 +607,27 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     renderFormatted: (content) => converter.fromAst(content),
     dispatch,
     ticketOf: (message) => tickets.get(message.id),
+    dispatchAction,
+    dispatchReaction,
+    supportsTurnCancellation: true,
+    rehydrateAttachment: (attachment) => {
+      const attachmentId = attachment.fetchMetadata?.["attachmentId"];
+      const { download } = options;
+
+      if (download === undefined || typeof attachmentId !== "string") {
+        return attachment;
+      }
+
+      const file: MessageFile = {
+        id: attachmentId,
+        name: attachment.name ?? "file",
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        status: "clean",
+      };
+
+      return { ...attachment, fetchData: () => download(file) };
+    },
     handleWebhook: async (request, webhook) => {
       if (!options.verify || !(await options.verify(request))) {
         return new Response("unauthorized", { status: 401 });
@@ -689,6 +649,61 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         return new Response("expected conversation_id and message_id", {
           status: 400,
         });
+      }
+
+      const inboxId =
+        typeof job["inbox_id"] === "string"
+          ? { inbox_id: job["inbox_id"] }
+          : {};
+
+      const user =
+        isRecord(job["user"]) && typeof job["user"]["id"] === "string"
+          ? {
+              user: {
+                id: job["user"]["id"],
+                ...(typeof job["user"]["name"] === "string"
+                  ? { name: job["user"]["name"] }
+                  : {}),
+              },
+            }
+          : {};
+
+      if (job["type"] === "action" && typeof job["action_id"] === "string") {
+        await dispatchAction(
+          {
+            conversation_id: job["conversation_id"],
+            message_id: job["message_id"],
+            action_id: job["action_id"],
+            ...(typeof job["value"] === "string"
+              ? { value: job["value"] }
+              : {}),
+            ...inboxId,
+            ...user,
+          },
+          webhook,
+        );
+
+        return new Response("ok", { status: 200 });
+      }
+
+      if (
+        job["type"] === "reaction" &&
+        typeof job["emoji"] === "string" &&
+        typeof job["added"] === "boolean"
+      ) {
+        await dispatchReaction(
+          {
+            conversation_id: job["conversation_id"],
+            message_id: job["message_id"],
+            emoji: job["emoji"],
+            added: job["added"],
+            ...inboxId,
+            ...user,
+          },
+          webhook,
+        );
+
+        return new Response("ok", { status: 200 });
       }
 
       await dispatch(
@@ -859,12 +874,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       };
     },
     stream: async (threadId, source, streamOptions) => {
-      const { conversationId } = remember(threadId);
-      await inbox.conversations.typing({
-        conversationId,
-        typing: true,
-        actor: userName,
-      });
+      const { conversationId, inboxId } = remember(threadId);
       let text = "";
       const chunks = textOnly(source);
       const store = options.streams;
@@ -888,32 +898,40 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         },
       });
 
-      if (store && streamId) {
-        await writeToStore(store, streamId, readable);
-      } else {
-        const reader = readable.getReader();
-
-        while (!(await reader.read()).done) {
-          // Every chunk is read so the producer can finish.
-        }
-      }
-
       await inbox.conversations.typing({
         conversationId,
-        typing: false,
+        typing: true,
         actor: userName,
       });
 
-      if (text.trim().length === 0) {
-        return null;
+      try {
+        if (store && streamId) {
+          await writeToStore(store, streamId, readable);
+        } else {
+          const reader = readable.getReader();
+
+          while (!(await reader.read()).done) {
+            // Every chunk is read so the producer can finish.
+          }
+        }
+      } finally {
+        await inbox.conversations.typing({
+          conversationId,
+          typing: false,
+          actor: userName,
+        });
       }
 
-      return post(
-        threadId,
-        text,
-        "markdown",
-        streamId === undefined ? undefined : { stream_id: streamId },
-      );
+      // Nothing to post: answer with a message that was never stored, so the
+      // Chat SDK does not fall back to posting the stream again.
+      if (text.trim().length === 0) {
+        return rawOf(emptyMessage(conversationId, inboxId), threadId);
+      }
+
+      return post(threadId, text, "markdown", {
+        ...(streamId === undefined ? {} : { stream_id: streamId }),
+        ...(options.aiGeneratedStreams === false ? {} : { ai_generated: true }),
+      });
     },
   };
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:33599649f2ab3705cf289500c3247eb86a700c996d9f566b561994a5fbb1b1bb
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:87d574cd845ab04e4f0c88a6dbcf31e259dd86f9247c80f8f98a57c6b92c3423
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -147,7 +147,7 @@ grant execute on function "better_supabase"."chat_state_is_subscribed"(text, tex
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -168,11 +168,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -187,8 +187,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -236,7 +236,7 @@ $$;
 revoke execute on function "better_supabase"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_get"(text, text) to service_role;
 
-create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -246,11 +246,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -265,29 +265,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "better_supabase"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "better_supabase"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "better_supabase"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "better_supabase"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "better_supabase"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -300,13 +312,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -331,6 +345,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "better_supabase"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -355,8 +370,9 @@ $$;
 revoke execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "better_supabase"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -365,9 +381,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "better_supabase"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "better_supabase"."chat_state_queues" q
   where q."id" = (
     select k."id" from "better_supabase"."chat_state_queues" k
@@ -530,21 +543,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:33599649f2ab3705cf289500c3247eb86a700c996d9f566b561994a5fbb1b1bb
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:87d574cd845ab04e4f0c88a6dbcf31e259dd86f9247c80f8f98a57c6b92c3423
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -690,7 +703,7 @@ grant execute on function "better_supabase"."chat_state_is_subscribed"(text, tex
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -711,11 +724,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -730,8 +743,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -779,7 +792,7 @@ $$;
 revoke execute on function "better_supabase"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_get"(text, text) to service_role;
 
-create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -789,11 +802,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -808,29 +821,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "better_supabase"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "better_supabase"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "better_supabase"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "better_supabase"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "better_supabase"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -843,13 +868,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -874,6 +901,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "better_supabase"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -898,8 +926,9 @@ $$;
 revoke execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "better_supabase"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -908,9 +937,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "better_supabase"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "better_supabase"."chat_state_queues" q
   where q."id" = (
     select k."id" from "better_supabase"."chat_state_queues" k
@@ -1073,21 +1099,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:6811f31b6cface505d3ead38dc47bf81b2debbb94292049fec98e4bab0ca71fd
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:498758ce69a7ecf80d9fcfc995a0ec68da3046614329e820234991ee6a008a44
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1238,7 +1264,7 @@ grant execute on function "app_private"."chat_state_is_subscribed"(text, text) t
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "app_private"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "app_private"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -1259,11 +1285,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "app_private"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "app_private"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "app_private"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "app_private"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "app_private"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "app_private"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -1278,8 +1304,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "app_private"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "app_private"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "app_private"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "app_private"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -1327,7 +1353,7 @@ $$;
 revoke execute on function "app_private"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."chat_state_get"(text, text) to service_role;
 
-create or replace function "app_private"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "app_private"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -1337,11 +1363,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "app_private"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "app_private"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "app_private"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "app_private"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "app_private"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "app_private"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -1356,29 +1382,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "app_private"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "app_private"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "app_private"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "app_private"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "app_private"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "app_private"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "app_private"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "app_private"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "app_private"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "app_private"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "app_private"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -1391,13 +1429,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "app_private"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "app_private"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "app_private"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "app_private"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "app_private"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "app_private"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "app_private"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -1422,6 +1462,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "app_private"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -1446,8 +1487,9 @@ $$;
 revoke execute on function "app_private"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "app_private"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "app_private"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -1456,9 +1498,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "app_private"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "app_private"."chat_state_queues" q
   where q."id" = (
     select k."id" from "app_private"."chat_state_queues" k
@@ -1621,21 +1660,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:df61471eadf9b1b61fac52f35e40d39edacccc74dd2b43393c073cb20dedfff7
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:2d4b1e05b90d83d2698df57fac95b84488115170b3ef66076e901e9a65bef84a
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1781,7 +1820,7 @@ grant execute on function "better_supabase"."chat_state_is_subscribed"(text, tex
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -1802,11 +1841,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -1821,8 +1860,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -1870,7 +1909,7 @@ $$;
 revoke execute on function "better_supabase"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_get"(text, text) to service_role;
 
-create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -1880,11 +1919,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -1899,29 +1938,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "better_supabase"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "better_supabase"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "better_supabase"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "better_supabase"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "better_supabase"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -1934,13 +1985,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -1965,6 +2018,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "better_supabase"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -1989,8 +2043,9 @@ $$;
 revoke execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "better_supabase"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -1999,9 +2054,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "better_supabase"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "better_supabase"."chat_state_queues" q
   where q."id" = (
     select k."id" from "better_supabase"."chat_state_queues" k
@@ -2179,23 +2231,23 @@ as $$ select "better_supabase"."chat_state_is_subscribed"($1, $2) $$;
 revoke execute on function "api"."chat_state_is_subscribed"(text, text) from public, anon, authenticated;
 grant execute on function "api"."chat_state_is_subscribed"(text, text) to service_role;
 
-create or replace function "api"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "api"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_acquire_lock"($1, $2, $3, $4) $$;
-revoke execute on function "api"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "api"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "api"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "api"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
-create or replace function "api"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "api"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_extend_lock"($1, $2, $3, $4) $$;
-revoke execute on function "api"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "api"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "api"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "api"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "api"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -2224,23 +2276,23 @@ as $$ select "better_supabase"."chat_state_get"($1, $2) $$;
 revoke execute on function "api"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "api"."chat_state_get"(text, text) to service_role;
 
-create or replace function "api"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "api"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_set"($1, $2, $3, $4) $$;
-revoke execute on function "api"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "api"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "api"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "api"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
-create or replace function "api"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "api"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_set_if_not_exists"($1, $2, $3, $4) $$;
-revoke execute on function "api"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "api"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "api"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "api"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
 create or replace function "api"."chat_state_delete"(prefix text, key text)
 returns void
@@ -2251,14 +2303,14 @@ as $$ select "better_supabase"."chat_state_delete"($1, $2) $$;
 revoke execute on function "api"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "api"."chat_state_delete"(text, text) to service_role;
 
-create or replace function "api"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+create or replace function "api"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_append_to_list"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "api"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "api"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "api"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "api"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -2357,21 +2409,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:746881992a1c765bcaa13573d4bfd7066e1cbf288b0cabb49dc0930edbffda89
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:3a87b082a0bb1ab83a9ee71c0f62b1f70f45650497a426926b9fc584f19ca49c
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2505,7 +2557,7 @@ grant execute on function "better_supabase"."chat_state_is_subscribed"(text, tex
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -2526,11 +2578,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -2545,8 +2597,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -2594,7 +2646,7 @@ $$;
 revoke execute on function "better_supabase"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_get"(text, text) to service_role;
 
-create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -2604,11 +2656,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -2623,29 +2675,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "better_supabase"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "better_supabase"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "better_supabase"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "better_supabase"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "better_supabase"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -2658,13 +2722,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -2689,6 +2755,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "better_supabase"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -2713,8 +2780,9 @@ $$;
 revoke execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "better_supabase"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -2723,9 +2791,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "better_supabase"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "better_supabase"."chat_state_queues" q
   where q."id" = (
     select k."id" from "better_supabase"."chat_state_queues" k
@@ -2888,21 +2953,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
--- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:c060fd459306349c87826880eceb565fa15d9888269ab9830d24490706978338
+-- @bsb-block chat-sdk-state@2 managed
+-- @bsb-hash sha256:1a2543d85b3d4442db445c87472a803eb6bb6f1d7acfb6a003b50be690175d4c
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3048,7 +3113,7 @@ grant execute on function "better_supabase"."chat_state_is_subscribed"(text, tex
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_acquire_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -3069,11 +3134,11 @@ begin
   return jsonb_build_object('thread_id', v_lock."thread_id", 'token', v_lock."token", 'expires_at', v_lock."expires_at");
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_acquire_lock"(text, text, text, bigint) to service_role;
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function "better_supabase"."chat_state_extend_lock"(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -3088,8 +3153,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_extend_lock"(text, text, text, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_release_lock"(prefix text, thread_id text, token text)
 returns boolean
@@ -3137,7 +3202,7 @@ $$;
 revoke execute on function "better_supabase"."chat_state_get"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_get"(text, text) to service_role;
 
-create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -3147,11 +3212,11 @@ as $$
   on conflict ("key_prefix", "cache_key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at", "updated_at" = clock_timestamp();
 $$;
-revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set"(text, text, jsonb, bigint) to service_role;
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function "better_supabase"."chat_state_set_if_not_exists"(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -3166,29 +3231,41 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_set_if_not_exists"(text, text, jsonb, bigint) to service_role;
 
+-- Deletes the key's value and its list.
 create or replace function "better_supabase"."chat_state_delete"(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from "better_supabase"."chat_state_cache" c where c."key_prefix" = chat_state_delete.prefix and c."cache_key" = chat_state_delete.key;
+  delete from "better_supabase"."chat_state_lists" l where l."key_prefix" = chat_state_delete.prefix and l."list_key" = chat_state_delete.key;
+end;
 $$;
 revoke execute on function "better_supabase"."chat_state_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_delete"(text, text) to service_role;
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function "better_supabase"."chat_state_append_to_list"(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end;
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    case when ttl_ms is null or ttl_ms <= 0 then null else clock_timestamp() + make_interval(secs => ttl_ms / 1000.0) end,
+    (select max(k."expires_at") from "better_supabase"."chat_state_lists" k
+     where k."key_prefix" = chat_state_append_to_list.prefix and k."list_key" = chat_state_append_to_list.key)
+  );
   insert into "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "value", "expires_at")
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -3201,13 +3278,15 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
-  where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
-    and l."expires_at" is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update "better_supabase"."chat_state_lists" l set "expires_at" = v_expires
+    where l."key_prefix" = chat_state_append_to_list.prefix and l."list_key" = chat_state_append_to_list.key
+      and l."expires_at" is distinct from v_expires;
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, integer) to service_role;
+revoke execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) from public, anon, authenticated;
+grant execute on function "better_supabase"."chat_state_append_to_list"(text, text, jsonb, integer, bigint) to service_role;
 
 create or replace function "better_supabase"."chat_state_get_list"(prefix text, key text)
 returns jsonb
@@ -3232,6 +3311,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from "better_supabase"."chat_state_queues" q
   where q."key_prefix" = chat_state_enqueue.prefix and q."thread_id" = chat_state_enqueue.thread_id
     and q."expires_at" <= clock_timestamp();
@@ -3256,8 +3336,9 @@ $$;
 revoke execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_state_enqueue"(text, text, jsonb, timestamptz, integer) to service_role;
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function "better_supabase"."chat_state_dequeue"(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -3266,9 +3347,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from "better_supabase"."chat_state_queues" q
-  where q."key_prefix" = chat_state_dequeue.prefix and q."thread_id" = chat_state_dequeue.thread_id
-    and q."expires_at" <= clock_timestamp();
   delete from "better_supabase"."chat_state_queues" q
   where q."id" = (
     select k."id" from "better_supabase"."chat_state_queues" k
@@ -3431,13 +3509,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block-data chat-sdk-state
--- @bsb-hash sha256:e690135d628b82479ec3c852388f8891214f6edb498ad86a1308c002ecdde5ea
+-- @bsb-hash sha256:13fb7d7c3b92ac1b9fc68ed93315e9adf0991da9eee6a209717b279ead6e6996
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('chat-sdk-state', 1, 'managed')
+values ('chat-sdk-state', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

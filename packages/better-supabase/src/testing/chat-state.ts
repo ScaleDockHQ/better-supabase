@@ -25,7 +25,8 @@ const sleep = (ms: number): Promise<void> =>
  * Runs the Chat SDK `StateAdapter` contract against `state`: subscriptions, one
  * lock holder at a time with token-checked release and extension, lock and
  * cache TTLs, `setIfNotExists`, list trimming, and a per-thread queue that
- * keeps the newest entries, reports its depth and drops expired ones.
+ * keeps the newest entries, reports its depth and drops expired ones, and a
+ * delete that clears lists.
  */
 export function testChatState(
   state: StateAdapter,
@@ -81,9 +82,16 @@ export function testChatState(
         const next = await state.acquireLock(thread, 10_000);
         expect(next !== null, "released lock was not free");
         await state.forceReleaseLock(thread);
+        const taken = await state.acquireLock(thread, 10_000);
+        expect(taken !== null, "forceReleaseLock left the lock held");
+        await state.releaseLock(next);
         expect(
-          (await state.acquireLock(thread, 10_000)) !== null,
-          "forceReleaseLock left the lock held",
+          !(await state.extendLock(next, 10_000)),
+          "a force-released token extended the new lock",
+        );
+        expect(
+          (await state.acquireLock(thread, 10_000)) === null,
+          "a force-released token released the new lock",
         );
       },
     ],
@@ -155,6 +163,76 @@ export function testChatState(
       },
     ],
     [
+      "delete removes a list stored under the same key",
+      async () => {
+        const key = fresh();
+        await state.appendToList(key, "a");
+        await state.delete(key);
+        expect((await state.getList(key)).length === 0, "delete kept a list");
+      },
+    ],
+    [
+      "refreshes the list TTL on append and keeps it when none is given",
+      async () => {
+        const refreshed = fresh();
+        await state.appendToList(refreshed, "a", { ttlMs: ttl });
+        await sleep(Math.ceil(ttl * 0.6));
+        await state.appendToList(refreshed, "b", { ttlMs: ttl });
+        await sleep(Math.ceil(ttl * 0.6));
+
+        expect(
+          (await state.getList(refreshed)).join(",") === "a,b",
+          "an append did not refresh the list TTL",
+        );
+
+        const kept = fresh();
+        await state.appendToList(kept, "a", { ttlMs: ttl });
+        await state.appendToList(kept, "b");
+        await sleep(ttl + 100);
+        expect(
+          (await state.getList(kept)).length === 0,
+          "an append without a TTL cleared the list's expiry",
+        );
+      },
+    ],
+    [
+      "keeps the order of more than two list entries and maxLength 1",
+      async () => {
+        const key = fresh();
+
+        for (const value of ["a", "b", "c", "d", "e"]) {
+          await state.appendToList(key, value);
+        }
+
+        expect(
+          (await state.getList<string>(key)).join(",") === "a,b,c,d,e",
+          "list order changed",
+        );
+
+        const single = fresh();
+        await state.appendToList(single, "a", { maxLength: 1 });
+        await state.appendToList(single, "b", { maxLength: 1 });
+        expect(
+          (await state.getList<string>(single)).join(",") === "b",
+          "maxLength 1 kept more than the newest entry",
+        );
+      },
+    ],
+    [
+      "lets one of many parallel setIfNotExists calls win",
+      async () => {
+        const key = fresh();
+
+        const results = await Promise.all(
+          Array.from({ length: 10 }, (_, index) =>
+            state.setIfNotExists(key, index),
+          ),
+        );
+
+        expect(results.filter(Boolean).length === 1, "not exactly one winner");
+      },
+    ],
+    [
       "queues per thread, keeps the newest maxSize and reports the depth",
       async () => {
         const thread = fresh();
@@ -200,9 +278,13 @@ export function testChatState(
           (await state.queueDepth(thread)) === 0,
           "an expired entry counts",
         );
+        const dequeued = await state.dequeue(thread);
+
+        // An adapter may return the expired entry for the SDK to report; it
+        // must not return a live one.
         expect(
-          (await state.dequeue(thread)) === null,
-          "an expired entry dequeued",
+          dequeued === null || dequeued.expiresAt <= Date.now(),
+          "an expired entry dequeued as live",
         );
       },
     ],

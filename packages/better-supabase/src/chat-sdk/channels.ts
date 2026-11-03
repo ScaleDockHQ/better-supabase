@@ -15,8 +15,8 @@ import type {
   InboxFileSource,
   InboxMessage,
   PendingInboxFile,
-  StoredInboundEvent,
 } from "../blocks/inbox/types.ts";
+import type { MessageFile } from "../blocks/messaging/messaging.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -25,10 +25,16 @@ import type {
 } from "../credentials/provider.ts";
 import type { DeliveryParser, ParsedDeliveries } from "./delivery.ts";
 import type { ChatScheduler } from "./scheduler.ts";
+import type {
+  ChatInboundEvent,
+  ChatInboundStore,
+  ChatWebhookSink,
+} from "./store.ts";
 
-import { errorText } from "../core/block-helpers.ts";
+import { errorText, isRecord } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { DELIVERY_PARSERS } from "./delivery.ts";
+import { isInboundStore, storeOf } from "./store.ts";
 
 /**
  * The parts of a Chat SDK `Chat` the inbox helpers use. `webhooks` and
@@ -85,8 +91,18 @@ export async function channelAdapter<A>(
 }
 
 export interface InboxWebhookOptions {
-  /** `createInbox` on a service transport. */
-  readonly inbox: Inbox;
+  /**
+   * `createInbox` on a service transport: the event lands in `inbound_events`
+   * and `inboundHandler(...).drain()` replays it. Pass `sink` instead to keep
+   * events somewhere else.
+   */
+  readonly inbox?: Inbox;
+  /**
+   * A durable sink such as the queue block's `createWebhookInbox`. The raw
+   * request is stored as a `ChatWebhookPayload`; a worker replays it with
+   * `handler.process(chatEventOf(message))`.
+   */
+  readonly sink?: ChatWebhookSink;
   /** The adapter name the event is replayed into later. */
   readonly adapter: string;
   readonly inboxId?: string;
@@ -124,6 +140,50 @@ export interface InboxWebhookOptions {
 
 const DROPPED_HEADERS = new Set(["cookie", "authorization", "x-forwarded-for"]);
 
+type Stored = { readonly id: string; readonly duplicate: boolean } | null;
+
+async function storeInInbox(
+  inbox: Inbox | undefined,
+  event: Parameters<Inbox["inbound"]["store"]>[0],
+): Promise<Stored> {
+  if (inbox === undefined) {
+    return null;
+  }
+
+  const stored = await inbox.inbound.store(event);
+
+  return stored.ok ? stored.data : null;
+}
+
+/** Reads what a sink's `store` answers: a value, or a block's `Result`. */
+async function storeInSink(
+  sink: ChatWebhookSink,
+  event: Parameters<ChatWebhookSink["store"]>[0],
+): Promise<Stored> {
+  let outcome: unknown;
+
+  try {
+    outcome = await sink.store(event);
+  } catch {
+    return null;
+  }
+
+  if (isRecord(outcome) && outcome["ok"] === false) {
+    return null;
+  }
+
+  const data =
+    isRecord(outcome) && "data" in outcome ? outcome["data"] : outcome;
+
+  return {
+    id:
+      isRecord(data) && data["id"] !== undefined
+        ? String(data["id"])
+        : event.id,
+    duplicate: isRecord(data) && data["duplicate"] === true,
+  };
+}
+
 const defaultPassthrough = (request: Request, body: string): boolean =>
   request.method === "GET" || body.includes('"type":"url_verification"');
 
@@ -135,6 +195,10 @@ const defaultPassthrough = (request: Request, body: string): boolean =>
 export function webhook(
   options: InboxWebhookOptions,
 ): (request: Request) => Promise<Response> {
+  if (options.inbox === undefined && options.sink === undefined) {
+    throw new TypeError("webhook needs an `inbox` or a `sink`");
+  }
+
   const passthrough = options.passthrough ?? defaultPassthrough;
 
   return async (request) => {
@@ -175,20 +239,36 @@ export function webhook(
 
     const externalId = options.externalId?.(body, request);
 
-    const stored = await options.inbox.inbound.store({
-      adapter: options.adapter,
-      body,
-      headers,
-      ...(externalId === undefined ? {} : { externalId }),
-      ...(options.inboxId === undefined ? {} : { inboxId: options.inboxId }),
-      ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
-    });
+    const stored = options.sink
+      ? await storeInSink(options.sink, {
+          id: externalId ?? crypto.randomUUID(),
+          payload: {
+            adapter: options.adapter,
+            body,
+            headers,
+            ...(options.inboxId === undefined
+              ? {}
+              : { inboxId: options.inboxId }),
+          },
+          headers,
+          ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+        })
+      : await storeInInbox(options.inbox, {
+          adapter: options.adapter,
+          body,
+          headers,
+          ...(externalId === undefined ? {} : { externalId }),
+          ...(options.inboxId === undefined
+            ? {}
+            : { inboxId: options.inboxId }),
+          ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+        });
 
-    if (!stored.ok) {
+    if (stored === null) {
       return new Response("could not store the event", { status: 503 });
     }
 
-    options.after?.(stored.data);
+    options.after?.(stored);
 
     return new Response("ok", { status: 200 });
   };
@@ -202,8 +282,12 @@ export interface MirrorThread {
 
 export interface InboundHandlerOptions {
   readonly chat: ChatLike;
-  /** `createInbox` on a service transport. */
-  readonly inbox: Inbox;
+  /**
+   * `createInbox` on a service transport, or a `ChatInboundStore`. `drain` and
+   * `importFiles` read the inbox's webhook store and files, so they need the
+   * `Inbox`; with a store, replay events through `process`.
+   */
+  readonly inbox: Inbox | ChatInboundStore;
   /** The inbox each adapter's threads land in, by adapter name. */
   readonly inboxes: Readonly<Record<string, string>>;
   /**
@@ -244,7 +328,7 @@ export interface InboundHandler {
    * Replays one stored event: delivery statuses go to the inbox, the rest into
    * Chat SDK.
    */
-  process(event: StoredInboundEvent): Promise<void>;
+  process(event: ChatInboundEvent): Promise<void>;
   /** Processes pending events, oldest first. */
   drain(options?: {
     readonly limit?: number;
@@ -301,7 +385,10 @@ async function readSource(file: PendingInboxFile): Promise<Blob> {
  * or let `webhook` verify and give the adapter a check that accepts replays.
  */
 export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
-  const { chat, inbox } = options;
+  const { chat } = options;
+  const store = storeOf(options.inbox);
+  // The webhook store and the file queue exist on the Inbox only.
+  const inbox = isInboundStore(options.inbox) ? undefined : options.inbox;
   const parsers = options.parsers ?? DELIVERY_PARSERS;
   const baseUrl = options.baseUrl ?? "https://inbox.local";
 
@@ -310,21 +397,35 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     parsed: ParsedDeliveries,
   ): Promise<void> => {
     for (const update of parsed.updates) {
-      await inbox.deliveries
-        .setStatus({
-          channel: channelFor(adapter),
-          externalId: update.externalId,
-          status: update.status,
-          ...(update.error === undefined ? {} : { error: update.error }),
-        })
-        .orThrow();
+      await store.updateDeliveryStatus({
+        channel: channelFor(adapter),
+        externalId: update.externalId,
+        status: update.status,
+        ...(update.error === undefined ? {} : { error: update.error }),
+      });
     }
   };
 
-  const process = async (event: StoredInboundEvent): Promise<void> => {
+  const mark = async (
+    event: ChatInboundEvent,
+    status: "processing" | "processed" | "ignored" | "failed",
+    error?: string,
+  ): Promise<void> => {
+    if (inbox === undefined) {
+      return;
+    }
+
     await inbox.inbound
-      .setStatus({ id: event.id, status: "processing" })
+      .setStatus({
+        id: event.id,
+        status,
+        ...(error === undefined ? {} : { error }),
+      })
       .orThrow();
+  };
+
+  const process = async (event: ChatInboundEvent): Promise<void> => {
+    await mark(event, "processing");
 
     try {
       const parsed = parsers[event.adapter]?.(event) ?? null;
@@ -334,9 +435,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
       }
 
       if (parsed?.only) {
-        await inbox.inbound
-          .setStatus({ id: event.id, status: "processed" })
-          .orThrow();
+        await mark(event, "processed");
 
         return;
       }
@@ -344,13 +443,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
       const handle = chat.webhooks[event.adapter];
 
       if (!handle) {
-        await inbox.inbound
-          .setStatus({
-            id: event.id,
-            status: "ignored",
-            error: `no adapter named ${event.adapter}`,
-          })
-          .orThrow();
+        await mark(event, "ignored", `no adapter named ${event.adapter}`);
 
         return;
       }
@@ -377,15 +470,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         throw new Error(`${event.adapter} answered ${String(response.status)}`);
       }
 
-      await inbox.inbound
-        .setStatus({ id: event.id, status: "processed" })
-        .orThrow();
+      await mark(event, "processed");
     } catch (error) {
-      await inbox.inbound.setStatus({
-        id: event.id,
-        status: "failed",
-        error: errorText(error),
-      });
+      await mark(event, "failed", errorText(error)).catch(() => undefined);
       throw error;
     }
   };
@@ -422,6 +509,12 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
   return {
     process,
     drain: async (drainOptions = {}) => {
+      if (inbox === undefined) {
+        throw new TypeError(
+          "drain reads the Inbox's webhook store: pass the Inbox, or replay events with process()",
+        );
+      }
+
       const events = await inbox.inbound
         .pending({
           limit: drainOptions.limit ?? 50,
@@ -466,26 +559,28 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
 
       const sources = await files(message, adapter, thread.id);
 
-      return inbox.inbound
-        .record({
-          inboxId,
-          threadId: thread.id,
-          contact: {
-            externalId: message.author.userId,
-            name: message.author.fullName || message.author.userName,
-            ...(message.author.email === undefined
-              ? {}
-              : { email: message.author.email }),
-          },
-          message: {
-            body: message.text,
-            externalId: message.id,
-            ...(sources.length > 0 ? { files: sources } : {}),
-          },
-        })
-        .orThrow();
+      return store.recordInbound({
+        inboxId,
+        threadId: thread.id,
+        contact: {
+          externalId: message.author.userId,
+          name: message.author.fullName || message.author.userName,
+          ...(message.author.email === undefined
+            ? {}
+            : { email: message.author.email }),
+        },
+        message: {
+          body: message.text,
+          externalId: message.id,
+          ...(sources.length > 0 ? { files: sources } : {}),
+        },
+      });
     },
     importFiles: async (importOptions) => {
+      if (inbox === undefined) {
+        throw new TypeError("importFiles needs the Inbox, not a store");
+      }
+
       const read = importOptions.read ?? readSource;
 
       const pending = await inbox.files
@@ -514,6 +609,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
   };
 }
 
+const fromText = (message: InboxMessage): AdapterPostableMessage =>
+  message.format === "markdown" ? { markdown: message.body } : message.body;
+
 const CHANNELS: Readonly<Record<string, string>> = { twilio: "sms" };
 const channelFor = (adapter: string): string => CHANNELS[adapter] ?? adapter;
 
@@ -524,10 +622,23 @@ export interface InboxOutboundJob {
   readonly inbox_id?: string;
 }
 
+/** A file `deliver` posts next to a reply, in the Chat SDK's `FileUpload` shape. */
+export interface DeliverFile {
+  readonly data: Buffer | Blob | ArrayBuffer;
+  readonly filename: string;
+  readonly mimeType?: string;
+}
+
 export interface DeliverOptions {
   readonly chat: ChatLike;
-  /** `createInbox` on a service transport. */
-  readonly inbox: Inbox;
+  /** `createInbox` on a service transport, or a `ChatInboundStore`. */
+  readonly inbox: Inbox | ChatInboundStore;
+  /**
+   * Reads an attachment of the staff reply (for example from Supabase Storage)
+   * so it posts as a file. Without it a reply's attachments are not sent.
+   * Return `null` to skip one.
+   */
+  readonly download?: (file: MessageFile) => Promise<DeliverFile | null>;
   /**
    * The adapter that posts a conversation's replies. Defaults to the inbox's
    * channel (`sms` posts with `twilio`).
@@ -591,21 +702,15 @@ const sleep = (ms: number): Promise<void> =>
  * contact's last message.
  */
 export async function whatsappWindowOpen(
-  inbox: Inbox,
+  inbox: Inbox | ChatInboundStore,
   conversationId: string,
   now: Temporal.Instant = nowInstant(),
 ): Promise<boolean> {
-  const page = await inbox.messages
-    .list({ conversationId, limit: 200 })
-    .orThrow();
-
-  const last = page.findLast(
-    (message) => message.direction === "inbound" && message.kind === "message",
-  );
+  const last = await storeOf(inbox).lastInboundAt(conversationId);
 
   return (
-    last !== undefined &&
-    last.createdAt.add({ hours: 24 }).epochMilliseconds > now.epochMilliseconds
+    last !== null &&
+    last.add({ hours: 24 }).epochMilliseconds > now.epochMilliseconds
   );
 }
 
@@ -619,7 +724,8 @@ export async function whatsappWindowOpen(
 export function deliver(
   options: DeliverOptions,
 ): (job: InboxOutboundJob) => Promise<RawMessage | null> {
-  const { chat, inbox } = options;
+  const { chat } = options;
+  const store = storeOf(options.inbox);
   const retries = options.rateLimitRetries ?? 2;
   const maxWait = options.maxRetryWaitMs ?? 10_000;
 
@@ -642,19 +748,13 @@ export function deliver(
   };
 
   return async (job) => {
-    const message = await inbox.messages.get(job.message_id).orThrow();
+    const found = await store.outbound(job.message_id);
 
-    if (message?.kind !== "message" || message.deletedAt !== undefined) {
+    if (!found) {
       return null;
     }
 
-    const conversation = await inbox.conversations
-      .get(message.conversationId)
-      .orThrow();
-
-    if (!conversation) {
-      return null;
-    }
+    const { message, conversation } = found;
 
     const name =
       options.adapterFor?.(conversation) ??
@@ -679,42 +779,57 @@ export function deliver(
         adapter,
       });
 
-      const content =
-        template ??
-        (message.format === "markdown"
+      const files: DeliverFile[] = [];
+
+      for (const attachment of template ? [] : message.attachments) {
+        const file = await options.download?.(attachment);
+
+        if (file) {
+          files.push(file);
+        }
+      }
+
+      const text =
+        message.format === "markdown"
           ? { markdown: message.body }
-          : message.body);
+          : { raw: message.body };
+
+      const content =
+        template ?? (files.length > 0 ? { ...text, files } : fromText(message));
 
       const raw = await postWithRetry(() =>
         adapter.postMessage(conversation.threadId, content),
       );
 
       await chat.getState().set(echoKey(name, raw.id), true, ECHO_TTL_MS);
-      await inbox.deliveries
-        .record({
-          messageId: message.id,
-          channel,
-          externalId: raw.id,
-          status: "sent",
-        })
-        .orThrow();
+      await store.recordOutbound({
+        messageId: message.id,
+        channel,
+        externalId: raw.id,
+      });
 
       return raw;
     } catch (error) {
-      await inbox.deliveries.record({
-        messageId: message.id,
-        channel,
-        status: "failed",
-        error: errorText(error),
-      });
+      await store
+        .recordDeliveryAttempt({
+          messageId: message.id,
+          channel,
+          status: "failed",
+          error: errorText(error),
+        })
+        .catch(() => undefined);
       throw error;
     }
   };
 }
 
 export interface MaintainOptions {
-  /** `createInbox` on a service transport. */
-  readonly inbox: Inbox;
+  /**
+   * `createInbox` on a service transport, or a `ChatInboundStore` with
+   * `maintain` (without it, only the state, the replay and the scheduled posts
+   * run).
+   */
+  readonly inbox: Inbox | ChatInboundStore;
   /** Replays events a crashed request left pending. */
   readonly handler?: InboundHandler;
   /**
@@ -752,16 +867,17 @@ export interface MaintainResult {
 export async function maintain(
   options: MaintainOptions,
 ): Promise<MaintainResult> {
-  const woken = await options.inbox.wakeSnoozed().orThrow();
-  const published = await options.inbox.publishDue().orThrow();
+  const store = storeOf(options.inbox);
+
+  const own = (await store.maintain?.({
+    ...(options.keepEvents === undefined
+      ? {}
+      : { keepEvents: options.keepEvents }),
+  })) ?? { woken: 0, published: 0, purgedEvents: 0 };
 
   const replayed = options.handler
     ? await options.handler.drain()
     : { processed: 0, failed: 0 };
-
-  const purgedEvents = await options.inbox.inbound
-    .purge({ olderThan: options.keepEvents ?? "7 days" })
-    .orThrow();
 
   const purgedState = options.state ? await options.state.purge() : 0;
 
@@ -770,5 +886,5 @@ export async function maintain(
         .published
     : 0;
 
-  return { woken, published, purgedEvents, replayed, purgedState, posted };
+  return { ...own, replayed, purgedState, posted };
 }

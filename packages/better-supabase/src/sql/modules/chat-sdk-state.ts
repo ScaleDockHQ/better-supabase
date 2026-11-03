@@ -284,7 +284,7 @@ ${serviceGrant(`${fn("chat_state_is_subscribed")}(text, text)`)}
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
-create or replace function ${fn("chat_state_acquire_lock")}(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function ${fn("chat_state_acquire_lock")}(prefix text, thread_id text, token text, ttl_ms bigint)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -305,10 +305,10 @@ begin
   return ${lockJson("v_lock")};
 end;
 $$;
-${serviceGrant(`${fn("chat_state_acquire_lock")}(text, text, text, integer)`)}
+${serviceGrant(`${fn("chat_state_acquire_lock")}(text, text, text, bigint)`)}
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
-create or replace function ${fn("chat_state_extend_lock")}(prefix text, thread_id text, token text, ttl_ms integer)
+create or replace function ${fn("chat_state_extend_lock")}(prefix text, thread_id text, token text, ttl_ms bigint)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -323,7 +323,7 @@ begin
   return found;
 end;
 $$;
-${serviceGrant(`${fn("chat_state_extend_lock")}(text, text, text, integer)`)}
+${serviceGrant(`${fn("chat_state_extend_lock")}(text, text, text, bigint)`)}
 
 create or replace function ${fn("chat_state_release_lock")}(prefix text, thread_id text, token text)
 returns boolean
@@ -368,7 +368,7 @@ as $$
 $$;
 ${serviceGrant(`${fn("chat_state_get")}(text, text)`)}
 
-create or replace function ${fn("chat_state_set")}(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function ${fn("chat_state_set")}(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns void
 language sql
 set search_path = ''
@@ -378,10 +378,10 @@ as $$
   on conflict (${cc("prefix")}, ${cc("key")}) do update
     set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}${touched("cache", "clock_timestamp()")};
 $$;
-${serviceGrant(`${fn("chat_state_set")}(text, text, jsonb, integer)`)}
+${serviceGrant(`${fn("chat_state_set")}(text, text, jsonb, bigint)`)}
 
 -- Writes the key unless a live value holds it; true when it wrote.
-create or replace function ${fn("chat_state_set_if_not_exists")}(prefix text, key text, value jsonb, ttl_ms integer default null)
+create or replace function ${fn("chat_state_set_if_not_exists")}(prefix text, key text, value jsonb, ttl_ms bigint default null)
 returns boolean
 language plpgsql
 set search_path = ''
@@ -396,27 +396,39 @@ begin
   return found;
 end;
 $$;
-${serviceGrant(`${fn("chat_state_set_if_not_exists")}(text, text, jsonb, integer)`)}
+${serviceGrant(`${fn("chat_state_set_if_not_exists")}(text, text, jsonb, bigint)`)}
 
+-- Deletes the key's value and its list.
 create or replace function ${fn("chat_state_delete")}(prefix text, key text)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   delete from ${ca} c where c.${cc("prefix")} = chat_state_delete.prefix and c.${cc("key")} = chat_state_delete.key;
+  delete from ${li} l where l.${cli("prefix")} = chat_state_delete.prefix and l.${cli("key")} = chat_state_delete.key;
+end;
 $$;
 ${serviceGrant(`${fn("chat_state_delete")}(text, text)`)}
 
 -- Appends to the list, keeps the newest max_length entries and moves the
--- whole list's expiry to ttl_ms from now.
-create or replace function ${fn("chat_state_append_to_list")}(prefix text, key text, value jsonb, max_length integer default null, ttl_ms integer default null)
+-- whole list's expiry to ttl_ms from now; without ttl_ms the list keeps its
+-- expiry. Appends to one list take an advisory lock, so concurrent trims
+-- leave exactly max_length entries.
+create or replace function ${fn("chat_state_append_to_list")}(prefix text, key text, value jsonb, max_length integer default null, ttl_ms bigint default null)
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_expires timestamptz := ${ttl("ttl_ms")};
+  v_expires timestamptz;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_list:' || prefix || ':' || key));
+  v_expires := coalesce(
+    ${ttl("ttl_ms")},
+    (select max(k.${cli("expiresAt")}) from ${li} k
+     where k.${cli("prefix")} = chat_state_append_to_list.prefix and k.${cli("key")} = chat_state_append_to_list.key)
+  );
   insert into ${li} (${cli("prefix")}, ${cli("key")}, ${cli("value")}, ${cli("expiresAt")})
   values (prefix, key, value, v_expires);
   if max_length is not null and max_length > 0 then
@@ -429,12 +441,14 @@ begin
         offset max_length - 1 limit 1
       );
   end if;
-  update ${li} l set ${cli("expiresAt")} = v_expires
-  where l.${cli("prefix")} = chat_state_append_to_list.prefix and l.${cli("key")} = chat_state_append_to_list.key
-    and l.${cli("expiresAt")} is distinct from v_expires;
+  if ttl_ms is not null and ttl_ms > 0 then
+    update ${li} l set ${cli("expiresAt")} = v_expires
+    where l.${cli("prefix")} = chat_state_append_to_list.prefix and l.${cli("key")} = chat_state_append_to_list.key
+      and l.${cli("expiresAt")} is distinct from v_expires;
+  end if;
 end;
 $$;
-${serviceGrant(`${fn("chat_state_append_to_list")}(text, text, jsonb, integer, integer)`)}
+${serviceGrant(`${fn("chat_state_append_to_list")}(text, text, jsonb, integer, bigint)`)}
 
 create or replace function ${fn("chat_state_get_list")}(prefix text, key text)
 returns jsonb
@@ -458,6 +472,7 @@ as $$
 declare
   v_depth integer;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat_state_queue:' || prefix || ':' || thread_id));
   delete from ${qu} q
   where q.${cq("prefix")} = chat_state_enqueue.prefix and q.${cq("thread")} = chat_state_enqueue.thread_id
     and q.${cq("expiresAt")} <= clock_timestamp();
@@ -481,8 +496,9 @@ end;
 $$;
 ${serviceGrant(`${fn("chat_state_enqueue")}(text, text, jsonb, timestamptz, integer)`)}
 
--- Removes and returns the oldest live entry, or null. Concurrent workers
--- skip an entry another one is taking.
+-- Removes and returns the oldest entry, or null. An expired entry comes back
+-- too, so the SDK can report it as dropped. Concurrent workers skip an entry
+-- another one is taking.
 create or replace function ${fn("chat_state_dequeue")}(prefix text, thread_id text)
 returns jsonb
 language plpgsql
@@ -491,9 +507,6 @@ as $$
 declare
   v_value jsonb;
 begin
-  delete from ${qu} q
-  where q.${cq("prefix")} = chat_state_dequeue.prefix and q.${cq("thread")} = chat_state_dequeue.thread_id
-    and q.${cq("expiresAt")} <= clock_timestamp();
   delete from ${qu} q
   where q.${cq("id")} = (
     select k.${cq("id")} from ${qu} k
@@ -641,12 +654,12 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "chat_state_is_subscribed", args: pair, returns: "boolean" },
     {
       name: "chat_state_acquire_lock",
-      args: ["text", "text", "text", "integer"],
+      args: ["text", "text", "text", "bigint"],
       returns: "jsonb",
     },
     {
       name: "chat_state_extend_lock",
-      args: ["text", "text", "text", "integer"],
+      args: ["text", "text", "text", "bigint"],
       returns: "boolean",
     },
     {
@@ -658,18 +671,18 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "chat_state_get", args: pair, returns: "jsonb" },
     {
       name: "chat_state_set",
-      args: ["text", "text", "jsonb", "integer"],
+      args: ["text", "text", "jsonb", "bigint"],
       returns: "void",
     },
     {
       name: "chat_state_set_if_not_exists",
-      args: ["text", "text", "jsonb", "integer"],
+      args: ["text", "text", "jsonb", "bigint"],
       returns: "boolean",
     },
     { name: "chat_state_delete", args: pair, returns: "void" },
     {
       name: "chat_state_append_to_list",
-      args: ["text", "text", "jsonb", "integer", "integer"],
+      args: ["text", "text", "jsonb", "integer", "bigint"],
       returns: "void",
     },
     { name: "chat_state_get_list", args: pair, returns: "jsonb" },
@@ -715,8 +728,23 @@ export const CHAT_SDK_STATE: BlockSqlDefinition = {
   requires: ["housekeeping"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Every ttl_ms is a bigint, so a 30-day TTL fits; append and enqueue serialize on an advisory lock before they trim; an append without a TTL keeps the list's expiry; chat_state_delete also clears a list; dequeue returns expired entries for the SDK to report.",
+      sql: () =>
+        [
+          "drop function if exists better_supabase.chat_state_acquire_lock(text, text, text, integer);",
+          "drop function if exists better_supabase.chat_state_extend_lock(text, text, text, integer);",
+          "drop function if exists better_supabase.chat_state_set(text, text, jsonb, integer);",
+          "drop function if exists better_supabase.chat_state_set_if_not_exists(text, text, jsonb, integer);",
+          "drop function if exists better_supabase.chat_state_append_to_list(text, text, jsonb, integer, integer);",
+        ].join("\n"),
+    },
+  ],
   contract,
   build,
 };

@@ -5,8 +5,9 @@ description: createSupabaseState, a Chat SDK StateAdapter on Postgres with subsc
 
 `createSupabaseState` implements the Chat SDK `StateAdapter` on the tables
 of the `chat-sdk-state` [SQL module](/docs/blocks/sql), so a bot needs no
-Redis. Every call is one `security definer` function that only the service
-role may run.
+Redis. Every call is one SQL function that only the service role may run. TTLs
+are `bigint` milliseconds (version 2), so a 30 day TTL fits. Re-running
+`add chat-sdk-state` upgrades version 1 and drops its `int4` functions.
 
 ```bash
 pnpm better-supabase add chat-sdk-state

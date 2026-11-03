@@ -129,15 +129,27 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     },
     chat_state_delete: (args) => {
       cache.delete(key(args));
+      lists.delete(key(args));
 
       return null;
     },
     chat_state_append_to_list: (args) => {
       const id = key(args);
 
+      const existing = (lists.get(id) ?? []).filter((item) =>
+        live(item.expiresAt),
+      );
+
+      const refreshed = expiry(args["ttl_ms"]);
+
       const list = [
-        ...(lists.get(id) ?? []).filter((item) => live(item.expiresAt)),
-        { value: args["value"], expiresAt: expiry(args["ttl_ms"]) },
+        ...(refreshed === null
+          ? existing
+          : existing.map((item) => ({ ...item, expiresAt: refreshed }))),
+        {
+          value: args["value"],
+          expiresAt: refreshed ?? existing.at(-1)?.expiresAt ?? null,
+        },
       ];
 
       const max =
@@ -166,7 +178,12 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
 
       return trimmed.length;
     },
-    chat_state_dequeue: (args) => queue(args).shift()?.entry ?? null,
+    chat_state_dequeue: (args) => {
+      const id = key(args, "thread_id");
+      const next = (queues.get(id) ?? []).shift();
+
+      return next?.entry ?? null;
+    },
     chat_state_queue_depth: (args) => queue(args).length,
     purge_chat_state: () => 3,
   };
@@ -193,6 +210,34 @@ describe("createSupabaseState", () => {
     const state = createSupabaseState({ transport: memoryTransport() });
     const report = await testChatState(state, { message, ttlMs: 60 });
     expect(report.checks.filter((check) => !check.ok)).toEqual([]);
+  });
+
+  it("fails connect with a pointer when the module is missing", async () => {
+    const state = createSupabaseState({
+      transport: {
+        call: () => Promise.reject(new Error("function does not exist")),
+      },
+    });
+
+    await expect(state.connect()).rejects.toThrow(/chat-sdk-state module/);
+  });
+
+  it("sends a 30-day TTL as a plain number", async () => {
+    const sent: unknown[] = [];
+
+    const state = createSupabaseState({
+      transport: {
+        call: (_schema, _fn, args) => {
+          sent.push(args["ttl_ms"]);
+
+          return Promise.resolve(null);
+        },
+      },
+    });
+
+    await state.set("k", 1, 2_592_000_000);
+    await state.appendToList("k", 1, { ttlMs: 2_592_000_000 });
+    expect(sent).toEqual([2_592_000_000, 2_592_000_000]);
   });
 
   it("keeps bots apart by prefix and purges", async () => {

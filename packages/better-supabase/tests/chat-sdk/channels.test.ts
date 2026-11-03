@@ -356,13 +356,8 @@ describe("inboundHandler", () => {
       failing.handler.process({
         id: "e2",
         adapter: "broken",
-        externalId: null,
-        inboxId: null,
-        tenant: null,
         headers: {},
         body: "{}",
-        attempts: 0,
-        receivedAt: Temporal.Instant.from(AT),
       }),
     ).rejects.toThrow(/broken answered 500/);
     expect(failing.statuses()).toEqual(["processing", "failed"]);
