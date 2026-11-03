@@ -22,10 +22,12 @@ import {
   declaredCheckValues,
   excludedColumns,
   moduleLayout,
+  moduleSource,
   SECRET_COLUMNS,
   sameTenantColumn,
   sameTenantTrigger,
   SQL_MODULES,
+  writtenValues,
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
@@ -494,12 +496,13 @@ interface ManagedTables {
   readonly checks: readonly TableCheckValues[];
   readonly tables: BlockSqlNames["tables"];
   readonly values: ValueMaps;
+  readonly sql: string;
 }
 
 function managedTables(
   name: string,
   context: DoctorContext,
-): ManagedTables | undefined {
+): ManagedTables | Error | undefined {
   const module = SQL_MODULES[name];
   const tables = module?.names?.tables;
 
@@ -508,6 +511,20 @@ function managedTables(
   }
 
   try {
+    const adoption = adoptionContext(context);
+
+    const layout = {
+      ...moduleLayout(
+        context.config,
+        undefined,
+        [],
+        undefined,
+        adoption.accessProvider,
+      ),
+      ownTables: appTablesOf(context),
+      ...appViewsOf(context),
+    };
+
     return {
       checks: declaredCheckValues([{ text: module.sql }]),
       tables,
@@ -516,9 +533,10 @@ function managedTables(
         context.config.blocks[name]?.values,
         tables,
       ),
+      sql: moduleSource(name, layout, context.config.blockNames) ?? module.sql,
     };
-  } catch {
-    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -578,7 +596,7 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
     enums.map((entry) => [`${entry.schema}.${entry.name}`, entry]),
   );
 
-  const rendered = new Map<string, ManagedTables | undefined>();
+  const rendered = new Map<string, ManagedTables | Error | undefined>();
   const findings: FindingInput[] = [];
 
   for (const adoptedTable of adopted) {
@@ -587,9 +605,17 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
     if (!rendered.has(adoptedTable.module)) {
       managed = managedTables(adoptedTable.module, context);
       rendered.set(adoptedTable.module, managed);
+
+      if (managed instanceof Error) {
+        findings.push({
+          severity: "info",
+          message: `blocks.${adoptedTable.module} could not be rendered with this config (${managed.message}), so doctor did not check the values it writes into your tables.`,
+          target: `blocks.${adoptedTable.module}`,
+        });
+      }
     }
 
-    if (managed === undefined) {
+    if (managed === undefined || managed instanceof Error) {
       continue;
     }
 
@@ -646,17 +672,30 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
 
       const options = context.config.blocks[adoptedTable.module]?.options;
 
+      const written = new Set(
+        writtenValues(
+          managed.sql,
+          `${adoptedTable.schema}.${adoptedTable.table}`,
+          physical,
+        ),
+      );
+
       const wanted = [
         ...new Set(
           check.values.flatMap((label) => {
             const mapped = optionValues(options, label);
 
-            return mapped.length > 0
-              ? mapped
-              : appValues(
-                  managed.values[adoptedTable.logical]?.[logical],
-                  label,
-                );
+            const values =
+              mapped.length > 0
+                ? mapped
+                : appValues(
+                    managed.values[adoptedTable.logical]?.[logical],
+                    label,
+                  );
+
+            const first = values[0];
+
+            return first !== undefined && written.has(first) ? [first] : [];
           }),
         ),
       ];

@@ -214,6 +214,18 @@ function built(definition: BlockSqlDefinition): BlockSql {
   };
 }
 
+export function moduleSource(
+  name: string,
+  layout: BlockSqlLayout = {},
+  installed?: readonly string[],
+): string | undefined {
+  const module = SQL_MODULES[name];
+
+  return module === undefined
+    ? undefined
+    : module.build(moduleContext(name, layout, installed), layout);
+}
+
 // Outside tenant scope a module checks the caller itself, so the tenant
 // module and the access contract drop from what it needs. They are what
 // tenant scope runs on, so they always run in it.

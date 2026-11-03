@@ -29,6 +29,14 @@ describe("checkValues", () => {
     ).toEqual({ column: "status", values: ["pending", "sent"] });
   });
 
+  it("reads a check Postgres prints as not valid", () => {
+    expect(
+      checkValues(
+        "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text]))) NOT VALID",
+      ),
+    ).toEqual({ column: "status", values: ["pending", "sent"] });
+  });
+
   it("reads a single value", () => {
     expect(checkValues("CHECK ((status = 'pending'::text))")).toEqual({
       column: "status",

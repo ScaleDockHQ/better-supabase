@@ -36,7 +36,7 @@ export {
 
 export { blockSqlVersion } from "./module-types.ts";
 
-export { resolveBlocks, SQL_MODULES } from "./registry.ts";
+export { moduleSource, resolveBlocks, SQL_MODULES } from "./registry.ts";
 
 export { seedDefaultsFunctions } from "./seed-functions.ts";
 
@@ -136,6 +136,8 @@ export {
   type ValueMap,
   type ValueMaps,
 } from "./value-maps.ts";
+
+export { writtenValues } from "./written-values.ts";
 
 export {
   addedColumnTypes,
