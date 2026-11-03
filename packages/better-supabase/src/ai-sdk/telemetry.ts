@@ -74,6 +74,32 @@ export function tenantOfEvent(event: TelemetryStart): string | undefined {
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
+/** Calls kept in flight; the oldest are dropped when an end event never arrives. */
+const MAX_IN_FLIGHT = 1000;
+
+/** A map that drops its oldest entry past `MAX_IN_FLIGHT`. */
+function boundedMap<V>(): Map<string, V> {
+  const map = new Map<string, V>();
+  const set = map.set.bind(map);
+
+  map.set = (key, value) => {
+    map.delete(key);
+    set(key, value);
+
+    if (map.size > MAX_IN_FLIGHT) {
+      const oldest = map.keys().next();
+
+      if (!oldest.done) {
+        map.delete(oldest.value);
+      }
+    }
+
+    return map;
+  };
+
+  return map;
+}
+
 const count = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.round(value)
@@ -84,12 +110,13 @@ const count = (value: unknown): number =>
  * meters: input and output tokens of each language model call (agent steps
  * included), embedding tokens, and rerank calls. Register it once with
  * `registerTelemetry(meterTelemetry({ usage }))`; each call's rows carry an
- * idempotency key, so a retried event is counted once. Don't also record the
- * same tokens with `usageEntries`.
+ * idempotency key (`ai-call:<callId>:<responseId>`), so a retried event is
+ * counted once. In-flight calls are bounded to 1,000 and released on end, abort
+ * and error. Don't also record the same tokens with `usageEntries`.
  */
 export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
-  const tenants = new Map<string, string>();
-  const calls = new Map<string, number>();
+  const tenants = boundedMap<string>();
+  const calls = boundedMap<number>();
   const tenantOf = options.tenant ?? tenantOfEvent;
   const meters = options.meters ?? {};
   const source = options.source ?? "ai:telemetry";
@@ -118,6 +145,11 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
     }
   };
 
+  const settle = (callId: string): void => {
+    tenants.delete(callId);
+    calls.delete(callId);
+  };
+
   return {
     onStart: (event) => {
       const tenant = tenantOf(event);
@@ -130,7 +162,10 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
       const step = calls.get(event.callId) ?? 0;
       calls.set(event.callId, step + 1);
 
-      return record(event.callId, `${event.callId}:${step}`, [
+      const response =
+        event.responseId === "" ? String(step) : event.responseId;
+
+      return record(event.callId, `${event.callId}:${response}`, [
         {
           meter: meters.input ?? "ai.input_tokens",
           quantity: count(event.usage.inputTokens),
@@ -153,8 +188,17 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
         { meter: meters.rerank ?? "ai.rerank_calls", quantity: 1 },
       ]),
     onEnd: (event) => {
-      tenants.delete(event.callId);
-      calls.delete(event.callId);
+      settle(event.callId);
+    },
+    onAbort: (event) => {
+      settle(event.callId);
+    },
+    onError: (error) => {
+      const callId = isRecord(error) ? error["callId"] : undefined;
+
+      if (typeof callId === "string") {
+        settle(callId);
+      }
     },
   };
 }

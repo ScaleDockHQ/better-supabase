@@ -97,7 +97,7 @@ describe("meterTelemetry", () => {
     ]);
     expect(rows[0]?.options).toMatchObject({
       source: "ai:telemetry",
-      idempotencyKey: expect.stringMatching(/^ai-call:.+:0$/),
+      idempotencyKey: expect.stringMatching(/^ai-call:.+:.+$/),
     });
   });
 
@@ -162,6 +162,66 @@ describe("meterTelemetry", () => {
       },
     });
     expect(errors).toHaveLength(1);
+  });
+});
+
+describe("meterTelemetry lifecycle", () => {
+  const start = { operationId: "ai.generateText" };
+
+  const ended = (callId: string, responseId = "resp_1") =>
+    ({
+      callId,
+      responseId,
+      usage: { inputTokens: 5, outputTokens: 1 },
+    }) as never;
+
+  const setup = () => {
+    const { usage, rows } = fakeUsage();
+
+    const integration = meterTelemetry({ usage, tenant: () => "o1" });
+
+    return { integration, rows };
+  };
+
+  it("keys each row on the call and the response id", async () => {
+    const { integration, rows } = setup();
+    integration.onStart?.({ ...start, callId: "c1" } as never);
+    await integration.onLanguageModelCallEnd?.(ended("c1", "resp_9"));
+
+    expect(rows[0]?.options).toMatchObject({
+      idempotencyKey: "ai-call:c1:resp_9",
+    });
+  });
+
+  it.each(["onEnd", "onAbort", "onError"] as const)(
+    "releases the call on %s",
+    async (hook) => {
+      const { integration, rows } = setup();
+      integration.onStart?.({ ...start, callId: "c1" } as never);
+
+      if (hook === "onError") {
+        integration.onError?.({ callId: "c1" });
+      } else {
+        integration[hook]?.({ callId: "c1" } as never);
+      }
+
+      await integration.onLanguageModelCallEnd?.(ended("c1"));
+
+      expect(rows).toEqual([]);
+    },
+  );
+
+  it("bounds the calls in flight", async () => {
+    const { integration, rows } = setup();
+
+    for (let index = 0; index <= 1000; index += 1) {
+      integration.onStart?.({ ...start, callId: `c${index}` } as never);
+    }
+
+    await integration.onLanguageModelCallEnd?.(ended("c0"));
+    await integration.onLanguageModelCallEnd?.(ended("c1000"));
+
+    expect(rows).toHaveLength(1);
   });
 });
 
