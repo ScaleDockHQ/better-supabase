@@ -4,6 +4,7 @@ import type { Logger } from "../../src/core/logger.ts";
 
 import {
   formatStats,
+  requestIdOf,
   sharedCollector,
   StatsCollector,
 } from "../../src/next/collector.ts";
@@ -39,7 +40,7 @@ describe("StatsCollector", () => {
     expect(log.warn.mock.calls[0]![0]).toMatch(
       /request r1 made 2 database calls in 2 waves, over the budget of 2 calls and 1 waves/,
     );
-    expect(formatStats(collector.get("r1")!)).toMatch(/^2;2;[\d.]+$/);
+    expect(formatStats(collector.get("r1")!)).toMatch(/^2;2;[\d.]+;0;0$/);
   });
 
   it("stays within budget quietly and forgets old requests", () => {
@@ -86,5 +87,28 @@ describe("sharedCollector", () => {
     expect(strictLog.warn).toHaveBeenCalledOnce();
     expect(quietLog.warn).not.toHaveBeenCalled();
     expect(strict.get("shared-quiet")).toMatchObject({ calls: 2 });
+  });
+});
+
+describe("requestIdOf", () => {
+  it("prefers the proxy's id, then the trace id, x-vercel-id and x-request-id", () => {
+    const of = (headers: Record<string, string>) =>
+      requestIdOf(new Headers(headers));
+
+    expect(of({ "x-bsb-request-id": "a", traceparent: "x" })).toBe("a");
+
+    expect(
+      of({
+        traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "x-vercel-id": "fra1::abc",
+      }),
+    ).toBe("trace:0af7651916cd43dd8448eb211c80319c");
+
+    expect(of({ "x-vercel-id": "fra1::abc", "x-request-id": "r" })).toBe(
+      "vercel:fra1::abc",
+    );
+
+    expect(of({ "x-request-id": "r" })).toBe("request:r");
+    expect(of({ traceparent: "junk" })).toBeUndefined();
   });
 });

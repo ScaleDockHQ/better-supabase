@@ -13,10 +13,30 @@ import { requestAs, server } from "../../fixtures/test-server.ts";
 
 describe("db stats header", () => {
   it("round-trips calls, waves and time", () => {
-    const value = formatDbStats({ calls: 3, waves: 2, ms: 12, tables: [] });
+    const value = formatDbStats({
+      calls: 3,
+      waves: 2,
+      ms: 12,
+      tables: [],
+      verifications: 1,
+      adminCalls: 0,
+    });
 
-    expect(value).toBe("3;2;12");
-    expect(parseDbStats(value)).toEqual({ calls: 3, waves: 2, ms: 12 });
+    expect(value).toBe("3;2;12;1;0");
+    expect(parseDbStats(value)).toEqual({
+      calls: 3,
+      waves: 2,
+      ms: 12,
+      verifications: 1,
+      adminCalls: 0,
+    });
+    expect(parseDbStats("3;2;12;0;0")).toEqual({
+      calls: 3,
+      waves: 2,
+      ms: 12,
+      verifications: 0,
+      adminCalls: 0,
+    });
     expect(parseDbStats("x;1;2")).toBeUndefined();
     expect(parseDbStats("1;2")).toBeUndefined();
     expect(parseDbStats(null)).toBeUndefined();
@@ -54,7 +74,7 @@ describe("withDbStats", () => {
 
     const response = await fetch(await requestAs());
     expect(await response.json()).toBe(0);
-    expect(response.headers.get(DB_CALLS_HEADER)).toBe("0;0;0");
+    expect(response.headers.get(DB_CALLS_HEADER)).toBe("0;0;0;0;0");
     expect(response.headers.get("server-timing")).toContain("bsb-db;dur=0.0");
   });
 
@@ -68,6 +88,6 @@ describe("withDbStats", () => {
     );
 
     const response = await fetch(await requestAs());
-    expect(response.headers.get("x-db")).toBe("0;0;0");
+    expect(response.headers.get("x-db")).toBe("0;0;0;0;0");
   });
 });

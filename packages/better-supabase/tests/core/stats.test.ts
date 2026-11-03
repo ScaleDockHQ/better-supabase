@@ -4,7 +4,7 @@ import type { Executor } from "../../src/core/executor.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import { StatsRecorder } from "../../src/core/stats.ts";
+import { EMPTY_STATS, StatsRecorder } from "../../src/core/stats.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const tick = (): Promise<void> =>
@@ -29,7 +29,7 @@ const executor: Executor = {
 describe("db.$stats()", () => {
   it("counts calls, waves and tables", async () => {
     const db = defineSupabase(schema).connect(executor);
-    expect(db.$stats()).toEqual({ calls: 0, waves: 0, tables: [], ms: 0 });
+    expect(db.$stats()).toEqual(EMPTY_STATS);
 
     await Promise.all([db.customers.list(), db.notes.list()]);
     await db.customers.count();
@@ -67,5 +67,27 @@ describe("db.$stats()", () => {
     end();
     recorder.begin("customers")();
     expect(recorder.snapshot()).toMatchObject({ calls: 2, waves: 2 });
+  });
+});
+
+describe("StatsRecorder verifications and admin calls", () => {
+  it("counts them and reports into the parent", () => {
+    const parent = new StatsRecorder();
+    const child = new StatsRecorder(parent);
+
+    child.verification();
+    child.begin("customers", true)();
+    child.begin("notes")();
+
+    expect(child.snapshot()).toMatchObject({
+      calls: 2,
+      verifications: 1,
+      adminCalls: 1,
+    });
+    expect(parent.snapshot()).toMatchObject({
+      calls: 2,
+      verifications: 1,
+      adminCalls: 1,
+    });
   });
 });

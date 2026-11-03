@@ -6,12 +6,45 @@ import { StatsRecorder } from "../core/stats.ts";
 /** Forwarded by the proxy so every scope of one render shares an id. */
 export const REQUEST_ID_HEADER = "x-bsb-request-id";
 
+/**
+ * The id requests of one render share: the proxy's `x-bsb-request-id`, else the
+ * W3C trace id, `x-vercel-id` or `x-request-id` the platform forwards. Without
+ * any, every scope counts on its own.
+ */
+export function requestIdOf(headers: Headers): string | undefined {
+  const forwarded = headers.get(REQUEST_ID_HEADER);
+
+  if (forwarded) {
+    return forwarded;
+  }
+
+  const trace = headers.get("traceparent")?.split("-")[1];
+
+  if (trace && /^[0-9a-f]{32}$/.test(trace)) {
+    return `trace:${trace}`;
+  }
+
+  const vercel = headers.get("x-vercel-id");
+
+  if (vercel) {
+    return `vercel:${vercel}`;
+  }
+
+  const plain = headers.get("x-request-id");
+
+  return plain ? `request:${plain}` : undefined;
+}
+
 /** Sequential database round trips a development render may wait on. */
 export const DEFAULT_ROUND_TRIPS = 4;
 
 export interface DbBudget {
   readonly calls?: number;
   readonly waves?: number;
+  /** Service-role calls a user request may make. */
+  readonly adminCalls?: number;
+  /** Token verifications one request may run across its scopes. */
+  readonly verifications?: number;
 }
 
 export interface CollectorOptions {
@@ -45,8 +78,8 @@ class CollectedRecorder extends StatsRecorder {
     this.#onIdle = onIdle;
   }
 
-  override begin(table: string): () => void {
-    const end = super.begin(table);
+  override begin(table: string, admin?: boolean): () => void {
+    const end = super.begin(table, admin);
 
     return () => {
       end();
@@ -120,7 +153,7 @@ export class StatsCollector {
       }
 
       logger.warn(
-        `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}; load the page's data in one read set (defineReadSet) to make it one call`,
+        `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}${extraStats(stats)}; load the page's data in one read set (defineReadSet) to make it one call, run reads as the user instead of bsb.admin(), and pass cached({ session }) in nested scopes`,
         { requestId: id, ...stats },
       );
     }, idleMs ?? 250);
@@ -173,20 +206,38 @@ export function sharedCollector(options: CollectorOptions): CollectorView {
 function overBudget(stats: DbStats, budget: DbBudget): boolean {
   return (
     (budget.calls !== undefined && stats.calls > budget.calls) ||
-    (budget.waves !== undefined && stats.waves > budget.waves)
+    (budget.waves !== undefined && stats.waves > budget.waves) ||
+    (budget.adminCalls !== undefined && stats.adminCalls > budget.adminCalls) ||
+    (budget.verifications !== undefined &&
+      stats.verifications > budget.verifications)
   );
+}
+
+function extraStats(stats: DbStats): string {
+  const parts = [
+    stats.adminCalls > 0 ? `${stats.adminCalls} with the service role` : "",
+    stats.verifications > 1 ? `${stats.verifications} token verifications` : "",
+  ].filter(Boolean);
+
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
 function describeBudget(budget: DbBudget): string {
   return [
     budget.calls === undefined ? undefined : `${budget.calls} calls`,
     budget.waves === undefined ? undefined : `${budget.waves} waves`,
+    budget.adminCalls === undefined
+      ? undefined
+      : `${budget.adminCalls} admin calls`,
+    budget.verifications === undefined
+      ? undefined
+      : `${budget.verifications} verifications`,
   ]
     .filter(Boolean)
     .join(" and ");
 }
 
-/** `calls;waves;ms`, the value of the debug header. */
+/** `calls;waves;ms;verifications;adminCalls`, the value of the debug header. */
 export function formatStats(stats: DbStats): string {
-  return `${stats.calls};${stats.waves};${stats.ms}`;
+  return `${stats.calls};${stats.waves};${stats.ms};${stats.verifications};${stats.adminCalls}`;
 }

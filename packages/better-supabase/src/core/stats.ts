@@ -13,9 +13,20 @@ export interface DbStats {
   readonly tables: readonly string[];
   /** From the first call's start to the last call's end. */
   readonly ms: number;
+  /** Token verifications the request ran (memo misses), across its scopes. */
+  readonly verifications: number;
+  /** Calls made with the service role while serving a user request. */
+  readonly adminCalls: number;
 }
 
-export const EMPTY_STATS: DbStats = { calls: 0, waves: 0, tables: [], ms: 0 };
+export const EMPTY_STATS: DbStats = {
+  calls: 0,
+  waves: 0,
+  tables: [],
+  ms: 0,
+  verifications: 0,
+  adminCalls: 0,
+};
 
 /**
  * Counts calls and waves. A recorder with a `parent` also reports to it, so a
@@ -24,9 +35,12 @@ export const EMPTY_STATS: DbStats = { calls: 0, waves: 0, tables: [], ms: 0 };
 export class StatsRecorder {
   readonly #parent: StatsRecorder | undefined;
   readonly #now: () => number;
+  readonly #admin: boolean;
   readonly #tables = new Set<string>();
   #calls = 0;
   #waves = 0;
+  #verifications = 0;
+  #adminCalls = 0;
   #inFlight = 0;
   #first: number | undefined;
   #last: number | undefined;
@@ -34,14 +48,32 @@ export class StatsRecorder {
   constructor(
     parent?: StatsRecorder,
     now: () => number = () => performance.now(),
+    /** Marks every call this recorder (and its children) sees as service-role. */
+    admin?: boolean,
   ) {
     this.#parent = parent;
     this.#now = now;
+    this.#admin = admin ?? parent?.admin ?? false;
   }
 
-  /** Records a call to `table`; the returned function ends it. */
-  begin(table: string): () => void {
-    const end = this.#parent?.begin(table);
+  /** Whether this recorder's calls run with the service role. */
+  get admin(): boolean {
+    return this.#admin;
+  }
+
+  /** Records one token verification (a session memo miss). */
+  verification(): void {
+    this.#verifications += 1;
+    this.#parent?.verification();
+  }
+
+  /**
+   * Records a call to `table`; the returned function ends it. `admin` marks a
+   * call made with the service role.
+   */
+  begin(table: string, service?: boolean): () => void {
+    const admin = service ?? this.#admin;
+    const end = this.#parent?.begin(table, admin);
     const started = this.#now();
 
     if (this.#inFlight === 0) {
@@ -50,6 +82,11 @@ export class StatsRecorder {
 
     this.#inFlight += 1;
     this.#calls += 1;
+
+    if (admin) {
+      this.#adminCalls += 1;
+    }
+
     this.#tables.add(table);
     this.#first ??= started;
     let ended = false;
@@ -76,6 +113,8 @@ export class StatsRecorder {
         this.#first === undefined || this.#last === undefined
           ? 0
           : Math.round((this.#last - this.#first) * 100) / 100,
+      verifications: this.#verifications,
+      adminCalls: this.#adminCalls,
     };
   }
 }

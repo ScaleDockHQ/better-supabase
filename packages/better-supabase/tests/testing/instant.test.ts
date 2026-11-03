@@ -126,6 +126,8 @@ const stats = (calls: number, waves: number): DbStats => ({
   waves,
   tables: ["customers"],
   ms: 3,
+  verifications: 0,
+  adminCalls: 0,
 });
 
 describe("expectInstant", () => {

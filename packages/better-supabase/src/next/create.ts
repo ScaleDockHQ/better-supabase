@@ -82,6 +82,7 @@ import {
 import {
   DEFAULT_ROUND_TRIPS,
   REQUEST_ID_HEADER,
+  requestIdOf,
   formatStats,
   sharedCollector,
 } from "./collector.ts";
@@ -95,6 +96,7 @@ import {
 } from "./proxy.ts";
 import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
+import { adminForRequest, stampStats, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
@@ -154,7 +156,8 @@ export function createNext<
   const watching = development && roundTrips !== false;
 
   const budget =
-    debug?.budget ?? (watching ? { waves: roundTrips } : undefined);
+    debug?.budget ??
+    (watching ? { waves: roundTrips, adminCalls: 0 } : undefined);
 
   const collector =
     debug?.enabled || watching
@@ -166,7 +169,7 @@ export function createNext<
       : undefined;
 
   const statsFor = (request: Request): ContextOptions => {
-    const id = collector && request.headers.get(REQUEST_ID_HEADER);
+    const id = collector && requestIdOf(request.headers);
 
     return id ? { stats: collector.recorderFor(id) } : {};
   };
@@ -287,13 +290,15 @@ export function createNext<
       }
 
       const request = await requestScope();
+      const verify = verifyOption(statsFor(request).stats);
+
       // Scopes that resolve the same token share one verification; resolve
       // then answers from the verified-token memo.
-      await base.snapshot(request);
+      await base.snapshot(request, verify.onVerify);
 
       return {
         request,
-        resolution: await base.resolve(request, { refresh: false }),
+        resolution: await base.resolve(request, { refresh: false, ...verify }),
       };
     },
   );
@@ -442,6 +447,10 @@ export function createNext<
 
   const withAccounts = withExtra(base, {
     context,
+    admin: adminForRequest(
+      (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
+      (request) => statsFor(request).stats,
+    ),
     contextFromSession,
     evictSession,
     deleteAccount: ((userId, deleteOptions) =>
@@ -737,6 +746,7 @@ export function createNext<
     async proxy(request, proxyOptions = {}) {
       const started = performance.now();
       const id = collector ? crypto.randomUUID() : undefined;
+      const proxyRecorder = id ? collector?.recorderFor(id) : undefined;
       let authMs = 0;
       const phases: Partial<Record<ResolvePhase, number>> = {};
 
@@ -756,6 +766,7 @@ export function createNext<
         base
           .resolve(request, {
             refresh: true,
+            ...verifyOption(proxyRecorder),
             ...(verifySession ? { verifySession } : {}),
             // Under "bootstrap" the render's session check is the only one:
             // a session it found ended clears its cookies here.
@@ -859,6 +870,10 @@ export function createNext<
       if (id) {
         response.headers.set(REQUEST_ID_HEADER, id);
         response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+
+        // Headers leave before the render runs, so this carries the proxy's own
+        // verification; the render's totals come from the stats route.
+        stampStats(response.headers, statsHeader, proxyRecorder);
       }
 
       if (proxyOptions.after) {

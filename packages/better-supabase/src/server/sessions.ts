@@ -38,7 +38,11 @@ export interface SessionsOptions<C, P, Ctx> {
   /** Resolves a request; its token verification goes through `memo`. */
   readonly resolve: (
     request: Request,
-    options: { readonly refresh: false; readonly cookies?: false },
+    options: {
+      readonly refresh: false;
+      readonly cookies?: false;
+      readonly onVerify?: () => void;
+    },
   ) => Promise<AuthResolution<C, P>>;
   /** The server's verified-token memo, `undefined` with `sessions: false`. */
   readonly memo: SessionMemo<VerifiedUser> | undefined;
@@ -51,7 +55,10 @@ export interface SessionsOptions<C, P, Ctx> {
 export function serverSessions<C, P, Ctx, Opts extends object>(
   options: SessionsOptions<C, P, Ctx>,
 ): {
-  readonly snapshot: (request: Request) => Promise<SessionSnapshot<C> | null>;
+  readonly snapshot: (
+    request: Request,
+    onVerify?: () => void,
+  ) => Promise<SessionSnapshot<C> | null>;
   readonly contextFromSession: (
     snapshot: SessionSnapshot<C> | null,
     options?: Opts,
@@ -69,8 +76,13 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
 
   const build = async (
     request: Request,
+    onVerify?: () => void,
   ): Promise<SessionSnapshot<C> | null> => {
-    const { auth } = await options.resolve(request, { refresh: false });
+    const { auth } = await options.resolve(request, {
+      refresh: false,
+      ...(onVerify ? { onVerify } : {}),
+    });
+
     let found = snapshots.get(auth);
 
     if (found === undefined) {
@@ -81,11 +93,14 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     return found;
   };
 
-  const snapshot = (request: Request): Promise<SessionSnapshot<C> | null> => {
+  const snapshot = (
+    request: Request,
+    onVerify?: () => void,
+  ): Promise<SessionSnapshot<C> | null> => {
     let found = byRequest.get(request);
 
     if (!found) {
-      found = build(request);
+      found = build(request, onVerify);
       byRequest.set(request, found);
     }
 

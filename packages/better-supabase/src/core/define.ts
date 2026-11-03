@@ -500,7 +500,11 @@ export class BetterSupabase<
         ? source
         : postgrestExecutor(source, this.executorOptions()));
 
-    const recorder = new StatsRecorder(options.stats);
+    const recorder = new StatsRecorder(
+      options.stats,
+      undefined,
+      options.admin === true,
+    );
 
     const tuning: RequestTuning = {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),

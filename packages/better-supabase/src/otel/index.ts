@@ -190,6 +190,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
       // trips: a call that starts while none is in flight begins a new one.
       let inFlight = 0;
       let roundTrips = 0;
+      let calls = 0;
 
       /** Runs `run` in a client span; `settle` returns the error type, if any. */
       const traced = <T>(
@@ -206,6 +207,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
         }
 
         inFlight += 1;
+        calls += 1;
 
         return tracer.startActiveSpan(
           summary,
@@ -214,6 +216,8 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
             attributes: {
               ...attributes,
               "better_supabase.db.round_trips": roundTrips,
+              "better_supabase.db.waves": roundTrips,
+              "better_supabase.db.calls": calls,
             },
           },
           async (span) => {
@@ -408,6 +412,9 @@ export function traceAuth(
       attributes: {
         ...options.attributes,
         "better_supabase.auth.source": event.source,
+        ...(event.verifications === undefined
+          ? {}
+          : { "better_supabase.auth.verifications": event.verifications }),
         ...(event.userId ? { "enduser.id": event.userId } : {}),
       },
     });

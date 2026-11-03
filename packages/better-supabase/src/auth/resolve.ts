@@ -241,6 +241,11 @@ export interface ResolveAuthOptions {
    * Auth whether the session ended (`ended`). For `Server-Timing`.
    */
   readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
+  /**
+   * Called each time a token is actually verified: a verified-token memo miss,
+   * or any call without a memo. A memo hit never calls it.
+   */
+  readonly onVerify?: () => void;
   /** The `fetch` for Auth calls and the JWKS. Defaults to the global one. */
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
@@ -413,6 +418,8 @@ async function verifyAndCheck(
   options: ResolveAuthOptions,
   source: "bearer" | "cookie",
 ): Promise<AuthState> {
+  options.onVerify?.();
+
   return checkUser(
     await verifyOnce(credentials, modes, options, source),
     options,

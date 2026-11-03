@@ -18,8 +18,10 @@ import type {
   BlockMethodName,
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
+import type { StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { BindingName } from "../records/bindings.ts";
@@ -43,6 +45,7 @@ import type {
 import type { ResourceMap } from "../server/resources.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type {
+  AdminDb,
   BetterServer,
   ContextOptions,
   ServerContext,
@@ -377,6 +380,19 @@ export interface BetterNext<
   brand(): Promise<string | undefined>;
   /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
   tenant(): Promise<string | undefined>;
+  /**
+   * Service-role repositories, like `bsb.admin()`. With `request` (the one a
+   * route handler or proxy hook received) its calls count as admin calls in
+   * that request's totals, so the dev budget and `expectDbBudget` see them.
+   */
+  admin(
+    context?: RequestContext,
+    options?: {
+      readonly as?: string;
+      readonly stats?: StatsRecorder;
+      readonly request?: Request;
+    },
+  ): AdminDb<M, F, E, B>;
   /**
    * Drops every `bsb.cached()` entry of a user, e.g. after a role change, and
    * the entries tagged with `tags` (such as a permission snapshot's tag). In a

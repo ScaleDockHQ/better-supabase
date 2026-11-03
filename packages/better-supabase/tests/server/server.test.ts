@@ -1067,11 +1067,24 @@ describe("createServer events", () => {
     }
 
     expect(events).toEqual([
-      { source: "bearer", ok: true, userId: USER, rawSource: "bearer" },
-      { source: "cookie", ok: true, userId: USER, rawSource: "cookie" },
-      { source: "bearer", ok: true },
-      { source: "none", ok: true, reason: "none" },
-      { source: "none", ok: false, reason: "token" },
+      {
+        source: "bearer",
+        ok: true,
+        userId: USER,
+        rawSource: "bearer",
+        verifications: 1,
+      },
+      // The cookie carries the token the bearer request just verified.
+      {
+        source: "cookie",
+        ok: true,
+        userId: USER,
+        rawSource: "cookie",
+        verifications: 0,
+      },
+      { source: "bearer", ok: true, verifications: 1 },
+      { source: "none", ok: true, reason: "none", verifications: 0 },
+      { source: "none", ok: false, reason: "token", verifications: 1 },
     ]);
   });
 

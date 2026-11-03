@@ -43,6 +43,10 @@ export interface BudgetPage {
 export interface DbBudgetExpectation {
   readonly maxCalls?: number;
   readonly maxWaves?: number;
+  /** Token verifications one render may run across its cache scopes. */
+  readonly maxVerifications?: number;
+  /** Service-role calls one user render may make. */
+  readonly maxAdminCalls?: number;
   /** The navigation to measure. Defaults to reloading the page. */
   readonly during?: () => Promise<unknown>;
   /** Also measure router prefetches. Defaults to false. */
@@ -99,12 +103,52 @@ function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
 export interface ResponseBudgetExpectation {
   readonly maxCalls?: number;
   readonly maxWaves?: number;
+  readonly maxVerifications?: number;
+  readonly maxAdminCalls?: number;
   /** The header `withDbStats` wrote. Defaults to `x-bsb-db-calls`. */
   readonly header?: string;
 }
 
-/** The calls, waves and time one response's request made. */
-export type ResponseDbStats = Pick<DbStats, "calls" | "waves" | "ms">;
+/** The calls, waves, time, verifications and admin calls of one request. */
+export type ResponseDbStats = Omit<DbStats, "tables">;
+
+type BudgetLimits = Pick<
+  ResponseBudgetExpectation,
+  "maxCalls" | "maxWaves" | "maxVerifications" | "maxAdminCalls"
+>;
+
+function exceeds(
+  stats: Omit<DbStats, "tables" | "ms">,
+  limits: BudgetLimits,
+): boolean {
+  return (
+    (limits.maxCalls !== undefined && stats.calls > limits.maxCalls) ||
+    (limits.maxWaves !== undefined && stats.waves > limits.maxWaves) ||
+    (limits.maxVerifications !== undefined &&
+      stats.verifications > limits.maxVerifications) ||
+    (limits.maxAdminCalls !== undefined &&
+      stats.adminCalls > limits.maxAdminCalls)
+  );
+}
+
+function describeLimits(limits: BudgetLimits): string {
+  const extra = [
+    limits.maxVerifications === undefined
+      ? undefined
+      : `${limits.maxVerifications} verifications`,
+    limits.maxAdminCalls === undefined
+      ? undefined
+      : `${limits.maxAdminCalls} admin calls`,
+  ].filter((part) => part !== undefined);
+
+  return [
+    `${limits.maxCalls ?? "∞"} calls`,
+    `${limits.maxWaves ?? "∞"} waves`,
+    ...extra,
+  ]
+    .join(", ")
+    .replace(/, ([^,]*)$/, " and $1");
+}
 
 function expectResponseBudget(
   response: Response,
@@ -119,13 +163,9 @@ function expectResponseBudget(
     );
   }
 
-  if (
-    (expectation.maxCalls !== undefined &&
-      stats.calls > expectation.maxCalls) ||
-    (expectation.maxWaves !== undefined && stats.waves > expectation.maxWaves)
-  ) {
+  if (exceeds(stats, expectation)) {
     throw new Error(
-      `expectDbBudget: ${stats.calls} calls in ${stats.waves} waves, over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves`,
+      `expectDbBudget: ${stats.calls} calls in ${stats.waves} waves, ${stats.verifications} verifications and ${stats.adminCalls} admin calls, over the budget of ${describeLimits(expectation)}`,
     );
   }
 
@@ -274,13 +314,7 @@ async function expectPageBudget(
     });
   }
 
-  const over = renders.filter(
-    ({ stats }) =>
-      (expectation.maxCalls !== undefined &&
-        stats.calls > expectation.maxCalls) ||
-      (expectation.maxWaves !== undefined &&
-        stats.waves > expectation.maxWaves),
-  );
+  const over = renders.filter(({ stats }) => exceeds(stats, expectation));
 
   if (over.length > 0) {
     const lines = over.map(
@@ -289,7 +323,7 @@ async function expectPageBudget(
     );
 
     throw new Error(
-      `expectDbBudget: over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves:\n${lines.join("\n")}`,
+      `expectDbBudget: over the budget of ${describeLimits(expectation)}:\n${lines.join("\n")}`,
     );
   }
 

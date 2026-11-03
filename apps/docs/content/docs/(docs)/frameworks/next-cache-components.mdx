@@ -733,7 +733,16 @@ export const GET = bsb.debugRoute();
 - In development, a render that goes over `budget` logs a warning once its
   calls have been idle for 250 ms. A private-cache hit makes no call, so
   warm navigations cost 0.
-- `bsb.route()` responses carry `x-bsb-db-calls: calls;waves;ms` directly.
+- When a request has no `x-bsb-request-id`, the collector falls back to the
+  trace id of `traceparent`, then `x-vercel-id`, then `x-request-id`, so
+  calls from a route handler or an action still land in one record.
+- Stats also count **verifications** (token checks that missed the session
+  memo) and **admin calls** (reads and writes through the service role). A
+  render should verify at most once, and a page that reads as the user should
+  make no admin calls. In development, a render with admin calls logs a
+  warning. Attach an admin call to its render with
+  `bsb.admin({}, { request })` (`{ stats }` on the server entry).
+- `bsb.route()` responses carry `x-bsb-db-calls: calls;waves;ms;verifications;adminCalls` directly.
   Pages stream, so their headers leave before the render finishes; their
   totals are served by `bsb.debugRoute()` at the URL in the `x-bsb-stats`
   response header.
@@ -741,7 +750,9 @@ export const GET = bsb.debugRoute();
   Set `debug.enabled` for e2e runs against `next start`.
 
 In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
-context: `{ calls, waves, tables, ms }`.
+context: `{ calls, waves, tables, ms, verifications, adminCalls }`. The proxy's
+verification is counted on the document response header; the totals of the
+render itself come from the stats route.
 
 Without a `debug` option, development still watches round trips: `createNext`
 takes `devRoundTripBudget` (default 4, `false` turns it off) and warns when a
@@ -758,6 +769,8 @@ Fail CI when a page gets chattier with
 await expectDbBudget(page, {
   maxCalls: 8,
   maxWaves: 2,
+  maxVerifications: 1,
+  maxAdminCalls: 0,
   during: () => page.goto("/customers"),
 });
 ```

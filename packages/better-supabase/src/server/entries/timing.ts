@@ -4,37 +4,42 @@ import { defineMiddleware } from "@supabase/middleware";
 
 import type { DbStats } from "../../core/stats.ts";
 
-/** The header `withDbStats` sets: `calls;waves;ms`, what `expectDbBudget` reads. */
+/**
+ * The header `withDbStats` sets: `calls;waves;ms;verifications;adminCalls`,
+ * what `expectDbBudget` reads.
+ */
 export const DB_CALLS_HEADER = "x-bsb-db-calls";
 
-/** `calls;waves;ms`, the value of the stats header. */
+/** `calls;waves;ms;verifications;adminCalls`, the value of the stats header. */
 export function formatDbStats(stats: DbStats): string {
-  return `${stats.calls};${stats.waves};${stats.ms}`;
+  return `${stats.calls};${stats.waves};${stats.ms};${stats.verifications};${stats.adminCalls}`;
 }
 
 /**
  * Parses the stats header back into numbers, or `undefined` when it is
- * malformed.
+ * malformed. A header from before 0.51 has three fields; the last two read as 0.
  */
 export function parseDbStats(
   value: string | null | undefined,
-): Pick<DbStats, "calls" | "waves" | "ms"> | undefined {
+): Omit<DbStats, "tables"> | undefined {
   if (!value) {
     return undefined;
   }
 
-  const [calls, waves, ms] = value.split(";").map(Number);
+  const [calls, waves, ms, verifications = 0, adminCalls = 0] = value
+    .split(";")
+    .map(Number);
 
   if (
     calls === undefined ||
     waves === undefined ||
     ms === undefined ||
-    [calls, waves, ms].some(Number.isNaN)
+    [calls, waves, ms, verifications, adminCalls].some(Number.isNaN)
   ) {
     return undefined;
   }
 
-  return { calls, waves, ms };
+  return { calls, waves, ms, verifications, adminCalls };
 }
 
 /** Collects `Server-Timing` metrics for one request. */
@@ -119,9 +124,9 @@ export function withServerTiming(
 
 /**
  * Entry adding the request's database totals to the response, after the handler
- * ran: `x-bsb-db-calls: calls;waves;ms`, which `expectDbBudget(response)`
- * reads, and a `bsb-db` `Server-Timing` metric. Put it after
- * `withBetterSupabase`, which contributes `ctx.bsb`.
+ * ran: `x-bsb-db-calls: calls;waves;ms;verifications;adminCalls`, which
+ * `expectDbBudget(response)` reads, and a `bsb-db` `Server-Timing` metric. Put
+ * it after `withBetterSupabase`, which contributes `ctx.bsb`.
  */
 export function withDbStats(
   options: { readonly header?: string } = {},

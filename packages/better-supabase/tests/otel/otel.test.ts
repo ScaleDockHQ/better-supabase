@@ -126,6 +126,8 @@ describe("otel", () => {
           "db.query.summary": "SELECT customers",
           "better_supabase.executor": "postgrest",
           "better_supabase.db.round_trips": 1,
+          "better_supabase.db.waves": 1,
+          "better_supabase.db.calls": 1,
           "db.response.returned_rows": 1,
         },
         ended: true,
