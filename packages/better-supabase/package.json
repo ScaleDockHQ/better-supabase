@@ -2625,6 +2625,7 @@
     "tinyexec": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "undici": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:",
@@ -2694,6 +2695,7 @@
     "stripe": "catalog:peers",
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
+    "undici": "catalog:peers",
     "vue": "catalog:peers",
     "workflow": "catalog:peers",
     "yjs": "catalog:peers"
@@ -2880,6 +2882,9 @@
       "optional": true
     },
     "workflow": {
+      "optional": true
+    },
+    "undici": {
       "optional": true
     },
     "yjs": {

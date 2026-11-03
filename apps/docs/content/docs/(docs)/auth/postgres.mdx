@@ -213,6 +213,23 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 await using postgres = createPostgres({ pool });
 ```
 
+## When each wins
+
+Run `tests/bench/executors.ts` with your own table and a real user token to
+get numbers for your region. The shape of the result is stable:
+
+| Case                                         | Faster path | Why                                                   |
+| -------------------------------------------- | ----------- | ----------------------------------------------------- |
+| One read, a warm server in the same region   | Direct SQL  | Skips the HTTP hop and PostgREST's request parsing    |
+| One read from a cold serverless function     | PostgREST   | Reuses PostgREST's pool; SQL opens a connection first |
+| Several reads of one request in one wave     | Direct SQL  | One transaction pool slot, no per-read HTTP overhead  |
+| Browser-facing requests with no database URL | PostgREST   | Needs no credentials and no IPv4 pooler               |
+| Writes that commit together                  | Direct SQL  | One transaction                                       |
+
+Measure the per-request floor of the project with
+`tests/bench/postgrest-floor.ts` first: a read that takes 20 ms over a 15 ms
+floor gains little from either path.
+
 ## When to use it
 
 - jobs, scripts and webhook handlers (with `actingAs` for user-scoped work);
