@@ -407,7 +407,9 @@ function moduleFiles(
     ? apiWrappers(
         body,
         ctx.schemaName,
-        ctx.config.api,
+        layout.apiUsed === undefined
+          ? ctx.config.api
+          : { ...ctx.config.api, used: layout.apiUsed },
         module.name,
         module.internal,
         clientFunctions(module.name).map((name) => renames.get(name) ?? name),

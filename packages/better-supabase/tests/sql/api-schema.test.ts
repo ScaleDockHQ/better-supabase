@@ -411,6 +411,31 @@ grant execute on function "api"."${name}"(${types}) to service_role;`,
     expect(missing).toEqual([]);
   });
 
+  it("wraps only the used functions under gen.api.expose: used, and the client's", () => {
+    const render = (apiUsed: readonly string[]) =>
+      renderBlocks(["rate-limit"], {
+        apiUsed,
+        modules: { "rate-limit": { api: { schema: "api" } } },
+      }).find((file) => file.module === "rate-limit" && file.kind === "schema")!
+        .contents;
+
+    const file = render(["purge_rate_limits"]);
+
+    expect(file).toContain(
+      `create or replace function "api"."purge_rate_limits"(`,
+    );
+    // The client's functions keep their wrappers.
+    expect(file).toContain(
+      `create or replace function "api"."check_rate_limit"(`,
+    );
+    expect(file).not.toContain(
+      `create or replace function "api"."set_rate_limit"(`,
+    );
+    expect(render(["set_rate_limit"])).toContain(
+      `create or replace function "api"."set_rate_limit"(`,
+    );
+  });
+
   it("lists every function a client calls over a transport", () => {
     const listed = Object.fromEntries(
       Object.keys(SQL_MODULES)

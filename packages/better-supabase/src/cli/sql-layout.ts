@@ -31,6 +31,7 @@ import {
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
+import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
@@ -184,9 +185,12 @@ export async function moduleLayoutFor(
           config.schemas,
         );
 
+  const apiUsed = await apiUsedNames(config);
+
   return {
     ...base,
     ...(grants === undefined ? {} : { grants }),
+    ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }

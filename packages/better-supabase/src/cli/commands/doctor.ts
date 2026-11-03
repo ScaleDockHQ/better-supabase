@@ -108,8 +108,15 @@ const ARGS = {
   },
   explain: {
     type: "string",
-    description: "EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)",
+    description:
+      "EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)",
     valueHint: "tables",
+  },
+  args: {
+    type: "string",
+    description:
+      "Arguments for a function passed to --explain: a JSON array (positional) or object (named)",
+    valueHint: "json",
   },
   as: {
     type: "string",
@@ -295,6 +302,26 @@ export async function runDoctor(
     throw new CliError("usage", String(claims.error));
   }
 
+  let explainArgs: unknown;
+
+  if (args.args !== undefined) {
+    if (explainTables.length === 0) {
+      throw new CliError(
+        "usage",
+        "--args passes arguments to a function, so it needs --explain <function>.",
+      );
+    }
+
+    try {
+      explainArgs = JSON.parse(args.args);
+    } catch (cause) {
+      throw new CliError(
+        "usage",
+        `--args is not valid JSON: ${errorText(cause)}`,
+      );
+    }
+  }
+
   if (args.claims !== undefined && explainTables.length === 0) {
     throw new CliError(
       "usage",
@@ -461,7 +488,13 @@ export async function runDoctor(
     ...(stats ? { stats } : {}),
     ...(hookUser ? { hookUser } : {}),
     ...(explainTables.length > 0
-      ? { explain: { tables: explainTables, claims } }
+      ? {
+          explain: {
+            tables: explainTables,
+            claims,
+            ...(explainArgs === undefined ? {} : { args: explainArgs }),
+          },
+        }
       : {}),
   };
 
@@ -669,6 +702,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         ...sourceFlags(args),
         ...(args.stats === true ? ["--stats"] : []),
         ...(args.explain === undefined ? [] : ["--explain"]),
+        ...(args.args === undefined ? [] : ["--args"]),
         ...(args.as === undefined ? [] : ["--as"]),
         ...(args.fix === true ? ["--fix"] : []),
       ]);

@@ -1903,6 +1903,46 @@ for (const { module, action, key } of modulePermissionKeys(
 }
 ```
 
+## Memoize a value for one transaction
+
+`better_supabase.memo_get(key)` and `better_supabase.memo_set(key, value)` keep
+a text value for the rest of the transaction, over `set_config(..., true)`.
+PostgREST runs one request in one transaction, so a policy helper that is
+expensive and security definer can compute its answer once and every later call
+in the statement, or in the request's other statements, reads it back:
+
+```sql
+create or replace function private.permitted_organization_ids()
+returns uuid[]
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  cached text := better_supabase.memo_get('permitted_organization_ids');
+begin
+  if cached is not null then
+    return cached::uuid[];
+  end if;
+  return (
+    select (better_supabase.memo_set('permitted_organization_ids', ids::text))::uuid[]
+    from (select array_agg(organization_id) as ids from private.memberships
+          where user_id = auth.uid()) m
+  );
+end;
+$$;
+```
+
+The empty string reads as unset. Key names are yours; use a prefix for the
+library that owns them (`permdock.` for PermDock's helper), so two helpers
+never share a key. A memo lives only as long as the transaction, so a pooler
+that reuses the connection never leaks it to another request. Combine it with
+the `cost 1000` on `can` and `can_subject` and the visible-rows pruning of the
+messaging policies: those keep Postgres from calling a helper per row, the
+memo keeps one call per transaction cheap. The functions ship with the
+`updated-at` module. [Doctor BS206](/docs/cli/doctor#bs206) and
+[BS243](/docs/cli/doctor#bs243) point at the memo.
+
 ## Policies
 
 `better-supabase/sql` builds, renders and reads row level security policies.

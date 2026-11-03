@@ -10,6 +10,7 @@ import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
 import { escape, withoutStrings } from "./rls.ts";
+import { SCHEMA_COST_RULES } from "./schema-cost.ts";
 import {
   catalogOf,
   exposed,
@@ -131,7 +132,7 @@ function lines(file: TextFile): { line: number; text: string }[] {
     .map((text, index) => ({ line: index + 1, text }));
 }
 
-export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
+const DESIGN_RULES: readonly Rule[] = [
   {
     code: "BS216",
     severity: "info",
@@ -614,4 +615,9 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       );
     },
   },
+];
+
+export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
+  ...DESIGN_RULES,
+  ...SCHEMA_COST_RULES,
 ];

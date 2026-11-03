@@ -449,6 +449,95 @@ describe("BS212 --explain", () => {
     );
   });
 
+  it("plans a function with named --args and reports the policy time share", async () => {
+    let reads = 0;
+
+    const db = database([
+      [
+        /pg_stat_xact_user_functions/,
+        () => {
+          reads += 1;
+
+          return reads === 1
+            ? []
+            : [{ name: "private.is_member", calls: 3, self_time: 1 }];
+        },
+      ],
+      [/p\.prosecdef/, [{ name: "private.is_member" }]],
+      [
+        /from pg_proc p join pg_namespace n on n\.oid = p\.pronamespace where p\.proname/,
+        [
+          {
+            schema: "public",
+            name: "rs_customers_hub",
+            arg_names: ["p_customer"],
+            arg_types: ["uuid"],
+          },
+        ],
+      ],
+      [
+        /^explain/,
+        [
+          {
+            "QUERY PLAN": [
+              { "Execution Time": 4, Plan: { "Node Type": "Function Scan" } },
+            ],
+          },
+        ],
+      ],
+    ]);
+
+    const [finding] = await check("BS212", {
+      database: db,
+      explain: {
+        tables: ["rs_customers_hub"],
+        claims: { role: "authenticated", sub: "u1" },
+        args: { p_customer: "c1" },
+      },
+    });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toBe(
+      `explain (analyze, buffers, format json) select * from "public"."rs_customers_hub"("p_customer" => 'c1'::uuid)`,
+    );
+    expect(finding!.target).toBe("rs_customers_hub:explain");
+    expect(finding!.message).toContain(
+      "private.is_member 1.00 ms over 3 calls (25%)",
+    );
+    expect(finding!.message).toContain(
+      "Policy time share: 25% in security definer helpers.",
+    );
+  });
+
+  it("passes positional --args as typed literals", async () => {
+    const db = database([
+      [
+        /where p\.proname/,
+        [
+          {
+            schema: "public",
+            name: "order_payload",
+            arg_names: null,
+            arg_types: ["uuid", "jsonb"],
+          },
+        ],
+      ],
+      [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }]],
+    ]);
+
+    await check("BS212", {
+      database: db,
+      explain: {
+        tables: ["order_payload"],
+        claims: {},
+        args: ["o1", { a: 1 }],
+      },
+    });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toBe(
+      `explain (analyze, buffers, format json) select * from "public"."order_payload"('o1'::uuid, '{"a":1}'::jsonb)`,
+    );
+  });
+
   it("reports unknown tables, bad roles, missing plans and failures, and always rolls back", async () => {
     const empty = database([]);
 
@@ -463,7 +552,9 @@ describe("BS212 --explain", () => {
     expect(findings).toMatchObject([
       {
         severity: "warning",
-        message: expect.stringContaining('--explain: no table "nope"'),
+        message: expect.stringContaining(
+          '--explain: no table or function "nope"',
+        ),
       },
       {
         target: "better_supabase.memberships:explain",

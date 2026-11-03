@@ -1120,7 +1120,8 @@ Options
   --fail-on <level>       Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never
   --metadata <path|->     Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped
   --stats                 Report slow frequent statements from pg_stat_statements (BS209)
-  --explain <tables,...>  EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)
+  --explain <tables,...>  EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)
+  --args <json>           Arguments for a function passed to --explain: a JSON array (positional) or object (named)
   --as <uuid>             Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
   --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
   --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration

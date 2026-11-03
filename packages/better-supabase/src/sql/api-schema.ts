@@ -8,6 +8,12 @@ export interface ModuleApi {
    * calls; every function granted to the API roles when missing.
    */
   readonly functions?: readonly string[];
+  /**
+   * `gen.api.expose: "used"`: the function names the workspace calls or lists
+   * in `exposeAlso`. A module function outside it, and outside the client's
+   * functions, gets no wrapper.
+   */
+  readonly used?: readonly string[];
 }
 
 interface Argument {
@@ -282,7 +288,11 @@ export function apiWrappers(
       !internal.includes(grant.name) &&
       (!api.functions ||
         api.functions.includes(grant.name) ||
-        client.includes(grant.name)),
+        client.includes(grant.name)) &&
+      (!api.used ||
+        api.used.includes(grant.name) ||
+        client.includes(grant.name) ||
+        api.functions?.includes(grant.name) === true),
   );
 
   for (const name of api.functions ?? []) {

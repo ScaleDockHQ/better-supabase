@@ -1,5 +1,6 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { MEMO_FUNCTIONS } from "../memo.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
 
 export const UPDATED_AT: BlockSqlDefinition = {
@@ -30,6 +31,7 @@ end;
 $$;
 
 ${EQUIVALENT_TRIGGERS}
+${MEMO_FUNCTIONS}
 
 drop function if exists better_supabase.track_updated_at(regclass, text);
 

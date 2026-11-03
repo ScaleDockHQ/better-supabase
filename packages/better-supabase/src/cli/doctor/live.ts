@@ -23,6 +23,8 @@ export interface ExplainRequest {
   readonly tables: readonly string[];
   /** `request.jwt.claims`; `role` picks the Postgres role (default `anon`). */
   readonly claims: Readonly<Record<string, unknown>>;
+  /** `--args`: a JSON array (positional) or object (named) for a function. */
+  readonly args?: unknown;
 }
 
 /**
@@ -103,6 +105,8 @@ interface FunctionTime {
   readonly name: string;
   readonly calls: number;
   readonly selfTime: number;
+  /** Runs with its owner's rights: the helpers policies call. */
+  readonly definer: boolean;
 }
 
 /**
@@ -127,6 +131,31 @@ async function functionTimes(
       { calls: Number(row.calls), selfTime: Number(row.self_time) },
     ]),
   );
+}
+
+/** Names (`schema.function`) of the security definer functions. */
+async function definerFunctions(db: LiveDatabase): Promise<Set<string>> {
+  const rows = await db.query<{ name: string }>(
+    `select n.nspname || '.' || p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.prosecdef`,
+  );
+
+  return new Set(rows.map((row) => row.name));
+}
+
+/** Share of the execution time spent in security definer helpers, 0 to 100. */
+export function policyShare(
+  functions: readonly FunctionTime[],
+  executionMs: number,
+): number {
+  if (executionMs <= 0) {
+    return 0;
+  }
+
+  const self = functions
+    .filter((fn) => fn.definer)
+    .reduce((sum, fn) => sum + fn.selfTime, 0);
+
+  return Math.min(100, Math.round((self / executionMs) * 100));
 }
 
 export interface PlanSummary {
@@ -179,9 +208,9 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
 
 const ROLE = /^[a-z_][a-z0-9_]*$/;
 
-async function explainTable(
+async function explainStatement(
   db: LiveDatabase,
-  table: CatalogTable,
+  statement: string,
   claims: Readonly<Record<string, unknown>>,
 ): Promise<{ summary: PlanSummary; functions: FunctionTime[] | undefined }> {
   const role = typeof claims["role"] === "string" ? claims["role"] : "anon";
@@ -216,7 +245,7 @@ async function explainTable(
     await db.query(`set local role ${ident(role)}`);
 
     const [row] = await db.query<{ "QUERY PLAN": unknown }>(
-      `explain (analyze, buffers, format json) select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
+      `explain (analyze, buffers, format json) ${statement}`,
     );
 
     const raw = row?.["QUERY PLAN"];
@@ -230,6 +259,8 @@ async function explainTable(
       throw new Error("EXPLAIN returned no plan");
     }
 
+    const definers = tracked ? await definerFunctions(db) : new Set<string>();
+
     const functions = tracked
       ? [...(await functionTimes(db))]
           .map(([name, after]): FunctionTime => {
@@ -239,6 +270,7 @@ async function explainTable(
               name,
               calls: after.calls - (start?.calls ?? 0),
               selfTime: after.selfTime - (start?.selfTime ?? 0),
+              definer: definers.has(name),
             };
           })
           .filter((fn) => fn.calls > 0)
@@ -249,6 +281,75 @@ async function explainTable(
   } finally {
     await db.query("rollback");
   }
+}
+
+const explainTable = (
+  db: LiveDatabase,
+  table: CatalogTable,
+  claims: Readonly<Record<string, unknown>>,
+): ReturnType<typeof explainStatement> =>
+  explainStatement(
+    db,
+    `select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
+    claims,
+  );
+
+interface ProcRow {
+  readonly schema: string;
+  readonly name: string;
+  readonly arg_names: string[] | null;
+  readonly arg_types: string[];
+}
+
+/**
+ * `select * from schema.fn(...)` for a function in an exposed schema, with
+ * `--args` as literals cast to the declared argument types: an array is
+ * positional, an object is named.
+ */
+async function functionStatement(
+  db: LiveDatabase,
+  context: DoctorContext,
+  name: string,
+  args: unknown,
+): Promise<string | undefined> {
+  const schemas = new Set(exposed(context).map((table) => table.schema));
+  const dot = name.indexOf(".");
+  const schema = dot === -1 ? undefined : name.slice(0, dot);
+  const bare = dot === -1 ? name : name.slice(dot + 1);
+
+  const rows = await db.query<ProcRow>(
+    `select n.nspname as schema, p.proname as name, p.proargnames as arg_names, coalesce(array(select format_type(t, null) from unnest(p.proargtypes::oid[]) as t), '{}') as arg_types from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.proname = ${literal(bare)} and p.prokind = 'f'${schema ? ` and n.nspname = ${literal(schema)}` : ""} order by p.pronargs desc`,
+  );
+
+  const proc =
+    rows.find((row) => schema !== undefined || schemas.has(row.schema)) ??
+    rows[0];
+
+  if (!proc || (schema === undefined && !schemas.has(proc.schema))) {
+    return undefined;
+  }
+
+  const typed = (value: unknown, type: string | undefined): string => {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+
+    return `${literal(text)}${type ? `::${type}` : ""}`;
+  };
+
+  let list = "";
+
+  if (Array.isArray(args)) {
+    list = args.map((value, i) => typed(value, proc.arg_types[i])).join(", ");
+  } else if (typeof args === "object" && args !== null) {
+    list = Object.entries(args)
+      .map(([key, value]) => {
+        const at = proc.arg_names?.indexOf(key) ?? -1;
+
+        return `${ident(key)} => ${typed(value, at === -1 ? undefined : proc.arg_types[at])}`;
+      })
+      .join(", ");
+  }
+
+  return `select * from ${ident(proc.schema)}.${ident(proc.name)}(${list})`;
 }
 
 function resolveTable(
@@ -474,20 +575,40 @@ export const LIVE_RULES: readonly Rule[] = [
       for (const name of request.tables) {
         const table = resolveTable(context, name);
 
+        let statement: string | undefined;
+
         if (!table) {
+          try {
+            statement = await functionStatement(
+              db,
+              context,
+              name,
+              request.args,
+            );
+          } catch (cause) {
+            findings.push({
+              severity: "warning",
+              message: `--explain ${name} failed: ${errorText(cause)}`,
+              target: `${name}:explain`,
+            });
+            continue;
+          }
+        }
+
+        if (!table && statement === undefined) {
           findings.push({
             severity: "warning",
-            message: `--explain: no table "${name}" in the exposed schemas; qualify tables in other schemas, like better_supabase.memberships.`,
+            message: `--explain: no table or function "${name}" in the exposed schemas; qualify names in other schemas, like better_supabase.memberships.`,
           });
           continue;
         }
 
+        const label = table ? qualified(table) : name;
+
         try {
-          const { summary, functions } = await explainTable(
-            db,
-            table,
-            request.claims,
-          );
+          const { summary, functions } = table
+            ? await explainTable(db, table, request.claims)
+            : await explainStatement(db, statement ?? "", request.claims);
 
           const helpers = functions
             ? functions.length > 0
@@ -506,6 +627,10 @@ export const LIVE_RULES: readonly Rule[] = [
               : " No tracked function ran; inlined SQL functions are part of the plan."
             : " Function times need `track_functions`, which this role may not set; showing the plan only.";
 
+          const policy = functions?.some((fn) => fn.definer)
+            ? ` Policy time share: ${policyShare(functions, summary.executionMs)}% in security definer helpers.`
+            : "";
+
           const perRow =
             summary.perRowSubPlans.length > 0
               ? ` Per-row SubPlans: ${summary.perRowSubPlans.join(", ")}; wrap the policy's function calls in \`(select ...)\` so they run once as an InitPlan.`
@@ -515,15 +640,15 @@ export const LIVE_RULES: readonly Rule[] = [
             ...(summary.perRowSubPlans.length > 0
               ? { severity: "warning" as const }
               : {}),
-            message: `${qualified(table)} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, "InitPlan")}. Plan: ${summary.nodes.join(" > ")}.${perRow}${helpers}`,
-            target: `${qualified(table)}:explain`,
-            object: tableObject(table),
+            message: `${label} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, "InitPlan")}. Plan: ${summary.nodes.join(" > ")}.${perRow}${helpers}${policy}`,
+            target: `${label}:explain`,
+            ...(table ? { object: tableObject(table) } : {}),
           });
         } catch (cause) {
           findings.push({
             severity: "warning",
-            message: `--explain ${qualified(table)} failed: ${errorText(cause)}`,
-            target: `${qualified(table)}:explain`,
+            message: `--explain ${label} failed: ${errorText(cause)}`,
+            target: `${label}:explain`,
           });
         }
       }

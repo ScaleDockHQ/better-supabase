@@ -276,6 +276,11 @@ export interface BlockSqlFile {
 }
 
 export interface BlockSqlLayout {
+  /**
+   * `gen.api.expose: "used"`: the names the sources call plus `exposeAlso`.
+   * Without it every function the roles may execute gets a wrapper.
+   */
+  readonly apiUsed?: readonly string[];
   /** `config.seed.defaults`: what the `seeds` module calls each module with. */
   readonly seedDefaults?: {
     readonly enabled: boolean;

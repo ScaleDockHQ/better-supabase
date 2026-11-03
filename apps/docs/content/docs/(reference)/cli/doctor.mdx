@@ -31,7 +31,8 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--db-url-stdin`       | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
 | `--project-ref <ref>`  | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                                                                                                                                                  |
 | `--stats`              | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                                                                                                                                        |
-| `--explain <tables>`   | Plan these tables under RLS ([BS212](#bs212))                                                                                                                                                                                                                      |
+| `--explain <tables>`   | Plan these tables, or functions such as `rs_customers_hub` and `order_payload`, under RLS ([BS212](#bs212))                                                                                                                                                        |
+| `--args <json>`        | With `--explain <function>`: the arguments, a JSON array (positional) or object (named)                                                                                                                                                                            |
 | `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
 | `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
 | `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
@@ -377,7 +378,10 @@ one written in `language sql stable`, so a call that takes a column of the row
 runs once per row. Call it as `(select helper(...))` when its arguments don't
 come from the row, so Postgres evaluates it once per statement as an
 InitPlan, or have it return the allowed ids as a set and compare with
-`organization_id in (select helper())`. A policy whose every call to the
+`organization_id in (select helper())`. When the helper itself is slow, compute
+its answer once per transaction with
+[`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
+A policy whose every call to the
 helper already reads `(select helper(...))` with constant arguments, such as
 `(select tenant_ids_with('crm.read'))`, doesn't count.
 
@@ -472,6 +476,21 @@ policy is evaluated per row, and the finding becomes a warning: wrap the
 policy's function calls in `(select ...)` so they run once as an InitPlan.
 `--explain` needs a direct connection (local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`); the
 Management API's read-only endpoint can't switch roles.
+
+`--explain` also takes a function in an exposed schema, such as a compiled read
+set (`rs_customers_hub`) or a payload function (`order_payload`). Pass the
+arguments with `--args`, as a JSON array (positional) or object (named), and
+the user with `--as`:
+
+```bash
+better-supabase doctor --explain rs_customers_hub --as 0000…00ff \
+  --args '{"p_customer":"c7d1…"}'
+```
+
+Each value is sent as a literal cast to the argument's declared type, and the
+finding never prints rows. When a security definer helper ran, the finding adds
+a policy time share: the helpers' self time over the execution time, next to
+the calls each helper made in the statement.
 
 ```text
 info    BS212 RLS plan for a table
@@ -894,6 +913,30 @@ status of 400 or more, when an app table has `embedding` or
 `blocks.knowledge.options.autoEmbed` is on. Check that the Vault secrets
 `embedding_worker_url` and `embedding_worker_token` match the deployed worker.
 BS242 needs a database, so a saved snapshot skips it.
+
+### BS243
+
+**Warning: security definer helper holds a large literal.** A
+`security definer` function whose body holds a quoted literal above 1 KB, such
+as a permission map or a JSON catalog. Postgres parses the literal again on
+every call, and a policy helper runs once per table per statement. Store the
+data in a table, or parse it once per transaction and keep it with
+[`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
+BS243 reads the SQL files, so a saved snapshot works too.
+
+### BS244
+
+**Warning: schema cache pressure.** PostgREST loads every table, function and
+relationship of the exposed schemas into its schema cache at start and after
+each `notify pgrst, 'reload schema'`. BS244 reports an exposed schema with more
+than 1500 tables and functions, and generated module SQL above 2 MB.
+
+Two changes keep the cache small. Set `gen.api.expose` to `"used"` so `gen`
+writes API wrappers only for the block functions your code calls (list the
+rest in `gen.api.exposeAlso`; see [gen](/docs/cli/gen#expose-only-the-functions-you-use)).
+And run DDL in one batch per deploy: every migration that ends a statement with
+a schema change makes PostgREST reload, so put all of a deploy's DDL in one
+transaction and send one reload.
 
 ## Drift
 

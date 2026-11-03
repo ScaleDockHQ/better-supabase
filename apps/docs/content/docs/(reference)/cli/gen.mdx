@@ -169,6 +169,31 @@ an argument, where it would land in shell history and the process list. Set
 printf %s "$PROD_DB_URL" | better-supabase gen --check --db-url-stdin
 ```
 
+## Expose only the functions you use
+
+With `sql.api` or a block's `api`, every function a role may execute gets a
+wrapper in the API schema, and PostgREST loads each one into its schema cache.
+Set `gen.api.expose` to `"used"` to keep a wrapper only for the functions your
+sources name, plus the functions a block's own TypeScript client calls.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  gen: {
+    api: {
+      expose: "used",
+      // Functions that only a database job or another service calls.
+      exposeAlso: ["purge_rate_limits"],
+    },
+  },
+});
+```
+
+`gen` reads the words in the files matched by `doctor.sources`, leaves the
+generated folder out and keeps the wrappers whose names appear. The default,
+`"all"`, keeps every wrapper. Each change to the list is a DDL batch, so ship it in one
+migration per deploy. Doctor rule BS244 warns when the schema
+cache grows past the point where this pays off.
+
 ## Where the schema comes from
 
 In order:
