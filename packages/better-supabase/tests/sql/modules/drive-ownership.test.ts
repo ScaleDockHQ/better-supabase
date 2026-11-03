@@ -126,6 +126,9 @@ describe("drive ownership transfer", () => {
       `create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)`,
     );
     expect(sql).toContain("DRIVE_TRANSFER_INVALID");
+    expect(sql).toContain(
+      "drive_transfer_ownership.from_user is distinct from auth.uid()",
+    );
     expect(sql).toContain("'nodes', v_nodes, 'drives', v_drives");
     expect(sql).toContain("with moved as (");
   });

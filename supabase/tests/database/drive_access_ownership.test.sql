@@ -3,7 +3,7 @@
 -- owns Acme (…0001) and Ben (…a2) is a member; Carl (…a3) owns Globex
 -- (…0002) and is not an Acme member (supabase/seed.sql).
 begin;
-select plan(17);
+select plan(18);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated;
@@ -118,6 +118,12 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
   true
+);
+
+select throws_like(
+  $$ select api.drive_transfer_ownership('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1') $$,
+  '%only transfer your own items%',
+  'an owner with drive.manage cannot take another member''s items'
 );
 
 select throws_like(

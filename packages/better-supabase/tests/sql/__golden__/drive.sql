@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:2b878d4726969ba726ea342b2205761ecafb2d9e899da2c80a3fd560329b737a
+-- @bsb-hash sha256:73f816c8055ca8e074956eb960d82d0492544c1480e68fbe3f3e4f9409a932d8
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1512,7 +1512,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -1532,6 +1533,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
@@ -1648,7 +1652,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:d624bc1fab764c6a96c4074f2a1eb6b7d978c5650be3819d41a06b6310441458
+-- @bsb-hash sha256:46cfceeae2259a4116b21a4f1d814f74433ac37e60f431b61a58f7d3c7ea62fc
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3282,7 +3286,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -3302,6 +3307,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
@@ -3448,7 +3456,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:fafe706566deeff9789ac32912fb9d020cb319651ff738d8a1aa233a2e400463
+-- @bsb-hash sha256:76b2d75d2aad184b0f1b4225450a1d606283567b41f0bab9b22d44563e23b6b7
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4964,7 +4972,8 @@ revoke execute on function "app_private"."drive_access_approvers"(text) from pub
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "app_private"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -4984,6 +4993,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
@@ -5100,7 +5112,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:48452d6918c859e4f9644cc739eadf9ab134b23f1ba5f0b478a3fb3af3ad1d09
+-- @bsb-hash sha256:ba3b5444e1cd465f30248bdfa539c107a876a439228230ba2b14f6461a2cbb15
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6611,7 +6623,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -6631,6 +6644,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
@@ -7039,7 +7055,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:9c14eb5b00b2c9e05b0f289a6d00bf5eb27a6af0cd4be884052aafcc1b687d2b
+-- @bsb-hash sha256:e2b5b5583b71d1f411733463c4569b49b372cfaf04fd5d99331eeaf6e1c39e14
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8470,7 +8486,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -8490,6 +8507,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
@@ -8585,7 +8605,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:f20b82b4e8ec0f6a8ebb0014f3793f126581f0d2fb3640a51b5179b2273a9787
+-- @bsb-hash sha256:41b3752130a1281c800aa24b8b865fb94345f153895215ba2e22931636a7f47b
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10096,7 +10116,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -10116,6 +10137,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
