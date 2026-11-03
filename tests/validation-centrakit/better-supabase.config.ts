@@ -36,6 +36,8 @@ export default defineConfig({
   },
   // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
   blocks: {
+    // Tenant defaults that new organizations receive.
+    seeds: { api: false },
     permissions: {
       model: "provider",
       activeTenant: {
