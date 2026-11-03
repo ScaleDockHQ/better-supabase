@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:e9244077f1f9329c87ee228a2fa759a5144c104133bc98c57da18f9cef100b03
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:eb3f5ea90d4ecfd10e82336330a6212d107f77dce0677ab631e7421d95553ce8
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -318,6 +318,241 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -356,6 +591,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -370,6 +606,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -385,7 +625,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -407,6 +648,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -463,7 +712,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -490,7 +755,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -507,6 +772,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -614,7 +882,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -1272,7 +1540,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
+-- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1288,14 +1556,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:f20352d5716f303a9bb62623f4ddcaf3683ac7ac2b7d9b9a648d8c2620f8f645
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:e9a4b91dd90d8c35640f575dd566f51dc991b0131a75226dfec6073b39756692
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1612,6 +1880,241 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -1650,6 +2153,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -1664,6 +2168,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -1679,7 +2187,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -1701,6 +2210,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -1757,7 +2274,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -1784,7 +2317,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -1801,6 +2334,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -1908,7 +2444,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -2731,7 +3267,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
+-- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2747,14 +3283,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:b13f5d9e6a515df71301f04bf26073a80abe12cb307cc41a472136c7cd35a88c
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:987340708ae6e4a20e041475f182a01844a4fe5c45bf29537e132175c3646e40
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3071,6 +3607,241 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "app_private"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -3109,6 +3880,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -3123,6 +3895,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -3138,7 +3914,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -3160,6 +3937,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -3216,7 +4001,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -3243,7 +4044,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -3260,6 +4061,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "app_private"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -3367,7 +4171,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -4025,7 +4829,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:43cfc3c637d3694ce2dd4331896f521abbd162794e1cf31dd32972a85844609a
+-- @bsb-hash sha256:f7d20931cf3e348ab6c7cf1b7f885b506857845770f902f16f9e620ebe1bb9dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4041,14 +4845,14 @@ delete from "app_private"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:3cd63f76a1b652a8e41f0995d4ea034e3de8125feb87e6e7a55092bd2b97b062
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:6535233b2a863f6d707439414bbe2c41135faa47fedd340365a0dd26f1a62f3a
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4365,6 +5169,241 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -4403,6 +5442,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -4417,6 +5457,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -4432,7 +5476,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -4454,6 +5499,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -4510,7 +5563,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -4537,7 +5606,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -4554,6 +5623,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -4661,7 +5733,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -5415,7 +6487,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
+-- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5431,14 +6503,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:9cb0ad7160d89cbfd9ad84d3e0596e15043260504833661045351c78c3c90122
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:cc544b3dac1541e2bfacd7146ac109c6385375d7a7bbf73b60e5f3437a65f2c2
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5721,6 +6793,193 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name)
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name)
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name)
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -5759,6 +7018,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -5773,6 +7033,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -5788,7 +7052,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -5810,6 +7075,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -5866,7 +7139,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -5893,7 +7182,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -5910,6 +7199,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -6017,7 +7309,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -6595,7 +7887,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
+-- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6611,14 +7903,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 managed
--- @bsb-hash sha256:375f21c41731785f86a0d8e3b104d081f04c4317f06b2b2281b3364e873e816b
+-- @bsb-block audit@10 managed
+-- @bsb-hash sha256:07b065906066cfd7a13e2be153b7bbbc8fbaa88c316b8c61eb9194ec3bee1001
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6935,6 +8227,241 @@ end;
 $$;
 revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
+-- Statement-level audit (audit(..., statement => true)): the transition tables
+-- hold every row the statement changed, so the whole statement is audited with
+-- one insert. An update that changes a key column is audited as a delete and an
+-- insert.
+create or replace function better_supabase.audit_statement_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry record;
+  settings jsonb;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
+begin
+  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+    return null;
+  end if;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column,
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+    into entry;
+  else
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
+    into entry
+    from (select 1) one
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
+  end if;
+  if tg_op = 'INSERT' then
+    with src as (
+      select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  elsif tg_op = 'DELETE' then
+    with src as (
+      select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  else
+    with src as (
+      select o.j as old_row, n.j as new_row
+      from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
+      full join (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from new_rows r) n on o.k = n.k
+    ), paired as (
+      select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
+        coalesce(s.new_row, s.old_row) as row_data,
+        s.old_row - entry.ignore as old_row, s.new_row - entry.ignore as new_row
+      from src s
+    ), changed as (
+      select p.*, case when p.op = 'update' then (
+          select array_agg(e.key order by e.key) from jsonb_each(p.new_row) e
+          where e.value is distinct from p.old_row -> e.key
+        ) end as changed_columns
+      from paired p
+    ), kept as (
+      select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
+      from changed c
+      where (c.op <> 'update' or c.changed_columns is not null)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+    ), final as (
+      select k.op, k.row_data, k.changed_columns, k.row_tenant,
+        k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
+        k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
+      from kept k
+    )
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    select tg_table_schema || '.' || tg_table_name,
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
+    op,
+    old_row,
+    new_row,
+    changed_columns,
+    coalesce(auth.uid(), better_supabase.acting_member()),
+    coalesce(v_jwt ->> 'role', current_user),
+    row_tenant,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.category, 'data'),
+    'success',
+    'database',
+    coalesce(entry.target_type, tg_table_name),
+    case
+      when better_supabase.import_run() is not null then 'integration'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end,
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
+    null,
+    row_data ->> entry.label_column,
+    null,
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
+    coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
+    case when row_tenant is null then 'platform' else 'tenant' end
+    from final;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -6973,6 +8500,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -6987,6 +8515,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -7002,7 +8534,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -7024,6 +8557,14 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+  if audit.statement then
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\s*->\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -7080,7 +8621,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -7107,7 +8664,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
        'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
@@ -7124,6 +8681,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
@@ -7231,7 +8791,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
@@ -7889,7 +9449,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
+-- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -7905,6 +9465,6 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'managed')
+values ('audit', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

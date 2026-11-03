@@ -88,7 +88,9 @@ describe("doctor command", () => {
   it("rejects --claims without --explain instead of ignoring it", async () => {
     expect(
       await usageError(() => doctor(["--claims", '{"role":"authenticated"}'])),
-    ).toBe("--claims plans a query, so it needs --explain <table>.");
+    ).toBe(
+      "--claims plans a query, so it needs --explain <table> or --explain-write <table>.",
+    );
   });
 
   it("reads the snapshot and the live checks over one connection, then closes it", async () => {

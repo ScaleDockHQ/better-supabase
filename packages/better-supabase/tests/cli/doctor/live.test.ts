@@ -286,6 +286,83 @@ describe("BS209 slow statements", () => {
   });
 });
 
+describe("BS212 --explain-write", () => {
+  const plan = {
+    "Execution Time": 3,
+    Plan: { "Node Type": "ModifyTable", "Actual Total Time": 2 },
+    Triggers: [{ "Trigger Name": "bsb_audit", Time: 1.5, Calls: 1 }],
+  };
+
+  const column = (
+    name: string,
+    type: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    name,
+    type,
+    has_default: false,
+    generated: false,
+    is_key: false,
+    ...extra,
+  });
+
+  const writeDb = (columns: Record<string, unknown>[]) =>
+    database([
+      [/from pg_attribute a left join pg_index/, columns],
+      [/pg_stat_xact_user_functions/, []],
+      [/^explain/, [{ "QUERY PLAN": [plan] }]],
+    ]);
+
+  it("copies a row with fresh keys and reports the trigger time", async () => {
+    const db = writeDb([
+      column("id", "uuid", { is_key: true, has_default: true }),
+      column("name", "text"),
+      column("total", "integer", { generated: true }),
+    ]);
+
+    const [finding] = await check("BS212", {
+      database: db,
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+    expect(finding!.message).toContain(
+      "insert 3.00 ms, of which triggers 1.50 ms (bsb_audit 1.50 ms over 1 call)",
+    );
+    expect(finding!.message).toContain("update 3.00 ms");
+
+    const explains = db.texts().filter((text) => text.startsWith("explain"));
+
+    expect(explains[0]).toContain(
+      'insert into "public"."notes" ("id", "name") select gen_random_uuid(), s."name" from (select * from "public"."notes" limit 1) s',
+    );
+    expect(explains[1]).toContain(
+      `update "public"."notes" set "name" = "name" where ctid`,
+    );
+    expect(db.texts()).toContain("rollback");
+  });
+
+  it("names a key it can't make up", async () => {
+    const [finding] = await check("BS212", {
+      database: writeDb([column("at", "timestamptz", { is_key: true })]),
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+    expect(finding).toMatchObject({
+      severity: "warning",
+      message: expect.stringContaining("can't make a fresh key for at"),
+    });
+  });
+
+  it("warns about a table that is not exposed", async () => {
+    const [finding] = await check("BS212", {
+      database: writeDb([]),
+      explain: { tables: [], claims: {}, write: ["nope"] },
+    });
+
+    expect(finding!.message).toContain('no table "nope"');
+  });
+});
+
 describe("BS212 --explain", () => {
   const plan = {
     "Execution Time": 2,

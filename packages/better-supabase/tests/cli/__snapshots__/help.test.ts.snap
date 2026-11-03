@@ -1110,23 +1110,24 @@ exports[`help > documents doctor 1`] = `
 Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning
 
 Options
-  --snapshot <file>       Read a saved snapshot instead of the database
-  --db-url-stdin          Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>     Read a hosted project through the Management API
-  --format <format>       text, sarif (code scanning) or github (workflow annotations); also tooling.doctor.format, default text. --json for the JSON report
-  --out <file>            Write the report to a file; also tooling.doctor.output
-  --only <codes,...>      Run only these checks, e.g. --only BS100,BS304; also tooling.doctor.only
-  --ignore <codes,...>    Skip checks; also tooling.doctor.ignore in the config
-  --fail-on <level>       Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never
-  --metadata <path|->     Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped
-  --stats                 Report slow frequent statements from pg_stat_statements (BS209)
-  --explain <tables,...>  EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)
-  --args <json>           Arguments for a function passed to --explain: a JSON array (positional) or object (named)
-  --as <uuid>             Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
-  --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
-  --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
-  --fix                   Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
-  --update-baseline       Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
+  --snapshot <file>             Read a saved snapshot instead of the database
+  --db-url-stdin                Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --project-ref <ref>           Read a hosted project through the Management API
+  --format <format>             text, sarif (code scanning) or github (workflow annotations); also tooling.doctor.format, default text. --json for the JSON report
+  --out <file>                  Write the report to a file; also tooling.doctor.output
+  --only <codes,...>            Run only these checks, e.g. --only BS100,BS304; also tooling.doctor.only
+  --ignore <codes,...>          Skip checks; also tooling.doctor.ignore in the config
+  --fail-on <level>             Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never
+  --metadata <path|->           Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped
+  --stats                       Report slow frequent statements from pg_stat_statements (BS209)
+  --explain <tables,...>        EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)
+  --explain-write <tables,...>  EXPLAIN ANALYZE an insert (a copy of one row with fresh keys) and an update on these tables, with trigger times, rolled back (BS212)
+  --args <json>                 Arguments for a function passed to --explain: a JSON array (positional) or object (named)
+  --as <uuid>                   Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
+  --claims <json>               Plan with these JWT claims ({"role":"authenticated",...})
+  --fix-grants                  Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
+  --fix                         Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
+  --update-baseline             Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
 
 Global options
   --cwd <dir>            Project directory

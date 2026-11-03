@@ -25,6 +25,8 @@ export interface ExplainRequest {
   readonly claims: Readonly<Record<string, unknown>>;
   /** `--args`: a JSON array (positional) or object (named) for a function. */
   readonly args?: unknown;
+  /** `--explain-write`: tables to plan an insert and an update on. */
+  readonly write?: readonly string[];
 }
 
 /**
@@ -96,9 +98,16 @@ interface PlanNode {
   readonly Plans?: readonly PlanNode[];
 }
 
+interface TriggerTime {
+  readonly "Trigger Name": string;
+  readonly Time?: number;
+  readonly Calls?: number;
+}
+
 interface ExplainOutput {
   readonly Plan: PlanNode;
   readonly "Execution Time"?: number;
+  readonly Triggers?: readonly TriggerTime[];
 }
 
 interface FunctionTime {
@@ -208,11 +217,18 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
 
 const ROLE = /^[a-z_][a-z0-9_]*$/;
 
+interface Explained {
+  readonly summary: PlanSummary;
+  readonly functions: FunctionTime[] | undefined;
+  /** `EXPLAIN` reports the time of each trigger a write fired. */
+  readonly triggers: readonly TriggerTime[];
+}
+
 async function explainStatement(
   db: LiveDatabase,
   statement: string,
   claims: Readonly<Record<string, unknown>>,
-): Promise<{ summary: PlanSummary; functions: FunctionTime[] | undefined }> {
+): Promise<Explained> {
   const role = typeof claims["role"] === "string" ? claims["role"] : "anon";
 
   if (!ROLE.test(role)) {
@@ -277,7 +293,11 @@ async function explainStatement(
           .toSorted((a, b) => b.selfTime - a.selfTime)
       : undefined;
 
-    return { summary: summarizePlan(plan[0]), functions };
+    return {
+      summary: summarizePlan(plan[0]),
+      functions,
+      triggers: plan[0].Triggers ?? [],
+    };
   } finally {
     await db.query("rollback");
   }
@@ -287,7 +307,7 @@ const explainTable = (
   db: LiveDatabase,
   table: CatalogTable,
   claims: Readonly<Record<string, unknown>>,
-): ReturnType<typeof explainStatement> =>
+): Promise<Explained> =>
   explainStatement(
     db,
     `select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
@@ -350,6 +370,125 @@ async function functionStatement(
   }
 
   return `select * from ${ident(proc.schema)}.${ident(proc.name)}(${list})`;
+}
+
+interface ColumnRow {
+  readonly name: string;
+  readonly type: string;
+  readonly has_default: boolean;
+  readonly generated: boolean;
+  readonly is_key: boolean;
+}
+
+const UUID_TYPE = /^uuid$/;
+const TEXT_TYPE = /^(text|character varying|citext|character)/;
+const NUMBER_TYPE = /^(smallint|integer|bigint)$/;
+
+/**
+ * An insert of a copy of one row with fresh keys, and an update of one non-key
+ * column, for `--explain-write`. Throws with the reason when a key has no value
+ * to make up.
+ */
+export async function writeStatements(
+  db: LiveDatabase,
+  table: CatalogTable,
+): Promise<{ insert: string; update: string }> {
+  const target = `${ident(table.schema)}.${ident(table.name)}`;
+
+  const columns = await db.query<ColumnRow>(
+    `select a.attname::text as name, format_type(a.atttypid, a.atttypmod) as type, a.atthasdef as has_default, (a.attgenerated <> '' or a.attidentity = 'a') as generated, coalesce(a.attnum = any(i.indkey), false) as is_key from pg_attribute a left join pg_index i on i.indrelid = a.attrelid and i.indisprimary where a.attrelid = ${literal(target)}::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`,
+  );
+
+  const names: string[] = [];
+  const values: string[] = [];
+
+  for (const column of columns) {
+    if (column.generated) {
+      continue;
+    }
+
+    const id = ident(column.name);
+
+    if (!column.is_key) {
+      names.push(id);
+      values.push(`s.${id}`);
+    } else if (UUID_TYPE.test(column.type)) {
+      names.push(id);
+      values.push("gen_random_uuid()");
+    } else if (TEXT_TYPE.test(column.type)) {
+      names.push(id);
+      values.push(`'bsb_explain_' || gen_random_uuid()::text`);
+    } else if (!(NUMBER_TYPE.test(column.type) && column.has_default)) {
+      throw new Error(
+        `can't make a fresh key for ${column.name} (${column.type}); use a uuid, text or defaulted integer key`,
+      );
+    }
+  }
+
+  const changed = columns.find((column) => !column.is_key && !column.generated);
+
+  if (!changed) {
+    throw new Error("the table has no non-key column to update");
+  }
+
+  const id = ident(changed.name);
+
+  return {
+    insert: `insert into ${target} (${names.join(", ")}) select ${values.join(", ")} from (select * from ${target} limit 1) s`,
+    update: `update ${target} set ${id} = ${id} where ctid = (select ctid from ${target} limit 1)`,
+  };
+}
+
+/** Trigger time per statement, as `bsb_audit 0.12 ms over 1 call`. */
+const triggerText = (triggers: readonly TriggerTime[]): string =>
+  triggers.length === 0
+    ? "no triggers fired"
+    : triggers
+        .map(
+          (trigger) =>
+            `${trigger["Trigger Name"]} ${(trigger.Time ?? 0).toFixed(2)} ms over ${plural(trigger.Calls ?? 0, "call")}`,
+        )
+        .join(", ");
+
+/** `--explain-write` for one table: an insert and an update, rolled back. */
+async function explainWrite(
+  db: LiveDatabase,
+  table: CatalogTable,
+  claims: Readonly<Record<string, unknown>>,
+  who: string,
+): Promise<FindingInput> {
+  const label = qualified(table);
+
+  try {
+    const statements = await writeStatements(db, table);
+    const parts: string[] = [];
+
+    for (const kind of ["insert", "update"] as const) {
+      const { summary, triggers } = await explainStatement(
+        db,
+        statements[kind],
+        claims,
+      );
+
+      const fired = triggers.reduce((sum, item) => sum + (item.Time ?? 0), 0);
+
+      parts.push(
+        `${kind} ${summary.executionMs.toFixed(2)} ms, of which triggers ${fired.toFixed(2)} ms (${triggerText(triggers)})`,
+      );
+    }
+
+    return {
+      message: `${label} write as ${who}: ${parts.join("; ")}. Each statement ran in a rolled-back transaction on a copy of one existing row with fresh keys; the update assigns a column its own value, so triggers that only fire on a changed column don't show.`,
+      target: `${label}:explain-write`,
+      object: tableObject(table),
+    };
+  } catch (cause) {
+    return {
+      severity: "warning",
+      message: `--explain-write ${label} failed: ${errorText(cause)}`,
+      target: `${label}:explain-write`,
+    };
+  }
 }
 
 function resolveTable(
@@ -554,6 +693,8 @@ export const LIVE_RULES: readonly Rule[] = [
         return [];
       }
 
+      const writes = request.write ?? [];
+
       const db = live(context);
 
       if (!db || "skipped" in db || !db.session) {
@@ -651,6 +792,19 @@ export const LIVE_RULES: readonly Rule[] = [
             target: `${label}:explain`,
           });
         }
+      }
+
+      for (const name of writes) {
+        const table = resolveTable(context, name);
+
+        findings.push(
+          table
+            ? await explainWrite(db, table, request.claims, who)
+            : {
+                severity: "warning",
+                message: `--explain-write: no table "${name}" in the exposed schemas; qualify names in other schemas.`,
+              },
+        );
       }
 
       return findings;

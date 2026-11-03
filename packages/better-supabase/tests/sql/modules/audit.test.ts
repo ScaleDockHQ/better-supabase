@@ -242,7 +242,10 @@ describe("audit module", () => {
 
   it("upgrades from versions 5 to 8 without SQL of their own", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 5 }]);
-    expect(plan!.steps.map((step) => step.sql)).toEqual(["", "", "", ""]);
+    const sql = plan!.steps.map((step) => step.sql);
+
+    expect(sql.slice(0, 4)).toEqual(["", "", "", ""]);
+    expect(sql[4]).toContain("regprocedure, boolean);");
   });
 
   it("chains entries and lists the chain functions only with options.chain", () => {
