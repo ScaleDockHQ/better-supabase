@@ -51,12 +51,11 @@ const config: KnipConfig = {
         "src/react/{server,session}.ts",
         "scripts/*.ts",
         // The @workflow/vitest runtime suite has its own config and runs through
-        // `pnpm test:workflow`; the plugin writes .workflow-vitest at run time.
+        // `pnpm test:workflow`.
         "vitest.workflow.config.ts",
         "tests/workflow-vitest/**/*.ts",
       ],
       ignore: [
-        ".workflow-vitest/**",
         "tests/fixtures/generated*.ts",
         "tests/fixtures/database.types.ts",
       ],

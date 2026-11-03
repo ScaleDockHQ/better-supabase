@@ -78,7 +78,7 @@ describe.skipIf(!live)("chat-sdk state and webhook inbox", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "queue"]);
+      await s.install(["organizations", "webhooks-in"]);
       const source = `chat-${crypto.randomUUID().slice(0, 8)}`;
 
       const inbox = createWebhookInbox({

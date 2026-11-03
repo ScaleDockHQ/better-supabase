@@ -89,9 +89,10 @@ jobs:
       - name: World conformance
         # Runs the @workflow/world-testing suite against the Supabase World (ADR 0210). The
         # peer range allows 5.1.x only, so the catalog pin is both ends of the range.
-        working-directory: packages/better-supabase
+        # The stack's connection string comes from the dotenv file at the repo root.
         run: >-
-          pnpm exec vitest run --project integration
+          pnpm exec dotenv -e .env.development.local --
+          pnpm --filter better-supabase exec vitest run --project integration
           tests/integration/workflow-world.integration.test.ts
           --reporter=default --reporter=junit --outputFile.junit=world-conformance.xml
 
