@@ -199,6 +199,7 @@
       "ReadMethod",
       "ReadSet",
       "ReadSetAuth",
+      "ReadSetGate",
       "ReadSetOptions",
       "ReadSetParams",
       "ReadSetParamType",
