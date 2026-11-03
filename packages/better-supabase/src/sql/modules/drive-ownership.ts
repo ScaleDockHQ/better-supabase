@@ -277,7 +277,8 @@ function transferSql(kit: DriveKit): string {
   return `
 -- Hands every item one member holds at ${roles.top} in an organization to
 -- another member: their ${roles.top} grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs ${OPERATIONS["drive.manage"]}.
+-- own. The new holder keeps one grant per item. Needs ${OPERATIONS["drive.manage"]}; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function ${fn("drive_transfer_ownership")}(tenant ${ctx.idType}, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -304,6 +305,9 @@ declare
 begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "drive_transfer_ownership.tenant", manage)}) then
     ${fail("DRIVE_FORBIDDEN", "you can't transfer items in this organization", "42501")}
+  end if;
+  if not ${SERVICE_CALLER} and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    ${fail("DRIVE_FORBIDDEN", "you can only transfer your own items", "42501")}
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then

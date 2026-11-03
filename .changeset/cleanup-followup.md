@@ -1,5 +1,5 @@
 ---
-"better-supabase": major
+"better-supabase": minor
 ---
 
 Finish the renames that the naming convention left open, and give each block manifest a

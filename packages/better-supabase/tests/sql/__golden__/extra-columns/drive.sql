@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:bc0319a43e5bb72d89f66a4ca48f49d31049d09946d3c2ac2fd0c86b83e4fcb2
+-- @bsb-hash sha256:eb798cb807d7f720a4b3ea5173ec40966770c02b322ae6525f9701a6d6ccef18
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1513,7 +1513,8 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage.
+-- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
 language plpgsql
@@ -1533,6 +1534,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
     raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and drive_transfer_ownership.from_user is distinct from auth.uid() then
+    raise exception 'you can only transfer your own items' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
     or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
