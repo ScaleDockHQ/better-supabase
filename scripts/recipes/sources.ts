@@ -522,6 +522,19 @@ export const RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "chat-message-markdown",
+    title: "Chat message as Markdown",
+    blocks: ["ai-chat"],
+    kind: "component",
+    description:
+      "An assistant answer rendered as Markdown with Streamdown: a caret while it streams, static once stored, and only safe elements and links.",
+    web: {
+      file: `${WEB_APP}/src/features/assistant/components/message-text.tsx`,
+      components: [],
+      glue: [],
+    },
+  },
+  {
     slug: "knowledge-upload",
     title: "Knowledge base upload",
     blocks: ["knowledge"],

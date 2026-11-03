@@ -116,6 +116,7 @@
     "document-editor",
     "---AI---",
     "chat-with-history",
+    "chat-message-markdown",
     "knowledge-upload",
     "agent-run-trace",
     "ai-task-queue",

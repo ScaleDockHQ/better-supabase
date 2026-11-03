@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
 
 import { confirmAttachment, reserveAttachment } from "../assistant-actions";
+import { MessageText } from "./message-text";
 
 const textOf = (message: UIMessage): string =>
   message.parts
@@ -270,7 +271,14 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
               {message.parts.filter(isToolUIPart).map((part) => (
                 <ToolCall key={part.toolCallId} part={part} chat={chat} />
               ))}
-              <p className="whitespace-pre-wrap">{textOf(message)}</p>
+              {message.role === "user" ? (
+                <p className="whitespace-pre-wrap">{textOf(message)}</p>
+              ) : (
+                <MessageText
+                  text={textOf(message)}
+                  animating={busy && message.id === chat.messages.at(-1)?.id}
+                />
+              )}
               {sources.length === 0 ? null : <Sources sources={sources} />}
             </li>
           );
