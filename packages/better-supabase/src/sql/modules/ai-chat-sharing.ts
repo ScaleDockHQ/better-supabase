@@ -364,7 +364,6 @@ alter table ${t.participants} add column if not exists ${pa.team} uuid;
 alter table ${t.participants} add column if not exists ${pa.customerUser} uuid references auth.users (id) on delete cascade;
 alter table ${t.participants} add column if not exists ${pa.email} text check (length(${pa.email}) <= 320);
 alter table ${t.participants} alter column ${pa.id} set not null;
-alter table ${t.participants} alter column ${pa.user} drop not null;
 do $$
 declare
   v_key name;
@@ -381,6 +380,7 @@ begin
   if not exists (select 1 from pg_catalog.pg_constraint where conrelid = ${sqlString(t.participants)}::regclass and contype = 'p') then
     alter table ${t.participants} add primary key (${pa.id});
   end if;
+  alter table ${t.participants} alter column ${pa.user} drop not null;
   if not exists (select 1 from pg_catalog.pg_constraint where conrelid = ${sqlString(t.participants)}::regclass and conname = ${name}) then
     alter table ${t.participants} add constraint ${sqlIdent("ai_chat_participants_shape_check")} check (
       (${pa.kind} = 'user' and ${pa.user} is not null)

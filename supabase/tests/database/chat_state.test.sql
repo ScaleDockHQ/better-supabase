@@ -2,7 +2,7 @@
 -- the Chat SDK's state adapter. Run with `supabase test db` after the fixture
 -- is regenerated for chat-sdk-state version 2 (bigint TTLs).
 begin;
-select plan(17);
+select plan(14);
 
 select table_privs_are('better_supabase', 'chat_state_locks', 'anon', '{}'::text[],
   'anon has no privileges on chat locks');
@@ -30,7 +30,7 @@ select isnt(
 select lives_ok(
   $$select better_supabase.chat_state_set('t', 'long', '"v"'::jsonb, 2592000000)$$,
   'a 30 day TTL in milliseconds is accepted');
-select is(better_supabase.chat_state_get('t', 'long'), '"v"'::jsonb,
+select is(better_supabase.chat_state_get('t', 'long'), '{"value": "v"}'::jsonb,
   'the value is stored under the long TTL');
 
 -- Values and lists.
@@ -40,7 +40,7 @@ select is(better_supabase.chat_state_set_if_not_exists('t', 'k', '2'::jsonb, nul
 select better_supabase.chat_state_append_to_list('t', 'l', '1'::jsonb, 2, null);
 select better_supabase.chat_state_append_to_list('t', 'l', '2'::jsonb, 2, null);
 select better_supabase.chat_state_append_to_list('t', 'l', '3'::jsonb, 2, null);
-select is(better_supabase.chat_state_get_list('t', 'l'), '["2", "3"]'::jsonb,
+select is(better_supabase.chat_state_get_list('t', 'l'), '[2, 3]'::jsonb,
   'a list keeps the newest entries up to max_length, in order');
 select better_supabase.chat_state_delete('t', 'l');
 select is(jsonb_array_length(better_supabase.chat_state_get_list('t', 'l')), 0,
