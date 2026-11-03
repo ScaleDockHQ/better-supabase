@@ -268517,6 +268517,17 @@
             "predicate": null
           },
           {
+            "name": "ai_chat_participants_chat_idx",
+            "columns": [
+              "chat_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "ai_chat_participants_customer_key",
             "columns": [
               "chat_id",
@@ -268527,6 +268538,17 @@
             "partial": true,
             "method": "btree",
             "predicate": "(kind = 'customer'::text)"
+          },
+          {
+            "name": "ai_chat_participants_customer_user_idx",
+            "columns": [
+              "customer_user_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "ai_chat_participants_email_key",
@@ -314970,48 +314992,6 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_pipeline_status_maintenance_request"
-          },
-          {
-            "name": "bsb_realtime_delete",
-            "timing": "after",
-            "events": [
-              "delete"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
-          },
-          {
-            "name": "bsb_realtime_insert",
-            "timing": "after",
-            "events": [
-              "insert"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
-          },
-          {
-            "name": "bsb_realtime_update",
-            "timing": "after",
-            "events": [
-              "update"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -353810,48 +353790,6 @@
               "stage_entered_at",
               "stage_id"
             ]
-          },
-          {
-            "name": "bsb_realtime_delete",
-            "timing": "after",
-            "events": [
-              "delete"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
-          },
-          {
-            "name": "bsb_realtime_insert",
-            "timing": "after",
-            "events": [
-              "insert"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
-          },
-          {
-            "name": "bsb_realtime_update",
-            "timing": "after",
-            "events": [
-              "update"
-            ],
-            "level": "statement",
-            "function": "better_supabase.broadcast_changes",
-            "args": [
-              "tenant_id",
-              "tenant"
-            ],
-            "source": "\ndeclare\n  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name\n    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;\n  payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);\n  source text;\n  tenant text;\nbegin\n  if tg_nargs = 0 or tg_argv[0] = '' then\n    perform realtime.send(payload, 'change', base, true);\n    return null;\n  end if;\n  source := case tg_op\n    when 'INSERT' then format('select %1$I from new_rows', tg_argv[0])\n    when 'DELETE' then format('select %1$I from old_rows', tg_argv[0])\n    else format('select %1$I from new_rows union select %1$I from old_rows', tg_argv[0])\n  end;\n  for tenant in execute format('select distinct t.v::text from (%s) as t(v) where t.v is not null', source) loop\n    perform realtime.send(payload, 'change', base || ':' || tenant, true);\n  end loop;\n  return null;\nend;\n"
           },
           {
             "name": "bsb_search_work_item_index",
