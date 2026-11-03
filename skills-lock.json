@@ -751,6 +751,12 @@
       "skillPath": "skills/standard-webhooks/SKILL.md",
       "computedHash": "00ae5357c9d3b6ac55a13968a2dd2a0fa355f741ce09b7eb3117a0d5995d9dcc"
     },
+    "streamdown": {
+      "source": "vercel/streamdown",
+      "sourceType": "github",
+      "skillPath": "skills/streamdown/SKILL.md",
+      "computedHash": "9a29d32c257806e18248b5f58f60ae3dd96eb8aeac84e88091f26e63592129f4"
+    },
     "structured-outputs": {
       "source": "ScaleDockHQ/llm-skills",
       "sourceType": "github",
