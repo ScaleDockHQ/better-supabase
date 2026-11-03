@@ -19,7 +19,7 @@ another's dev server.
 
 ## Decision
 
-- Turbo: the root depends on no workspace package; root scripts and workflows
+- Turbo: the root depends only on `@better-supabase/typescript-config`; root scripts and workflows
   run the CLI by path or as `pnpm better-supabase`. Task `inputs` skip tests,
   markdown and configs a task doesn't read. `CI` and `NODE_ENV` pass through
   unhashed; an env var is hashed only by the tasks whose output it changes.

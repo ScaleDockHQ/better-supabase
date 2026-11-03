@@ -146,3 +146,6 @@ bump is one commit series:
   fails the `fix` hook with "No files found to lint", because Ultracite ignores
   them. Stage one linted file with it, such as the changeset or the note that
   explains the regeneration.
+- A new shared root config goes in the `inputs` of the Turbo tasks that read
+  it, not in a global key: `globalDependencies` misses the cache for every task
+  (ADR 0211).
