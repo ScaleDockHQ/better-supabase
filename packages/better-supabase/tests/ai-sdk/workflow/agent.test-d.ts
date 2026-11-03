@@ -1,4 +1,3 @@
-import type { WorkflowAgent } from "@ai-sdk/workflow";
 import type { ToolSet } from "ai";
 
 import { describe, expectTypeOf, it } from "vitest";
@@ -18,6 +17,11 @@ describe("createWorkflowAgentRuntime types", () => {
   });
 
   it("returns a WorkflowAgent over the tool set", () => {
-    expectTypeOf(createWorkflowAgentRuntime).returns.toExtend<WorkflowAgent>();
+    expectTypeOf(createWorkflowAgentRuntime).returns.toHaveProperty("stream");
+    expectTypeOf(createWorkflowAgentRuntime).returns.toHaveProperty("tools");
+
+    expectTypeOf<
+      ReturnType<typeof createWorkflowAgentRuntime>["tools"]
+    >().toEqualTypeOf<ToolSet>();
   });
 });
