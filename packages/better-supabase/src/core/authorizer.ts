@@ -242,6 +242,21 @@ export interface AuthorizerRuntime<
   readonly versions?: V;
   /** The scope's memo, for reads several checks in one scope share. */
   readonly memo?: RequestMemo;
+  /**
+   * What the page's bootstrap already read for this user, so the authorizer can
+   * skip loading its own subject when `version` is still the one it would see.
+   */
+  readonly seed?: AuthzSubjectSeed;
+}
+
+/**
+ * The subject a bootstrap read for a user: the live authorization `version` and
+ * the library's `subject` payload (opaque to better-supabase).
+ */
+export interface AuthzSubjectSeed {
+  readonly userId: string;
+  readonly version: number;
+  readonly subject: unknown;
 }
 
 /**
@@ -252,7 +267,10 @@ export function bindAuthorizer<
   A extends AnyAuthorizer<V> | undefined,
   V extends AuthzVersionCache = AuthzVersionCache,
 >(authorizer: A, runtime: AuthorizerRuntime<V>): A {
-  if (!authorizer || runtime.versions === undefined) {
+  if (
+    !authorizer ||
+    (runtime.versions === undefined && runtime.seed === undefined)
+  ) {
     return authorizer;
   }
 

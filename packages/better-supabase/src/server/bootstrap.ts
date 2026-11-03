@@ -1,6 +1,10 @@
 import type { AuthState, SessionRejection } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
-import type { AnyAuthorizer, AuthzVersionCache } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzSubjectSeed,
+  AuthzVersionCache,
+} from "../core/authorizer.ts";
 import type { Executor } from "../core/executor.ts";
 import type {
   InferReadSetParams,
@@ -12,6 +16,7 @@ import type { SchemaMeta } from "../schema/types.ts";
 
 import { sessionCacheKey, snapshotOf } from "../auth/snapshot.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
+import { bindAuthorizer } from "../core/authorizer.ts";
 import { claimsOf } from "../core/claims.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
@@ -81,6 +86,12 @@ export interface Bootstrap<
    * without one.
    */
   readonly reads?: R | null;
+  /**
+   * The authorizer subject, when
+   * `blocks.sessions.options.bootstrap[rpc].subject` names a function.
+   * `accessFor` seeds it into the authorizer's runtime.
+   */
+  readonly subject?: unknown;
 }
 
 /** One context and its checks, bound to one authorization version. */
@@ -112,6 +123,8 @@ export interface BootstrapRow {
   readonly data: unknown;
   /** The wrapper's raw `reads` payload, from the read set it ran. */
   readonly reads: unknown;
+  /** The authorizer subject the wrapper's `subject` function returned. */
+  readonly subject: unknown;
 }
 
 /**
@@ -213,6 +226,7 @@ function bootstrapRow(value: unknown): BootstrapRow {
     tenant: typeof tenant === "string" ? tenant : null,
     data: value["data"] ?? null,
     reads: value["reads"] ?? null,
+    subject: value["subject"] ?? null,
   };
 }
 
@@ -387,6 +401,7 @@ export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
     data: row.sessionActive ? (row.data as T | null) : null,
     // SAFETY: the decoded payload has the read set's result shape.
     reads: reads as ReadSetResult<S> | null,
+    subject: row.sessionActive ? row.subject : null,
   };
 }
 
@@ -405,9 +420,26 @@ export function accessOf<
     readonly tenant: string | null;
     readonly authzVersion: number | null;
     readonly authorizer: AnyAuthorizer | undefined;
+    readonly subject?: unknown;
   },
 ): Access<Ctx, C, P, Ref> {
   const view = toSession(ctx.auth);
+
+  const seed: AuthzSubjectSeed | undefined =
+    view.kind === "user" &&
+    options.subject !== undefined &&
+    options.subject !== null &&
+    options.authzVersion !== null
+      ? {
+          userId: view.user.id,
+          version: options.authzVersion,
+          subject: options.subject,
+        }
+      : undefined;
+
+  const authorizer = seed
+    ? bindAuthorizer(options.authorizer, { seed })
+    : options.authorizer;
 
   return {
     context: ctx,
@@ -424,7 +456,7 @@ export function accessOf<
         { permission },
         undefined,
         options.tenant ?? undefined,
-        options.authorizer,
+        authorizer,
         ctx,
       );
 
@@ -546,6 +578,7 @@ export function serverBootstrap<
           snapshot?.authzVersion ??
           null,
         authorizer: target.authorizer,
+        subject: accessOptions.bootstrap?.subject,
       });
     },
   };

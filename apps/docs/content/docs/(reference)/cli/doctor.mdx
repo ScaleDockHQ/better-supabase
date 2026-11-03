@@ -2211,6 +2211,14 @@ read both in one scope, or give every scope the same
 The check reads source text, so it follows function declarations and arrow
 functions that carry the directive as their first statement.
 
+### BS611
+
+**Warning: service-role client in a private cache scope.** A function with
+`"use cache: private"` calls `bsb.admin()` or `createAdminClient`. The service
+role skips the user's policies, so what it returns is cached under the user's
+key but isn't their data, and each call adds a verification. Read as the user,
+or move the admin read out of the cached function.
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

@@ -127,3 +127,36 @@ describe("BS610", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS611", () => {
+  const rule = NEXT_CACHE_RULES.find((candidate) => candidate.code === "BS611");
+
+  const run = (text: string) => {
+    // SAFETY: BS611 reads only `sources`.
+    const findings = rule?.check({
+      sources: [{ path: "src/data.ts", text }],
+    } as unknown as DoctorContext);
+
+    if (!Array.isArray(findings)) {
+      throw new TypeError("BS611 runs synchronously");
+    }
+
+    return findings;
+  };
+
+  it("flags an admin client in a private scope", () => {
+    const findings = run(
+      'async function load() { "use cache: private"; const db = bsb.admin(); return db; }',
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("allows an admin read outside the scope", () => {
+    expect(
+      run(
+        'async function load() { "use cache: private"; return 1; }\nasync function other() { return bsb.admin(); }',
+      ),
+    ).toHaveLength(0);
+  });
+});

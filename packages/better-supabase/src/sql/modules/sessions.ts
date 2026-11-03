@@ -64,7 +64,9 @@ const BOOTSTRAP_NAME = /^[a-z][a-z0-9_]*$/;
 
 const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
-function isReadSetRef(value: unknown): value is { readonly readSet: string } {
+function isReadSetRef(
+  value: unknown,
+): value is { readonly readSet: string; readonly subject?: string } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -75,7 +77,11 @@ function isReadSetRef(value: unknown): value is { readonly readSet: string } {
 
 function isReadSetsRef(
   value: unknown,
-): value is { readonly readSets: readonly string[]; readonly shell?: string } {
+): value is {
+  readonly readSets: readonly string[];
+  readonly shell?: string;
+  readonly subject?: string;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -90,6 +96,8 @@ interface BootstrapTarget {
   readonly fn: string | undefined;
   /** The read sets the caller can pick from, as `public.rs_<name>`. */
   readonly readSets: readonly string[];
+  /** A no-argument function whose jsonb result is the authorizer subject. */
+  readonly subject?: string | undefined;
 }
 
 /**
@@ -97,6 +105,20 @@ interface BootstrapTarget {
  * a read set (the function `public.rs_<name>`), or to `{ readSets, shell? }`,
  * where the caller picks one of the read sets per call.
  */
+function subjectOf(name: string, subject: unknown): string | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+
+  if (typeof subject !== "string" || !FUNCTION_NAME.test(subject)) {
+    throw new TypeError(
+      `${WHERE}.${name}.subject must name a function as schema.function`,
+    );
+  }
+
+  return subject;
+}
+
 function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
   const raw = ctx.option("bootstrap");
 
@@ -135,7 +157,12 @@ function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
         );
       }
 
-      return { name, fn: fn.shell, readSets: fn.readSets };
+      return {
+        name,
+        fn: fn.shell,
+        readSets: fn.readSets,
+        subject: subjectOf(name, fn.subject),
+      };
     }
 
     if (isReadSetRef(fn)) {
@@ -145,7 +172,12 @@ function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
         );
       }
 
-      return { name, fn: `public.rs_${fn.readSet}`, readSets: [] };
+      return {
+        name,
+        fn: `public.rs_${fn.readSet}`,
+        readSets: [],
+        subject: subjectOf(name, fn.subject),
+      };
     }
 
     if (typeof fn !== "string" || !FUNCTION_NAME.test(fn)) {
@@ -194,7 +226,7 @@ function bootstrapWrappers(
     ? "to_jsonb(better_supabase.caller_authz_version())"
     : "auth.jwt() -> 'authz_ver'";
 
-  const wrappers = functions.map(({ name, fn, readSets }) => {
+  const wrappers = functions.map(({ name, fn, readSets, subject }) => {
     const wrapper = `better_supabase.bootstrap_${name}`;
     const picks = readSets.length > 0;
     const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
@@ -254,7 +286,7 @@ begin${guard}
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', ${dataSql}${readsSql}
+    'data', ${dataSql}${readsSql}${subject ? `,\n    'subject', to_jsonb(${subject}())` : ""}
   );
 end;
 $$;

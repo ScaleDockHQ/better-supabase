@@ -191,3 +191,82 @@ export function subscribeAuthzVersions(
 
   return subscription;
 }
+
+/**
+ * A shared store behind `createVersionCache`, such as Redis or Vercel Runtime
+ * Cache.
+ */
+export interface VersionStore {
+  get(userId: string): number | undefined | PromiseLike<number | undefined>;
+  set(userId: string, version: number): void | PromiseLike<void>;
+  delete(userId: string): void | PromiseLike<void>;
+}
+
+export interface CreateVersionCacheOptions {
+  /** A shared store read on a local miss. Without one the cache is per instance. */
+  readonly store?: VersionStore;
+  /**
+   * The longest a version stays trusted without a broadcast, in milliseconds.
+   * It bounds how stale a check can be when an eviction message is lost.
+   */
+  readonly maxStaleMs: number;
+}
+
+export interface VersionCache extends AuthzVersionCache {
+  /** The cached version, or `undefined` when absent or older than `maxStaleMs`. */
+  get(userId: string): Promise<number | undefined>;
+  seed(userId: string, version: number): Promise<void>;
+  evict(userId: string): Promise<void>;
+}
+
+interface VersionEntry {
+  readonly version: number;
+  readonly at: number;
+}
+
+/**
+ * The module-scope `AuthzVersionCache` for `createServer({ versions })`. It
+ * keeps the highest version seen per user, forgets it after `maxStaleMs`, and
+ * reads and writes `store` so instances share what one of them learned.
+ */
+export function createVersionCache(
+  options: CreateVersionCacheOptions,
+): VersionCache {
+  const local = new Map<string, VersionEntry>();
+  const { store, maxStaleMs } = options;
+
+  return {
+    async get(userId) {
+      const hit = local.get(userId);
+
+      if (hit && Date.now() - hit.at <= maxStaleMs) {
+        return hit.version;
+      }
+
+      local.delete(userId);
+
+      const shared = await store?.get(userId);
+
+      if (shared !== undefined) {
+        local.set(userId, { version: shared, at: Date.now() });
+      }
+
+      return shared;
+    },
+    async seed(userId, version) {
+      const current = local.get(userId);
+
+      const keep =
+        current && Date.now() - current.at <= maxStaleMs
+          ? Math.max(current.version, version)
+          : version;
+
+      local.set(userId, { version: keep, at: Date.now() });
+      await store?.set(userId, keep);
+    },
+    async evict(userId) {
+      local.delete(userId);
+      await store?.delete(userId);
+    },
+  };
+}

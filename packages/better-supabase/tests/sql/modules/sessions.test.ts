@@ -45,6 +45,21 @@ describe("sessions bootstrap wrappers", () => {
     ).toThrow(/read set name/);
   });
 
+  it("adds the authorizer subject to the wrapper", () => {
+    const sql = sessions({
+      options: {
+        bootstrap: { home: { readSet: "home", subject: "app.authz_subject" } },
+      },
+    });
+
+    expect(sql).toContain("'subject', to_jsonb(app.authz_subject())");
+    expect(() =>
+      sessions({
+        options: { bootstrap: { home: { readSet: "home", subject: "drop;" } } },
+      }),
+    ).toThrow(/subject must name a function/);
+  });
+
   it("takes a read set per call from a fixed list", () => {
     const sql = sessions({
       options: {

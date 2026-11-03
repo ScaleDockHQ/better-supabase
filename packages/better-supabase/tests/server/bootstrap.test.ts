@@ -195,6 +195,46 @@ describe("server.accessFor()", () => {
   });
 });
 
+describe("accessFor() with a bootstrap subject", () => {
+  it("hands the subject to the authorizer as a seed", async () => {
+    const seen: unknown[] = [];
+
+    const authorizer = {
+      apiVersion: 1 as const,
+      name: "probe",
+      key: (ref: string) => ref,
+      evaluate: (_request: unknown, runtime?: { seed?: unknown }) => {
+        seen.push(runtime?.seed);
+
+        return Promise.resolve({ allowed: true as const });
+      },
+    };
+
+    const seeded = createServer(definition, {
+      env,
+      auth: { jwks: signer.jwks },
+      // SAFETY: the probe implements the members the server calls.
+      authorizer: authorizer as never,
+    });
+
+    const request = await signedIn({ authz_ver: 4 });
+    const bootstrap = await seeded.bootstrapFor(request, { rpc: "home" });
+    const snapshot = await seeded.snapshot(request);
+
+    const access = await seeded.accessFor(snapshot, {
+      bootstrap: { ...bootstrap, subject: { roles: ["admin"] } },
+    });
+
+    await access.can("posts.read");
+
+    expect(seen[0]).toEqual({
+      userId: USER,
+      version: 7,
+      subject: { roles: ["admin"] },
+    });
+  });
+});
+
 describe("bootstrapWith() in a support session", () => {
   const supportCtx = (rpc: (name: string) => unknown) => ({
     auth: {

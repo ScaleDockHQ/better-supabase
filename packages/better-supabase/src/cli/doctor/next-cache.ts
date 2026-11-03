@@ -140,6 +140,32 @@ function nestedPrivateScopes(context: DoctorContext): FindingInput[] {
   );
 }
 
+/** A service-role client built inside a function body. */
+const ADMIN_CALL = /\bbsb\.admin\s*\(|\bcreateAdminClient\s*\(/;
+
+/**
+ * A `"use cache: private"` function that uses the service role (BS611): the
+ * private scope exists to keep per-user data, and an admin client reads past
+ * the user's policies, so what it returns is cached under the user's key but
+ * isn't theirs. Read as the user, or move the admin read out of the scope.
+ */
+function adminInPrivateScope(context: DoctorContext): FindingInput[] {
+  return privateFunctions(context.sources).flatMap((fn) =>
+    ADMIN_CALL.test(fn.body)
+      ? [
+          {
+            message: `${fn.file}: ${fn.name} runs in \`"use cache: private"\` and builds an admin client. The service role skips the user's policies, so its result doesn't belong in a per-user scope and each call costs an extra verification. Read as the user, or move the admin read out of the cached function.`,
+            target: `${fn.file}:${fn.name}`,
+            location: {
+              file: fn.file,
+              line: fn.text.slice(0, fn.index).split("\n").length,
+            },
+          },
+        ]
+      : [],
+  );
+}
+
 export const NEXT_CACHE_RULES: readonly Rule[] = [
   {
     code: "BS608",
@@ -156,5 +182,13 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
     description:
       'A function with `"use cache: private"` calls another function with the same directive. Next.js doesn\'t nest private scopes, and each scope resolves the session again. Call the inner function from the page, or read both in one scope.',
     check: nestedPrivateScopes,
+  },
+  {
+    code: "BS611",
+    severity: "warning",
+    title: "Service-role client in a private cache scope",
+    description:
+      "A function with `\"use cache: private\"` calls `bsb.admin()` or `createAdminClient`. The service role ignores the user's policies, so the cached result is not the user's data. Read as the user, or move the admin read out of the scope.",
+    check: adminInPrivateScope,
   },
 ];
