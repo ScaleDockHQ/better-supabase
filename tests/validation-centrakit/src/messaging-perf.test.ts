@@ -149,6 +149,14 @@ describe.skipIf(!live)("conversation read performance", () => {
 
       expect(scope.ms).toBeLessThan(300);
 
+      const subject = await measure(
+        "can_subject one foreign file_node",
+        "select better_supabase.can_subject('file_node', $1, 'read') as value",
+        [foreign.nodes[0]!.id],
+      );
+
+      expect(subject.ms).toBeLessThan(300);
+
       const [explain] = await s.rows<ExplainRow>(
         "explain (analyze, format json) select count(*) from better_supabase.conversations",
       );
