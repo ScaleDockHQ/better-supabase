@@ -845,9 +845,11 @@ function accept(
   if ${assignment.assign(`pinvite.${pc("role")}`)} is null then
     ${fail("INVITATION_ROLE_UNKNOWN", "Unknown platform role %", `pinvite.${pc("role")}`)}
   end if;
+  perform set_config('${ACCEPTING_SETTING}', pinvite.${pc("id")}::text, true);
   insert into ${assignment.table} (${assignment.user}, ${assignment.role})
   values (me, ${assignment.assign(`pinvite.${pc("role")}`)})
   on conflict do nothing;
+  perform set_config('${ACCEPTING_SETTING}', '', true);
   update ${p.table}
   set ${pc("acceptedAt")} = now()${p.has("acceptedBy") ? `, ${pc("acceptedBy")} = me` : ""}
   where ${pc("id")} = pinvite.${pc("id")};
@@ -896,8 +898,10 @@ begin
   if exists (select 1 from ${m} m where m.${mt} = invite.${c("tenant")} and m.${mu} = me) then
     ${fail("INVITATION_ALREADY_MEMBER", "You are already a member")}
   end if;${recheck}${roleKnown}
+  perform set_config('${ACCEPTING_SETTING}', invite.${c("id")}::text, true);
   insert into ${m} (${mt}, ${mu}, ${mr})
   values (invite.${c("tenant")}, me, ${role});${onAcceptGrant(ctx, t)}
+  perform set_config('${ACCEPTING_SETTING}', '', true);
   update ${t.table}
   set ${c("acceptedAt")} = now()${t.has("acceptedBy") ? `, ${c("acceptedBy")} = me` : ""}
   where ${c("id")} = invite.${c("id")};
@@ -909,6 +913,21 @@ begin
   ${memberAddedRecord(ctx, { tenant: `invite.${c("tenant")}`, user: "me", role: `invite.${c("role")}` })}
   return invite.${c("tenant")};
 end;
+$$;
+`;
+}
+
+const ACCEPTING_SETTING = "better_supabase.accepting_invitation";
+
+function acceptingInvitation(ctx: BlockSqlContext): string {
+  return `
+create or replace function ${ctx.fn("accepting_invitation")}()
+returns uuid
+language sql
+stable
+set search_path = ''
+as $$
+  select nullif(current_setting('${ACCEPTING_SETTING}', true), '')::uuid
 $$;
 `;
 }
@@ -926,7 +945,7 @@ function invitationsSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
 
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${acceptingInvitation(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}${onAcceptParam(ctx).type}`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
@@ -937,7 +956,8 @@ ${grant("invitation_preview", "text", "anon, authenticated, service_role", "publ
 ${grant("accept_invitation", "text", "authenticated")}
 ${grant("accept_invitation_by_id", "uuid", "authenticated")}
 ${grant("decline_invitation_by_id", "uuid", "authenticated")}
-${grant("my_invitations", "", "authenticated")}`;
+${grant("my_invitations", "", "authenticated")}
+${grant("accepting_invitation", "", "authenticated, service_role")}`;
 }
 
 export const INVITATIONS: BlockSqlDefinition = {
@@ -974,6 +994,7 @@ export const INVITATIONS: BlockSqlDefinition = {
     { name: "accept_invitation_by_id", args: ["uuid"], returns: "{id}" },
     { name: "decline_invitation_by_id", args: ["uuid"], returns: "boolean" },
     { name: "my_invitations", args: [], returns: "jsonb" },
+    { name: "accepting_invitation", args: [], returns: "uuid" },
     { name: "revoke_invitation", args: ["uuid"], returns: "boolean" },
     { name: "resend_invitation", args: ["uuid", "interval"], returns: "jsonb" },
     {

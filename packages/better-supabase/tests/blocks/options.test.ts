@@ -54,3 +54,11 @@ describe("option.extraColumns", () => {
     });
   });
 });
+
+describe("blockOptions", () => {
+  it("refuses options that are not an object", async () => {
+    expect(await schema["~standard"].validate("all")).toEqual({
+      issues: [{ message: "Expected an object" }],
+    });
+  });
+});
