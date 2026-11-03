@@ -124,6 +124,20 @@ export { blockReadRoles } from "./read-roles.ts";
 export type { ReadRolesModule } from "./read-roles.ts";
 
 export {
+  type CheckValues,
+  checkValues,
+  declaredCheckValues,
+  type TableCheckValues,
+} from "./check-values.ts";
+
+export {
+  appValues,
+  checkedValueMaps,
+  type ValueMap,
+  type ValueMaps,
+} from "./value-maps.ts";
+
+export {
   addedColumnTypes,
   declaredColumnTypes,
   declaredIndexes,

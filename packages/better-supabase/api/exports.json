@@ -8975,6 +8975,7 @@
       "appTableEventTypes",
       "appTablePolicyNotes",
       "appTablesFiles",
+      "appValues",
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "BLOCK_OPTION_SCHEMAS",
@@ -8984,6 +8985,8 @@
       "blockSqlVersion",
       "blockTables",
       "catalogPolicy",
+      "checkedValueMaps",
+      "checkValues",
       "commentOnTableSql",
       "compileReadSet",
       "compileReadSets",
@@ -8992,6 +8995,7 @@
       "currentBlockName",
       "customContracts",
       "dataExportPlan",
+      "declaredCheckValues",
       "declaredColumnTypes",
       "declaredIndexes",
       "declaredPolicies",
@@ -9112,6 +9116,7 @@
       "BlockTables",
       "BsbComment",
       "BsbTag",
+      "CheckValues",
       "CompiledReadSet",
       "DataExportPlan",
       "DeclaredForeignKey",
@@ -9138,8 +9143,11 @@
       "RulePolicyInput",
       "RuleValue",
       "SeedDefaultsFunction",
+      "TableCheckValues",
       "TableFeature",
-      "TenantQuery"
+      "TenantQuery",
+      "ValueMap",
+      "ValueMaps"
     ]
   },
   "./testing": {
