@@ -5,44 +5,15 @@ import {
   defineEvents,
   event,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./blocks.config.ts";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "created-by": {
-    schema: "better_supabase",
-    options: {},
-  },
-  queue: {
-    schema: "better_supabase",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  trash: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
 
 /**
  * Every installed block instance with a client, under its key, for
