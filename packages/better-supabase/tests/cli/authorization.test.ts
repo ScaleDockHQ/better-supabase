@@ -233,6 +233,25 @@ describe("accessProviderMode", () => {
     ).not.toHaveProperty("access.roleSources");
   });
 
+  it("passes on platform roles and memberships", () => {
+    const platformRoles = {
+      table: "app.platform_roles",
+      user: "user_id",
+      role: "role",
+    };
+
+    const memberships = [{ table: "app.members", disabledAt: "disabled_at" }];
+
+    expect(
+      accessProviderMode(
+        config({}, withProvider({ platformRoles, memberships })),
+      ),
+    ).toMatchObject({ access: { platformRoles, memberships } });
+    expect(
+      accessProviderMode(config({}, withProvider({ memberships: [] }))),
+    ).not.toHaveProperty("access.memberships");
+  });
+
   it("is off for the other models", () => {
     expect(
       accessProviderMode(

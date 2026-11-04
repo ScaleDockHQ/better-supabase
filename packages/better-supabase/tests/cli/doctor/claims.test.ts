@@ -100,4 +100,39 @@ describe("BS426", () => {
       }),
     ]);
   });
+
+  it("reports roleThrough and disabledAt values equal to the provider's", () => {
+    const through = { table: "app.roles", id: "id", column: "name" };
+
+    const provider: AuthorizationProvider = {
+      ...stubProvider,
+      roleSources: [
+        { table: "app.members", role: { column: "role_id", through } },
+      ],
+      memberships: [{ table: "app.members", disabledAt: "disabled_at" }],
+    };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: {
+          memberships: {
+            options: { roleThrough: through },
+            columns: { memberships: { disabledAt: "disabled_at" } },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect(found?.map((finding) => finding.target)).toEqual([
+      "blocks.memberships.options.roleThrough",
+      "blocks.memberships.columns.memberships.disabledAt",
+    ]);
+  });
 });

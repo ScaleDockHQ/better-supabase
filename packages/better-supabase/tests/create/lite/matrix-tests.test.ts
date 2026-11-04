@@ -285,4 +285,20 @@ describe("providerPersonaTests", () => {
     expect(file?.contents).toContain("plan(2)");
     expect(file?.contents).not.toContain("{user}");
   });
+
+  it("takes subs and a directory, and passes when nothing is sqlComplete", () => {
+    const [file] = providerPersonaTests(
+      { ...provider, permissions: undefined },
+      {
+        tenant: "00000000-0000-4000-8000-000000000a01",
+        directory: "tests/db",
+        subs: { viewer: "00000000-0000-4000-8000-0000000000ff" },
+      },
+    );
+
+    expect(file?.path).toBe("tests/db/access_matrix_provider_viewer.test.sql");
+    expect(file?.contents).toContain("00000000-0000-4000-8000-0000000000ff");
+    expect(file?.contents).toContain("plan(1)");
+    expect(file?.contents).toContain("nothing to check");
+  });
 });
