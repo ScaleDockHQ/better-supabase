@@ -30,6 +30,9 @@ const config: OxfmtConfig = defineConfig({
     "tests/validation-*/src/**/generated.*",
     // `gen --check` compares the file with its own unformatted output.
     "tests/types/**/blocks.config.ts",
+    "apps/examples/**/lib/supabase/blocks.config.ts",
+    "tests/validation-*/src/blocks.config.ts",
+    "packages/registry/stubs/lib/supabase/blocks.config.ts",
     // `introspect --check` compares the file byte for byte with its own output.
     "supabase/snapshot.json",
     // `catalog:check` compares it with `formatNameRegistry` byte for byte.

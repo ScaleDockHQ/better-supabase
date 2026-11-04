@@ -4,24 +4,68 @@ import type { GeneratedBlocks } from "better-supabase/blocks";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema and the
- * options its SQL and TypeScript halves share.
+ * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
+ * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  permissions: { schema: "better_supabase", api: "api", options: {} },
-  comments: { schema: "better_supabase", api: "api", options: {} },
-  messaging: { schema: "better_supabase", options: { topic: "messages" } },
+  permissions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  comments: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  messaging: {
+    schema: "better_supabase",
+    options: {
+      topic: "messages",
+    },
+  },
   notifications: {
     schema: "better_supabase",
     api: "api",
-    options: { topic: "notifications:{userId}" },
+    options: {
+      topic: "notifications:{userId}",
+    },
   },
-  organizations: { schema: "better_supabase", api: "api", options: {} },
-  profiles: { schema: "better_supabase", api: "api", options: {} },
-  sessions: { schema: "better_supabase", api: "api", options: {} },
-  subjects: { schema: "better_supabase", options: {} },
-  tags: { schema: "better_supabase", api: "api", options: {} },
-  teams: { schema: "better_supabase", api: "api", options: {} },
-  memberships: { schema: "better_supabase", options: {} },
-  "updated-at": { schema: "better_supabase", options: {} },
+  organizations: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  profiles: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  sessions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  subjects: {
+    schema: "better_supabase",
+    options: {},
+  },
+  tags: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  teams: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  memberships: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "updated-at": {
+    schema: "better_supabase",
+    options: {},
+  },
 } as const satisfies GeneratedBlocks;
