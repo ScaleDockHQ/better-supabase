@@ -1,5 +1,7 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlString } from "../../core/template.ts";
+
 export const PGTAP: BlockSqlDefinition = {
   name: "pgtap",
   title: "pgTAP helpers",
@@ -7,8 +9,10 @@ export const PGTAP: BlockSqlDefinition = {
     "tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.",
   requires: [],
   target: "test",
-  build:
-    () => `-- Runs first (000_) and commits, so later test files can use the helpers.
+  build: (
+    _ctx,
+    layout,
+  ) => `-- Runs first (000_) and commits, so later test files can use the helpers.
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 grant usage on schema tests to anon, authenticated, service_role;
@@ -82,8 +86,9 @@ end;
 $$;
 
 -- Runs as this user with the claims your custom access token hook issues, as a
--- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
-create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
+-- real sign-in does. The hook defaults to auth.hook.custom_access_token of
+-- config.toml at the time of gen; pass another as 'public.my_hook'.
+create or replace function tests.authenticate_as_issued(user_id uuid, hook text default ${layout.customAccessTokenHook === undefined ? "null" : sqlString(layout.customAccessTokenHook)})
 returns void
 language plpgsql
 set search_path = ''
@@ -93,7 +98,7 @@ declare
   base_claims jsonb;
 begin
   if hook is null then
-    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+    raise exception 'tests.authenticate_as_issued: set auth.hook.custom_access_token in config.toml, or pass the hook';
   end if;
   select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
     into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;

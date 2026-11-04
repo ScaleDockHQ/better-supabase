@@ -1,7 +1,7 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
+-- @bsb-hash sha256:e57339a89ba1080ad9536e4414d5192f6f1b9945d657223a8e6a3f93c56fc6c5
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,9 +56,7 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test'). An
--- untyped literal or parameter resolves to this overload, so a uuid string
--- is taken as the user's id.
+-- The same by email address: tests.authenticate_as('member@acme.test').
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -67,10 +65,6 @@ as $$
 declare
   found_id uuid;
 begin
-  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    perform tests.authenticate_as(user_email::uuid);
-    return;
-  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
@@ -80,7 +74,8 @@ end;
 $$;
 
 -- Runs as this user with the claims your custom access token hook issues, as a
--- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+-- real sign-in does. The hook defaults to auth.hook.custom_access_token of
+-- config.toml at the time of gen; pass another as 'public.my_hook'.
 create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
 returns void
 language plpgsql
@@ -91,7 +86,7 @@ declare
   base_claims jsonb;
 begin
   if hook is null then
-    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+    raise exception 'tests.authenticate_as_issued: set auth.hook.custom_access_token in config.toml, or pass the hook';
   end if;
   select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
     into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;
@@ -255,7 +250,7 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
+-- @bsb-hash sha256:e57339a89ba1080ad9536e4414d5192f6f1b9945d657223a8e6a3f93c56fc6c5
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -310,9 +305,7 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test'). An
--- untyped literal or parameter resolves to this overload, so a uuid string
--- is taken as the user's id.
+-- The same by email address: tests.authenticate_as('member@acme.test').
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -321,10 +314,6 @@ as $$
 declare
   found_id uuid;
 begin
-  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    perform tests.authenticate_as(user_email::uuid);
-    return;
-  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
@@ -334,7 +323,8 @@ end;
 $$;
 
 -- Runs as this user with the claims your custom access token hook issues, as a
--- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+-- real sign-in does. The hook defaults to auth.hook.custom_access_token of
+-- config.toml at the time of gen; pass another as 'public.my_hook'.
 create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
 returns void
 language plpgsql
@@ -345,7 +335,7 @@ declare
   base_claims jsonb;
 begin
   if hook is null then
-    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+    raise exception 'tests.authenticate_as_issued: set auth.hook.custom_access_token in config.toml, or pass the hook';
   end if;
   select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
     into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;
@@ -509,7 +499,7 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
+-- @bsb-hash sha256:e57339a89ba1080ad9536e4414d5192f6f1b9945d657223a8e6a3f93c56fc6c5
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -564,9 +554,7 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test'). An
--- untyped literal or parameter resolves to this overload, so a uuid string
--- is taken as the user's id.
+-- The same by email address: tests.authenticate_as('member@acme.test').
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -575,10 +563,6 @@ as $$
 declare
   found_id uuid;
 begin
-  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    perform tests.authenticate_as(user_email::uuid);
-    return;
-  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
@@ -588,7 +572,8 @@ end;
 $$;
 
 -- Runs as this user with the claims your custom access token hook issues, as a
--- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+-- real sign-in does. The hook defaults to auth.hook.custom_access_token of
+-- config.toml at the time of gen; pass another as 'public.my_hook'.
 create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
 returns void
 language plpgsql
@@ -599,7 +584,7 @@ declare
   base_claims jsonb;
 begin
   if hook is null then
-    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+    raise exception 'tests.authenticate_as_issued: set auth.hook.custom_access_token in config.toml, or pass the hook';
   end if;
   select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
     into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;

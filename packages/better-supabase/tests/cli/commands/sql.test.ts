@@ -645,6 +645,24 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
   });
 
+  it("defaults authenticate_as_issued to the hook in config.toml", async () => {
+    const config: ResolveInput = { blocks: ["pgtap"] };
+
+    await mkdir(join(root, "supabase"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      '[auth.hook.custom_access_token]\nenabled = true\nuri = "pg-functions://postgres/public/add_claims"\n',
+    );
+    await sql(["sync"], config);
+
+    const helpers = await readFile(
+      join(root, "supabase/tests/000_better_supabase_pgtap.test.sql"),
+      "utf-8",
+    );
+
+    expect(helpers).toContain("hook text default 'public.add_claims'");
+  });
+
   it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
     const config: ResolveInput = { blocks: ["audit", "pgtap"] };
 
