@@ -19,6 +19,9 @@ describe("authErrorKind", () => {
     expect(authErrorKind({ name: "AuthRetryableFetchError" })).toBe(
       "retryable",
     );
+    expect(authErrorKind({ name: "AuthSessionMissingError" })).toBe(
+      "session-missing",
+    );
   });
 
   it("falls back to the message, then to unknown", () => {

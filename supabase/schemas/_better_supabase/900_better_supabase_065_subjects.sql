@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:fb8b0bd06e5cf629be76feb823b9f0207fa151c97b8317620eca3926c354253c
+-- @bsb-hash sha256:d691098a07031d1925d64b1673e65d262fa9935e25d0fe84f457657bd329f1b9
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2627,7 +2627,7 @@ begin
     where r."status" = 'pending'
       and (r."expires_at" is null or r."expires_at" > now())
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
-      and "better_supabase"."approval_eligible"(r."id")
+      and "better_supabase"."approval_eligible"(r)
     union all
     select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")

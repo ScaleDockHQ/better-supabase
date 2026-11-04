@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@3 managed
--- @bsb-hash sha256:d27713e4d70fce343e77c9a3de45b2f7ae7e3eee57f070c8eaa2ec6ee5b26f16
+-- @bsb-block approvals@4 managed
+-- @bsb-hash sha256:5b6e7b30176f0f48a3b49dcdef95f8a41f96a5f5279c09057ee4f0dc5ffe010c
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,10 +168,41 @@ $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
 
--- Whether the caller may decide the request's current step: a named user,
--- a holder of the permission, a member with the role or in the team, or a
--- delegate. The requester can't, unless the policy allows self-approval.
-create or replace function "better_supabase"."approval_eligible"(request_id uuid)
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
+
+create or replace function "better_supabase"."approval_memo_bump"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.memo_set('approvals.gen', (coalesce(better_supabase.memo_get('approvals.gen'), '0')::bigint + 1)::text);
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
+drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
+create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
+  for each statement execute function "better_supabase"."approval_memo_bump"();
+
+create or replace function "better_supabase"."approval_fact"(tenant uuid, kind text, value text, requester uuid default null)
 returns boolean
 language plpgsql
 stable
@@ -179,13 +210,47 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_req "better_supabase"."approval_requests"%rowtype;
+  v_me uuid := auth.uid();
+  v_key text := 'approvals.f' || md5(format('%s|%s|%s|%s|%s', v_me, approval_fact.tenant, approval_fact.kind, approval_fact.value, approval_fact.requester));
+  v_stamp text := statement_timestamp()::text || '/' || coalesce(better_supabase.memo_get('approvals.gen'), '0');
+  v_hit text := better_supabase.memo_get(v_key);
+  v_result boolean;
+begin
+  if v_hit is not null and split_part(v_hit, '|', 1) = v_stamp then
+    return split_part(v_hit, '|', 2) = 't';
+  end if;
+  v_result := coalesce(case approval_fact.kind
+    when 'role' then exists (
+      select 1 from "better_supabase"."memberships" m
+      where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
+    )
+    when 'team' then false
+    when 'manager' then false
+    else false
+  end, false);
+  perform better_supabase.memo_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."approval_fact"(uuid, text, text, uuid) from public, anon, authenticated;
+
+-- Whether the caller may decide the request's current step: a named user,
+-- a holder of the permission, a member with the role or in the team, or a
+-- delegate. The requester can't, unless the policy allows self-approval.
+create or replace function "better_supabase"."approval_eligible"(request "better_supabase"."approval_requests")
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_req "better_supabase"."approval_requests"%rowtype := approval_eligible.request;
   v_step jsonb;
   v_approvers jsonb;
   v_me uuid := auth.uid();
 begin
-  select * into v_req from "better_supabase"."approval_requests" r where r."id" = approval_eligible.request_id;
-  if not found or v_me is null or v_req."status" <> 'pending' then
+  if v_req."id" is null or v_me is null or v_req."status" <> 'pending' then
     return false;
   end if;
   if exists (
@@ -206,22 +271,16 @@ begin
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
     or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
-    or (v_approvers ->> 'role' is not null and exists (
-      select 1 from "better_supabase"."memberships" m
-      where m."organization_id" = v_req."tenant_id" and m."user_id" = v_me and m."role" = v_approvers ->> 'role'
-    ))
-    or (v_approvers ->> 'team' is not null and false)) then
+    or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
+    or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
     return true;
   end if;
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
     or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
-    or (v_approvers ->> 'role' is not null and exists (
-      select 1 from "better_supabase"."memberships" m
-      where m."organization_id" = v_req."tenant_id" and m."user_id" = v_me and m."role" = v_approvers ->> 'role'
-    ))
-    or (v_approvers ->> 'team' is not null and false)) then
+    or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
+    or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
       return true;
     end if;
   end if;
@@ -230,6 +289,26 @@ begin
       where x."request_id" = v_req."id" and x."step" = v_req."step"
         and x."decision" = 'delegated' and x."delegate_to" = v_me
     );
+end;
+$$;
+revoke execute on function "better_supabase"."approval_eligible"("better_supabase"."approval_requests") from public, anon;
+grant execute on function "better_supabase"."approval_eligible"("better_supabase"."approval_requests") to authenticated, service_role;
+
+create or replace function "better_supabase"."approval_eligible"(request_id uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = approval_eligible.request_id;
+  if not found then
+    return false;
+  end if;
+  return "better_supabase"."approval_eligible"(v_req);
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
@@ -249,7 +328,7 @@ as $$
   select r."id" from "better_supabase"."approval_requests" r
   where r."status" = 'pending'
     and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r."id")
+    and "better_supabase"."approval_eligible"(r)
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -1384,14 +1463,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
+-- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 3, 'managed')
+values ('approvals', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

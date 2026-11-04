@@ -660,6 +660,119 @@ describe("defineBlocks", () => {
   });
 });
 
+describe("createBlocks describe and clients", () => {
+  const surfaceOf = (client: unknown) => {
+    const probe = defineBlock({
+      name: "probe",
+      create: (_options: BlockContext) => client,
+      category: "work",
+    });
+
+    return defineBlocks(
+      { probe: { schema: "better_supabase", options: {} } },
+      { probe },
+    ).describe("probe");
+  };
+
+  it("lists the methods of a client and of its nested members", () => {
+    const surface = surfaceOf({
+      send: () => "sent",
+      sink: () => "not a verb",
+      label: "text",
+      templates: { render: () => "r", cache: 1 },
+      empty: { size: 1 },
+    });
+
+    expect(surface).toMatchObject({
+      block: "probe",
+      methods: ["send"],
+      members: { templates: ["render"] },
+    });
+  });
+
+  it("describes nothing for a block without a client", () => {
+    const sqlOnly = defineBlock({ name: "sqlonly", category: "work" });
+
+    const blocks = defineBlocks(
+      { sqlonly: { schema: "better_supabase", options: {} } },
+      { sqlonly: sqlOnly },
+    );
+
+    expect(blocks.describe("sqlonly")).toBeUndefined();
+  });
+
+  it("describes nothing when the client cannot be built without a db", () => {
+    const failing = defineBlock({
+      name: "failing",
+      create: (_options: BlockContext): unknown => {
+        throw new Error("needs a database");
+      },
+      category: "work",
+    });
+
+    const blocks = defineBlocks(
+      { failing: { schema: "better_supabase", options: {} } },
+      { failing },
+    );
+
+    expect(blocks.describe("failing")).toBeUndefined();
+    expect(surfaceOf("not an object")).toBeUndefined();
+  });
+
+  it("names a block that has no client to build", () => {
+    const sqlOnly = defineBlock({ name: "sqlonly", category: "work" });
+
+    const blocks = defineBlocks(
+      { sqlonly: { schema: "better_supabase", options: {} } },
+      { sqlonly: sqlOnly },
+    );
+
+    expect(() => blocks.client({} as never, "sqlonly")).toThrow(
+      /has only SQL/u,
+    );
+    expect(
+      Object.keys(blocks.serviceBlocks(createFakeClient(() => ({})))),
+    ).toEqual([]);
+  });
+
+  it("names a block that is not in the set", () => {
+    const blocks = defineBlocks(
+      { organizations: { schema: "better_supabase", options: {} } },
+      { organizations: organizationsBlock },
+    );
+
+    expect(() => blocks.client({} as never, "missing" as never)).toThrow(
+      /No block named "missing"/u,
+    );
+  });
+
+  it("passes the tenant of a service client to its block", async () => {
+    const tenants: unknown[] = [];
+
+    const probe = defineBlock({
+      name: "probe",
+      create: (options: BlockContext) => ({
+        tenant: () =>
+          typeof options.tenant === "function" ? options.tenant() : undefined,
+      }),
+      category: "work",
+    });
+
+    const blocks = defineBlocks(
+      { probe: { schema: "better_supabase", options: {} } },
+      { probe },
+    );
+
+    const admin = createFakeClient(() => ({ data: [] }));
+    const fallback = blocks.serviceBlocks(admin);
+    const scoped = blocks.serviceBlocks(admin, { tenant: () => "t1" });
+
+    tenants.push(fallback.probe.tenant(), scoped.probe.tenant());
+
+    expect(tenants).toEqual([undefined, "t1"]);
+  });
+});
+
 describe("createBlocks composites", () => {
   const part = (name: string, answer: string) =>
     defineBlock({

@@ -2807,7 +2807,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking"
+        "time-tracking",
+        "approvals"
       ],
       "modes": [
         "managed",

@@ -4971,7 +4971,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking"
+        "time-tracking",
+        "approvals"
       ],
       "manifest": "employees",
       "scopes": [

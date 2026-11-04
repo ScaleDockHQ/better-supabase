@@ -85,6 +85,13 @@ describe("sessions bootstrap wrappers", () => {
     expect(() =>
       sessions({ options: { bootstrap: { home: { readSets: ["hub;"] } } } }),
     ).toThrow(/read set names/);
+    expect(() =>
+      sessions({
+        options: {
+          bootstrap: { home: { readSets: ["hub"], shell: "home; drop" } },
+        },
+      }),
+    ).toThrow(/shell must name a function/);
   });
 
   it("rejects a name or a function it can't render safely", () => {

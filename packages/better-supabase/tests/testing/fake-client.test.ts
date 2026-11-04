@@ -138,4 +138,38 @@ describe("createFakeClient", () => {
     });
     expect(client.requests[1]).toMatchObject({ method: "GET", query: {} });
   });
+
+  it("returns a handler error as a failed reply", async () => {
+    const client = createFakeClient(() => ({
+      error: { code: "23505", message: "duplicate", details: "", hint: "" },
+    }));
+
+    const reply = await client.from("notes").insert({ title: "a" });
+
+    expect(reply).toMatchObject({
+      data: null,
+      error: { code: "23505" },
+      status: 400,
+    });
+  });
+
+  it("refuses single() over several rows with PGRST116", async () => {
+    const client = createFakeClient(() => ({ data: [{ id: 1 }, { id: 2 }] }));
+
+    const reply = await client.from("notes").select().single();
+
+    expect(reply).toMatchObject({
+      data: null,
+      error: { code: "PGRST116" },
+      status: 406,
+    });
+  });
+
+  it("returns the row of maybeSingle() when there is exactly one", async () => {
+    const client = createFakeClient(() => ({ data: [{ id: 1 }] }));
+
+    const reply = await client.from("notes").select().maybeSingle();
+
+    expect(reply.data).toEqual({ id: 1 });
+  });
 });
