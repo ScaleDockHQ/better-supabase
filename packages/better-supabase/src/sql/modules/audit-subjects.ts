@@ -212,13 +212,17 @@ create index if not exists ${sqlIdent(`audit_events_${name}_idx`)} on ${log} (${
 
 /**
  * How the caller acted: service, support, impersonation, oauth-client, staff
- * (with `staffClaim`), user or system.
+ * (with `staffClaim`), user or system. `import_run()` sits in a scalar
+ * subselect, so a statement-level insert reads it once, not once per row.
  */
+export const INTEGRATION_TEST =
+  "(select better_supabase.import_run()) is not null";
+
 export function actorKind(ctx: BlockSqlContext): string {
   const staff = staffTest(ctx);
 
   return `case
-      when better_supabase.import_run() is not null then 'integration'
+      when ${INTEGRATION_TEST} then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'

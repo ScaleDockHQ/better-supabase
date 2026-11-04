@@ -4472,7 +4472,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:406ee39ddee90c338cc4ca9f52d2d589fec1ac8b6eb3de188354b3510ca4d4db
+-- @bsb-hash sha256:15e14b76c3d36e97566033c11c2408c59a9e355c96368ec02694a081bc98c8f3
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5832,6 +5832,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -5841,6 +5842,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5859,6 +5861,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."inspection_role"(inspection_id uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."inspection_role"($1) $$;
@@ -5913,6 +5916,7 @@ grant execute on function "api"."inspection_set_team"(uuid, uuid, jsonb) to serv
 create or replace function "api"."inspection_team_with_lead"(team jsonb, lead_id uuid)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."inspection_team_with_lead"($1, $2) $$;

@@ -1663,7 +1663,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:262c47c3c579b1c403ea49662a5821812220d1f56d74c8a930a715568e8ec439
+-- @bsb-hash sha256:1a40052f30a85c8eae72e5fbcf3e73e7a4955ca4b3893626a4e36e2f23917f5b
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2063,6 +2063,7 @@ drop function if exists "api"."request_access"(uuid, text, text, interval, jsonb
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2108,6 +2109,7 @@ grant execute on function "api"."expire_access_grants"(integer) to service_role;
 create or replace function "api"."get_access_request"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_access_request"($1) $$;
@@ -2117,6 +2119,7 @@ grant execute on function "api"."get_access_request"(uuid) to authenticated, ser
 create or replace function "api"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_access_requests"($1, $2, $3, $4, $5) $$;

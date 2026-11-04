@@ -2017,7 +2017,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:e6436736dbc7f21ff4c3fa2d8dadb70465a7b1a8ea61a05af3ad2d91a900a105
+-- @bsb-hash sha256:05317a197ab2d99cda379ada8e72eb04eb1004b6c8b269b9d3ab74fac3ce0206
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2652,6 +2652,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2679,6 +2680,7 @@ grant execute on function "api"."save_score_model"(uuid, jsonb) to authenticated
 create or replace function "api"."list_score_models"(tenant uuid, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_score_models"($1, $2) $$;
@@ -2688,6 +2690,7 @@ grant execute on function "api"."list_score_models"(uuid, text) to authenticated
 create or replace function "api"."get_score_model"(model_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_score_model"($1) $$;
@@ -2715,6 +2718,7 @@ grant execute on function "api"."compute_score"(uuid, text, text, text, jsonb, t
 create or replace function "api"."subject_scores"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_scores"($1, $2, $3) $$;
@@ -2724,6 +2728,7 @@ grant execute on function "api"."subject_scores"(uuid, text, text) to authentica
 create or replace function "api"."score_history"(tenant uuid, model_key text, subject_type text, subject_id text, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."score_history"($1, $2, $3, $4, $5) $$;
@@ -2733,6 +2738,7 @@ grant execute on function "api"."score_history"(uuid, text, text, text, integer)
 create or replace function "api"."top_scores"(tenant uuid, model_key text, band text default null, min_score numeric default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."top_scores"($1, $2, $3, $4, $5) $$;

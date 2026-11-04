@@ -115,7 +115,7 @@ async function run(
       ROLES,
       setup,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [

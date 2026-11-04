@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:0adc426f32a3baa751ce8fac5a234e183085365fb031fff0fea459eec33ba539
+-- @bsb-hash sha256:1d8fcd041b7805b91651097d764d18bd3bad86308ff13ade6fbc220c2e944e23
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -603,6 +603,7 @@ drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, int
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -612,6 +613,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -630,6 +632,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."comment_conversation"(tenant uuid, subject_type text, subject_id text)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."comment_conversation"($1, $2, $3) $$;
@@ -639,6 +642,7 @@ grant execute on function "api"."comment_conversation"(uuid, text, text) to auth
 create or replace function "api"."get_comment"(message uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_comment"($1) $$;
@@ -666,6 +670,7 @@ grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, i
 create or replace function "api"."list_file_comments"(attachment uuid, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_file_comments"($1, $2) $$;
@@ -675,6 +680,7 @@ grant execute on function "api"."list_file_comments"(uuid, integer) to authentic
 create or replace function "api"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."comment_counts"($1, $2, $3) $$;

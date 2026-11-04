@@ -1,6 +1,6 @@
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:c2e75b65c2b03c72d3090976ccdf4748d5189d62dc79bdd608cbc41441458e39
+-- @bsb-hash sha256:711cbe8be2c913402191207b65ef0a36e067a670efad5e5f4580b7901036955b
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -517,6 +517,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -580,6 +581,7 @@ grant execute on function "api"."void_referral"(uuid, text) to authenticated, se
 create or replace function "api"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_referrals"($1, $2) $$;
@@ -589,6 +591,7 @@ grant execute on function "api"."list_referrals"(uuid, jsonb) to authenticated, 
 create or replace function "api"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_referral_codes"($1, $2) $$;

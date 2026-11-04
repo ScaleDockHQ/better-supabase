@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:699290a4ede8e5a34a2fff8d443b4c16fe07b40e58ef9b456d4b1ecf75d0960a
+-- @bsb-hash sha256:c8fe0cfeff4a880507dadbead0fdad387fdae0b77eb8531634474cfe7523680f
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,9 +98,9 @@ alter table "centrakit"."webhook_destination_secrets" enable row level security;
 grant all on "centrakit"."webhook_destination_secrets" to service_role;
 
 -- centrakit.webhook_deliveries is the app's table, and it has every column this block needs.
-create index if not exists webhook_deliveries_due_idx on "centrakit"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
+create index if not exists webhook_deliveries_due_idx on "centrakit"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'failed', 'processing');
 create index if not exists webhook_deliveries_endpoint_idx on "centrakit"."webhook_deliveries" ("destination_id", "created_at" desc);
-create index if not exists webhook_deliveries_open_idx on "centrakit"."webhook_deliveries" ("destination_id") where "status" in ('pending', 'retrying');
+create index if not exists webhook_deliveries_open_idx on "centrakit"."webhook_deliveries" ("destination_id") where "status" in ('pending', 'failed');
 create index if not exists webhook_deliveries_finished_idx on "centrakit"."webhook_deliveries" ("created_at") where "status" in ('completed', 'canceled', 'dead_lettered');
 create index if not exists webhook_deliveries_tenant_created_idx on "centrakit"."webhook_deliveries" ("organization_id", "created_at" desc);
 create unique index if not exists webhook_deliveries_endpoint_event_idx on "centrakit"."webhook_deliveries" ("destination_id", "event_id") where "event_id" is not null;

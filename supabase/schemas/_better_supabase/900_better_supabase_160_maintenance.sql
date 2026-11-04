@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:48e8b82c8f3683048e2b7e36ee38dfc13d055713ef3e1fbfc4221a626d5b007e
+-- @bsb-hash sha256:ea455986a0f3bc02a4b26e8d55a9097f299fca57e3e93eeb2660077e2845e8bf
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1171,6 +1171,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1189,6 +1190,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."maintenance_next_occurrence"(dtstart timestamptz, tz text, rrule text, after timestamptz)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."maintenance_next_occurrence"($1, $2, $3, $4) $$;
@@ -1243,6 +1245,7 @@ grant execute on function "api"."record_meter_reading"(uuid, numeric, timestampt
 create or replace function "api"."list_maintenance_meters"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_maintenance_meters"($1) $$;
@@ -1261,6 +1264,7 @@ grant execute on function "api"."record_calibration"(uuid, jsonb) to authenticat
 create or replace function "api"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_calibrations"($1, $2) $$;
@@ -1270,6 +1274,7 @@ grant execute on function "api"."list_calibrations"(uuid, jsonb) to authenticate
 create or replace function "api"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_maintenance_plans"($1, $2) $$;

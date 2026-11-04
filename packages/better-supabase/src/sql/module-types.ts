@@ -311,6 +311,11 @@ export interface BlockSqlLayout {
    */
   readonly auditedTables?: readonly AuditedTable[];
   /**
+   * The Postgres function config.toml names as `auth.hook.custom_access_token`
+   * (`schema.name`); `tests.authenticate_as_issued` calls it by default.
+   */
+  readonly customAccessTokenHook?: string;
+  /**
    * Ignored: the header names only the module, so a release doesn't rewrite
    * every file. The `@bsb-block name@N` marker carries the module version.
    *

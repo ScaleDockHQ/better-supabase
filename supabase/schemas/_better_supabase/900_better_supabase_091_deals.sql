@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ef6918d17759f9e5296154ee3845b89a42a4f1b5a0a95020b6226457284ad997
+-- @bsb-hash sha256:b6d38efda2028170ce52f36e3fcf60a33c89bcdba113e06051cf1f8dd61e74bc
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1362,6 +1362,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1371,6 +1372,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1470,6 +1472,7 @@ grant execute on function "api"."delete_deal"(uuid) to authenticated, service_ro
 create or replace function "api"."deal_forecast"(tenant uuid, pipeline uuid, since date, until date, currency text, target bigint, owner uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."deal_forecast"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -1479,6 +1482,7 @@ grant execute on function "api"."deal_forecast"(uuid, uuid, date, date, text, bi
 create or replace function "api"."deal_health"(pipeline uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."deal_health"($1) $$;
@@ -1488,6 +1492,7 @@ grant execute on function "api"."deal_health"(uuid) to authenticated, service_ro
 create or replace function "api"."deal_board"(pipeline uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."deal_board"($1) $$;

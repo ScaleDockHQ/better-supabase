@@ -1651,6 +1651,27 @@ permission, list them in
 trigger raises `42501` when a caller without the group's permission changes one
 of them.
 
+### BS363
+
+**Warning: a partial index differs from the module's definition.** `create index
+if not exists` never changes an index that already exists. When a module now
+writes another `where` predicate for an index, such as the mapped status values
+in the `webhooks-out` delivery indexes, a database set up earlier keeps the old
+one. Doctor compares the string literals of each partial index in the module
+files with the live index of the same name and table, and lists the ones that
+differ. Drop the index, run `better-supabase sql upgrade` and apply the
+migration. Needs a database; saved snapshots skip it.
+
+### BS364
+
+**Warning: an API wrapper is volatile around a stable function.** A `language
+sql` wrapper without `stable` is volatile, so Postgres can't inline it into a
+policy or cache it for the statement. The wrappers `gen.api` writes copy the
+volatility of the function they wrap. Doctor lists a volatile `security invoker`
+SQL function with the same name and arguments as a `stable` or `immutable`
+function in another schema, which is how a wrapper from an older release looks.
+Run `better-supabase sql upgrade` to rewrite it.
+
 ## Auth config
 
 ### BS353
@@ -2270,6 +2291,42 @@ functions that carry the directive as their first statement.
 role skips the user's policies, so what it returns is cached under the user's
 key but isn't their data, and each call adds a verification. Read as the user,
 or move the admin read out of the cached function.
+
+## Shims
+
+These checks read the app's source text, matched by `doctor.sources`, for code the library now covers. Each one reports once per file and only in files that name better-supabase. The shim registry in `src/cli/doctor/shims.ts` lists them, so one entry adds a check.
+
+### BS612
+
+**Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.
+
+### BS613
+
+**Info: an extra Auth call follows `bootstrap`.** `auth.getUser()` or `auth.getClaims()` next to a bootstrap call. Since 0.44, `Bootstrap.endReason` says why a session ended without a second Auth call.
+
+### BS614
+
+**Info: the authorization version is seeded by hand after `bootstrap`.** The bootstrap already seeds the live version.
+
+### BS615
+
+**Info: comment paging filters `deletedAt` in the app.** Use `includeDeleted` on the comments client.
+
+### BS616
+
+**Info: comment authors are read again after a comment list.** With `profiles` installed, `Message.author` is `{ id, name, avatarUrl }`.
+
+### BS617
+
+**Info: `withPublicPolicyRoles`.** The catalog query maps empty policy roles to public itself.
+
+### BS618
+
+**Info: a unique violation is detected by `code === "23505"` or by a message search.** Use `isConflict(error, constraint)`.
+
+### BS619
+
+**Info: a support caller is built as an `AuthState` by hand.** Pass `{ token, claims }`, a `SupportCaller`, to the support API.
 
 ## Local stacks
 

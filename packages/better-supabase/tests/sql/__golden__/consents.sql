@@ -3723,7 +3723,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:82f076b59ad350545d7bafdda49a5ec1ebc3b728e05530b0577d4e0b44ee39e9
+-- @bsb-hash sha256:d85709c89f2f15fae00d2f2be93d7c3f300fffe10cd2437c54c339d69c63f681
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4867,6 +4867,7 @@ drop function if exists "api"."consent_missing"(uuid, text, text, text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4903,6 +4904,7 @@ grant execute on function "api"."archive_consent_purpose"(uuid) to authenticated
 create or replace function "api"."list_consent_purposes"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_consent_purposes"($1, $2) $$;
@@ -4930,6 +4932,7 @@ grant execute on function "api"."withdraw_consent"(uuid, text) to authenticated,
 create or replace function "api"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."consent_active"($1, $2, $3) $$;
@@ -4939,6 +4942,7 @@ grant execute on function "api"."consent_active"(text, text, text) to authentica
 create or replace function "api"."list_consents"(subject_type text, subject_id text, include_history boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_consents"($1, $2, $3) $$;
@@ -4966,6 +4970,7 @@ grant execute on function "api"."record_consent_signal"(text, text, text, text, 
 create or replace function "api"."list_consent_signals"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_consent_signals"($1, $2) $$;
@@ -4984,6 +4989,7 @@ grant execute on function "api"."issue_consent_receipt"(uuid) to authenticated, 
 create or replace function "api"."list_consent_receipts"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_consent_receipts"($1, $2) $$;
@@ -4993,6 +4999,7 @@ grant execute on function "api"."list_consent_receipts"(text, text) to authentic
 create or replace function "api"."requires_consent"(subject_type text, subject_id text, purpose_key text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."requires_consent"($1, $2, $3) $$;

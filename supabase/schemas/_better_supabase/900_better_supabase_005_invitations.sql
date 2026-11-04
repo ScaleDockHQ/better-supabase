@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:c59e9f9b08176707195444700965600d4b7cc42807f3beddc907a74d48e22d8f
+-- @bsb-hash sha256:ab6a25f23a6834ae5896f8417e0c0ba58d1f559199364cb5e08a2e17a57df244
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1245,6 +1245,7 @@ drop function if exists "api"."create_invitation"(uuid, text, text, interval);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1317,6 +1318,7 @@ grant execute on function "api"."decline_invitation"(text) to anon, authenticate
 create or replace function "api"."invitation_preview"(token text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invitation_preview"($1) $$;
@@ -1353,6 +1355,7 @@ grant execute on function "api"."decline_invitation_by_id"(uuid) to authenticate
 create or replace function "api"."my_invitations"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_invitations"() $$;
@@ -1362,6 +1365,7 @@ grant execute on function "api"."my_invitations"() to authenticated;
 create or replace function "api"."accepting_invitation"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accepting_invitation"() $$;

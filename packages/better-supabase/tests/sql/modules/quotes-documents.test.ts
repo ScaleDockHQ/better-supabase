@@ -43,7 +43,7 @@ async function run(check: string, modules = ["quotes"]): Promise<void> {
       ROLES,
       PGCRYPTO,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [

@@ -63,7 +63,9 @@ export const blockConfig = {
   },
   "api-keys": {
     schema: "better_supabase",
-    options: {},
+    options: {
+      prefix: "bs",
+    },
   },
   attachments: {
     schema: "better_supabase",

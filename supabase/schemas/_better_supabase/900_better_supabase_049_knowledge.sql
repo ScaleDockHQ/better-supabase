@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:77c749617a63853dac31be83de177fbe71adcc4fae57e5583df4f83149dc311b
+-- @bsb-hash sha256:42f1966d8afa65f126e7f861cbec6bf2ca944970ecef313b0ef6604bb0b32cc7
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,6 +996,7 @@ drop function if exists "api"."knowledge_search"(uuid, extensions.vector, text, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1014,6 +1015,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."knowledge_collection_readable"(collection_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."knowledge_collection_readable"($1) $$;
@@ -1050,6 +1052,7 @@ grant execute on function "api"."delete_knowledge_collection"(uuid) to authentic
 create or replace function "api"."list_knowledge_collections"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_knowledge_collections"($1) $$;
@@ -1068,6 +1071,7 @@ grant execute on function "api"."set_knowledge_collection_grant"(uuid, uuid, uui
 create or replace function "api"."list_knowledge_collection_grants"(collection_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_knowledge_collection_grants"($1) $$;
@@ -1077,6 +1081,7 @@ grant execute on function "api"."list_knowledge_collection_grants"(uuid) to auth
 create or replace function "api"."knowledge_subject_readable"(subject_type text, subject_id text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."knowledge_subject_readable"($1, $2) $$;
@@ -1104,6 +1109,7 @@ grant execute on function "api"."write_knowledge_chunks"(uuid, jsonb, text) to a
 create or replace function "api"."get_knowledge_document"(document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_knowledge_document"($1) $$;
@@ -1113,6 +1119,7 @@ grant execute on function "api"."get_knowledge_document"(uuid) to authenticated,
 create or replace function "api"."list_knowledge_documents"(tenant uuid, scope text default null, scope_id uuid default null, max_rows integer default 100, collection_id uuid default null, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_knowledge_documents"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -1131,6 +1138,7 @@ grant execute on function "api"."delete_knowledge_document"(uuid) to authenticat
 create or replace function "api"."knowledge_search"(tenant uuid, query_embedding extensions.vector default null, query_text text default null, scopes jsonb default null, k integer default 8, filter jsonb default null, collections uuid[] default null, priority_order boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."knowledge_search"($1, $2, $3, $4, $5, $6, $7, $8) $$;
@@ -1140,6 +1148,7 @@ grant execute on function "api"."knowledge_search"(uuid, extensions.vector, text
 create or replace function "api"."pending_knowledge_chunks"(document_id uuid, batch integer default 64)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_knowledge_chunks"($1, $2) $$;
@@ -1167,6 +1176,7 @@ grant execute on function "api"."fail_knowledge_document"(uuid, text) to service
 create or replace function "api"."pending_knowledge_documents"(batch integer default 10)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_knowledge_documents"($1) $$;

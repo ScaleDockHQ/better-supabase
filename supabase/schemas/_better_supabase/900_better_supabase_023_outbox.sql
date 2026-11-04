@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:2e2cea795ea9fdee02fc22bf43bab729e11f93488c08a2038b6d9626bbae0f33
+-- @bsb-hash sha256:3145089c0e5865ad5128068836f3840f97ab1cf24b3620034e0ab57ec0823ab5
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -549,6 +549,7 @@ drop function if exists "api"."purge_outbox"(interval, integer);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -612,6 +613,7 @@ grant execute on function "api"."outbox_fail"(text, text, bigint, text, integer,
 create or replace function "api"."outbox_dead_letters"(consumer text, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."outbox_dead_letters"($1, $2) $$;
@@ -621,6 +623,7 @@ grant execute on function "api"."outbox_dead_letters"(text, integer) to service_
 create or replace function "api"."outbox_history"(subject text default null, event_type text default null, after bigint default 0, max_events integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."outbox_history"($1, $2, $3, $4) $$;

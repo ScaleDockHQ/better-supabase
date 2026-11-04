@@ -3,6 +3,13 @@ import type { BlockOptionsSchema } from "../options.ts";
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.audit.options.ipHeader`. */
+/** A table left out of audit coverage, with the reason doctor shows. */
+export interface AuditExemption {
+  /** A glob: `*` matches any run of characters. */
+  readonly table: string;
+  readonly reason: string;
+}
+
 export interface AuditIpHeader {
   /** The request header that carries the client address. */
   readonly name: string;
@@ -34,7 +41,12 @@ export type AuditSqlOptions = {
   readonly eventRoles?: readonly string[];
   readonly trustedRoles?: readonly string[];
   readonly eventSource?: string;
-  readonly exempt?: unknown;
+  /**
+   * Tables left out of audit coverage: `{ table, reason }` where `table` is a
+   * glob such as `public.*_archive`. A bare glob string still works, but doctor
+   * reports it (BS315) and it becomes a failure in the next minor.
+   */
+  readonly exempt?: readonly (string | AuditExemption)[];
   readonly impersonators?: string;
   /**
    * The header `request_ip()` reads; defaults to the last `x-forwarded-for`

@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:8a7e9cbb80718f568ae6879f688b0a12f40c04c85f94ff2630bbd140aedd071b
+-- @bsb-hash sha256:92b6ff4820e47d4b3212adec9915533ecebfc9ddf5e50b5209d6271fa2113972
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,6 +516,7 @@ drop function if exists "api"."save_view"(uuid, text, text, text, text, text, js
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -543,6 +544,7 @@ grant execute on function "api"."save_view"(uuid, text, text, text, text, text, 
 create or replace function "api"."list_views"(tenant uuid, list text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_views"($1, $2) $$;

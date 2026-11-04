@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:fdf0dd9b5b9ea663271fae1a549c04c0ad2a3a7b397b2a0041b7008f382da7c6
+-- @bsb-hash sha256:dc35db2647e0a0ae9ce46a11894c91139ce9298a190ad3bef4e0ea27fc3c0f7d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2177,6 +2177,7 @@ drop function if exists "api"."set_typing"(uuid, boolean);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -2186,6 +2187,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2204,6 +2206,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."can_conversation"(conversation uuid, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_conversation"($1, $2) $$;
@@ -2249,6 +2252,7 @@ grant execute on function "api"."archive_conversation"(uuid, boolean) to authent
 create or replace function "api"."list_conversations"(tenant uuid, kinds text[] default null, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_conversations"($1, $2, $3) $$;
@@ -2258,6 +2262,7 @@ grant execute on function "api"."list_conversations"(uuid, text[], integer) to a
 create or replace function "api"."unread_counts"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unread_counts"($1) $$;
@@ -2276,6 +2281,7 @@ grant execute on function "api"."mark_read"(uuid, uuid, timestamptz) to authenti
 create or replace function "api"."conversation_read_at"(conversation uuid, member uuid default null)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."conversation_read_at"($1, $2) $$;
@@ -2312,6 +2318,7 @@ grant execute on function "api"."follow"(text, uuid, boolean) to authenticated, 
 create or replace function "api"."messaging_file_anchor_valid"(anchor jsonb)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."messaging_file_anchor_valid"($1) $$;
@@ -2321,6 +2328,7 @@ grant execute on function "api"."messaging_file_anchor_valid"(jsonb) to authenti
 create or replace function "api"."list_record_mentions"(subject_type text, subject_id text, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_record_mentions"($1, $2, $3, $4, $5) $$;
@@ -2384,6 +2392,7 @@ grant execute on function "api"."resolve_message"(uuid, boolean) to authenticate
 create or replace function "api"."list_messages"(conversation uuid, after timestamptz default null, after_id uuid default null, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_messages"($1, $2, $3, $4, $5, $6) $$;
@@ -2393,6 +2402,7 @@ grant execute on function "api"."list_messages"(uuid, timestamptz, uuid, timesta
 create or replace function "api"."list_replies"(message uuid, after timestamptz default null, after_id uuid default null, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_replies"($1, $2, $3, $4) $$;
@@ -2402,6 +2412,7 @@ grant execute on function "api"."list_replies"(uuid, timestamptz, uuid, integer)
 create or replace function "api"."list_file_anchors"(attachment uuid, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_file_anchors"($1, $2) $$;
@@ -2411,6 +2422,7 @@ grant execute on function "api"."list_file_anchors"(uuid, integer) to authentica
 create or replace function "api"."get_message"(message uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_message"($1) $$;
@@ -2420,6 +2432,7 @@ grant execute on function "api"."get_message"(uuid) to authenticated, service_ro
 create or replace function "api"."list_message_edits"(message uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_message_edits"($1) $$;
@@ -2429,6 +2442,7 @@ grant execute on function "api"."list_message_edits"(uuid) to authenticated, ser
 create or replace function "api"."list_pinned_messages"(conversation uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pinned_messages"($1) $$;
@@ -2438,6 +2452,7 @@ grant execute on function "api"."list_pinned_messages"(uuid) to authenticated, s
 create or replace function "api"."thread_summary"(conversation uuid default null, thread uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."thread_summary"($1, $2) $$;

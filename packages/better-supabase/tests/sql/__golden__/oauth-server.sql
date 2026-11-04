@@ -2656,7 +2656,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:92b5f411594edc0e98dd57a73e4a13bb44b431746feec8ab9cd3397b96d1f998
+-- @bsb-hash sha256:ece0e15b772e8aa9aab5ff4062ffe0473099b947ca323e1cb63c8cfaf4f076a6
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3506,6 +3506,7 @@ drop function if exists "api"."poll_oauth_device_code"(text, text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3533,6 +3534,7 @@ grant execute on function "api"."register_oauth_client"(text, text, text, text, 
 create or replace function "api"."oauth_client"(client_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."oauth_client"($1) $$;
@@ -3542,6 +3544,7 @@ grant execute on function "api"."oauth_client"(text) to service_role;
 create or replace function "api"."verify_oauth_client"(client_id text, secret_hash text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."verify_oauth_client"($1, $2) $$;
@@ -3551,6 +3554,7 @@ grant execute on function "api"."verify_oauth_client"(text, text) to service_rol
 create or replace function "api"."verify_oauth_registration_token"(client_id text, token_hash text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."verify_oauth_registration_token"($1, $2) $$;
@@ -3614,6 +3618,7 @@ grant execute on function "api"."create_oauth_device_code"(text, text, text, tex
 create or replace function "api"."oauth_device_request"(user_code text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."oauth_device_request"($1) $$;
@@ -3641,6 +3646,7 @@ grant execute on function "api"."poll_oauth_device_code"(text, text, text[]) to 
 create or replace function "api"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_oauth_grants"($1, $2) $$;
@@ -3659,6 +3665,7 @@ grant execute on function "api"."revoke_oauth_grant"(uuid) to service_role;
 create or replace function "api"."my_oauth_grants"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_oauth_grants"() $$;
@@ -3686,6 +3693,7 @@ grant execute on function "api"."revoke_oauth_token"(text, timestamptz, uuid) to
 create or replace function "api"."is_oauth_token_revoked"(jti text, grant_id text default null)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_oauth_token_revoked"($1, $2) $$;

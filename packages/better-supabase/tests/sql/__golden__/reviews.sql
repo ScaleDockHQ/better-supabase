@@ -1823,7 +1823,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:28484c82db9b7863a6956a4bd31a50053f5fcfa64f0f2f7ba9790290982e5783
+-- @bsb-hash sha256:04d4d92d307a2b2833c7b10ab2247cda4d0a40f6e3cb7e8b33a6349129e01ff6
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2359,6 +2359,7 @@ drop function if exists "api"."submit_review"(uuid, text, text, integer, text, t
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2422,6 +2423,7 @@ grant execute on function "api"."reply_to_review"(uuid, text) to authenticated, 
 create or replace function "api"."list_reviews"(tenant uuid, subject_type text, subject_id text, page_size integer default 20, before timestamptz default null, rating integer default null, verified boolean default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_reviews"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -2431,6 +2433,7 @@ grant execute on function "api"."list_reviews"(uuid, text, text, integer, timest
 create or replace function "api"."my_review"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_review"($1, $2, $3) $$;
@@ -2440,6 +2443,7 @@ grant execute on function "api"."my_review"(uuid, text, text) to authenticated, 
 create or replace function "api"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."review_queue"($1, $2, $3, $4, $5, $6) $$;
@@ -2449,6 +2453,7 @@ grant execute on function "api"."review_queue"(uuid, text, integer, timestamptz,
 create or replace function "api"."review_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."review_summary"($1, $2, $3) $$;

@@ -5061,7 +5061,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:50bd41e1c9347a65d6b2091d37c392a83e55669d802e49cb0dccbf29a4bd2664
+-- @bsb-hash sha256:b4faad9d5adaa62daf773028c08779ae4f41860c2877b21c3f0d8594a0511aa0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6674,6 +6674,7 @@ drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -6764,6 +6765,7 @@ grant execute on function "api"."merge_people"(uuid, uuid) to authenticated, ser
 create or replace function "api"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_companies"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
@@ -6773,6 +6775,7 @@ grant execute on function "api"."list_companies"(uuid, text, text, uuid, text, u
 create or replace function "api"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_people"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
@@ -6782,6 +6785,7 @@ grant execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid
 create or replace function "api"."company_people_of"(company uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."company_people_of"($1) $$;
@@ -6800,6 +6804,7 @@ grant execute on function "api"."save_payment_term"(uuid, jsonb) to authenticate
 create or replace function "api"."list_payment_terms"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_payment_terms"($1) $$;
@@ -6827,6 +6832,7 @@ grant execute on function "api"."set_document_delivery_preferences"(uuid, jsonb)
 create or replace function "api"."list_document_delivery_preferences"(party uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_delivery_preferences"($1) $$;
@@ -6845,6 +6851,7 @@ grant execute on function "api"."import_payment_term"(uuid, jsonb, text) to serv
 create or replace function "api"."payment_term_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."payment_term_updated_at"($1) $$;
@@ -6863,6 +6870,7 @@ grant execute on function "api"."import_document_delivery_preference"(uuid, json
 create or replace function "api"."document_delivery_preference_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_delivery_preference_updated_at"($1) $$;
@@ -6890,6 +6898,7 @@ grant execute on function "api"."set_supplier_status"(uuid, text, text) to authe
 create or replace function "api"."list_person_identities"(person uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_person_identities"($1) $$;
@@ -6917,6 +6926,7 @@ grant execute on function "api"."remove_person_identity"(uuid) to authenticated,
 create or replace function "api"."find_person_by_identity"(tenant uuid, channel text, address text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."find_person_by_identity"($1, $2, $3) $$;

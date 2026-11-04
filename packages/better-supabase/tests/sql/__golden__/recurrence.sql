@@ -763,7 +763,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
--- @bsb-hash sha256:59bc11a828ca2c3898787da53937d02aa4ce283b2762a7ebb3bef87c788a0e8e
+-- @bsb-hash sha256:f6c859c2d6ac7912323cbb94d11d6413dbfbf32336791589c8a8732074b7880d
 -- An RFC 5545 expander in SQL: rrule_occurrences lists the instants a rule starts in a range and rrule_next gives the first after an instant, matching the TypeScript expander in better-supabase/recurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -994,6 +994,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."rrule_occurrences"(rule text, dtstart timestamptz, tz text, during tstzrange)
 returns setof timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."rrule_occurrences"($1, $2, $3, $4) $$;
@@ -1003,6 +1004,7 @@ grant execute on function "api"."rrule_occurrences"(text, timestamptz, text, tst
 create or replace function "api"."rrule_next"(rule text, dtstart timestamptz, tz text, after timestamptz)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rrule_next"($1, $2, $3, $4) $$;

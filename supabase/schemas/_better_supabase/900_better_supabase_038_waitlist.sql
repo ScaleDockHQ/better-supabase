@@ -1,6 +1,6 @@
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:be9a2e5553214d44833014019bdc6841586f514aeb3bcf8ba8c2c0856834ec3c
+-- @bsb-hash sha256:f5e25572514d621af518b2ca2491c3849dd91f23df5574241166b87255c39504
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -506,6 +506,7 @@ drop function if exists "api"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -533,6 +534,7 @@ grant execute on function "api"."join_waitlist"(text, text, jsonb) to anon, auth
 create or replace function "api"."list_waitlist"(status text default 'waiting', page_size integer default 50, after_position bigint default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_waitlist"($1, $2, $3) $$;
@@ -560,6 +562,7 @@ grant execute on function "api"."create_invite_code"(text, integer, timestamptz,
 create or replace function "api"."list_invite_codes"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invite_codes"($1) $$;
@@ -578,6 +581,7 @@ grant execute on function "api"."revoke_invite_code"(uuid) to authenticated, ser
 create or replace function "api"."waitlist_admit"(email text, code text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."waitlist_admit"($1, $2) $$;

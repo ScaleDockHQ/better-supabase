@@ -2552,7 +2552,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:ba70b62c6b77f639e64fe82029cb18b1bdd6b4e1d4845080f88dbe02702c0095
+-- @bsb-hash sha256:3f4852796f735284e99dbfbfc69a843d9a416e99b44b9945ac76530b52a18f21
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3343,6 +3343,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -3352,6 +3353,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3388,6 +3390,7 @@ grant execute on function "api"."start_import"(uuid, text, jsonb) to authenticat
 create or replace function "api"."get_import_run"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_import_run"($1) $$;
@@ -3397,6 +3400,7 @@ grant execute on function "api"."get_import_run"(uuid) to authenticated, service
 create or replace function "api"."list_import_runs"(tenant uuid, source text default null, status text default null, row_limit integer default 50)
 returns setof jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_import_runs"($1, $2, $3, $4) $$;
@@ -3460,6 +3464,7 @@ grant execute on function "api"."import_upsert_batch"(uuid, text, jsonb) to serv
 create or replace function "api"."import_resolve"(run uuid, entity text, keys jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_resolve"($1, $2, $3) $$;

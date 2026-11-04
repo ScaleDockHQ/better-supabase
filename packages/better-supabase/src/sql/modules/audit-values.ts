@@ -145,3 +145,30 @@ export function tenantLabel(ctx: BlockSqlContext, tenant: string): string {
 
   return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
 }
+
+/**
+ * The row trigger's insert values with the tenant label read from a transaction
+ * memo: one lookup per tenant and transaction, not per row.
+ */
+export function memoizedTenantLabel(
+  ctx: BlockSqlContext,
+  values: string,
+): { values: string; sql: string } {
+  const label = tenantLabel(ctx, "row_tenant");
+
+  if (label === "null" || !values.includes(label)) {
+    return { values, sql: "" };
+  }
+
+  return {
+    values: values.replaceAll(label, "v_label"),
+    sql: `
+  if row_tenant is not null then
+    v_label := better_supabase.memo_get('audit.tenant_label.t' || replace(row_tenant::text, '-', ''));
+    if v_label is null then
+      v_label := ${label};
+      perform better_supabase.memo_set('audit.tenant_label.t' || replace(row_tenant::text, '-', ''), coalesce(v_label, ''));
+    end if;
+  end if;`,
+  };
+}

@@ -341,6 +341,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0228: Decision log and harness session store.
 - 0229: Embed app table rows through pgmq, pg_net and pg_cron.
 - 0230: Seed the authorizer from the session and memoize the audit and updated-at helpers.
+- 0231: Run account helpers over a transport and ship the CentraKit report fixes.
 
 ## Pre-release pins
 

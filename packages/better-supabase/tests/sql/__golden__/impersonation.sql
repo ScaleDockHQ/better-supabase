@@ -2592,7 +2592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:6fffc1d30864ea0d303fe55a5accdbc961b3a943be6be9e50b38032fa1a81faa
+-- @bsb-hash sha256:77cabc5af9f0dd3cbd97b21f447075e24f7aa86a8cd041074b7a1e32d6c63080
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3419,6 +3419,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3455,6 +3456,7 @@ grant execute on function "api"."end_support_session"(uuid, text) to authenticat
 create or replace function "api"."active_support_session"(session_id uuid, admin_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."active_support_session"($1, $2) $$;
@@ -3464,6 +3466,7 @@ grant execute on function "api"."active_support_session"(uuid, uuid) to authenti
 create or replace function "api"."list_support_sessions"(admin_id uuid default null, target uuid default null, active boolean default null, max_rows integer default 50)
 returns setof jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_support_sessions"($1, $2, $3, $4) $$;
@@ -3491,6 +3494,7 @@ grant execute on function "api"."approve_support_request"(uuid, uuid) to authent
 create or replace function "api"."support_request"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."support_request"($1) $$;
@@ -3500,6 +3504,7 @@ grant execute on function "api"."support_request"(uuid) to authenticated, servic
 create or replace function "api"."approved_support_request"(target uuid, tenant uuid default null, read_only boolean default true, admin_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approved_support_request"($1, $2, $3, $4) $$;

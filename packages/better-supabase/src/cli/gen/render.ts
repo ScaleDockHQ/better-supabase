@@ -25,11 +25,13 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
+import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
+import { deprecationWarnings } from "./deprecations.ts";
 import { emitMeta, emitModule, emitRuntime, metaPaths } from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
@@ -128,7 +130,7 @@ export async function render(
   const output = resolve(config.root, config.output);
 
   const typegenOptions = {
-    schemas: config.schemas,
+    schemas: [...config.schemas, ...apiTypeSchemas(config)],
     postgrestVersion: config.postgrestVersion,
   };
 
@@ -282,7 +284,7 @@ export async function render(
 
   return {
     files,
-    warnings: model.warnings,
+    warnings: [...model.warnings, ...deprecationWarnings(config)],
     notices: model.notices,
     ...(typesModule === undefined ? {} : { typesModule }),
   };

@@ -25,6 +25,7 @@ import type {
 import type { StorageApi } from "../storage/storage-api.ts";
 import type { BlockClientsOf, BlocksHelper, BucketsOf } from "./db-blocks.ts";
 import type { BucketsHelper } from "./db-buckets.ts";
+import type { DbDecoder } from "./db-decode.ts";
 import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
 import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
@@ -569,6 +570,13 @@ export interface DbHelpers<
   $withoutPlugins(options?: {
     readonly keep?: readonly string[];
   }): Db<M, F, unknown, C, B>;
+  /**
+   * Reads rows that did not come from the repository (`$client` or `queryRaw`
+   * results, which use database names) into the table's shape: the configured
+   * casing, the column codecs and a shape check. A malformed value is a
+   * `Result` error, not an exception.
+   */
+  $decode<T extends TableKey<M>>(table: T): DbDecoder<Row<M, T>>;
   /**
    * The repository for a table named at runtime (MCP tools, admin screens).
    * Throws a `TypeError` for unknown names.

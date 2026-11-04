@@ -1,6 +1,6 @@
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:21dd69bbe48bc468626444488d6ae72e1bb8183de76f22b112783b6d8614cdce
+-- @bsb-hash sha256:fbd7e73925b0c372b5fc5e36801087af9da5c5f7f71ba37f63867a8f7c6bc962
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1162,6 +1162,7 @@ drop function if exists "api"."request_workflow_start"(text, text, jsonb, uuid, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1207,6 +1208,7 @@ grant execute on function "api"."set_workflow_run_engine"(uuid, text, text) to s
 create or replace function "api"."workflow_runs_list"(tenant uuid default null, definition text default null, status text default null, max integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, mode text default 'live')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_runs_list"($1, $2, $3, $4, $5, $6, $7, $8) $$;
@@ -1216,6 +1218,7 @@ grant execute on function "api"."workflow_runs_list"(uuid, text, text, integer, 
 create or replace function "api"."workflow_run_get"(run text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_run_get"($1) $$;
@@ -1252,6 +1255,7 @@ grant execute on function "api"."create_workflow_schedule"(text, text, text, tim
 create or replace function "api"."workflow_schedules_list"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_schedules_list"($1) $$;
@@ -1315,6 +1319,7 @@ grant execute on function "api"."release_workflow_semaphore"(text, text) to serv
 create or replace function "api"."workflow_admission_active"(key text)
 returns integer
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_admission_active"($1) $$;

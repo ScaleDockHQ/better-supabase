@@ -7,6 +7,7 @@ import {
   SPEC_SUBPATH_RENAMES,
 } from "../codemod-block-renames.ts";
 import { findObjectInputCalls } from "../codemod-object-inputs.ts";
+import { SHIM_RULES } from "./shims.ts";
 
 // A vendored UI component can have an `addRule` of its own; only files that reach a block
 // client (through the package, `$blocks` or the generated `lib/supabase` files) count.
@@ -220,4 +221,5 @@ export const REMOVED_API_RULES: readonly Rule[] = [
       "Since 0.47 every block client method takes one object (`drive.list({ organizationId, options })`). A call that still passes several positional arguments fails to type-check and, in plain JavaScript, reads the wrong values. `better-supabase codemod 0.47` rewrites the calls it can place and lists the rest.",
     check: positionalBlockCalls,
   },
+  ...SHIM_RULES,
 ];

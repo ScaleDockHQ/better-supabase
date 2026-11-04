@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:4823b02712655794dfca74ee76055cbe9456b08edc4931eb09c54f47711dbd1d
+-- @bsb-hash sha256:e6cb561f05c5fc233360c7ba555f756a098dc7473dfd5ee4bc68b9d80339789d
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1130,6 +1130,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1148,6 +1149,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."legal_entities_disable_check"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."legal_entities_disable_check"($1) $$;
@@ -1193,6 +1195,7 @@ grant execute on function "api"."set_legal_entity_archived"(uuid, boolean) to au
 create or replace function "api"."get_legal_entity"(legal_entity_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_legal_entity"($1) $$;
@@ -1202,6 +1205,7 @@ grant execute on function "api"."get_legal_entity"(uuid) to authenticated, servi
 create or replace function "api"."list_legal_entities"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_legal_entities"($1, $2) $$;
@@ -1211,6 +1215,7 @@ grant execute on function "api"."list_legal_entities"(uuid, boolean) to authenti
 create or replace function "api"."legal_entity_of"(tenant uuid, id uuid default null)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."legal_entity_of"($1, $2) $$;
@@ -1220,6 +1225,7 @@ grant execute on function "api"."legal_entity_of"(uuid, uuid) to authenticated, 
 create or replace function "api"."get_legal_entity_settings"(legal_entity_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_legal_entity_settings"($1) $$;
@@ -1247,6 +1253,7 @@ grant execute on function "api"."reset_legal_entity_setting"(uuid, text) to auth
 create or replace function "api"."resolve_setting"(tenant uuid, key text, legal_entity uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_setting"($1, $2, $3) $$;

@@ -503,7 +503,7 @@ describe("calendar over an app's tables with per-calendar access", () => {
           ROLES,
           APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -562,7 +562,7 @@ describe("calendar over an app's tables with per-calendar access", () => {
   action text not null default 'display'
 );`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -624,7 +624,7 @@ $$;`,
           ROLES,
           APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -677,7 +677,7 @@ $$;`,
           ROLES,
           APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -790,7 +790,7 @@ $$;`,
           ROLES,
           app,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

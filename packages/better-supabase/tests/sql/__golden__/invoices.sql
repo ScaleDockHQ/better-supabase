@@ -12564,7 +12564,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:4a78ff84aa46b04166e7a7b3317ed791ef9c2903f5647c5ae1f6823bfd9216ea
+-- @bsb-hash sha256:74cb06fe799602b69c31f6fcebc8460bf9cb859d99b53564d9baeaf4eab9e711
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16409,6 +16409,7 @@ drop function if exists "api"."invoice_aging"(uuid, text, date);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -16418,6 +16419,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -16490,6 +16492,7 @@ grant execute on function "api"."record_invoice_payment"(uuid, bigint, text, tim
 create or replace function "api"."list_invoice_payments"(invoice uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_payments"($1) $$;
@@ -16553,6 +16556,7 @@ grant execute on function "api"."remove_invoice_charge"(uuid, jsonb) to authenti
 create or replace function "api"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invoice_aging"($1, $2, $3, $4) $$;
@@ -16571,6 +16575,7 @@ grant execute on function "api"."purchase_bill_match"(uuid) to authenticated, se
 create or replace function "api"."list_party_credits"(tenant uuid, party_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_party_credits"($1, $2) $$;
@@ -16598,6 +16603,7 @@ grant execute on function "api"."apply_party_credit"(text, uuid, bigint, jsonb) 
 create or replace function "api"."list_invoice_dunning_levels"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_dunning_levels"($1) $$;
@@ -16634,6 +16640,7 @@ grant execute on function "api"."pause_invoice_dunning"(uuid, date, text) to aut
 create or replace function "api"."list_invoice_dunning_runs"(tenant uuid, max integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_dunning_runs"($1, $2) $$;
@@ -16643,6 +16650,7 @@ grant execute on function "api"."list_invoice_dunning_runs"(uuid, integer) to au
 create or replace function "api"."list_invoice_dunning_run_items"(run uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_dunning_run_items"($1) $$;
@@ -16652,6 +16660,7 @@ grant execute on function "api"."list_invoice_dunning_run_items"(uuid) to authen
 create or replace function "api"."list_invoice_dunning_history"(invoice uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_dunning_history"($1) $$;
@@ -16670,6 +16679,7 @@ grant execute on function "api"."hand_over_to_collection"(uuid[], text, text) to
 create or replace function "api"."invoice_approval_state"(invoice uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invoice_approval_state"($1) $$;
@@ -16688,6 +16698,7 @@ grant execute on function "api"."set_invoice_approval_levels"(uuid, jsonb, uuid)
 create or replace function "api"."list_invoice_approval_levels"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_approval_levels"($1) $$;
@@ -16697,6 +16708,7 @@ grant execute on function "api"."list_invoice_approval_levels"(uuid) to authenti
 create or replace function "api"."purchase_invoice_approval_status"(invoice uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."purchase_invoice_approval_status"($1) $$;
@@ -16724,6 +16736,7 @@ grant execute on function "api"."set_invoice_e_endpoint"(uuid, text, text, text,
 create or replace function "api"."invoice_e_endpoints"(invoice uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invoice_e_endpoints"($1) $$;
@@ -16733,6 +16746,7 @@ grant execute on function "api"."invoice_e_endpoints"(uuid) to authenticated, se
 create or replace function "api"."find_e_endpoint_party"(tenant uuid, scheme text, endpoint_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."find_e_endpoint_party"($1, $2, $3) $$;
@@ -16760,6 +16774,7 @@ grant execute on function "api"."set_e_invoice_delivery_state"(uuid, text, text,
 create or replace function "api"."list_e_invoice_deliveries"(tenant uuid, direction text default null, state text default null, invoice uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_e_invoice_deliveries"($1, $2, $3, $4) $$;
@@ -16769,6 +16784,7 @@ grant execute on function "api"."list_e_invoice_deliveries"(uuid, text, text, uu
 create or replace function "api"."open_items_for_party"(tenant uuid, party_id text default null, as_of date default null, side text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."open_items_for_party"($1, $2, $3, $4) $$;
@@ -16778,6 +16794,7 @@ grant execute on function "api"."open_items_for_party"(uuid, text, date, text) t
 create or replace function "api"."open_item_ageing"(tenant uuid, side text default null, as_of date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."open_item_ageing"($1, $2, $3) $$;
@@ -16787,6 +16804,7 @@ grant execute on function "api"."open_item_ageing"(uuid, text, date) to authenti
 create or replace function "api"."list_invoice_allocations"(tenant uuid, reference text default null, invoice_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoice_allocations"($1, $2, $3) $$;
@@ -16850,6 +16868,7 @@ grant execute on function "api"."import_open_item"(uuid, jsonb, text) to service
 create or replace function "api"."invoice_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invoice_updated_at"($1) $$;
@@ -16859,6 +16878,7 @@ grant execute on function "api"."invoice_updated_at"(text) to service_role;
 create or replace function "api"."document_totals_by_billing_party"(document uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_totals_by_billing_party"($1) $$;

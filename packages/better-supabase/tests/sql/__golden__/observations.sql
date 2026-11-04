@@ -3558,7 +3558,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:7d89da5508ec4503c720b9e41a036233423640252a41bf480bf9b9450f04d00c
+-- @bsb-hash sha256:3f127261aa088d88aa9b2b00e3609bc0789607db22ed698468597466d9c06cb1
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4641,6 +4641,7 @@ drop function if exists "api"."record_observation"(uuid, text, text, text, jsonb
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4722,6 +4723,7 @@ grant execute on function "api"."mark_observation_error"(uuid, text) to authenti
 create or replace function "api"."list_observation_definitions"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_observation_definitions"($1, $2) $$;
@@ -4731,6 +4733,7 @@ grant execute on function "api"."list_observation_definitions"(uuid, boolean) to
 create or replace function "api"."list_observations"(subject_type text, subject_id text, definition_key text default null, include_all boolean default false, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_observations"($1, $2, $3, $4, $5) $$;
@@ -4740,6 +4743,7 @@ grant execute on function "api"."list_observations"(text, text, text, boolean, i
 create or replace function "api"."observation_series"(subject_type text, subject_id text, definition_key text, since timestamptz default null, until timestamptz default null, bucket text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."observation_series"($1, $2, $3, $4, $5, $6) $$;
@@ -4749,6 +4753,7 @@ grant execute on function "api"."observation_series"(text, text, text, timestamp
 create or replace function "api"."latest_observations"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."latest_observations"($1, $2) $$;

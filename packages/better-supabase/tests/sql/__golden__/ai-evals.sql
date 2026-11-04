@@ -1511,7 +1511,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:44ca618f24610adf76d1925a0f894a2239c87e50a0655dc1cc97e09fcef0f9eb
+-- @bsb-hash sha256:b7e20a3948b93d58016c61b6cc2da0b3b8f12456d7dcd745bbc42d2b4c56ed92
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2003,6 +2003,7 @@ grant execute on function "api"."add_eval_items_from_feedback"(uuid, integer, ti
 create or replace function "api"."list_eval_items"(dataset uuid, pending_run uuid default null, after uuid default null, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_eval_items"($1, $2, $3, $4) $$;
@@ -2030,6 +2031,7 @@ grant execute on function "api"."record_eval_result"(uuid, uuid, text, jsonb, te
 create or replace function "api"."eval_run_summary"(run uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."eval_run_summary"($1) $$;
@@ -2048,6 +2050,7 @@ grant execute on function "api"."finish_eval_run"(uuid, text) to service_role;
 create or replace function "api"."get_eval_run"(run uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_eval_run"($1) $$;
@@ -2057,6 +2060,7 @@ grant execute on function "api"."get_eval_run"(uuid) to service_role;
 create or replace function "api"."list_eval_runs"(dataset uuid, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_eval_runs"($1, $2) $$;
@@ -2066,6 +2070,7 @@ grant execute on function "api"."list_eval_runs"(uuid, integer) to service_role;
 create or replace function "api"."list_eval_results"(run uuid, only_failed boolean default false, after uuid default null, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_eval_results"($1, $2, $3, $4) $$;
@@ -2075,6 +2080,7 @@ grant execute on function "api"."list_eval_results"(uuid, boolean, uuid, integer
 create or replace function "api"."compare_eval_runs"(base uuid, candidate uuid, score_drop numeric default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."compare_eval_runs"($1, $2, $3) $$;

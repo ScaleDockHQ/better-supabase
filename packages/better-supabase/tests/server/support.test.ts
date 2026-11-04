@@ -587,6 +587,21 @@ describe("support sessions on the server", () => {
     expect(store.sessions.get(session.id)?.endedBy).toBe("revoked");
   });
 
+  it("accepts a token with claims instead of an AuthState", async () => {
+    const { server } = setup();
+    const state = admin();
+
+    const caller =
+      state.kind === "user"
+        ? { token: state.token, claims: state.claims }
+        : undefined;
+
+    expect(caller).toBeDefined();
+    expect((await server.support.list(caller!, { adminId: ADMIN })).ok).toBe(
+      true,
+    );
+  });
+
   it("keeps the admin's own view when the store fails", async () => {
     const store = memorySupportStore();
 

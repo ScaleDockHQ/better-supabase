@@ -4629,7 +4629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:b893522f3d3f83f5c3fd100b3b46926a2b3473947987fbcb0e57b85261f357bc
+-- @bsb-hash sha256:18d4fbe0329d3997e0415bbb7d84d78250b86d442d3e96715c081d4a5779a092
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6064,6 +6064,7 @@ drop function if exists "api"."update_incident"(uuid, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -6100,6 +6101,7 @@ grant execute on function "api"."delete_status_component"(uuid) to authenticated
 create or replace function "api"."list_status_components"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_status_components"($1) $$;
@@ -6145,6 +6147,7 @@ grant execute on function "api"."set_incident_impacts"(uuid, jsonb) to authentic
 create or replace function "api"."get_incident"(incident_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_incident"($1) $$;
@@ -6154,6 +6157,7 @@ grant execute on function "api"."get_incident"(uuid) to authenticated, service_r
 create or replace function "api"."list_incidents"(tenant uuid, status text default null, severity text default null, component_id uuid default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_incidents"($1, $2, $3, $4, $5, $6) $$;
@@ -6190,6 +6194,7 @@ grant execute on function "api"."save_incident_regulatory_profile"(uuid, jsonb) 
 create or replace function "api"."get_incident_regulatory_profile"(incident_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_incident_regulatory_profile"($1) $$;
@@ -6199,6 +6204,7 @@ grant execute on function "api"."get_incident_regulatory_profile"(uuid) to authe
 create or replace function "api"."list_incident_filings"(tenant uuid, pending boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_incident_filings"($1, $2) $$;
@@ -6226,6 +6232,7 @@ grant execute on function "api"."save_status_page"(uuid, text, text, text, boole
 create or replace function "api"."get_status_page"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_status_page"($1) $$;
@@ -6235,6 +6242,7 @@ grant execute on function "api"."get_status_page"(uuid) to authenticated, servic
 create or replace function "api"."public_status_page"(slug text, days integer default 90)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."public_status_page"($1, $2) $$;

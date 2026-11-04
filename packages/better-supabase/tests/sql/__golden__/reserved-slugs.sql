@@ -360,7 +360,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:a73505f7254c674f315ecda76594f390ab25176633fd38a1e25ba363b38fc493
+-- @bsb-hash sha256:3c704ecce66fc2673b18953d62c7a10daf5d472536036c35916c1814a89329cc
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -444,6 +444,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."slug_problem"(slug text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."slug_problem"($1) $$;

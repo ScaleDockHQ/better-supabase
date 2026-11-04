@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:4d5dcb8659d6783f3fd8de3046eb34cc1ae50738ceae01cd71a99bb10d250651
+-- @bsb-hash sha256:668cf52481b275461e6b2ef5a892adc6bc205b83f83db83d9033e62ffae83a38
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,6 +738,7 @@ drop function if exists "api"."list_members"(uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -756,6 +757,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."organization_slug_problem"(value text, except_organization uuid default null)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_slug_problem"($1, $2) $$;
@@ -851,6 +853,7 @@ returns table (
   role text
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_my_organizations"() $$;
@@ -860,6 +863,7 @@ grant execute on function "api"."list_my_organizations"() to authenticated, serv
 create or replace function "api"."list_members"(organization uuid)
 returns table (user_id uuid, role text)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_members"($1) $$;
@@ -869,6 +873,7 @@ grant execute on function "api"."list_members"(uuid) to authenticated, service_r
 create or replace function "api"."organization_overview"(organization uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_overview"($1) $$;
@@ -883,6 +888,7 @@ returns table (
   expires_at timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_organization_invitations"($1) $$;

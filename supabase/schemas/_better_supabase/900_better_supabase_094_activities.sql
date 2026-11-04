@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:e5ab3ad713a3fc0e2da61086c4f425f51e396edcfb9c53b88a96d82b2475bc39
+-- @bsb-hash sha256:928ebf38f76cf1b8168c3ea3ff019fa9bf7f3cf6f3c3ff0c99d436e87142f1fd
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1307,6 +1307,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1316,6 +1317,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1334,6 +1336,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."engagement_guest_readable"(engagement uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."engagement_guest_readable"($1) $$;
@@ -1388,6 +1391,7 @@ grant execute on function "api"."activities_of"(text, text, text[], timestamptz,
 create or replace function "api"."next_activity"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."next_activity"($1, $2) $$;
@@ -1397,6 +1401,7 @@ grant execute on function "api"."next_activity"(text, text) to authenticated, se
 create or replace function "api"."open_activities"(tenant uuid, owner uuid, due_before timestamptz, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."open_activities"($1, $2, $3, $4) $$;
@@ -1415,6 +1420,7 @@ grant execute on function "api"."attach_activity_recording"(uuid, uuid, text) to
 create or replace function "api"."activity_recordings"(engagement uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."activity_recordings"($1) $$;
@@ -1424,6 +1430,7 @@ grant execute on function "api"."activity_recordings"(uuid) to authenticated, se
 create or replace function "api"."get_activity_recording"(recording uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_activity_recording"($1) $$;
@@ -1433,6 +1440,7 @@ grant execute on function "api"."get_activity_recording"(uuid) to authenticated,
 create or replace function "api"."activity_transcript"(recording uuid, after integer, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."activity_transcript"($1, $2, $3) $$;
@@ -1460,6 +1468,7 @@ grant execute on function "api"."fail_activity_recording"(uuid, text) to service
 create or replace function "api"."pending_activity_recordings"(batch integer)
 returns uuid[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_activity_recordings"($1) $$;
@@ -1478,6 +1487,7 @@ grant execute on function "api"."save_activity_notes"(uuid, jsonb) to authentica
 create or replace function "api"."activity_with_transcripts"(engagement uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."activity_with_transcripts"($1) $$;
@@ -1487,6 +1497,7 @@ grant execute on function "api"."activity_with_transcripts"(uuid) to authenticat
 create or replace function "api"."activity_notes"(engagement uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."activity_notes"($1) $$;

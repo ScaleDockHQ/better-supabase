@@ -603,12 +603,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "select better_supabase.unaudit('public.notes');\n",
     );
 
-    const test =
-      "supabase/tests/900_better_supabase_audit_public_customers.test.sql";
+    const test = "supabase/tests/900_better_supabase_audit_tables.test.sql";
 
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(`Created ${test} (audit)`);
-    expect(synced.output).not.toContain("public_notes");
     expect(await readFile(join(root, test), "utf-8")).toContain(
       `'{"updated_at"}'::text[]`,
     );
@@ -634,8 +632,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "create table public.notes (id int primary key);\nselect better_supabase.audit('public.notes');\n",
     );
 
-    const test =
-      "supabase/tests/900_better_supabase_audit_public_notes.test.sql";
+    const test = "supabase/tests/900_better_supabase_audit_tables.test.sql";
 
     expect((await sql(["sync"], config)).output).toContain(
       `Created ${test} (audit)`,
@@ -648,6 +645,24 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
   });
 
+  it("defaults authenticate_as_issued to the hook in config.toml", async () => {
+    const config: ResolveInput = { blocks: ["pgtap"] };
+
+    await mkdir(join(root, "supabase"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      '[auth.hook.custom_access_token]\nenabled = true\nuri = "pg-functions://postgres/public/add_claims"\n',
+    );
+    await sql(["sync"], config);
+
+    const helpers = await readFile(
+      join(root, "supabase/tests/000_better_supabase_pgtap.test.sql"),
+      "utf-8",
+    );
+
+    expect(helpers).toContain("hook text default 'public.add_claims'");
+  });
+
   it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
     const config: ResolveInput = { blocks: ["audit", "pgtap"] };
 
@@ -657,7 +672,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "select better_supabase.audit('public.customers');\n",
     );
     expect((await sql(["sync"], config)).output).toContain(
-      "supabase/tests/900_better_supabase_audit_public_customers.test.sql (audit)",
+      "supabase/tests/900_better_supabase_audit_tables.test.sql (audit)",
     );
     expect(await sql(["upgrade", "--check"], config)).toEqual({
       code: 0,

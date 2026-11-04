@@ -2758,7 +2758,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:0655c1ac266637ae66ae1ff37d0f3393fdb4b716f498f5a31c8a7c501a435df3
+-- @bsb-hash sha256:d0e2b27b69236372ed3e72fd57f4f4554f3512c196bd6e98f5ca0ac03b3d8355
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3615,6 +3615,7 @@ drop function if exists "api"."set_time_rate"(uuid, bigint, text, uuid, text, te
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3651,6 +3652,7 @@ grant execute on function "api"."delete_time_rate"(uuid) to authenticated, servi
 create or replace function "api"."list_time_rates"(tenant uuid, user_id uuid default null, subject_type text default null, subject_id text default null, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_time_rates"($1, $2, $3, $4, $5) $$;
@@ -3660,6 +3662,7 @@ grant execute on function "api"."list_time_rates"(uuid, uuid, text, text, intege
 create or replace function "api"."time_rate"(tenant uuid, user_id uuid default null, subject_type text default null, subject_id text default null, on_day date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."time_rate"($1, $2, $3, $4, $5) $$;
@@ -3669,6 +3672,7 @@ grant execute on function "api"."time_rate"(uuid, uuid, text, text, date) to aut
 create or replace function "api"."unbilled_time"(tenant uuid, scope jsonb default null, group_by text default 'subject')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unbilled_time"($1, $2, $3) $$;
@@ -3687,6 +3691,7 @@ grant execute on function "api"."invoice_from_time"(uuid, jsonb, jsonb, text) to
 create or replace function "api"."time_lines_for_invoice"(tenant uuid, scope jsonb, group_by text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."time_lines_for_invoice"($1, $2, $3) $$;
@@ -3705,6 +3710,7 @@ grant execute on function "api"."claim_time_for_invoice"(uuid, uuid, jsonb) to s
 create or replace function "api"."list_invoiced_time"(invoice uuid, page_size integer default 500)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invoiced_time"($1, $2) $$;
@@ -3714,6 +3720,7 @@ grant execute on function "api"."list_invoiced_time"(uuid, integer) to authentic
 create or replace function "api"."wip_valuation"(tenant uuid, as_of date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."wip_valuation"($1, $2) $$;

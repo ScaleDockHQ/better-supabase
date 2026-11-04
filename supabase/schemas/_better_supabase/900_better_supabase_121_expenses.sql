@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:8fd59308e4b77ff2470845f1f126b830ab9f4d2146d42c4fbc91897ddfaba2ca
+-- @bsb-hash sha256:0204201ce3b7241ac74cb1375e6601135f4c41f5584ab0d709a6012a54fb6b6e
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -984,6 +984,7 @@ drop function if exists "api"."create_expense_report"(uuid, text, text, text, js
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -993,6 +994,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1029,6 +1031,7 @@ grant execute on function "api"."archive_expense_category"(uuid) to authenticate
 create or replace function "api"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_expense_categories"($1, $2) $$;
@@ -1074,6 +1077,7 @@ grant execute on function "api"."remove_expense_line"(uuid) to authenticated, se
 create or replace function "api"."check_expense_report"(report_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."check_expense_report"($1) $$;
@@ -1110,6 +1114,7 @@ grant execute on function "api"."cancel_expense_report"(uuid) to authenticated, 
 create or replace function "api"."get_expense_report"(report_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_expense_report"($1) $$;
@@ -1119,6 +1124,7 @@ grant execute on function "api"."get_expense_report"(uuid) to authenticated, ser
 create or replace function "api"."list_expense_reports"(tenant uuid, user_id uuid default null, status text default null, everyone boolean default false, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_expense_reports"($1, $2, $3, $4, $5) $$;

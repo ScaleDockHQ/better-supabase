@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:6c2e792bdcc5932f098d46c57f1abed037f6f3035a26cd1c0a0634deff5e7245
+-- @bsb-hash sha256:ea438e60e2d832b4c081cddadd5eab9f880123fa7b7ef0c38bfdc52504b1040e
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -364,6 +364,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -382,6 +383,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."enrichment_target"(subject_type text, subject_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichment_target"($1, $2) $$;
@@ -400,6 +402,7 @@ grant execute on function "api"."record_enrichment"(text, uuid, text, jsonb, boo
 create or replace function "api"."enrichments_of"(subject_type text, subject_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichments_of"($1, $2) $$;
@@ -409,6 +412,7 @@ grant execute on function "api"."enrichments_of"(text, uuid) to authenticated, s
 create or replace function "api"."enrichment_due"(provider text, max_count integer default null, stale_after interval default null, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichment_due"($1, $2, $3, $4) $$;

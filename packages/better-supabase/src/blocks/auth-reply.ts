@@ -1,6 +1,7 @@
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 
+import { authErrorKind } from "../auth/error-kind.ts";
 import { dbError, dbErrorOfStatus } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
 
@@ -29,8 +30,14 @@ function authFailure(error: object): DbError {
   const status = typeof failure.status === "number" ? failure.status : 0;
   const base = typeof failure.code === "string" ? { code: failure.code } : {};
 
-  if (failure.name === "AuthRetryableFetchError" || status >= 500) {
+  const kind = authErrorKind(error);
+
+  if (kind === "retryable") {
     return dbError("network", message, base);
+  }
+
+  if (kind === "rate-limited") {
+    return dbError("rate_limited", message, base);
   }
 
   return dbErrorOfStatus(status, message, base);

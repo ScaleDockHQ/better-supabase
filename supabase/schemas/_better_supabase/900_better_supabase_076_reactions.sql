@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:8bd3c4f0cbca5eed2c645dd91cee25ad6752c3a7ac0f14c12301cf539e5b3ff3
+-- @bsb-hash sha256:336dfda0f5142728cd2c0c44494cdfab3932db72cfe8f85ef7d1cf7aa5c3790e
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -758,6 +758,7 @@ drop function if exists "api"."reaction_subject_visible"(text, text, uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -776,6 +777,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."reaction_list"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reaction_list"($1, $2, $3) $$;
@@ -794,6 +796,7 @@ grant execute on function "api"."react"(uuid, text, text, text, boolean, text) t
 create or replace function "api"."vote_tally"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."vote_tally"($1, $2, $3) $$;
@@ -812,6 +815,7 @@ grant execute on function "api"."vote"(uuid, text, text, integer, text) to authe
 create or replace function "api"."vote_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."vote_summary"($1, $2, $3) $$;
@@ -821,6 +825,7 @@ grant execute on function "api"."vote_summary"(uuid, text, text[]) to authentica
 create or replace function "api"."reaction_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reaction_summary"($1, $2, $3) $$;
@@ -848,6 +853,7 @@ grant execute on function "api"."delete_custom_emoji"(uuid) to authenticated, se
 create or replace function "api"."list_custom_emoji"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_custom_emoji"($1) $$;

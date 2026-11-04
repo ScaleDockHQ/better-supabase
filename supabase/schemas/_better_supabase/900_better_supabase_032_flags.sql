@@ -1,6 +1,6 @@
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:0b00db8a07f04a065cdcef0350e07337f6ac762ff39b4aa0f3aa1cb8384c8aab
+-- @bsb-hash sha256:c76c31bfb2e49daaf9e541aec6f1f6da2768f2c1b94498072a7ad4d5ec5d10dd
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -727,6 +727,7 @@ drop function if exists "api"."set_flag_override"(text, text, uuid, uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -745,6 +746,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."list_flags"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_flags"() $$;
@@ -772,6 +774,7 @@ grant execute on function "api"."delete_flag"(text) to authenticated, service_ro
 create or replace function "api"."flag_history"(key text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_history"($1) $$;
@@ -790,6 +793,7 @@ grant execute on function "api"."restore_flag"(text, integer) to authenticated, 
 create or replace function "api"."list_flag_segments"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_flag_segments"() $$;
@@ -826,6 +830,7 @@ grant execute on function "api"."set_flag_override"(text, text, uuid, uuid, text
 create or replace function "api"."flag_condition_matches"(condition jsonb, tenant text, member text, role text, plans text[], context_values jsonb)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_condition_matches"($1, $2, $3, $4, $5, $6) $$;
@@ -835,6 +840,7 @@ grant execute on function "api"."flag_condition_matches"(jsonb, text, text, text
 create or replace function "api"."flag_rollout_percentage"(percentage numeric, schedule jsonb, at timestamptz default now())
 returns numeric
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_rollout_percentage"($1, $2, $3) $$;
@@ -844,6 +850,7 @@ grant execute on function "api"."flag_rollout_percentage"(numeric, jsonb, timest
 create or replace function "api"."tenant_ids_with_flag"(key text)
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."tenant_ids_with_flag"($1) $$;
@@ -853,6 +860,7 @@ grant execute on function "api"."tenant_ids_with_flag"(text) to authenticated, s
 create or replace function "api"."flag_bucket"(flag text, target text)
 returns integer
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_bucket"($1, $2) $$;
@@ -862,6 +870,7 @@ grant execute on function "api"."flag_bucket"(text, text) to anon, authenticated
 create or replace function "api"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_evaluation"($1, $2, $3, $4) $$;
@@ -871,6 +880,7 @@ grant execute on function "api"."flag_evaluation"(text, uuid, uuid, jsonb) to se
 create or replace function "api"."flag_enabled"(key text, tenant uuid default null)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_enabled"($1, $2) $$;
@@ -880,6 +890,7 @@ grant execute on function "api"."flag_enabled"(text, uuid) to authenticated, ser
 create or replace function "api"."flag_definitions"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_definitions"() $$;

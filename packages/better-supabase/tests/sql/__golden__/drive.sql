@@ -5112,7 +5112,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:ba3b5444e1cd465f30248bdfa539c107a876a439228230ba2b14f6461a2cbb15
+-- @bsb-hash sha256:1917e460c0602a931e315abfe741c9ebf24e0bf2b15c15cca9a5edc2cf6add74
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6740,6 +6740,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -6758,6 +6759,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."drive_node_held"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_node_held"($1) $$;
@@ -6767,6 +6769,7 @@ grant execute on function "api"."drive_node_held"(uuid) to authenticated, servic
 create or replace function "api"."drive_role"(node uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_role"($1) $$;
@@ -6776,6 +6779,7 @@ grant execute on function "api"."drive_role"(uuid) to authenticated, service_rol
 create or replace function "api"."drive_can"(node uuid, role text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_can"($1, $2) $$;
@@ -6785,6 +6789,7 @@ grant execute on function "api"."drive_can"(uuid, text) to authenticated, servic
 create or replace function "api"."drive_node_readable"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_node_readable"($1) $$;
@@ -6794,6 +6799,7 @@ grant execute on function "api"."drive_node_readable"(uuid) to authenticated, se
 create or replace function "api"."drive_node_writable"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_node_writable"($1) $$;
@@ -6803,6 +6809,7 @@ grant execute on function "api"."drive_node_writable"(uuid) to authenticated, se
 create or replace function "api"."drive_can_comment"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_can_comment"($1) $$;
@@ -6812,6 +6819,7 @@ grant execute on function "api"."drive_can_comment"(uuid) to authenticated, serv
 create or replace function "api"."drive_download_blocked"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_download_blocked"($1) $$;
@@ -6821,6 +6829,7 @@ grant execute on function "api"."drive_download_blocked"(uuid) to service_role;
 create or replace function "api"."drive_can_download"(node uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_can_download"($1) $$;
@@ -6830,6 +6839,7 @@ grant execute on function "api"."drive_can_download"(uuid) to authenticated, ser
 create or replace function "api"."drive_can_upload"(folder uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_can_upload"($1) $$;
@@ -6839,6 +6849,7 @@ grant execute on function "api"."drive_can_upload"(uuid) to authenticated, servi
 create or replace function "api"."drive_node_access"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_node_access"($1) $$;
@@ -6848,6 +6859,7 @@ grant execute on function "api"."drive_node_access"(uuid) to authenticated, serv
 create or replace function "api"."drive_share_link_allowed"(node text, tenant text, role text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_share_link_allowed"($1, $2, $3) $$;
@@ -6857,6 +6869,7 @@ grant execute on function "api"."drive_share_link_allowed"(text, text, text) to 
 create or replace function "api"."drive_readable_ids"()
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."drive_readable_ids"() $$;
@@ -6875,6 +6888,7 @@ grant execute on function "api"."drive_create_folder"(uuid, uuid, text, text, js
 create or replace function "api"."drive_get"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_get"($1) $$;
@@ -6884,6 +6898,7 @@ grant execute on function "api"."drive_get"(uuid) to authenticated, service_role
 create or replace function "api"."drive_list"(tenant uuid, parent uuid default null, page_size integer default 100, skip integer default 0, drive uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_list"($1, $2, $3, $4, $5) $$;
@@ -6893,6 +6908,7 @@ grant execute on function "api"."drive_list"(uuid, uuid, integer, integer, uuid)
 create or replace function "api"."drive_search"(tenant uuid, query text, page_size integer default 25)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_search"($1, $2, $3) $$;
@@ -6902,6 +6918,7 @@ grant execute on function "api"."drive_search"(uuid, text, integer) to authentic
 create or replace function "api"."drive_shared"(tenant uuid, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_shared"($1, $2) $$;
@@ -6911,6 +6928,7 @@ grant execute on function "api"."drive_shared"(uuid, integer) to authenticated, 
 create or replace function "api"."drive_path"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_path"($1) $$;
@@ -6965,6 +6983,7 @@ grant execute on function "api"."drive_unshare"(uuid, text, text) to authenticat
 create or replace function "api"."drive_grants"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_grants"($1) $$;

@@ -1479,7 +1479,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:2334d3365bb2dd9e73f2bd95521ffeb6288c2a0020badf09c6b6aeac49ed47dd
+-- @bsb-hash sha256:296a7c950edcd2e51983cb6c7402dfeba6adcfa7d8e7d2166cb405bc4a9085f3
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1947,6 +1947,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1965,6 +1966,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."stream_kv_get"(key text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stream_kv_get"($1) $$;
@@ -2019,6 +2021,7 @@ grant execute on function "api"."stream_append"(text, integer, bytea[]) to servi
 create or replace function "api"."stream_read"(stream_id text, from_idx integer default 0, max integer default 1000)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stream_read"($1, $2, $3) $$;
@@ -2028,6 +2031,7 @@ grant execute on function "api"."stream_read"(text, integer, integer) to authent
 create or replace function "api"."stream_status"(stream_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stream_status"($1) $$;

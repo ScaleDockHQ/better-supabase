@@ -1428,7 +1428,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:505e544731cb0549d21486d4286ce4504d66a20738b4450d380759bf6a92c4b5
+-- @bsb-hash sha256:cb86c4cff85dcf253ede3129d4a09e3134038d37d955dd81aae1ffb38789300b
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2166,6 +2166,7 @@ grant execute on function "api"."claim_jobs"(text, integer, integer) to service_
 create or replace function "api"."ready_job_queues"(queues text[])
 returns table (queue text)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."ready_job_queues"($1) $$;
@@ -2220,6 +2221,7 @@ grant execute on function "api"."unschedule_job"(text) to service_role;
 create or replace function "api"."list_schedules"(name_prefix text default null, for_tenant text default null)
 returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_schedules"($1, $2) $$;
@@ -2274,6 +2276,7 @@ grant execute on function "api"."replay_dead_job"(text, bigint) to service_role;
 create or replace function "api"."job_queue_stats"(queue text)
 returns table (ready bigint, in_flight bigint, delayed bigint, dead bigint, oldest_age_seconds double precision)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."job_queue_stats"($1) $$;
@@ -2283,6 +2286,7 @@ grant execute on function "api"."job_queue_stats"(text) to service_role;
 create or replace function "api"."list_dead_jobs"(queue text, max_rows integer default 100, before_id bigint default null)
 returns table (id bigint, attempts integer, enqueued_at timestamptz, died_at timestamptz, message jsonb)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_dead_jobs"($1, $2, $3) $$;

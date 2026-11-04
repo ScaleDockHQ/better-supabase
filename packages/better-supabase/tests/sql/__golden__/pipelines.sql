@@ -3177,7 +3177,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:b495a3af0669d4f8e6109abc9a77139cc725721e385c7519472e01ab46d6681c
+-- @bsb-hash sha256:27f0f5e2f1269862718465233e51a78c5930dee2fcf9c913571c88c9aea8430d
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3925,6 +3925,7 @@ drop function if exists "api"."save_pipeline"(uuid, uuid, text, text, text, text
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4006,6 +4007,7 @@ grant execute on function "api"."set_pipeline_transitions"(uuid, jsonb) to authe
 create or replace function "api"."pipeline_board"(subject_type text, pipeline uuid, owner uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pipeline_board"($1, $2, $3) $$;
@@ -4015,6 +4017,7 @@ grant execute on function "api"."pipeline_board"(text, uuid, uuid) to authentica
 create or replace function "api"."pipeline_stats"(pipeline uuid, since timestamptz, until timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pipeline_stats"($1, $2, $3) $$;
@@ -4024,6 +4027,7 @@ grant execute on function "api"."pipeline_stats"(uuid, timestamptz, timestamptz)
 create or replace function "api"."pipeline_health"(pipeline uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pipeline_health"($1) $$;
@@ -4033,6 +4037,7 @@ grant execute on function "api"."pipeline_health"(uuid) to authenticated, servic
 create or replace function "api"."list_pipelines"(tenant uuid, subject_type text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pipelines"($1, $2) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:2c2f3e575470cd30708b04e6a364f45413f22a8a0081f1bef42a97e932a9dfc4
+-- @bsb-hash sha256:255ce73e5f1df748ca456c8f4fcc65cb8ae57e5a0c9e7bbd43bb6047c57db13b
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,6 +1290,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1317,6 +1318,7 @@ grant execute on function "api"."save_enrollment_program"(uuid, jsonb) to authen
 create or replace function "api"."enrollment_programs"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrollment_programs"($1) $$;
@@ -1344,6 +1346,7 @@ grant execute on function "api"."enroll"(uuid, text, text, text) to authenticate
 create or replace function "api"."enrollment"(tenant uuid, program text, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrollment"($1, $2, $3, $4) $$;
@@ -1353,6 +1356,7 @@ grant execute on function "api"."enrollment"(uuid, text, text, text) to authenti
 create or replace function "api"."list_enrollments"(tenant uuid, program text default null, subject_type text default null, subject_id text default null, status text default null, page_size integer default null, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_enrollments"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -1416,6 +1420,7 @@ grant execute on function "api"."set_enrollment_dates"(uuid, jsonb) to authentic
 create or replace function "api"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."open_enrollment_steps"($1, $2, $3, $4, $5) $$;

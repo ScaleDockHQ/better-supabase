@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:4f64e3bbe3b2b32ab21ac2c3398ab30e0405b23e8a885d043ebb90129efc5dd9
+-- @bsb-hash sha256:61105974a71cf6ff9f1ec886078a5f73c624bce13caba73e00f57f97d5f127c3
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -600,6 +600,7 @@ drop function if exists "api"."restore_version"(uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -636,6 +637,7 @@ grant execute on function "api"."snapshot_version"(uuid, text, text, jsonb, text
 create or replace function "api"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_versions"($1, $2, $3, $4, $5) $$;
@@ -645,6 +647,7 @@ grant execute on function "api"."list_versions"(uuid, text, text, integer, integ
 create or replace function "api"."get_version"(version_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_version"($1) $$;

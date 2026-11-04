@@ -859,15 +859,15 @@ The module options (`blocks.audit.options`):
 | `correlationIdHeader` | `x-correlation-id`       | the Data API header `correlation_id` is read from when the `better_supabase.correlation_id` setting is empty                                                                                                                                                                                      |
 
 `add` and `upgrade` read the `audit(...)` calls and `bsb_audit` triggers in
-your schema files and migrations, and write a pgTAP file per audited table to `database.sql.testsDir`
-(`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
+your schema files and migrations, and write one pgTAP file for all audited tables to `database.sql.testsDir`
+(`supabase/tests/900_better_supabase_audit_tables.test.sql`). It
 checks that the table has the `bsb_audit` trigger and is registered with the
 same `ignore` and `redact` lists, then runs an insert, an update and a delete
 on a copy of the table and checks the entries: one per change, without the
 ignored columns, with the redacted values masked. `supabase test db` runs it
 with your other tests, and `upgrade --check` fails when a registration changed
 and the file is stale. A later `unaudit(...)` call or `drop table` removes
-the table's file on the next `upgrade`. Calls with computed arguments, such
+the table's checks from the file on the next `upgrade`. Calls with computed arguments, such
 as `audit(format(...))`, are skipped.
 
 Dropping an audited table also drops its registration: the module installs

@@ -749,7 +749,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:f2a7eea9194709ba842d53d691936da170e23b11c70c66e183e93c1114657b62
+-- @bsb-hash sha256:74751efccf61294c84f82e31543d0e5510461eeaae59cd0629f8c0b6d9b9054e
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,6 +982,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."tenant_disabled"(tenant uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_disabled"($1) $$;
@@ -991,6 +992,7 @@ grant execute on function "api"."tenant_disabled"(uuid) to service_role;
 create or replace function "api"."user_disabled"(user_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."user_disabled"($1) $$;
@@ -1000,6 +1002,7 @@ grant execute on function "api"."user_disabled"(uuid) to service_role;
 create or replace function "api"."current_tenant_id"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."current_tenant_id"() $$;
@@ -1009,6 +1012,7 @@ grant execute on function "api"."current_tenant_id"() to anon, authenticated, se
 create or replace function "api"."organization_member_roles"(organization uuid, member uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_member_roles"($1, $2) $$;
@@ -1018,6 +1022,7 @@ grant execute on function "api"."organization_member_roles"(uuid, uuid) to servi
 create or replace function "api"."member_organization_ids"(roles text[] default null)
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."member_organization_ids"($1) $$;
@@ -1027,6 +1032,7 @@ grant execute on function "api"."member_organization_ids"(text[]) to anon, authe
 create or replace function "api"."has_organization_role"(organization uuid, roles text[] default null)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_organization_role"($1, $2) $$;
@@ -1036,6 +1042,7 @@ grant execute on function "api"."has_organization_role"(uuid, text[]) to anon, a
 create or replace function "api"."organization_member_role"(organization uuid, member uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_member_role"($1, $2) $$;
@@ -1045,6 +1052,7 @@ grant execute on function "api"."organization_member_role"(uuid, uuid) to servic
 create or replace function "api"."membership_claims"(user_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."membership_claims"($1) $$;

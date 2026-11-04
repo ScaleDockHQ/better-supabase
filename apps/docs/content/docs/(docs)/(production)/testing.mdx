@@ -488,6 +488,28 @@ test("customers come from the per-session App Shell", async ({ page }) => {
   fails: the client cache served it, so there is no render to measure. Drop
   the budget for that navigation; `visible` already proves it is instant.
 
+## Fake client
+
+`createFakeClient(handler)` from `better-supabase/testing` stands in for the supabase-js client in unit tests. The handler answers each request and the client records it in `requests`, with the method, path, query and body:
+
+```ts
+import { createFakeClient } from "better-supabase/testing";
+
+const client = createFakeClient(({ method, path }) =>
+  method === "GET" && path === "/customers"
+    ? { data: [{ id: "c1", name: "Acme" }] }
+    : { data: null },
+);
+
+await client.from("customers").select("*").eq("name", "Acme");
+await client.schema("api").rpc("end_sessions", { p_user: "u1" });
+
+client.requests.map((request) => request.path);
+// ["/customers", "/rpc/end_sessions"]
+```
+
+It covers `from`, `rpc`, `schema`, the common filters, `.single()` and `.maybeSingle()`. A miss on `.single()` is `PGRST116`, as on a real server. Pass the client where a `SupabaseClient` is expected, with a cast in the test. Test tokens come from `signTestJwt` and `createTestSigner` (see [Signing key](#signing-key)).
+
 ## pgTAP
 
 `better-supabase add pgtap` writes
@@ -507,19 +529,25 @@ select * from finish();
 rollback;
 ```
 
-| Helper                                                  | Does                                                                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id; call it before switching roles                                  |
-| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction                           |
-| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                                           |
-| `tests.clear_authentication()`                          | Switches back to the test runner's role                                                                      |
-| `tests.every_table_has_rls(schema)`                     | Fails and lists every table in the schema without row level security (`tests.rls_enabled` is the same check) |
-| `tests.policies_use(schema, pattern)`                   | Fails and lists every policy whose `using` and `with check` expressions don't match the regular expression   |
-| `tests.no_anon_policies(schema)`                        | Fails and lists every policy that applies to `anon`, by name or through `public`                             |
-| `tests.every_table_audited(schema, exempt)`             | Fails and lists every table without an audit trigger; `exempt` holds `like` patterns for table names         |
-| `tests.partitions_have_rls(schema)`                     | Fails and lists every partition of an RLS table that has RLS off, the default partition included             |
+| Helper                                                  | Does                                                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id; call it before switching roles                                         |
+| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction                                  |
+| `tests.authenticate_as(email)`                          | The same for the user with that email address; fails when there is none                                             |
+| `tests.authenticate_as_issued(user_id, hook)`           | Runs the custom access token hook and signs in with the claims it adds; `hook` defaults to the one in `config.toml` |
+| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                                                  |
+| `tests.clear_authentication()`                          | Switches back to the test runner's role                                                                             |
+| `tests.every_table_has_rls(schema)`                     | Fails and lists every table in the schema without row level security (`tests.rls_enabled` is the same check)        |
+| `tests.policies_use(schema, pattern)`                   | Fails and lists every policy whose `using` and `with check` expressions don't match the regular expression          |
+| `tests.no_anon_policies(schema)`                        | Fails and lists every policy that applies to `anon`, by name or through `public`                                    |
+| `tests.every_table_audited(schema, exempt)`             | Fails and lists every table without an audit trigger; `exempt` holds `like` patterns for table names                |
+| `tests.partitions_have_rls(schema)`                     | Fails and lists every partition of an RLS table that has RLS off, the default partition included                    |
 
 The helpers stay installed after the run, so `supabase db advisors` sees
 them too. Each one sets its own `search_path`, so the advisors report no
 `function_search_path_mutable` warning for them; run `upgrade` after
 upgrading to rewrite a module file from an earlier version.
+
+`authenticate_as_issued` reads `auth.hook.custom_access_token` from `config.toml` when `gen` writes the file, so a test sees the claims a real sign-in gets, such as the tenant or the permissions. Without a hook in `config.toml` it raises an error that names the setting, unless the test passes the hook.
+
+With the `audit` block installed, `supabase/tests/900_better_supabase_audit.test.sql` is one file that loops over the audited tables and keeps one assertion name per table. `sql upgrade` deletes the older `900_better_supabase_audit_<table>` files.

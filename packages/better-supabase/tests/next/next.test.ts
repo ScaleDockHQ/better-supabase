@@ -1095,6 +1095,26 @@ describe("createNext", () => {
     );
   });
 
+  it("derives bsb.cached() tags from a read set", async () => {
+    mocks.cacheTag.mockReset();
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const hub = defineReadSet(
+      defineSupabase(schema),
+      "tag_hub",
+      {},
+      (specs) => ({ customers: specs.customers.count() }),
+    );
+
+    await bsb.cached({ readSet: hub });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bsb:session:${USER}`,
+      "bsb:customers",
+    );
+  });
+
   it("reads the session as serializable data without the token", async () => {
     expect(await bsb.claims()).toEqual({ kind: "none", reason: "none" });
 

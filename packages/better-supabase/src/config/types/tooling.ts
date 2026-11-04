@@ -74,6 +74,12 @@ export interface GenApiConfig {
   readonly expose?: "all" | "used";
   /** Function names that keep a wrapper under `expose: "used"`. */
   readonly exposeAlso?: readonly string[];
+  /**
+   * Add the block API schemas that `schemas` doesn't list to the generated
+   * `database.types.ts`, so `client.schema("api").rpc(...)` is typed. Defaults
+   * to `true`; set `false` to keep them out.
+   */
+  readonly types?: boolean;
 }
 
 export interface GenConfig {

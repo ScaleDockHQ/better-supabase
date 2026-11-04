@@ -11,6 +11,7 @@ import { databaseUrl } from "../config.ts";
 import { accessToken } from "../core/credentials.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
+import { apiTypeSchemas } from "../gen/api-schemas.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";
@@ -173,7 +174,12 @@ export async function loadSnapshot(
   const toml = tomlRead.value;
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
-  const schemas = [...config.schemas, ...EXTRA_SCHEMAS];
+
+  const schemas = [
+    ...config.schemas,
+    ...apiTypeSchemas(config),
+    ...EXTRA_SCHEMAS,
+  ];
 
   try {
     const read = (): Promise<Snapshot> =>

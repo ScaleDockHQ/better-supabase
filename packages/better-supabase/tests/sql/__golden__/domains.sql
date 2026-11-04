@@ -1001,7 +1001,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:4b6e1f1802e5413ecf761fece177f5078886c499bb64415ba6360cc5876b258e
+-- @bsb-hash sha256:a1f2b933a0764da33fe884d00c1815e3c49b3519d37614fd2ee409961355dc62
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1293,6 +1293,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1320,6 +1321,7 @@ grant execute on function "api"."add_hostname"(uuid, text) to authenticated, ser
 create or replace function "api"."list_hostnames"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_hostnames"($1) $$;
@@ -1329,6 +1331,7 @@ grant execute on function "api"."list_hostnames"(uuid) to authenticated, service
 create or replace function "api"."hostname_by_id"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."hostname_by_id"($1) $$;
@@ -1365,6 +1368,7 @@ grant execute on function "api"."remove_hostname"(uuid) to authenticated, servic
 create or replace function "api"."resolve_hostname"(hostname text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_hostname"($1) $$;

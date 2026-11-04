@@ -445,7 +445,9 @@ export const blockConfig = {
   "api-keys": {
     schema: "better_supabase",
     api: "api",
-    options: {},
+    options: {
+      prefix: "bs",
+    },
   },
   approvals: {
     schema: "better_supabase",
@@ -665,6 +667,9 @@ export const blockConfig = {
     schema: "better_supabase",
     api: "api",
     options: {},
+    columns: {
+      room_code: "text",
+    },
   },
   maintenance: {
     schema: "better_supabase",
@@ -1186,6 +1191,10 @@ export const blockConfig = {
     schema: "better_supabase",
     api: "api",
     options: {},
+    columns: {
+      unit_id: "uuid",
+      lease_id: "uuid",
+    },
     names: {
       functions: {
         archive_task: "archive_maintenance_request",

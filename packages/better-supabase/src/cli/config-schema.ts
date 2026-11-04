@@ -928,6 +928,7 @@ const ENTRIES = {
         v.strictObject({
           expose: v.optional(v.picklist(["all", "used"])),
           exposeAlso: v.optional(v.array(v.string())),
+          types: v.optional(v.boolean()),
         }),
       ),
       ...pickEntries([

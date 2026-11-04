@@ -292,7 +292,7 @@ describe("module order", () => {
     })
       .filter(
         (file) =>
-          file.kind !== "data" &&
+          file.kind === "schema" &&
           order.indexOf(file.module) < order.indexOf("messaging"),
       )
       .flatMap((file) =>

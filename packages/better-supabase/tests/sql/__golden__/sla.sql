@@ -1824,7 +1824,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:1171526511503cac08055e703822f617daec25f1d105752d3e34aa2ba9156595
+-- @bsb-hash sha256:ca69ca4f12e469759ce1643a5d30e33fbf9272e00526a37f182d01f136bb2d73
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2385,6 +2385,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2403,6 +2404,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."sla_due_at"(start timestamptz, minutes integer, business boolean)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sla_due_at"($1, $2, $3) $$;
@@ -2439,6 +2441,7 @@ grant execute on function "api"."record_sla_event"(text, text, text) to authenti
 create or replace function "api"."sla_clocks_of"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sla_clocks_of"($1, $2) $$;

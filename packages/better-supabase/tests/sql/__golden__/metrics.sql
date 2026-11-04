@@ -516,7 +516,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:fba25c8123c14c14666230c1f722b8bd3aef06efec0ce92039560148d1fccd69
+-- @bsb-hash sha256:3108066b7070a46a1dcf62a85d24c1582eb417e5406935545b05ad218b4796ab
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,6 +672,7 @@ grant execute on function "api"."metrics_rollup"(text, timestamptz, timestamptz)
 create or replace function "api"."metric_series"(p_metric text, p_tenant uuid, p_from timestamptz, p_until timestamptz, p_grain text default 'day', p_dims jsonb default '{}'::jsonb, p_group_by text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."metric_series"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -681,6 +682,7 @@ grant execute on function "api"."metric_series"(text, uuid, timestamptz, timesta
 create or replace function "api"."metric_value"(p_metric text, p_tenant uuid, p_from timestamptz, p_until timestamptz, p_dims jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."metric_value"($1, $2, $3, $4, $5) $$;
@@ -690,6 +692,7 @@ grant execute on function "api"."metric_value"(text, uuid, timestamptz, timestam
 create or replace function "api"."metric_definitions"()
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."metric_definitions"() $$;

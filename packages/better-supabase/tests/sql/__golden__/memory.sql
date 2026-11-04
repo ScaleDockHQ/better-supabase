@@ -3592,7 +3592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:7df95be86e19aec3db7bbb6a94fbea09bcd008ce6bf2d8949c09ed5d67556c0e
+-- @bsb-hash sha256:873e7fe53f863915f58fce2b860f6459fe2a53bb93576f95f0c1a7e77a40c52d
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4765,6 +4765,7 @@ drop function if exists "api"."set_memory_embedding"(uuid, extensions.vector, te
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4783,6 +4784,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."memory_view"(tenant uuid, path text default '/memories', ns jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."memory_view"($1, $2, $3) $$;
@@ -4837,6 +4839,7 @@ grant execute on function "api"."memory_rename"(uuid, text, text, jsonb) to auth
 create or replace function "api"."memory_list"(tenant uuid, ns jsonb default '{}', kind text default 'core', max_rows integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."memory_list"($1, $2, $3, $4) $$;
@@ -4909,6 +4912,7 @@ grant execute on function "api"."set_memory_embeddings"(jsonb, text) to service_
 create or replace function "api"."pending_memory_embeddings"(batch integer default 64)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_memory_embeddings"($1) $$;
@@ -4936,6 +4940,7 @@ grant execute on function "api"."recall_ai_messages"(uuid, extensions.vector, in
 create or replace function "api"."memory_document_read"(scope_key text, path text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."memory_document_read"($1, $2) $$;

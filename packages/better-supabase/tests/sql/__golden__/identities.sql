@@ -1005,7 +1005,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:0bfcb3aaf2e23a99bdcbbe061c82eddac614c139744eb44135da5d85bebaf29f
+-- @bsb-hash sha256:258e597f0a6d9f825bc61368307ab6e1a59026d993a750d00db6317cbaf101ee
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1315,6 +1315,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1351,6 +1352,7 @@ grant execute on function "api"."redeem_identity_link"(text, text, text, text, t
 create or replace function "api"."principal_by_identity"(kind text, provider text, value text, workspace text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."principal_by_identity"($1, $2, $3, $4) $$;
@@ -1378,6 +1380,7 @@ grant execute on function "api"."backfill_verified_emails"() to service_role;
 create or replace function "api"."my_identities"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_identities"() $$;

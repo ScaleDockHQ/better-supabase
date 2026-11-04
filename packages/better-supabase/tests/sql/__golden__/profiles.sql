@@ -1179,7 +1179,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:62d21367ead2c08230d5e1c7fd483e48cc3e7ab33a55646a985654475fdb1671
+-- @bsb-hash sha256:6c45a527b1dbb6a38868e8cad5af2539e34c4fd3b7c4201cfa33f6f3c756c427
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1546,6 +1546,7 @@ drop function if exists "api"."my_profile"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1591,6 +1592,7 @@ grant execute on function "api"."backfill_profiles"() to service_role;
 create or replace function "api"."my_profile"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_profile"() $$;

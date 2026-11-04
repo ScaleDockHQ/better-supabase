@@ -1,4 +1,8 @@
 import type { BlockNaming } from "../core/block-names.ts";
+import type { ColumnsOutput } from "../core/columns-schema.ts";
+import type { StandardSchemaV1 } from "../core/standard.ts";
+
+import { columnsSchema } from "../core/columns-schema.ts";
 
 /**
  * One block's entry in `blocks.generated.ts`, which `better-supabase gen`
@@ -18,6 +22,13 @@ export interface GeneratedBlock {
    * `attachments.requireScan` or the notifications `topic`.
    */
   readonly options: Readonly<Record<string, unknown>>;
+  /**
+   * The extra columns of the block's main table (`options.extraColumns`), by
+   * name and SQL type. `defineBlocks` builds `columnsSchema(columns)` from them
+   * and passes it as the block's `fields`, unless the app sets `fields`
+   * itself.
+   */
+  readonly columns?: Readonly<Record<string, string>>;
   /**
    * The names the SQL gives the block's functions when `blocks.<name>.names` or
    * `blocks.<module>.functions` renames them. `defineBlocks` wraps the block's
@@ -53,9 +64,24 @@ export type GeneratedBlocks = Readonly<Record<string, GeneratedBlock>>;
  */
 export function generatedOptions<const E extends GeneratedBlock>(
   entry: E,
-): E["options"] & { readonly schema: string } {
-  return { ...entry.options, schema: entry.api ?? entry.schema };
+): E["options"] & { readonly schema: string } & GeneratedFields<E> {
+  // SAFETY: `fields` is set exactly when the entry has `columns`, which is what
+  // `GeneratedFields` types.
+  return {
+    ...entry.options,
+    schema: entry.api ?? entry.schema,
+    ...(entry.columns === undefined
+      ? {}
+      : { fields: columnsSchema(entry.columns) }),
+  } as E["options"] & { readonly schema: string } & GeneratedFields<E>;
 }
+
+/** The `fields` schema `generatedOptions` adds for an entry with `columns`. */
+export type GeneratedFields<E extends GeneratedBlock> = E extends {
+  readonly columns: infer C extends Readonly<Record<string, string>>;
+}
+  ? { readonly fields: StandardSchemaV1<unknown, ColumnsOutput<C>> }
+  : unknown;
 
 /**
  * A realtime topic template from `blocks.generated.ts` with its placeholders

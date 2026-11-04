@@ -4616,7 +4616,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:d161c83a2220d67cda50bbeec81946ae9f05efb11ba25a6cfbf6cfae8f6257eb
+-- @bsb-hash sha256:ee5e3693fbb086aafad6dbd71e13c16537f3067abe01efa00513b198f6ad60c4
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5935,6 +5935,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5962,6 +5963,7 @@ grant execute on function "api"."save_bank_account"(uuid, jsonb, uuid) to authen
 create or replace function "api"."list_bank_accounts"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bank_accounts"($1, $2) $$;
@@ -5980,6 +5982,7 @@ grant execute on function "api"."import_bank_statement"(uuid, jsonb) to authenti
 create or replace function "api"."list_bank_statements"(account_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bank_statements"($1) $$;
@@ -5989,6 +5992,7 @@ grant execute on function "api"."list_bank_statements"(uuid) to authenticated, s
 create or replace function "api"."list_bank_transactions"(account_id uuid, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bank_transactions"($1, $2) $$;
@@ -5998,6 +6002,7 @@ grant execute on function "api"."list_bank_transactions"(uuid, jsonb) to authent
 create or replace function "api"."get_bank_transaction"(transaction_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_bank_transaction"($1) $$;
@@ -6007,6 +6012,7 @@ grant execute on function "api"."get_bank_transaction"(uuid) to authenticated, s
 create or replace function "api"."bank_reconciliation_status"(account_id uuid, as_of date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bank_reconciliation_status"($1, $2) $$;
@@ -6016,6 +6022,7 @@ grant execute on function "api"."bank_reconciliation_status"(uuid, date) to auth
 create or replace function "api"."suggest_bank_matches"(transaction_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."suggest_bank_matches"($1) $$;
@@ -6061,6 +6068,7 @@ grant execute on function "api"."save_bank_rule"(uuid, jsonb, uuid) to authentic
 create or replace function "api"."list_bank_rules"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bank_rules"($1) $$;
@@ -6088,6 +6096,7 @@ grant execute on function "api"."apply_bank_rules"(uuid) to authenticated, servi
 create or replace function "api"."bank_reconciliation_board"(account_id uuid, line_limit integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bank_reconciliation_board"($1, $2) $$;

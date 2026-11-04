@@ -4444,7 +4444,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:c83fe3d78ecb464e82e1ede4721d162e06b6d29a19da3e7b63c7a27db4a1e5ee
+-- @bsb-hash sha256:ab259475ce6b55401b32cd1db67c9b418896b32a64ea14f3f663fdb38845a530
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5856,6 +5856,7 @@ drop function if exists "api"."record_as_needed_administration"(uuid, numeric, t
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5901,6 +5902,7 @@ grant execute on function "api"."import_medication"(uuid, jsonb) to authenticate
 create or replace function "api"."list_medications"(tenant uuid, search text default null, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_medications"($1, $2, $3) $$;
@@ -5964,6 +5966,7 @@ grant execute on function "api"."stop_medication_order"(uuid, text) to authentic
 create or replace function "api"."medication_orders_of"(subject_type text, subject_id text, include_stopped boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."medication_orders_of"($1, $2, $3) $$;
@@ -6009,6 +6012,7 @@ grant execute on function "api"."mark_missed_medication_administrations"() to se
 create or replace function "api"."medication_chart"(subject_type text, subject_id text, since timestamptz default null, until timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."medication_chart"($1, $2, $3, $4) $$;

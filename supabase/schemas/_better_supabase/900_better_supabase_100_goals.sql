@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:59a85597a6df2ad39bdd07647071be784e8e8cb28837ac114c6b0e69f80f7d2e
+-- @bsb-hash sha256:0bfbb33472ca640e36c908d50d34153cb76dddc50cc8a64401ad67e2f153a1da
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -219,6 +219,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -246,6 +247,7 @@ grant execute on function "api"."save_goal"(uuid, uuid, jsonb) to authenticated,
 create or replace function "api"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."goal_progress"($1, $2, $3) $$;

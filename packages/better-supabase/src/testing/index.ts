@@ -281,3 +281,12 @@ export type { ActCase, ActCases } from "./act-cases.ts";
 export { flagOverrideCookie } from "./flags.ts";
 
 export type { FlagOverrideCookie, FlagOverrideCookieOptions } from "./flags.ts";
+
+export { createFakeClient } from "./fake-client.ts";
+
+export type {
+  FakeClient,
+  FakeHandler,
+  FakeReply,
+  FakeRequest,
+} from "./fake-client.ts";

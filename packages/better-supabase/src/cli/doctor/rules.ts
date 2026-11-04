@@ -36,11 +36,11 @@ import { BLOCK_WRITE_RULES } from "./block-writes.ts";
 import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
-import { EMBEDDING_JOB_RULES } from "./embedding-jobs.ts";
 import { ENV_RULES } from "./env.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
+import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
@@ -1160,7 +1160,7 @@ export const RULES: readonly Rule[] = [
   ...PLAIN_SECRET_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...NOT_VALID_RULES,
-  ...EMBEDDING_JOB_RULES,
+  ...LIVE_STATE_RULES,
   ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
   ...SEED_RULES,

@@ -103,7 +103,7 @@ describe("seeds on a running database", () => {
           [
             ROLES,
             ...files
-              .filter((file) => file.kind !== "data")
+              .filter((file) => file.kind === "schema")
               .map(
                 (file) => `set check_function_bodies = off;\n${file.contents}`,
               ),

@@ -362,6 +362,20 @@ pass it, else the token's. `gen` records the schema the wrappers live in;
 `createNext` and `createExpo` build their `bsb.bootstrap` and `bsb.getAccess`
 on these two.
 
+## Classify an Auth error
+
+`authErrorKind(error)` from `better-supabase` returns what an auth-js error means for the caller: `"retryable"`, `"session-missing"`, `"invalid-credentials"`, `"rate-limited"`, `"banned"` or `"unknown"`. It reads the error's `code` and `status` first, so a 429 is `"rate-limited"`, and keeps the message checks for older Auth servers in one table. The library's own sign-in and refresh failures use it, so an app that branches on the kind agrees with them:
+
+```ts
+import { authErrorKind } from "better-supabase";
+
+const { error } = await supabase.auth.signInWithPassword(credentials);
+
+if (error && authErrorKind(error) === "rate-limited") {
+  return { retryAfter: 60 };
+}
+```
+
 ## Machine callers
 
 Secret keys sent as `apikey` are rejected unless you enable them. Give a list

@@ -28,6 +28,7 @@ import {
   resolveBlocks,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import { isRecord } from "../guards.ts";
 import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { prop, q, runtimeSubpath } from "./shared.ts";
@@ -322,6 +323,33 @@ function compositeEntry(
   };
 }
 
+/**
+ * The app's own employee status values, from
+ * `blocks.employees.values.employees.status`, for the create input's type.
+ */
+function employeeStatuses(
+  resolved: ReturnType<typeof resolveBlock>,
+): readonly string[] {
+  const table: unknown = resolved.values?.["employees"];
+  const map: unknown = isRecord(table) ? table["status"] : undefined;
+
+  if (!isRecord(map)) {
+    return [];
+  }
+
+  const all = Object.values(map).flatMap((value): string[] => {
+    if (typeof value === "string") {
+      return [value];
+    }
+
+    return Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  });
+
+  return [...new Set(all)];
+}
+
 function generatedEntry(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
   modules: readonly string[],
@@ -329,6 +357,7 @@ function generatedEntry(
 ): GeneratedBlock {
   const resolved = resolveBlock(config.blocks[modules[0] ?? ""]);
   const options: Record<string, unknown> = {};
+  let columns: Record<string, string> | undefined;
 
   for (const module of modules) {
     if (!hasSchema(module)) {
@@ -336,6 +365,17 @@ function generatedEntry(
     }
 
     const configured = resolveBlock(config.blocks[module]).options;
+    const extra = configured["extraColumns"];
+
+    if (columns === undefined && typeof extra === "object" && extra !== null) {
+      const typed = Object.entries(extra).flatMap(([name, type]) =>
+        typeof type === "string" ? [[name, type] as const] : [],
+      );
+
+      if (typed.length > 0) {
+        columns = Object.fromEntries(typed);
+      }
+    }
 
     for (const [key, spec] of Object.entries(
       BLOCK_OPTION_SCHEMAS[module].specs,
@@ -352,12 +392,19 @@ function generatedEntry(
     }
   }
 
+  const statuses = employeeStatuses(resolved);
+
+  if (statuses.length > 0 && modules.includes("employees")) {
+    options["statuses"] = statuses;
+  }
+
   const names = namingOf(config, modules, instanceFunctionNames);
 
   return {
     schema: resolved.schema,
     ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
     options,
+    ...(columns === undefined ? {} : { columns }),
     ...(names === undefined ? {} : { names }),
   };
 }

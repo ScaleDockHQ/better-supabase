@@ -53,6 +53,27 @@ describe("blocks.generated.ts", () => {
     });
   });
 
+  it("writes the app's employee status values for the create input's type", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          employees: {
+            values: {
+              employees: {
+                status: { active: ["active", "offboarding"], on_leave: "away" },
+              },
+            },
+          },
+        },
+      },
+      "/project",
+    );
+
+    expect(blockConfigEntries(config)["employees"]?.options).toMatchObject({
+      statuses: ["active", "offboarding", "away"],
+    });
+  });
+
   it("writes the function names the tenant name and blocks.<name>.functions give", () => {
     const config = resolveConfig(
       {

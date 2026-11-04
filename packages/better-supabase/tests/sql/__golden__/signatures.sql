@@ -1740,7 +1740,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:b927f6e3cb6d9940fa4801d6a3168a1933eea15c18ecbe9cc785fbdab5b9745f
+-- @bsb-hash sha256:00427518f85bec7ae395855980c5c8017ea872ce22d206b150d46b6ebb3c855d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2280,6 +2280,7 @@ drop function if exists "api"."create_signature_request"(uuid, text, text, uuid[
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2334,6 +2335,7 @@ grant execute on function "api"."cancel_signature_request"(uuid) to authenticate
 create or replace function "api"."get_signature_request"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_signature_request"($1) $$;
@@ -2343,6 +2345,7 @@ grant execute on function "api"."get_signature_request"(uuid) to authenticated, 
 create or replace function "api"."list_signature_requests"(tenant uuid, subject_type text default null, subject_id text default null, status text default null, mine boolean default false, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_signature_requests"($1, $2, $3, $4, $5, $6, $7) $$;

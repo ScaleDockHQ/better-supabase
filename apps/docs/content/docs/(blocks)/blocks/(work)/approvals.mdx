@@ -449,6 +449,18 @@ await approvals
   .orThrow();
 ```
 
+## Policies over the requests you may decide
+
+`better_supabase.approval_eligible_ids(tenant)` returns the pending requests the caller may decide, as a set. It calls `approval_eligible` for each pending request, so the two never disagree, and Postgres evaluates the set once per statement when you write `in (select ...)`. Use it in a policy on a table that points at a request instead of calling `approval_eligible(request_id)` for every row:
+
+```sql
+create policy invoices_approver_read on public.invoices
+  for select to authenticated
+  using (approval_id in (select better_supabase.approval_eligible_ids()));
+```
+
+Pass a tenant to read one organization's requests. `list_approvals` uses the same set. The pgTAP file `900_better_supabase_approvals_eligible_ids.test.sql` checks that the set matches `approval_eligible` for each user in the test database.
+
 ## Without the client
 
 `db.approvals` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

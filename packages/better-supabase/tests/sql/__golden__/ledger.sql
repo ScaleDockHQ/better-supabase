@@ -3224,7 +3224,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:934ced8b6324d9f95b660f0a7fbe6e8a773502c97a5080574d00a2b8d37d61da
+-- @bsb-hash sha256:5fc6a91af348533a8e9790cd5a76a19c0296ebd85c54fdbd40850c067a3ad7c7
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4261,6 +4261,7 @@ drop function if exists "api"."ledger_read_grants"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4351,6 +4352,7 @@ grant execute on function "api"."expire_ledger_holds"(integer) to service_role;
 create or replace function "api"."list_ledger_accounts"(tenant uuid, kind text default null, holder_type text default null, holder_id text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ledger_accounts"($1, $2, $3, $4, $5) $$;
@@ -4360,6 +4362,7 @@ grant execute on function "api"."list_ledger_accounts"(uuid, text, text, text, i
 create or replace function "api"."ledger_account_entries"(account_id uuid, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ledger_account_entries"($1, $2, $3) $$;
@@ -4369,6 +4372,7 @@ grant execute on function "api"."ledger_account_entries"(uuid, timestamptz, inte
 create or replace function "api"."get_ledger_transaction"(transaction_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ledger_transaction"($1) $$;

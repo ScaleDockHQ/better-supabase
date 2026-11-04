@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3486f6d63535f3d94ac0afe0e5eb6409dbd4c154481138ddfc2de30ef0db6fd9
+-- @bsb-hash sha256:e12a605bf05cdb0a4808f48d71768cad831f8f75dd9c5d1d94bf5875a9bff968
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -817,6 +817,7 @@ drop function if exists "api"."request_access"(uuid, text, text, interval, jsonb
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -826,6 +827,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -871,6 +873,7 @@ grant execute on function "api"."expire_access_grants"(integer) to service_role;
 create or replace function "api"."get_access_request"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_access_request"($1) $$;
@@ -880,6 +883,7 @@ grant execute on function "api"."get_access_request"(uuid) to authenticated, ser
 create or replace function "api"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_access_requests"($1, $2, $3, $4, $5) $$;
@@ -916,6 +920,7 @@ grant execute on function "api"."review_emergency_access"(uuid, text, text) to a
 create or replace function "api"."list_emergency_access"(tenant uuid, unreviewed boolean default true, page_size integer default null, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_emergency_access"($1, $2, $3, $4) $$;
@@ -925,6 +930,7 @@ grant execute on function "api"."list_emergency_access"(uuid, boolean, integer, 
 create or replace function "api"."list_record_access_requests"(subject_type text, subject_id text, status text default null, page_size integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_record_access_requests"($1, $2, $3, $4) $$;

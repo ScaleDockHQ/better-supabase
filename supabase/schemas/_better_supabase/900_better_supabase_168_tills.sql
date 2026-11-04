@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:2b453c71d581e431e4a51e9cec59fb99ca95708afff122678173495ab6747aa7
+-- @bsb-hash sha256:6d06ceff0d0ef39d3877c468be07ad526985d471b5cf7da3234210e77841e7a3
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1038,6 +1038,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1047,6 +1048,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1083,6 +1085,7 @@ grant execute on function "api"."update_till"(uuid, jsonb) to authenticated, ser
 create or replace function "api"."list_tills"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tills"($1, $2) $$;
@@ -1101,6 +1104,7 @@ grant execute on function "api"."open_till_session"(uuid, bigint, text) to authe
 create or replace function "api"."get_till_session"(session_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_till_session"($1) $$;
@@ -1110,6 +1114,7 @@ grant execute on function "api"."get_till_session"(uuid) to authenticated, servi
 create or replace function "api"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_till_sessions"($1, $2) $$;

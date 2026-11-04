@@ -121,7 +121,7 @@ async function run(
       ROLES,
       app,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [
@@ -789,7 +789,7 @@ async function runEmployees(
       ROLES,
       app,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [
@@ -1000,7 +1000,7 @@ language sql volatile as $$ select decode(md5(random()::text) || md5(random()::t
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [
@@ -1178,7 +1178,7 @@ language sql volatile as $$ select decode(md5(random()::text) || md5(random()::t
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [

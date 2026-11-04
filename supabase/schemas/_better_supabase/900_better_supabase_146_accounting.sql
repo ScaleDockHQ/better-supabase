@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:5182192f66732db6c484db4e6a08dc433580d64a7f0be4f3efd8de2f16879aea
+-- @bsb-hash sha256:66cf447b7bd0d1ba113af585665924207db6d954f91db4d3a51b9b1d37c1d7bc
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3913,6 +3913,7 @@ drop function if exists "api"."save_accounting_entry"(uuid, date, jsonb, text, t
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -3922,6 +3923,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3949,6 +3951,7 @@ grant execute on function "api"."setup_accounting"(uuid, text, integer) to authe
 create or replace function "api"."get_accounting_settings"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_accounting_settings"($1) $$;
@@ -3994,6 +3997,7 @@ grant execute on function "api"."set_accounting_account_role"(uuid, text, uuid) 
 create or replace function "api"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_accounts"($1, $2) $$;
@@ -4012,6 +4016,7 @@ grant execute on function "api"."save_accounting_journal"(uuid, text, text, text
 create or replace function "api"."list_accounting_journals"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_journals"($1) $$;
@@ -4030,6 +4035,7 @@ grant execute on function "api"."open_fiscal_year"(uuid, integer) to authenticat
 create or replace function "api"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_periods"($1, $2) $$;
@@ -4057,6 +4063,7 @@ grant execute on function "api"."save_accounting_dimension_value"(uuid, text, te
 create or replace function "api"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_dimensions"($1) $$;
@@ -4075,6 +4082,7 @@ grant execute on function "api"."set_accounting_fx_rate"(uuid, text, text, date,
 create or replace function "api"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
 returns numeric
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_fx_rate"($1, $2, $3, $4) $$;
@@ -4120,6 +4128,7 @@ grant execute on function "api"."delete_accounting_entry"(uuid) to authenticated
 create or replace function "api"."get_accounting_entry"(entry_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_accounting_entry"($1) $$;
@@ -4129,6 +4138,7 @@ grant execute on function "api"."get_accounting_entry"(uuid) to authenticated, s
 create or replace function "api"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_entries"($1, $2, $3, $4, $5, $6) $$;
@@ -4147,6 +4157,7 @@ grant execute on function "api"."post_accounting_source"(text, text) to authenti
 create or replace function "api"."accounting_period_close_blockers"(period_id uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_period_close_blockers"($1) $$;
@@ -4201,6 +4212,7 @@ grant execute on function "api"."close_fiscal_year"(uuid, integer) to authentica
 create or replace function "api"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_trial_balance"($1, $2, $3, $4) $$;
@@ -4210,6 +4222,7 @@ grant execute on function "api"."accounting_trial_balance"(uuid, date, date, jso
 create or replace function "api"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_profit_and_loss"($1, $2, $3, $4) $$;
@@ -4219,6 +4232,7 @@ grant execute on function "api"."accounting_profit_and_loss"(uuid, date, date, j
 create or replace function "api"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_balance_sheet"($1, $2, $3) $$;
@@ -4228,6 +4242,7 @@ grant execute on function "api"."accounting_balance_sheet"(uuid, date, jsonb) to
 create or replace function "api"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_general_ledger"($1, $2, $3) $$;
@@ -4237,6 +4252,7 @@ grant execute on function "api"."accounting_general_ledger"(uuid, date, date) to
 create or replace function "api"."accounting_period_trial_balance"(period_id uuid, dimensions jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_period_trial_balance"($1, $2) $$;
@@ -4246,6 +4262,7 @@ grant execute on function "api"."accounting_period_trial_balance"(uuid, jsonb) t
 create or replace function "api"."accounting_column_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb, rollup boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_column_balance"($1, $2, $3, $4, $5) $$;
@@ -4255,6 +4272,7 @@ grant execute on function "api"."accounting_column_balance"(uuid, date, date, js
 create or replace function "api"."accounting_journal_listing"(tenant uuid, since date default null, until date default null, journal_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_journal_listing"($1, $2, $3, $4) $$;
@@ -4273,6 +4291,7 @@ grant execute on function "api"."save_accounting_opening_balances"(uuid, integer
 create or replace function "api"."list_accounting_opening_balances"(tenant uuid, fiscal_year integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_opening_balances"($1, $2) $$;
@@ -4327,6 +4346,7 @@ grant execute on function "api"."import_accounting_opening_balance"(uuid, jsonb,
 create or replace function "api"."accounting_tax_report"(tenant uuid, since date, until date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_tax_report"($1, $2, $3) $$;
@@ -4345,6 +4365,7 @@ grant execute on function "api"."save_accounting_budget"(uuid, text, integer, te
 create or replace function "api"."get_accounting_budget"(budget_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_accounting_budget"($1) $$;
@@ -4354,6 +4375,7 @@ grant execute on function "api"."get_accounting_budget"(uuid) to authenticated, 
 create or replace function "api"."list_accounting_budgets"(tenant uuid, fiscal_year integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_accounting_budgets"($1, $2) $$;
@@ -4363,6 +4385,7 @@ grant execute on function "api"."list_accounting_budgets"(uuid, integer) to auth
 create or replace function "api"."accounting_budget_vs_actual"(budget_id uuid, period_number integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accounting_budget_vs_actual"($1, $2) $$;

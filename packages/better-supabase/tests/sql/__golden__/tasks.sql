@@ -3344,7 +3344,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@4 managed
--- @bsb-hash sha256:6776c3a70e587d5f3987f3830b8a7873af38e77cf136aaffeb06a0c2e571dbb4
+-- @bsb-hash sha256:fe4457e6e8bcf895fac787eb465311ace9eb8c8aee731a617106ead698c547f3
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4337,6 +4337,7 @@ drop function if exists "api"."update_tasks"(jsonb);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -4346,6 +4347,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4409,6 +4411,7 @@ grant execute on function "api"."delete_task"(uuid) to authenticated, service_ro
 create or replace function "api"."task_tree"(root uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."task_tree"($1) $$;
@@ -4418,6 +4421,7 @@ grant execute on function "api"."task_tree"(uuid) to authenticated, service_role
 create or replace function "api"."list_tasks"(tenant uuid, filter jsonb, search text, after uuid, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tasks"($1, $2, $3, $4, $5) $$;
@@ -4445,6 +4449,7 @@ grant execute on function "api"."delete_task_checklist_item"(uuid) to authentica
 create or replace function "api"."list_task_checklist"(work_item uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_task_checklist"($1) $$;
@@ -4454,6 +4459,7 @@ grant execute on function "api"."list_task_checklist"(uuid) to authenticated, se
 create or replace function "api"."get_task"(work_item uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_task"($1) $$;

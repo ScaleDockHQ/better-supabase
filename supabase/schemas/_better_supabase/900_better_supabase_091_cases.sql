@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:0fd2ed6c98388a06ae4c8c03df1315e2340cdff8eac92dd2b4354a4c9945b3ea
+-- @bsb-hash sha256:47fc76e9ef44a55860262f5b9e8e6f9424f2b97182e698882a55784a1d4d54f6
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1797,6 +1797,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1806,6 +1807,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1941,6 +1943,7 @@ grant execute on function "api"."remove_case_action"(uuid) to authenticated, ser
 create or replace function "api"."case_blockers_of"(target "better_supabase"."cases")
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."case_blockers_of"($1) $$;
@@ -1950,6 +1953,7 @@ grant execute on function "api"."case_blockers_of"(better_supabase.cases) to ser
 create or replace function "api"."case_close_blockers"(case_id uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."case_close_blockers"($1) $$;
@@ -2013,6 +2017,7 @@ grant execute on function "api"."notify_due_case_effectiveness"() to service_rol
 create or replace function "api"."get_case"(case_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_case"($1) $$;
@@ -2022,6 +2027,7 @@ grant execute on function "api"."get_case"(uuid) to authenticated, service_role;
 create or replace function "api"."list_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_cases"($1, $2) $$;
@@ -2031,6 +2037,7 @@ grant execute on function "api"."list_cases"(uuid, jsonb) to authenticated, serv
 create or replace function "api"."case_stats"(tenant uuid, kind text default null, since date default null, until date default null, group_by text default 'severity')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."case_stats"($1, $2, $3, $4, $5) $$;

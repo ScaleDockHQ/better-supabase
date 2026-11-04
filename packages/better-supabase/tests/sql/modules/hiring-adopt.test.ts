@@ -217,7 +217,7 @@ async function run(check: string): Promise<void> {
       ROLES,
       APP,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [
@@ -503,7 +503,7 @@ describe("hiring's managed tables in the new modes", BOOT, () => {
         ROLES,
         "create table public.people (id uuid primary key, tenant_id uuid not null);",
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [

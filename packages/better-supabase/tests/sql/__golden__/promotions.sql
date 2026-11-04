@@ -2938,7 +2938,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:a7170e16bcf23886ce6cb511fb2dcde5e1e0e31d9e603c9f30dc6f59349e1818
+-- @bsb-hash sha256:d950d9eaa1af25dbd6b518f5e2bc1a4455aa68c1c3f6a2133aa90e301830bca2
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3892,6 +3892,7 @@ drop function if exists "api"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;

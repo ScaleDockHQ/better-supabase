@@ -101,7 +101,7 @@ describe("tasks over an app table with its own states", () => {
         migrations: [
           SETUP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

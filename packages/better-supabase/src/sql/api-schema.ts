@@ -26,6 +26,11 @@ interface Signature {
   readonly name: string;
   readonly args: readonly Argument[];
   readonly returns: string;
+  /**
+   * `stable` or `immutable` as the wrapped function declares it; volatile
+   * otherwise.
+   */
+  readonly volatility?: "stable" | "immutable";
 }
 
 /** The roles PostgREST runs a request as. */
@@ -155,10 +160,20 @@ function signatures(sql: string, schema: string): Signature[] {
       continue;
     }
 
+    const header = /^[\s\S]*?\n\s*as\s+(?:\$|')/i.exec(rest)?.[0] ?? "";
+
+    const declared = /\n\s*(?:language\s+\w+\s+)?(stable|immutable)\b/i
+      .exec(header)?.[1]
+      ?.toLowerCase();
+
+    const volatility =
+      declared === "stable" || declared === "immutable" ? declared : undefined;
+
     found.push({
       name: (match[1] ?? match[2])!,
       args: splitTopLevel(sql.slice(open + 1, close)).map(argument),
       returns: returns[1]!.trim(),
+      ...(volatility === undefined ? {} : { volatility }),
     });
   }
 
@@ -244,7 +259,7 @@ function wrapper(
 
   return `create or replace function ${target}(${signature.args.map((arg) => arg.declaration).join(", ")})
 returns ${signature.returns}
-language sql
+language sql${signature.volatility === undefined ? "" : `\n${signature.volatility}`}
 security invoker
 set search_path = ''
 as $$ select ${set ? "* from " : ""}${call} $$;

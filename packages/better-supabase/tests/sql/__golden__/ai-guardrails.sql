@@ -672,7 +672,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:b61895ce6be86fa658dc8a8de59b0abdd841c7e70e8ab2bc6da54c1ce69875e2
+-- @bsb-hash sha256:bc365e36a3b9f1b4988325f3035f55abc06da8dd1751faa5e76ff48d9e2b98f1
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -877,6 +877,7 @@ grant execute on function "api"."set_guardrail_policy"(text, text, jsonb, uuid, 
 create or replace function "api"."get_guardrail_policy"(agent text, stage text, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_guardrail_policy"($1, $2, $3) $$;
@@ -895,6 +896,7 @@ grant execute on function "api"."record_guardrail_decision"(text, text, text, js
 create or replace function "api"."list_guardrail_decisions"(agent text default null, decision text default null, tenant uuid default null, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_guardrail_decisions"($1, $2, $3, $4) $$;

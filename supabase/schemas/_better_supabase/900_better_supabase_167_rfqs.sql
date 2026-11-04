@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:371eefd4b98c8d2400cea50aed57ebaa7b6ec566e62395a979c52184389cf1ca
+-- @bsb-hash sha256:53f19808d83991e6def861032a2912c802582d59c1123ee8820a53d021699715
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1152,6 +1152,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1161,6 +1162,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1197,6 +1199,7 @@ grant execute on function "api"."update_rfq"(uuid, jsonb, jsonb) to authenticate
 create or replace function "api"."get_rfq"(rfq_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_rfq"($1) $$;
@@ -1206,6 +1209,7 @@ grant execute on function "api"."get_rfq"(uuid) to authenticated, service_role;
 create or replace function "api"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_rfqs"($1, $2) $$;
@@ -1278,6 +1282,7 @@ grant execute on function "api"."withdraw_rfq_quote"(uuid) to authenticated, ser
 create or replace function "api"."compare_rfq"(rfq_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."compare_rfq"($1) $$;

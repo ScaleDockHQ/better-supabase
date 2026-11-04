@@ -3341,7 +3341,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:c952033374891fe941c799f51bb04b3cce3302735a9ac6604e3dc752f05cab8a
+-- @bsb-hash sha256:3210a5924eb676909225e41bc8184efec0184621ed3fec931d56f3e49dad170c
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4398,6 +4398,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -4407,6 +4408,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4443,6 +4445,7 @@ grant execute on function "api"."update_rfq"(uuid, jsonb, jsonb) to authenticate
 create or replace function "api"."get_rfq"(rfq_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_rfq"($1) $$;
@@ -4452,6 +4455,7 @@ grant execute on function "api"."get_rfq"(uuid) to authenticated, service_role;
 create or replace function "api"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_rfqs"($1, $2) $$;
@@ -4524,6 +4528,7 @@ grant execute on function "api"."withdraw_rfq_quote"(uuid) to authenticated, ser
 create or replace function "api"."compare_rfq"(rfq_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."compare_rfq"($1) $$;

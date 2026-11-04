@@ -1753,7 +1753,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:7a03ea52da4da8e22a91d5ff319629bba2831a6a506d571a462e6c2d392b22c2
+-- @bsb-hash sha256:8ca420e7d3cad9659bfa1246f4f3dd4f11d04fcec4ffecd1d8922b6e1dbd5a2a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2271,6 +2271,7 @@ drop function if exists "api"."set_field_value"(uuid, text, text, uuid, text, uu
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2289,6 +2290,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."bsb_valid_bsn"(value text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bsb_valid_bsn"($1) $$;
@@ -2298,6 +2300,7 @@ grant execute on function "api"."bsb_valid_bsn"(text) to authenticated, service_
 create or replace function "api"."bsb_valid_iban"(value text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bsb_valid_iban"($1) $$;
@@ -2316,6 +2319,7 @@ grant execute on function "api"."save_field_definition"(uuid, text, text, text, 
 create or replace function "api"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."read_field_values"($1, $2, $3) $$;
@@ -2343,6 +2347,7 @@ grant execute on function "api"."delete_field_definition"(uuid) to authenticated
 create or replace function "api"."list_field_definitions"(tenant uuid, entity text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_field_definitions"($1, $2) $$;

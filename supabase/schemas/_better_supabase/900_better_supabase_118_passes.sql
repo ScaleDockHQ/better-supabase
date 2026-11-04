@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:d80c94e0eb546cb712804756a5aeba4ee2266eb88d0e9f634351e67ee9ea4f31
+-- @bsb-hash sha256:367a4467395eef252a14f4c81e4923335b15d6c463b4c1f803143ed7d1206789
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -749,6 +749,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -785,6 +786,7 @@ grant execute on function "api"."revoke_pass"(uuid) to authenticated, service_ro
 create or replace function "api"."get_pass"(pass_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_pass"($1) $$;
@@ -803,6 +805,7 @@ grant execute on function "api"."check_in_pass"(uuid, text, text, text, uuid) to
 create or replace function "api"."list_passes"(tenant uuid, holder_user uuid default null, subject_type text default null, subject_id text default null, status text default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_passes"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -812,6 +815,7 @@ grant execute on function "api"."list_passes"(uuid, uuid, text, text, text, time
 create or replace function "api"."my_passes"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_passes"() $$;
@@ -821,6 +825,7 @@ grant execute on function "api"."my_passes"() to authenticated, service_role;
 create or replace function "api"."list_pass_check_ins"(pass_id uuid, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pass_check_ins"($1, $2, $3) $$;
@@ -830,6 +835,7 @@ grant execute on function "api"."list_pass_check_ins"(uuid, timestamptz, integer
 create or replace function "api"."pass_occupancy"(resource_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pass_occupancy"($1) $$;
@@ -848,6 +854,7 @@ grant execute on function "api"."book_with_credit"(uuid, uuid, uuid, timestamptz
 create or replace function "api"."list_pass_credits"(pass_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pass_credits"($1) $$;

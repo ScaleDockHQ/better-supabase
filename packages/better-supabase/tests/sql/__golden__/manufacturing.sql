@@ -6129,7 +6129,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:84b6a0ee0fcf7d621295ed8adeca65290ac38170503dde80c3a2680501e3efb8
+-- @bsb-hash sha256:86a6260223059b0e13efc05fd153264ebbdf3ba27a4d8fd66b3594c567848891
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8109,6 +8109,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -8145,6 +8146,7 @@ grant execute on function "api"."activate_bom"(uuid) to authenticated, service_r
 create or replace function "api"."get_bom"(bom_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_bom"($1) $$;
@@ -8154,6 +8156,7 @@ grant execute on function "api"."get_bom"(uuid) to authenticated, service_role;
 create or replace function "api"."list_boms"(tenant uuid, variant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_boms"($1, $2) $$;
@@ -8163,6 +8166,7 @@ grant execute on function "api"."list_boms"(uuid, uuid) to authenticated, servic
 create or replace function "api"."explode_bom"(variant_id uuid, quantity numeric)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."explode_bom"($1, $2) $$;
@@ -8172,6 +8176,7 @@ grant execute on function "api"."explode_bom"(uuid, numeric) to authenticated, s
 create or replace function "api"."bom_where_used"(variant_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bom_where_used"($1) $$;
@@ -8190,6 +8195,7 @@ grant execute on function "api"."save_work_center"(uuid, jsonb, uuid) to authent
 create or replace function "api"."list_work_centers"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_work_centers"($1) $$;
@@ -8262,6 +8268,7 @@ grant execute on function "api"."cancel_production_order"(uuid, text) to authent
 create or replace function "api"."get_production_order"(order_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_production_order"($1) $$;
@@ -8271,6 +8278,7 @@ grant execute on function "api"."get_production_order"(uuid) to authenticated, s
 create or replace function "api"."list_production_orders"(tenant uuid, filter jsonb default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_production_orders"($1, $2) $$;
@@ -8280,6 +8288,7 @@ grant execute on function "api"."list_production_orders"(uuid, jsonb) to authent
 create or replace function "api"."lot_genealogy"(lot_id uuid, direction text default 'down')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."lot_genealogy"($1, $2) $$;
@@ -8289,6 +8298,7 @@ grant execute on function "api"."lot_genealogy"(uuid, text) to authenticated, se
 create or replace function "api"."lot_recall"(lot_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."lot_recall"($1) $$;
@@ -8298,6 +8308,7 @@ grant execute on function "api"."lot_recall"(uuid) to authenticated, service_rol
 create or replace function "api"."material_requirements"(tenant uuid, horizon_days integer default 30)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."material_requirements"($1, $2) $$;

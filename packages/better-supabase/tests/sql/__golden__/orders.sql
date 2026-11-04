@@ -8209,7 +8209,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:9663a5561710c7b4fe854b7a8beea7b5854ae9f0408faf6bfce98e490743cf52
+-- @bsb-hash sha256:b0c1d902c4a3d81aed3f2692ec3a2dcc8ed2a777112545b1fdae8c1c0d5cdaf4
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10844,6 +10844,7 @@ drop function if exists "api"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -10853,6 +10854,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -11006,6 +11008,7 @@ grant execute on function "api"."expire_orders"(integer) to service_role;
 create or replace function "api"."get_order"(order_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_order"($1) $$;
@@ -11051,6 +11054,7 @@ grant execute on function "api"."select_order_variant"(uuid) to authenticated, s
 create or replace function "api"."list_order_variants"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_order_variants"($1) $$;
@@ -11150,6 +11154,7 @@ grant execute on function "api"."import_order"(uuid, jsonb, text) to service_rol
 create or replace function "api"."order_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."order_updated_at"($1) $$;
@@ -11159,6 +11164,7 @@ grant execute on function "api"."order_updated_at"(text) to service_role;
 create or replace function "api"."order_status_board"(tenant uuid, per_status integer default 20)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."order_status_board"($1, $2) $$;

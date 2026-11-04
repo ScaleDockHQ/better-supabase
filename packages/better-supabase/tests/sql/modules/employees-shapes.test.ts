@@ -154,7 +154,7 @@ describe("employees over app tables with their own shapes", () => {
         migrations: [
           SETUP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -216,7 +216,7 @@ $$;`,
       migrations: [
         SETUP,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [
@@ -330,7 +330,7 @@ create table public.people_contracts (
   check (is_flexible or weekly_hours is not null)
 );`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

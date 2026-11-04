@@ -2725,7 +2725,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:a7e2ad3d03123c37d7047c95b0cf227284fb1d3a5451c0213a63496a6e78e7a9
+-- @bsb-hash sha256:a1674619d5438acf9083d8dd4870e882abe27e3a5d2bc66c6f1e238c9de5e0f4
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3551,6 +3551,7 @@ drop function if exists "api"."grant_qualification"(uuid, text, text, text, date
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3587,6 +3588,7 @@ grant execute on function "api"."archive_qualification_type"(uuid) to authentica
 create or replace function "api"."list_qualification_types"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_qualification_types"($1, $2) $$;
@@ -3614,6 +3616,7 @@ grant execute on function "api"."remove_qualification_requirement"(uuid) to auth
 create or replace function "api"."list_qualification_requirements"(type_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_qualification_requirements"($1) $$;
@@ -3641,6 +3644,7 @@ grant execute on function "api"."revoke_qualification"(uuid, text) to authentica
 create or replace function "api"."qualifications_of"(holder_type text, holder_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."qualifications_of"($1, $2) $$;
@@ -3650,6 +3654,7 @@ grant execute on function "api"."qualifications_of"(text, text) to authenticated
 create or replace function "api"."qualification_gaps"(tenant uuid, holder_type text default 'member', filters jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."qualification_gaps"($1, $2, $3) $$;
@@ -3659,6 +3664,7 @@ grant execute on function "api"."qualification_gaps"(uuid, text, jsonb) to authe
 create or replace function "api"."qualified_holders"(tenant uuid, type_key text, holder_type text default 'member', on_date date default current_date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."qualified_holders"($1, $2, $3, $4) $$;

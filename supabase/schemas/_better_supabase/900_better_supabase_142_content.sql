@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:6bba9160e164a0dafea139dfd954866b41be2d8662fab50112073abd4784ab72
+-- @bsb-hash sha256:965645308a0b59269509b7ad09555fbf439531643d922b133d9d45c9100167d5
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,6 +762,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -807,6 +808,7 @@ grant execute on function "api"."archive_content_entry"(uuid) to authenticated, 
 create or replace function "api"."get_content_entry"(entry_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_content_entry"($1) $$;
@@ -816,6 +818,7 @@ grant execute on function "api"."get_content_entry"(uuid) to authenticated, serv
 create or replace function "api"."list_content_entries"(tenant uuid, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_content_entries"($1, $2) $$;
@@ -852,6 +855,7 @@ grant execute on function "api"."publish_due_content_entries"() to service_role;
 create or replace function "api"."public_content_entry"(tenant uuid, type text, slug text, locale text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."public_content_entry"($1, $2, $3, $4) $$;
@@ -861,6 +865,7 @@ grant execute on function "api"."public_content_entry"(uuid, text, text, text) t
 create or replace function "api"."public_content_entries"(tenant uuid, type text default null, locale text default null, page_size integer default 20, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."public_content_entries"($1, $2, $3, $4, $5) $$;

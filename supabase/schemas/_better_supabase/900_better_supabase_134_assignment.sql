@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:62b35f70aa0a78818dbc6d4e81c8635276df27ea7f94dfafa13c65af899d0907
+-- @bsb-hash sha256:2504ec40947a741b985251b6bd53ddb5a3ff1fba1813cd348bbb21c4cdcdc404
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -511,6 +511,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -556,6 +557,7 @@ grant execute on function "api"."remove_assignment_queue"(uuid) to authenticated
 create or replace function "api"."list_assignment_queues"(tenant uuid, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_assignment_queues"($1, $2) $$;
@@ -574,6 +576,7 @@ grant execute on function "api"."assign_subject"(uuid, text, text, jsonb) to aut
 create or replace function "api"."assignment_history"(tenant uuid, subject_type text, subject_id text, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."assignment_history"($1, $2, $3, $4) $$;

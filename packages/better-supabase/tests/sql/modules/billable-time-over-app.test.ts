@@ -131,7 +131,7 @@ describe("billable time over per-record columns and duration entries", () => {
         migrations: [
           SETUP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

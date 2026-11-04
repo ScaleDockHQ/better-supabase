@@ -1894,7 +1894,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:70aad0a004fdbc25bf0a7936bb34586ed046d54826d833cdff4c7f0f9cb37244
+-- @bsb-hash sha256:b8be61592098424ad409d4234e3e2904c3fef137d1dac8a8deb4dd525a9a1fcd
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2500,6 +2500,7 @@ grant execute on function "api"."upsert_marketplace_installation"(text, text, te
 create or replace function "api"."marketplace_installation"(configuration_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."marketplace_installation"($1) $$;
@@ -2563,6 +2564,7 @@ grant execute on function "api"."mark_marketplace_meter_reported"(uuid[]) to ser
 create or replace function "api"."unreported_marketplace_meter_reports"(configuration_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unreported_marketplace_meter_reports"($1) $$;
@@ -2590,6 +2592,7 @@ grant execute on function "api"."seal_marketplace_access_token"(text, text) to s
 create or replace function "api"."marketplace_access_token"(configuration_id text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."marketplace_access_token"($1) $$;
@@ -2617,6 +2620,7 @@ grant execute on function "api"."set_marketplace_resource_state"(text, text, tex
 create or replace function "api"."marketplace_resource"(configuration_id text, external_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."marketplace_resource"($1, $2) $$;
@@ -2626,6 +2630,7 @@ grant execute on function "api"."marketplace_resource"(text, text) to service_ro
 create or replace function "api"."marketplace_resources"(configuration_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."marketplace_resources"($1) $$;

@@ -1298,7 +1298,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:6323c07b1f95db5d1a1541b0fb7165e244718aef0e7217c3ddfff1c2ab61eb85
+-- @bsb-hash sha256:54d56b225459e2861f22890a6c37131c64cf863e940bf718e6ef96097f69b50f
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1671,6 +1671,7 @@ drop function if exists "api"."resolve_share_link"(text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1725,6 +1726,7 @@ grant execute on function "api"."record_view"(uuid, text, text, text, text) to a
 create or replace function "api"."list_share_links"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_share_links"($1, $2) $$;

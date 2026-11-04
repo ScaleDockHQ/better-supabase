@@ -3456,7 +3456,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f8a45d9168c16033ca35541c2eefb947a68b6205c3e234daaa77e0035e29e485
+-- @bsb-hash sha256:553e38efb0bca16cb618c92dbd2c1aad37a377e19fa9b06c9138044dd3e7bfad
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4544,6 +4544,7 @@ drop function if exists "api"."open_gift"(uuid, text, text, bigint, text, uuid, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4580,6 +4581,7 @@ grant execute on function "api"."archive_donation_fund"(uuid) to authenticated, 
 create or replace function "api"."list_donation_funds"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_donation_funds"($1, $2) $$;
@@ -4616,6 +4618,7 @@ grant execute on function "api"."record_gift_payment"(uuid, text, text, text) to
 create or replace function "api"."get_gift"(gift_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_gift"($1) $$;
@@ -4625,6 +4628,7 @@ grant execute on function "api"."get_gift"(uuid) to authenticated, service_role;
 create or replace function "api"."list_gifts"(tenant uuid, donor_type text default null, donor_id text default null, fund_id uuid default null, pledge_id uuid default null, status text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_gifts"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -4652,6 +4656,7 @@ grant execute on function "api"."update_pledge"(uuid, text, date, bigint) to aut
 create or replace function "api"."list_pledges"(tenant uuid, donor_type text default null, donor_id text default null, status text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pledges"($1, $2, $3, $4, $5) $$;
@@ -4661,6 +4666,7 @@ grant execute on function "api"."list_pledges"(uuid, text, text, text, integer) 
 create or replace function "api"."due_pledge_installments"(tenant uuid, through date default null, max_rows integer default 500)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."due_pledge_installments"($1, $2, $3) $$;
@@ -4697,6 +4703,7 @@ grant execute on function "api"."void_donation_receipt"(uuid, text) to authentic
 create or replace function "api"."list_donation_receipts"(tenant uuid, donor_type text default null, donor_id text default null, year integer default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_donation_receipts"($1, $2, $3, $4, $5) $$;
@@ -4706,6 +4713,7 @@ grant execute on function "api"."list_donation_receipts"(uuid, text, text, integ
 create or replace function "api"."yearly_giving_summary"(tenant uuid, donor_type text, donor_id text, year integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."yearly_giving_summary"($1, $2, $3, $4) $$;

@@ -2497,7 +2497,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:224e54aeb11723bc768cfa4d0299b9a14ca8880c7d96dd9389a2dddd857b6ae7
+-- @bsb-hash sha256:5e500da6115dc72f44b8552362d2e33728647a37a2024b1e6ffba114cabdf505
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3252,6 +3252,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3270,6 +3271,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."is_subject_member"(subject_type text, subject_id text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_subject_member"($1, $2) $$;
@@ -3279,6 +3281,7 @@ grant execute on function "api"."is_subject_member"(text, text) to authenticated
 create or replace function "api"."has_subject_role"(subject_type text, subject_id text, roles text[])
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_subject_role"($1, $2, $3) $$;
@@ -3288,6 +3291,7 @@ grant execute on function "api"."has_subject_role"(text, text, text[]) to authen
 create or replace function "api"."subject_types"()
 returns text[]
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_types"() $$;
@@ -3297,6 +3301,7 @@ grant execute on function "api"."subject_types"() to authenticated, service_role
 create or replace function "api"."subject_title"(subject_type text, subject_id text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_title"($1, $2) $$;
@@ -3306,6 +3311,7 @@ grant execute on function "api"."subject_title"(text, text) to authenticated, se
 create or replace function "api"."subject_url"(subject_type text, subject_id text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_url"($1, $2) $$;
@@ -3315,6 +3321,7 @@ grant execute on function "api"."subject_url"(text, text) to authenticated, serv
 create or replace function "api"."subject_titles"(refs jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_titles"($1) $$;
@@ -3324,6 +3331,7 @@ grant execute on function "api"."subject_titles"(jsonb) to authenticated, servic
 create or replace function "api"."can_subject"(subject_type text, subject_id text, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_subject"($1, $2, $3) $$;
@@ -3333,6 +3341,7 @@ grant execute on function "api"."can_subject"(text, text, text) to authenticated
 create or replace function "api"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."record_summary"($1, $2, $3, $4) $$;
@@ -3342,6 +3351,7 @@ grant execute on function "api"."record_summary"(text, text, text[], timestamptz
 create or replace function "api"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_subject_for"($1, $2, $3, $4) $$;
@@ -3369,6 +3379,7 @@ grant execute on function "api"."end_subject_member"(uuid, date) to authenticate
 create or replace function "api"."list_subject_members"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_subject_members"($1, $2) $$;
@@ -3378,6 +3389,7 @@ grant execute on function "api"."list_subject_members"(text, text) to authentica
 create or replace function "api"."my_subjects"(tenant uuid, subject_type text default null, page_size integer default 100, cursor text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_subjects"($1, $2, $3, $4) $$;
@@ -3387,6 +3399,7 @@ grant execute on function "api"."my_subjects"(uuid, text, integer, text) to auth
 create or replace function "api"."my_work"(tenant uuid default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_work"($1, $2) $$;
@@ -3396,6 +3409,7 @@ grant execute on function "api"."my_work"(uuid, integer) to authenticated, servi
 create or replace function "api"."subject_presence_allowed"(topic text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_presence_allowed"($1) $$;

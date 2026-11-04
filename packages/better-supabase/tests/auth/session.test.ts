@@ -16,7 +16,7 @@ const USER = { id: "11111111-1111-4111-8111-111111111111", email: "a@b.test" };
 const session = (extra: Partial<StoredSession> = {}): StoredSession => ({
   access_token: "access",
   refresh_token: "refresh",
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
+  expires_at: 1_900_000_000,
   expires_in: 3600,
   token_type: "bearer",
   user: USER,

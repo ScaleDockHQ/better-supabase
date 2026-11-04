@@ -369,9 +369,9 @@ create table if not exists ${n.table("deliveries")} (
     ...(n.partitioned ? [`primary key (${v("id")}, ${v("createdAt")})`] : []),
   ].join(",\n  ")}
 )${n.partitioned ? ` partition by range (${v("createdAt")});\n${defaultPartition(n.table("deliveries"), fallback)}` : ";"}
-${added(n, "deliveries", [["subject", "text"]])}create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
+${added(n, "deliveries", [["subject", "text"]])}create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in (${n.status("pending")}, ${n.status("retrying")}, ${n.status("delivering")});
 create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);
-create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');
+create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in (${n.status("pending")}, ${n.status("retrying")});
 create index if not exists webhook_deliveries_finished_idx on ${n.table("deliveries")} (${v("createdAt")}) where ${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")}, ${n.status("dead")});${
     n.has("deliveries", "tenant")
       ? `

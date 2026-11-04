@@ -1,6 +1,6 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:4ee302f2ace78fbb1383d0aed153342d5087945766c881abd931afc806b05eca
+-- @bsb-hash sha256:1fcc7b8f85d3677d732546bb79cd1589468c1afc76ec44dfc4dec493543be8d6
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -269,6 +269,7 @@ grant execute on function "api"."add_signing_key"(text, text, text, text, jsonb,
 create or replace function "api"."signing_key"(owner_type text, owner_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."signing_key"($1, $2) $$;
@@ -296,6 +297,7 @@ grant execute on function "api"."retire_signing_key"(text) to service_role;
 create or replace function "api"."signing_jwks"(owner_type text, owner_id text, grace interval default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."signing_jwks"($1, $2, $3) $$;

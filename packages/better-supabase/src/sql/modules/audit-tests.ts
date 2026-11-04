@@ -4,10 +4,15 @@ import type { BlockSqlTestFile } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 
-const PROBE = "pg_temp.bsb_audit_probe";
+/**
+ * Each table gets its own probe name: the log keeps an earlier probe's entries
+ * for the whole transaction.
+ */
+const probeTable = (index: number): string =>
+  `bsb_audit_probe_${String(index)}`;
 
-const PROBE_NAME =
-  "(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe'";
+const probeName = (index: number): string =>
+  `(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.${probeTable(index)}'`;
 
 const textArray = (names: readonly string[]): string =>
   `${sqlString(`{${names.map((name) => `"${name.replaceAll('"', '\\"')}"`).join(",")}}`)}::text[]`;
@@ -29,7 +34,8 @@ const quotedTarget = (target: string): string => {
  */
 const probe = (
   table: AuditedTable,
-): string => `create temp table bsb_audit_probe (like ${quotedTarget(table.target)} including defaults including identity including generated) on commit drop;
+  index: number,
+): string => `create temp table ${probeTable(index)} (like ${quotedTarget(table.target)} including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -37,13 +43,13 @@ declare
 begin
   for col in
     select a.attname from pg_catalog.pg_attribute a
-    where a.attrelid = '${PROBE}'::regclass and a.attnum > 0 and not a.attisdropped
+    where a.attrelid = 'pg_temp.${probeTable(index)}'::regclass and a.attnum > 0 and not a.attisdropped
       and a.attnotnull and a.attidentity = ''
   loop
-    execute format('alter table ${PROBE} alter column %I drop not null', col.attname);
+    execute format('alter table pg_temp.${probeTable(index)} alter column %I drop not null', col.attname);
   end loop;
-  perform better_supabase.audit('${PROBE}', ignore => ${textArray(table.ignore)}, redact => ${textArray(table.redact)});
-  insert into ${PROBE} default values;
+  perform better_supabase.audit('pg_temp.${probeTable(index)}', ignore => ${textArray(table.ignore)}, redact => ${textArray(table.redact)});
+  insert into pg_temp.${probeTable(index)} default values;
   select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
   from pg_catalog.pg_attribute a
   join pg_catalog.pg_type t on t.oid = a.atttypid
@@ -62,25 +68,32 @@ begin
       when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
     end as value
   ) v
-  where a.attrelid = '${PROBE}'::regclass and a.attnum > 0 and not a.attisdropped
+  where a.attrelid = 'pg_temp.${probeTable(index)}'::regclass and a.attnum > 0 and not a.attisdropped
     and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
   if sets is not null then
-    execute format('update ${PROBE} set %s', sets);
+    execute format('update pg_temp.${probeTable(index)} set %s', sets);
   end if;
-  delete from ${PROBE};
+  delete from pg_temp.${probeTable(index)};
 end;
 $$;`;
 
+/** One table's section of the audit pgTAP file: its setup and its assertions. */
+interface AuditSection {
+  readonly setup: string;
+  readonly checks: readonly string[];
+}
+
 /**
- * The pgTAP file for one audited table: the trigger and registration match the
+ * The section for one audited table: the trigger and registration match the
  * `audit()` call, and inserts, updates and deletes on a copy of the table write
  * entries without the ignored columns and with the redacted values masked.
  */
-function auditTableTest(
+function auditTableSection(
   ctx: BlockSqlContext,
   table: AuditedTable,
   restricted: boolean,
-): string {
+  index: number,
+): AuditSection {
   const dot = table.target.indexOf(".");
   const schema = sqlString(table.target.slice(0, dot));
   const name = sqlString(table.target.slice(dot + 1));
@@ -98,14 +111,7 @@ function auditTableTest(
   const behaviour = ctx.has("log", "table") && ctx.has("log", "op");
 
   if (!behaviour) {
-    return `begin;
-create extension if not exists pgtap with schema extensions;
-select extensions.plan(${String(checks.length)});
-
-${checks.join("\n")}
-
-select * from extensions.finish();
-rollback;`;
+    return { setup: "", checks };
   }
 
   const joined = restricted && ctx.hasTable("restricted");
@@ -114,7 +120,7 @@ rollback;`;
     joined
       ? ` left join ${ctx.table("restricted")} r on r.${ctx.col("restricted", "entry")} = l.${c("id")}`
       : ""
-  } where l.${c("table")} = ${PROBE_NAME}`;
+  } where l.${c("table")} = ${probeName(index)}`;
 
   const side = (logical: "old" | "new"): string | undefined => {
     if (joined) {
@@ -159,26 +165,51 @@ rollback;`;
     );
   }
 
-  return `begin;
-create extension if not exists pgtap with schema extensions;
-select extensions.plan(${String(checks.length)});
-
-${probe(table)}
-
-${checks.join("\n")}
-
-select * from extensions.finish();
-rollback;`;
+  return { setup: probe(table, index), checks };
 }
 
-/** One pgTAP file per table in `audited`, named after the table. */
+/**
+ * One pgTAP file for every table in `audited`, with each table's assertion
+ * names. Each table has its own numbered probe copy, dropped after its checks.
+ */
 export function auditTests(
   ctx: BlockSqlContext,
   audited: readonly AuditedTable[],
   restricted: boolean,
 ): BlockSqlTestFile[] {
-  return audited.map((table) => ({
-    name: table.target.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_"),
-    sql: auditTableTest(ctx, table, restricted),
-  }));
+  if (audited.length === 0) {
+    return [];
+  }
+
+  const sections = audited.map((table, index) =>
+    auditTableSection(ctx, table, restricted, index),
+  );
+
+  const total = sections.reduce((sum, each) => sum + each.checks.length, 0);
+
+  const body = sections
+    .map(({ setup, checks }, index) =>
+      [
+        setup,
+        ...checks,
+        ...(setup === "" ? [] : [`drop table pg_temp.${probeTable(index)};`]),
+      ]
+        .filter((part) => part !== "")
+        .join("\n"),
+    )
+    .join("\n\n");
+
+  return [
+    {
+      name: "tables",
+      sql: `begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(${String(total)});
+
+${body}
+
+select * from extensions.finish();
+rollback;`,
+    },
+  ];
 }

@@ -3637,7 +3637,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:dbd138bb8046c7f917ded8ea545e19a0fa05d4b1f8989524c3e70513c73823e2
+-- @bsb-hash sha256:5bdda1144f5876dc69b6fe8cf1bc29f0bca8048cc448be658ad8e7dba306d600
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4775,6 +4775,7 @@ drop function if exists "api"."update_form"(uuid, text, text, text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4820,6 +4821,7 @@ grant execute on function "api"."publish_form_version"(uuid, jsonb) to authentic
 create or replace function "api"."get_form"(form_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_form"($1) $$;
@@ -4829,6 +4831,7 @@ grant execute on function "api"."get_form"(uuid) to authenticated, service_role;
 create or replace function "api"."get_form_version"(version_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_form_version"($1) $$;
@@ -4838,6 +4841,7 @@ grant execute on function "api"."get_form_version"(uuid) to authenticated, servi
 create or replace function "api"."list_forms"(tenant uuid, status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_forms"($1, $2) $$;
@@ -4856,6 +4860,7 @@ grant execute on function "api"."submit_form"(uuid, jsonb, text, text, uuid, boo
 create or replace function "api"."get_form_submission"(submission_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_form_submission"($1) $$;
@@ -4865,6 +4870,7 @@ grant execute on function "api"."get_form_submission"(uuid) to authenticated, se
 create or replace function "api"."list_form_submissions"(form_id uuid, status text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_form_submissions"($1, $2, $3, $4) $$;
@@ -4874,6 +4880,7 @@ grant execute on function "api"."list_form_submissions"(uuid, text, integer, tim
 create or replace function "api"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."form_nps"($1, $2, $3, $4, $5) $$;

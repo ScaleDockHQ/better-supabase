@@ -2797,7 +2797,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:0b635189e3dc149b825312a215bfa784669a71c2c536d1e054dd74cec673c8be
+-- @bsb-hash sha256:fa737f2c08a216e34483c8feb186cb548c8a30fb0398ea3d8b780e40360ce943
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3534,6 +3534,7 @@ drop function if exists "api"."create_shipment"(uuid, jsonb, jsonb, jsonb, text,
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3561,6 +3562,7 @@ grant execute on function "api"."create_shipment"(uuid, jsonb, jsonb, jsonb, tex
 create or replace function "api"."get_shipment"(shipment_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_shipment"($1) $$;
@@ -3570,6 +3572,7 @@ grant execute on function "api"."get_shipment"(uuid) to authenticated, service_r
 create or replace function "api"."list_shipments"(tenant uuid, status text default null, subject_type text default null, subject_id text default null, carrier text default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_shipments"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -3633,6 +3636,7 @@ grant execute on function "api"."receive_shipment_return"(uuid, jsonb) to authen
 create or replace function "api"."list_tracking_events"(shipment_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tracking_events"($1) $$;

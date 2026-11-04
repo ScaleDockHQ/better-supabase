@@ -157,13 +157,22 @@ describe("server.bootstrapFor()", () => {
   });
 
   it("evicts a user whose session ended and returns no data", async () => {
-    row = { ...row, session_active: false };
+    row = { ...row, session_active: false, end_reason: "session_not_found" };
 
     const boot = await server.bootstrapFor(await signedIn(), { rpc: "home" });
 
     expect(boot).toMatchObject({ sessionActive: false, data: null });
     expect(evicted).toHaveBeenCalledWith(USER);
     expect(seed).not.toHaveBeenCalled();
+  });
+
+  it("refuses a wrapper from before 0.44 that returns no end_reason", async () => {
+    row = { ...row, session_active: false };
+    delete row["end_reason"];
+
+    await expect(
+      server.bootstrapFor(await signedIn(), { rpc: "home" }),
+    ).rejects.toThrow("bsb sql upgrade");
   });
 });
 
@@ -285,7 +294,11 @@ describe("bootstrapWith() in a support session", () => {
     const boot = await bootstrapWith(
       deps,
       // SAFETY: the context carries the parts bootstrapWith reads.
-      supportCtx(() => ({ ...row, session_active: false })) as never,
+      supportCtx(() => ({
+        ...row,
+        session_active: false,
+        end_reason: "session_not_found",
+      })) as never,
       { rpc: "home" },
       undefined,
       (_key, run) => run(),

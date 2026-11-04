@@ -147,7 +147,7 @@ describe("time tracking without approvals", () => {
         migrations: [
           SETUP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -277,7 +277,7 @@ $$;`,
   updated_at timestamptz not null default now()
 );`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

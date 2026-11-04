@@ -4181,7 +4181,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:4247c29c34c4bc4b39555252b29cdff3116839398317642c27d8e2039e8e36c1
+-- @bsb-hash sha256:15f66e2d3912f3af94c72be514cdf423160c6852f4c3bfbbe589e05e4b99e4ab
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5489,6 +5489,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5507,6 +5508,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."appraisal_review_hidden"(review_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."appraisal_review_hidden"($1) $$;
@@ -5552,6 +5554,7 @@ grant execute on function "api"."close_appraisal_cycle"(uuid) to authenticated, 
 create or replace function "api"."list_appraisal_cycles"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_appraisal_cycles"($1) $$;
@@ -5597,6 +5600,7 @@ grant execute on function "api"."set_appraisal_goals"(uuid, uuid[]) to authentic
 create or replace function "api"."get_appraisal"(appraisal_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_appraisal"($1) $$;
@@ -5606,6 +5610,7 @@ grant execute on function "api"."get_appraisal"(uuid) to authenticated, service_
 create or replace function "api"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_appraisals"($1, $2) $$;

@@ -1614,7 +1614,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:76155142de53c9ab826bb7f118eb29aa4fe121af66e5d4428970c300f04c5eeb
+-- @bsb-hash sha256:54210dbcd0305cd94ebf011693e0d6c6511ec42cf2aae3db780300bb6fb16b99
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2123,6 +2123,7 @@ drop function if exists "api"."save_view"(uuid, text, text, text, text, text, js
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2150,6 +2151,7 @@ grant execute on function "api"."save_view"(uuid, text, text, text, text, text, 
 create or replace function "api"."list_views"(tenant uuid, list text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_views"($1, $2) $$;

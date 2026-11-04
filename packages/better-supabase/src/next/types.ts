@@ -18,6 +18,7 @@ import type {
   BlockMethodName,
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
+import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -186,6 +187,22 @@ export interface VerifySessionOptions {
   readonly reasons?: { readonly ended?: string; readonly banned?: string };
 }
 
+/** A schema for the leading arguments of an action (`ActionOptions.bound`). */
+export type BoundSchema = StandardSchemaV1<readonly unknown[]>;
+
+/** The validated bound arguments, or an empty tuple without `bound`. */
+export type BoundOutput<Bd> = Bd extends BoundSchema
+  ? StandardSchemaV1.InferOutput<Bd>
+  : readonly [];
+
+/** The arguments of the returned action: bound ones first, then the input. */
+export type BoundArgs<
+  Bd,
+  S extends StandardSchemaV1 | undefined,
+> = Bd extends BoundSchema
+  ? [...StandardSchemaV1.InferInput<Bd>, ActionInput<S>]
+  : [input: ActionInput<S>];
+
 export interface ActionOptions<
   S extends StandardSchemaV1 | undefined,
   C = unknown,
@@ -193,6 +210,7 @@ export interface ActionOptions<
   R extends boolean = boolean,
   Ref = unknown,
   X = ResourceLoaderContext<C, P>,
+  Bd extends BoundSchema | undefined = undefined,
 >
   extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R, Ref, X> {
   /** Validates the input (plain object or `FormData`) with any Standard Schema. */
@@ -203,7 +221,31 @@ export interface ActionOptions<
    * `membershipsExtension()` plugin and `current_tenant_id()` only honor a
    * tenant the caller belongs to.
    */
-  readonly tenant?: (input: ActionParsed<S>) => string | undefined;
+  readonly tenant?: (
+    input: ActionParsed<S>,
+    bound: BoundOutput<Bd>,
+  ) => string | undefined;
+  /**
+   * A schema for the leading arguments an action takes through `.bind(null,
+   * ...)`, for example `v.tuple([v.string()])` for a bound organization id.
+   * They are validated before `tenant` runs, and `tenant(input, bound)` and the
+   * action body (`fn(input, ctx, bound)`) read the validated tuple.
+   */
+  readonly bound?: Bd;
+  /**
+   * Runs after authentication and the permission check, before the action body.
+   * Return an error to refuse the call; the body never runs. `tenant` is what
+   * `tenant(input)` returned.
+   */
+  readonly guard?: (
+    tenant: string | undefined,
+    ctx: Pick<
+      ServerContext<AnyModels, AnyFunctions, unknown, C, P>,
+      "auth" | "resolution" | "supabase"
+    >,
+  ) => DbError | undefined | Promise<DbError | undefined>;
+  /** Maps the `ActionResult` before it returns, for example to translate errors. */
+  readonly result?: (outcome: ActionResult<unknown>) => ActionResult<unknown>;
 }
 
 /**
@@ -254,6 +296,45 @@ export interface ScopeOptions {
   readonly tenant?: string;
 }
 
+/**
+ * What `bsb.withContext(factory)` returns: `cached`, `getAccess` and `action`
+ * with the factory's context merged in.
+ */
+export interface ContextualNext<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  Ref,
+  B,
+  D,
+  X,
+> {
+  cached: (
+    options?: CachedOptions<Extract<keyof M, string>>,
+  ) => Promise<CachedContext<M, F, E, C, P, B, D> & X>;
+  getAccess: (
+    source?: Bootstrap<C, P> | SessionSnapshot<C> | null,
+    options?: { readonly key?: RemoteCacheKey },
+  ) => Promise<Access<ServerContext<M, F, E, C, P, B, D> & X, C, P, Ref>>;
+  action: <
+    S extends StandardSchemaV1 | undefined,
+    T,
+    R extends boolean = false,
+    Bd extends BoundSchema | undefined = undefined,
+  >(
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>, Bd>,
+    fn: (
+      input: ActionParsed<S>,
+      ctx: ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R> & X,
+      bound: BoundOutput<Bd>,
+    ) => Promise<T> | T,
+  ) => (
+    ...args: BoundArgs<Bd, S>
+  ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+}
+
 export interface BetterNext<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -263,6 +344,8 @@ export interface BetterNext<
   Ref = string,
   B = unknown,
   V extends AuthzVersionCache = AuthzVersionCache,
+  // oxlint-disable-next-line typescript/no-explicit-any -- as ServerContext
+  D = any,
 > extends BetterServer<M, F, E, C, P, B, V> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
@@ -274,11 +357,11 @@ export interface BetterNext<
    * const { db } = await bsb.context({ tenant: organizationId });
    * ```
    */
-  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P, B>>;
+  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P, B, D>>;
   context(
     request: Request | undefined,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  ): Promise<ServerContext<M, F, E, C, P, B, D>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
    * per request: the server-side counterpart of supabase-js `getClaims()`,
@@ -312,7 +395,7 @@ export interface BetterNext<
   contextFromSession(
     snapshot: SessionSnapshot<C> | null,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  ): Promise<ServerContext<M, F, E, C, P, B, D>>;
   /**
    * First statement of an app-authored cache function: sets `cacheLife`
    * (`stale` 300 unless `life` says otherwise), tags the entry
@@ -331,7 +414,7 @@ export interface BetterNext<
    */
   cached(
     options?: CachedOptions<Extract<keyof M, string>>,
-  ): Promise<CachedContext<M, F, E, C, P, B>>;
+  ): Promise<CachedContext<M, F, E, C, P, B, D>>;
   /**
    * Parks the request's verified session until the response is sent and returns
    * its serializable handle. Pass the handle to a `'use cache: private'`
@@ -393,7 +476,31 @@ export interface BetterNext<
   getAccess(
     source?: Bootstrap<C, P> | SessionSnapshot<C> | null,
     options?: { readonly key?: RemoteCacheKey },
-  ): Promise<Access<ServerContext<M, F, E, C, P, B>, C, P, Ref>>;
+  ): Promise<Access<ServerContext<M, F, E, C, P, B, D>, C, P, Ref>>;
+  /**
+   * The same `cached()`, `getAccess()` and `action()`, handing back the app's
+   * own context: `factory(session, base)` runs once per scope, from the session
+   * the library already read, and its result merges into the context.
+   *
+   * ```ts
+   * export const app = bsb.withContext((session, base) => ({
+   *   organizationId: base.tenant,
+   *   isAdmin:
+   *     session.kind === "user" && session.claims.app_role === "admin",
+   * }));
+   *
+   * export const rename = app.action(
+   *   { input: Rename },
+   *   (input, ctx) => ctx.isAdmin,
+   * );
+   * ```
+   */
+  withContext<X extends object>(
+    factory: (
+      session: AuthSession<C, P>,
+      base: ServerContext<M, F, E, C, P, B, D>,
+    ) => X,
+  ): ContextualNext<M, F, E, C, P, Ref, B, D, X>;
   /** `rootParams.locale()`, or `undefined` without one or outside a render. */
   locale(): Promise<string | undefined>;
   /** `rootParams.brand()`, or `undefined` without one or outside a render. */
@@ -449,7 +556,7 @@ export interface BetterNext<
   route<Params = Record<string, string | string[]>, R extends boolean = false>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E, C, P, B> &
+      ctx: ServerContext<M, F, E, C, P, B, D> &
         AuthorizedContext<C, P, R> & { readonly params: Params },
     ) => unknown,
     options?: RouteOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
@@ -468,13 +575,21 @@ export interface BetterNext<
    * );
    * ```
    */
-  action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
+  action<
+    S extends StandardSchemaV1 | undefined,
+    T,
+    R extends boolean = false,
+    Bd extends BoundSchema | undefined = undefined,
+  >(
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>, Bd>,
     fn: (
       input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
+      ctx: ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>,
+      bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
-  ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+  ): (
+    ...args: BoundArgs<Bd, S>
+  ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /**
    * A server action that calls one block method as the caller, with the same
    * guard, validation and authorize checks as `action`.
@@ -499,7 +614,7 @@ export interface BetterNext<
     S extends StandardSchemaV1 | undefined = undefined,
     R extends boolean = false,
   >(
-    client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
+    client: (ctx: ServerContext<M, F, E, C, P, B, D>) => Cl,
     method: K & BlockMethodName<Cl>,
     options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> & {
       /**
@@ -510,7 +625,7 @@ export interface BetterNext<
     } & BlockActionArgs<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
-        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
+        ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>
       >,
   ): (
     input: ActionInput<S>,
@@ -567,7 +682,7 @@ export interface BetterNext<
    */
   require<R extends boolean = false>(
     options?: RequireOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
-  ): Promise<ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
+  ): Promise<ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>>;
   /**
    * REST resources for a catch-all route, matching the API model: collections,
    * items and actions, as the caller (RLS), behind the guard in `options`, with
@@ -582,7 +697,7 @@ export interface BetterNext<
    * ```
    */
   resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B>["db"]>,
+    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B, D>["db"]>,
     options?: NextResourcesOptions,
   ): NextResourceRoutes;
   /**
@@ -927,6 +1042,12 @@ interface CachedEntryOptions<T extends string = string> {
    * `bsb:<table>@*`, so other tenants' writes leave it cached.
    */
   readonly tables?: readonly T[];
+  /**
+   * A read set the entry reads (`reads.deals.board`): its tables are added to
+   * `tables`. The `bsb:<table>` tags apply only to shared caches (`'use cache'`
+   * and `'use cache: remote'`); a private cache is not invalidated by them.
+   */
+  readonly readSet?: ReadSet;
   /** With `tables`, also tags the row `bsb:<first table>:<id>`. */
   readonly id?: string | number;
 }
@@ -997,7 +1118,11 @@ export type CachedContext<
   C = unknown,
   P = unknown,
   B = unknown,
-> = ServerContext<M, F, E, C, P, B> & { readonly session: AuthSession<C, P> };
+  // oxlint-disable-next-line typescript/no-explicit-any -- as ServerContext
+  D = any,
+> = ServerContext<M, F, E, C, P, B, D> & {
+  readonly session: AuthSession<C, P>;
+};
 
 /**
  * The second argument of `revalidateTag`: a `cacheLife` profile name or `{
@@ -1037,4 +1162,6 @@ export type NextResource<
   C = unknown,
   P = unknown,
   B = unknown,
-> = ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>;
+  // oxlint-disable-next-line typescript/no-explicit-any -- as ServerContext
+  D = any,
+> = ServerContext<M, F, E, C, P, B, D> & ResourceLoaderContext<C, P>;

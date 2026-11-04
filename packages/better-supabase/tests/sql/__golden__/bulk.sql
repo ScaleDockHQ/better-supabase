@@ -1028,7 +1028,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:33f623217df7d6c82e2af9729848111c871fb7a631e2136a654773f5c9540a3f
+-- @bsb-hash sha256:31c142f9818dab249375a94f92afb4b0d67f66f1a28b87652828963e5241805b
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1339,6 +1339,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1384,6 +1385,7 @@ grant execute on function "api"."start_bulk"(uuid, text, text[], text, jsonb) to
 create or replace function "api"."bulk_run"(run_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bulk_run"($1) $$;

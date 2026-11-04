@@ -37,6 +37,7 @@ import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
 import {
   declarativeSchemasDir,
+  pgFunctionHooks,
   readSupabaseToml,
   schemaPaths,
   sqlWorkflow,
@@ -103,6 +104,21 @@ async function declarativeTexts(
  */
 async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
   return auditRegistrations(await schemaTexts(config));
+}
+
+/** The custom access token hook of config.toml, for the pgTAP helpers. */
+async function accessTokenHookOf(
+  config: ResolvedConfig,
+): Promise<{ customAccessTokenHook?: string }> {
+  const toml = await readSupabaseToml(config.root);
+
+  const hook = toml
+    ? pgFunctionHooks(toml.document).find(
+        (entry) => entry.hook === "custom_access_token",
+      )
+    : undefined;
+
+  return hook ? { customAccessTokenHook: `${hook.schema}.${hook.name}` } : {};
 }
 
 /**
@@ -192,6 +208,7 @@ export async function moduleLayoutFor(
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
+    ...(resolved.has("pgtap") ? await accessTokenHookOf(config) : {}),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
       : {}),
