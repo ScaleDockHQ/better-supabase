@@ -14,7 +14,6 @@ import type {
 } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
-import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BootstrapRow } from "../server/bootstrap.ts";
@@ -43,7 +42,6 @@ import { endedSessionOf, markSessionEnded } from "../auth/ended.ts";
 import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
-import { methodOf } from "../blocks/block-method.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
@@ -71,6 +69,11 @@ import {
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
+import {
+  blockActionOf,
+  validateBound,
+  withReadSetTables,
+} from "./action-bound.ts";
 import {
   invalidateAll,
   nextCache,
@@ -109,6 +112,7 @@ import {
   endedRedirect,
   shouldCheckSession,
 } from "./support.ts";
+import { withContextFactory } from "./with-context.ts";
 
 /**
  * The Next.js adapter: proxy, Server Components, route handlers, server actions
@@ -134,7 +138,7 @@ export function createNext<
     readonly authorizer?: A;
     readonly versions?: V;
   } = {},
-): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> {
+): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D> {
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
   const base =
     (options.server as BetterServer<M, F, E, C, P, B, V> | undefined) ??
@@ -549,7 +553,7 @@ export function createNext<
       view,
       scope,
       tenant,
-      entry,
+      entry: withReadSetTables(entry),
       userTags,
       warn: development
         ? (message) => {
@@ -1008,7 +1012,10 @@ export function createNext<
       // SAFETY: `result` keeps the data type.
       const mapped = (o: Out): Out => (actionOptions.result?.(o) ?? o) as Out;
 
-      return async (input) => {
+      return async (...args: unknown[]) => {
+        const input = args.at(-1);
+        const boundArgs = actionOptions.bound ? args.slice(0, -1) : [];
+
         // With a per-input tenant the context waits for the input, so the
         // guard reads the verified caller instead of building a context for
         // `NextOptions.tenant` it would throw away. Support sessions swap the
@@ -1029,6 +1036,17 @@ export function createNext<
           return mapped({ ok: false, data: null, error: denied });
         }
 
+        const checkedBound = await validateBound(
+          actionOptions.bound,
+          boundArgs,
+        );
+
+        if (!checkedBound.ok) {
+          return mapped({ ok: false, data: null, error: checkedBound.error });
+        }
+
+        const bound = checkedBound.data;
+
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;
 
@@ -1044,7 +1062,7 @@ export function createNext<
 
         // SAFETY: parsed is the validated input, or the raw input when the
         // action has no schema.
-        const tenant = actionOptions.tenant?.(parsed as never);
+        const tenant = actionOptions.tenant?.(parsed as never, bound as never);
 
         const ctx =
           tenant === undefined
@@ -1075,7 +1093,11 @@ export function createNext<
           // SAFETY: parsed is the validated input, or the raw input when the
           // action has no schema; requireTenant refused a missing tenant.
           settled = await settle(() =>
-            fn(parsed as never, withExtra(scope, caller) as never),
+            fn(
+              parsed as never,
+              withExtra(scope, caller) as never,
+              bound as never,
+            ),
           );
         } finally {
           // Also when redirect() or notFound() follows a write.
@@ -1216,40 +1238,25 @@ export function createNext<
       cacheTag(...tags);
     },
 
-    blockAction: (client, method, blockOptions) => {
-      const run = next.action(
-        blockOptions,
-        async (input, ctx): Promise<Result<unknown>> => {
-          const call = methodOf(client(ctx), method);
+    blockAction: (client, method, blockOptions) =>
+      // SAFETY: blockActionOf calls `host.action` with the options and callback it was given.
+      blockActionOf(
+        next as never,
+        invalidateAll,
+        client as never,
+        method,
+        blockOptions as never,
+      ),
 
-          // SAFETY: BlockActionArgs makes `args` required unless the method
-          // takes the validated input as its only argument.
-          const args = (blockOptions.args?.(input, ctx) ?? [
-            input,
-          ]) as readonly unknown[];
-
-          const result = await call(...args);
-
-          if (result.ok && blockOptions.invalidates) {
-            invalidateAll(
-              blockOptions.invalidates.flatMap((table) =>
-                tableTags(table, { tenant: "*" }),
-              ),
-            );
-          }
-
-          return result;
-        },
-      );
-
-      // SAFETY: the method's `Result` carries `BlockDataOf<Cl, K>`.
-      return run as never;
-    },
+    withContext: (factory) =>
+      withContextFactory(next, factory, (ctx) => toSession(ctx.auth)),
 
     record: (type) => recordServer(next, type),
 
     recordAt: (type, id) => recordAtServer(next, type, id),
   });
 
-  return next;
+  // SAFETY: the contexts differ only in `supabase`, which the server builds as SupabaseClient<D>
+  // from the same BetterSupabase<…, D>; its untyped default is the same client.
+  return next as BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D>;
 }

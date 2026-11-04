@@ -269,6 +269,8 @@ export interface ServerContext<
   C = unknown,
   P = unknown,
   B = unknown,
+  // oxlint-disable-next-line typescript/no-explicit-any -- the generated Database type; `any` keeps the untyped client for callers that don't pass it.
+  D = any,
 > {
   readonly auth: AuthState<C, P>;
   readonly resolution: AuthResolution<C, P>;
@@ -276,7 +278,7 @@ export interface ServerContext<
    * Supabase-js client scoped to the caller (RLS applies). Throws in a support
    * session: Realtime, Storage and Auth would act as the admin.
    */
-  readonly supabase: SupabaseClient;
+  readonly supabase: SupabaseClient<D>;
   /** Repositories over PostgREST as the caller. */
   readonly db: Db<M, F, E, SupabaseClient, B>;
   /**

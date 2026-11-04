@@ -379,6 +379,44 @@ describe("explicit tenants", () => {
     expect(ran).toBe(false);
     expect(!blocked.ok && blocked.error.message).toBe("mapped");
   });
+
+  it("hands the app's context from withContext, built once per scope", async () => {
+    const factory = vi.fn((session: { kind: string }) => ({
+      kind: session.kind,
+    }));
+
+    const app = bsb.withContext(factory);
+    const first = app.action({}, (_input, actionCtx) => actionCtx.kind);
+
+    expect(await first(undefined)).toMatchObject({ ok: true, data: "user" });
+    expect(factory).toHaveBeenCalledOnce();
+  });
+
+  it("validates bound leading arguments and reads them for the tenant", async () => {
+    const bound = bsb.action(
+      {
+        bound: v.tuple([v.string()]),
+        input: v.object({ name: v.string() }),
+        tenant: (_input, [organizationId]) => organizationId,
+      },
+      (input, actionCtx, [organizationId]) => ({
+        name: input.name,
+        organizationId,
+        tenant: actionCtx.db.$context.tenant ?? null,
+      }),
+    );
+
+    expect(await bound(TENANT, { name: "a" })).toEqual({
+      ok: true,
+      data: { name: "a", organizationId: TENANT, tenant: TENANT },
+      error: null,
+    });
+
+    // SAFETY: a wrong bound value is the case under test.
+    const wrong = await bound(1 as never, { name: "a" });
+
+    expect(wrong.ok).toBe(false);
+  });
 });
 
 describe("cachedLife", () => {

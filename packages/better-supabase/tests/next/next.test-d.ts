@@ -1,4 +1,5 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
@@ -7,6 +8,7 @@ import type { AuthState } from "../../src/auth/resolve.ts";
 import type { ActionResult, AuthSession } from "../../src/next/index.ts";
 import type { ActionInputOf } from "../../src/react/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
+import type { Database } from "../fixtures/generated-camel.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient } from "../../src/client/index.ts";
@@ -294,5 +296,14 @@ describe("betterSupabase.buckets() in Next.js", () => {
     });
     expectTypeOf(withBuckets.admin().$buckets.logos).toEqualTypeOf<Logos>();
     expectTypeOf(withBuckets.context()).resolves.toHaveProperty("db");
+  });
+});
+
+describe("createNext(betterSupabase).context", () => {
+  it("types ctx.supabase with the schema's Database", async () => {
+    const { supabase } = await bsb.context();
+
+    expectTypeOf(supabase).toEqualTypeOf<SupabaseClient<Database>>();
+    expectTypeOf(supabase).not.toEqualTypeOf<SupabaseClient>();
   });
 });
