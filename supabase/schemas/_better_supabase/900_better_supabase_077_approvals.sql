@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:17bd2ce147a691fc07c04fba67395232122a4794ff0036a3ac153792c78ccce2
+-- @bsb-hash sha256:22f40cafef578bdb1ce225b02377634fa4f68cddfed5abd39d0c12d6a846383e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,6 +262,9 @@ revoke execute on function "better_supabase"."approval_memo_bump"() from public,
 drop trigger if exists "bsb_approval_memo" on "public"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "public"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
+drop trigger if exists "bsb_approval_memo" on "better_supabase"."roles";
+create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."roles"
+  for each statement execute function "better_supabase"."approval_memo_bump"();
 drop trigger if exists "bsb_approval_memo" on "better_supabase"."team_members";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."team_members"
   for each statement execute function "better_supabase"."approval_memo_bump"();
@@ -284,7 +287,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "public"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (approval_fact.value)::text or r."key" = (approval_fact.value)::text) order by (r."id"::text = (approval_fact.value)::text) desc limit 1)
@@ -345,7 +347,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and "better_supabase"."approval_fact"(v_req."tenant_id", 'manager', (v_req."policy" ->> 'managerOf'), v_req."requested_by"))) then
@@ -354,7 +356,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and "better_supabase"."approval_fact"(v_req."tenant_id", 'manager', (v_req."policy" ->> 'managerOf'), v_req."requested_by"))) then

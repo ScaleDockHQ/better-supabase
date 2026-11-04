@@ -1,8 +1,8 @@
--- approval_eligible reads the caller's permission and role approvals once per
--- statement, and keeps the request's decisions and the memberships live. Ann
+-- approval_eligible reads the caller's role approvals once per statement, and
+-- keeps permissions, the request's decisions and the memberships live. Ann
 -- (…a1) owns Acme (…0001) and Ben (…a2) is a member (supabase/seed.sql).
 begin;
-select plan(9);
+select plan(11);
 
 set local track_functions = 'all';
 
@@ -36,14 +36,14 @@ create temp table calls_after on commit drop as
 
 select is(
   (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'can'),
-  1::bigint,
-  'one can() call for the 20 permission requests in one statement'
+  20::bigint,
+  'permissions stay live: one can() call per permission request, so every provider decides'
 );
 
 select is(
-  (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'member_can'),
+  (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'memo_set'),
   1::bigint,
-  'one membership permission lookup for the 20 permission requests in one statement'
+  'one role lookup for the 20 role requests in one statement'
 );
 
 select is(
@@ -73,6 +73,40 @@ select is(
   better_supabase.approval_eligible((select id from better_supabase.approval_requests where subject_type = 'memo_test' and subject_id = 's2')),
   false,
   'a decision made earlier in the transaction makes the request ineligible'
+);
+
+do $$
+declare
+  v_id uuid := (select id from better_supabase.approval_requests where subject_type = 'memo_test' and subject_id = 's4');
+  v_before boolean := better_supabase.approval_eligible(v_id);
+begin
+  delete from better_supabase.role_permissions rp
+  using better_supabase.roles r, better_supabase.permissions p
+  where rp.role_id = r.id and rp.permission_id = p.id and r.key = 'owner' and p.key = 'approvals.manage';
+  perform set_config('test.unpermitted', format('%s/%s', v_before, better_supabase.approval_eligible(v_id)), true);
+end;
+$$;
+
+select is(
+  current_setting('test.unpermitted'),
+  't/f',
+  'a permission removed from the role in the same call makes the request ineligible'
+);
+
+do $$
+declare
+  v_id uuid := (select id from better_supabase.approval_requests where subject_type = 'memo_test' and subject_id = 's1');
+  v_before boolean := better_supabase.approval_eligible(v_id);
+begin
+  update better_supabase.roles set key = 'owner_renamed' where key = 'owner';
+  perform set_config('test.unassigned', format('%s/%s', v_before, better_supabase.approval_eligible(v_id)), true);
+end;
+$$;
+
+select is(
+  current_setting('test.unassigned'),
+  't/f',
+  'a role the policy names, renamed in the same call, no longer matches'
 );
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated"}', true);

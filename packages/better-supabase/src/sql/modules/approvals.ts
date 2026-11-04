@@ -60,11 +60,11 @@ import {
 import { approvalTests } from "./approvals-tests.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
-import { providerMembers } from "./memberships.ts";
+import { providerMembers, roleThrough } from "./memberships.ts";
 import { permissionHolders } from "./notifications-audience.ts";
 import { roleValue } from "./organizations-roles.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
-import { OPERATIONS } from "./permissions-model.ts";
+import { accessModel, OPERATIONS } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 
 /**
@@ -359,9 +359,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const factTenant = "approval_fact.tenant";
   const factValue = "approval_fact.value";
 
-  const permissionFact = tenantless
-    ? `case when ${factTenant} is null then ${ctx.staff(factValue)} else ${ctx.can("tenant", factTenant, factValue)} end`
-    : ctx.can("tenant", factTenant, factValue);
+  const permissionMatch = tenantless
+    ? `case when v_req.${c("tenant")} is null then ${ctx.staff("v_approvers ->> 'permission'")} else ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")} end`
+    : ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'");
 
   const roleFact = `exists (
       select 1 from ${members.table("memberships")} m
@@ -383,7 +383,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   // Whether v_me is one of the approvers in v_approvers.
   const approverMatch = `((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and ${fact("permission", "v_approvers ->> 'permission'")})
+    or (v_approvers ->> 'permission' is not null and ${permissionMatch})
     or (v_approvers ->> 'role' is not null and ${fact("role", "v_approvers ->> 'role'")})
     or (v_approvers ->> 'team' is not null and ${fact("team", "v_approvers ->> 'team'")})${
       manager === undefined
@@ -392,8 +392,17 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${fact("manager", managerEmployee ?? "null", `v_req.${c("requestedBy")}`)})`
     })`;
 
+  const through = roleThrough(members);
+
+  const rolesTable = through
+    ? through.table
+    : accessModel(ctx) === "catalog"
+      ? ctx.of("permissions").table("roles")
+      : undefined;
+
   const memoTables = [
     members.table("memberships"),
+    ...(rolesTable === undefined ? [] : [rolesTable]),
     ...(teams === undefined ? [] : [teams.table("members")]),
   ];
 
@@ -707,7 +716,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then ${permissionFact}
     when 'role' then ${roleFact}
     when 'team' then ${teamMatch("v_me", factValue)}
     when 'manager' then ${managerFact}

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:20e4204b1e6e8d4fdec82d1d134e09fa6a98a2aa3fed16bf72adb469e1d1ef86
+-- @bsb-hash sha256:9c3acc7b1a57199a1ecf11ba2fc5af1dbbe940badb6b4876497bf5b79f335913
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -219,7 +219,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -270,7 +269,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
     return true;
@@ -278,7 +277,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
       return true;
@@ -1513,7 +1512,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:56174c90abc547d5d7d5522a681237e0b13757e49976991f10cd715c0a4493f7
+-- @bsb-hash sha256:b6e36393257f15b6fb366db8d7b006cd56ab809e43d3947e08eec25082832181
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1751,7 +1750,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -1815,7 +1813,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and "better_supabase"."approval_fact"(v_req."tenant_id", 'manager', (v_req."policy" ->> 'managerOf'), v_req."requested_by"))) then
@@ -1824,7 +1822,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and "better_supabase"."approval_fact"(v_req."tenant_id", 'manager', (v_req."policy" ->> 'managerOf'), v_req."requested_by"))) then
@@ -3344,7 +3342,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:6f744671df12ee69ccb65010b45639adcac105a9ee2995293eaf3bb2bad500ad
+-- @bsb-hash sha256:92adfd54157aa48dcdc9a4f352ef75c7c546ecadf7e7808663224d0324610f92
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3567,7 +3565,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -3618,7 +3615,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
     return true;
@@ -3626,7 +3623,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "app_private"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
       return true;
@@ -4861,7 +4858,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:1e308e69df9c35d00cbf8a0dfaeb7028fda69cce68890353a0ce6b6fc8b755e1
+-- @bsb-hash sha256:1a4a2b2643e5ce702843a254d637bc1bea56103dcfba83a3c014b3187c6a7986
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5079,7 +5076,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -5130,7 +5126,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
     return true;
@@ -5138,7 +5134,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
       return true;
@@ -6591,7 +6587,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:64ea36a539d44324950e93c89e02924a4ef1d83d8c954441441c8e2959f1b760
+-- @bsb-hash sha256:e5216bca8358a8d3b0b9f7cde0a24f87084d5aa8842670dc582caecb2c3a79c2
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6816,7 +6812,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."organization_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -6867,7 +6862,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
     return true;
@@ -6875,7 +6870,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."tenant_id", 'team', v_approvers ->> 'team', null))) then
       return true;
@@ -8110,7 +8105,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@4 managed
--- @bsb-hash sha256:6dfbe6bf28d8e3a31ea4a95e75e2ec0af64cfcf8737d268ea82d5f6124a341fa
+-- @bsb-hash sha256:3d7ee740582ce39aea526e107512042276cc8a787e74756201b609a266699dde
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8328,7 +8323,6 @@ begin
     return split_part(v_hit, '|', 2) = 't';
   end if;
   v_result := coalesce(case approval_fact.kind
-    when 'permission' then coalesce(better_supabase.can('tenant', approval_fact.tenant, approval_fact.value), false)
     when 'role' then exists (
       select 1 from "better_supabase"."memberships" m
       where m."org_id" = approval_fact.tenant and m."user_id" = v_me and m."role" = approval_fact.value
@@ -8379,7 +8373,7 @@ begin
   v_step := v_req."policy" -> 'steps' -> v_req."step";
   v_approvers := v_step -> 'approvers';
   if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."org_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'team', v_approvers ->> 'team', null))) then
     return true;
@@ -8387,7 +8381,7 @@ begin
   if coalesce((v_step ->> 'escalated')::boolean, false) then
     v_approvers := v_step -> 'escalateTo';
     if ((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'permission', v_approvers ->> 'permission', null))
+    or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."org_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'role', v_approvers ->> 'role', null))
     or (v_approvers ->> 'team' is not null and "better_supabase"."approval_fact"(v_req."org_id", 'team', v_approvers ->> 'team', null))) then
       return true;
