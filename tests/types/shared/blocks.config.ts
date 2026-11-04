@@ -4,14 +4,32 @@ import type { GeneratedBlocks } from "better-supabase/blocks";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema and the
- * options its SQL and TypeScript halves share.
+ * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
+ * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  permissions: { schema: "better_supabase", options: {} },
-  "created-by": { schema: "better_supabase", options: {} },
-  queue: { schema: "better_supabase", options: {} },
-  memberships: { schema: "better_supabase", options: {} },
-  trash: { schema: "better_supabase", options: {} },
-  "updated-at": { schema: "better_supabase", options: {} },
+  permissions: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "created-by": {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
+    schema: "better_supabase",
+    options: {},
+  },
+  memberships: {
+    schema: "better_supabase",
+    options: {},
+  },
+  trash: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "updated-at": {
+    schema: "better_supabase",
+    options: {},
+  },
 } as const satisfies GeneratedBlocks;

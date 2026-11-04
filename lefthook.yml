@@ -16,6 +16,7 @@ pre-commit:
         - "apps/examples/**/lib/supabase/*.generated.ts"
         - "apps/examples/**/lib/supabase/generated.*"
         - "tests/types/**/generated.*"
+        - "tests/types/**/blocks.config.ts"
         - "**/database.types.ts"
         - "supabase/snapshot.json"
         - "packages/better-supabase/src/preset/catalog.generated.ts"
