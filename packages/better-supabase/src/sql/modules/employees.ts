@@ -455,7 +455,21 @@ ${triggerGrant(`better_supabase.${guardName}()`)}
 drop trigger if exists ${guardName} on ${t("employees")};
 create trigger ${guardName} before insert or update of ${e("manager")} on ${t("employees")}
 for each row execute function better_supabase.${guardName}();
-${mirror}`;
+${mirror}${approvalMemo(ctx, t("employees"))}`;
+}
+
+function approvalMemo(ctx: BlockSqlContext, table: string): string {
+  if (!ctx.installed("approvals") || ctx.of("approvals").mode === "custom") {
+    return "";
+  }
+
+  const approvals = ctx.of("approvals");
+
+  return `
+drop trigger if exists ${approvals.trigger("approval_memo")} on ${table};
+create trigger ${approvals.trigger("approval_memo")} after insert or update or delete on ${table}
+  for each statement execute function ${approvals.fn("approval_memo_bump")}();
+`;
 }
 
 function optionalKey(ctx: BlockSqlContext, action: string): string | undefined {
@@ -632,7 +646,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "relations", "hiring", "time-tracking"],
+  integrates: ["outbox", "relations", "hiring", "time-tracking", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

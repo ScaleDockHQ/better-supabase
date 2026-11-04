@@ -5,6 +5,7 @@ import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
+import { MEMO_FUNCTIONS } from "../memo.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -15,6 +16,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
+  triggerGrant,
   userGrant,
 } from "../shared.ts";
 import {
@@ -58,11 +60,11 @@ import {
 import { approvalTests } from "./approvals-tests.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
-import { providerMembers } from "./memberships.ts";
+import { providerMembers, roleThrough } from "./memberships.ts";
 import { permissionHolders } from "./notifications-audience.ts";
 import { roleValue } from "./organizations-roles.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
-import { OPERATIONS } from "./permissions-model.ts";
+import { accessModel, OPERATIONS } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 
 /**
@@ -322,10 +324,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       ? ctx.of("teams")
       : undefined;
 
-  const teamMatch = (member: string): string =>
+  const teamMatch = (member: string, team: string): string =>
     teams === undefined
       ? "false"
-      : `exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = v_approvers ->> 'team' and tm.${teams.col("members", "user")} = ${member})`;
+      : `exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = ${team} and tm.${teams.col("members", "user")} = ${member})`;
 
   const teamMembers =
     teams === undefined
@@ -354,23 +356,65 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       union
       select ${manager} where coalesce((v_approvers ->> 'manager')::boolean, false)`;
 
-  // Whether v_me is one of the approvers in v_approvers.
+  const factTenant = "approval_fact.tenant";
+  const factValue = "approval_fact.value";
+
   const permissionMatch = tenantless
     ? `case when v_req.${c("tenant")} is null then ${ctx.staff("v_approvers ->> 'permission'")} else ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")} end`
     : ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'");
 
+  const roleFact = `exists (
+      select 1 from ${members.table("memberships")} m
+      where m.${mt} = ${factTenant} and m.${mu} = v_me and m.${mr} = ${roleValue(ctx, factValue, factTenant)}
+    )`;
+
+  const managerFact =
+    manager === undefined
+      ? "false"
+      : managerMatch(ctx, {
+          requester: "approval_fact.requester",
+          tenant: factTenant,
+          user: "v_me",
+          ...(managerEmployee === undefined ? {} : { employee: factValue }),
+        });
+
+  const fact = (kind: string, value: string, requester = "null"): string =>
+    `${fn("approval_fact")}(v_req.${c("tenant")}, ${sqlString(kind)}, ${value}, ${requester})`;
+
+  // Whether v_me is one of the approvers in v_approvers.
   const approverMatch = `((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
     or (v_approvers ->> 'permission' is not null and ${permissionMatch})
-    or (v_approvers ->> 'role' is not null and exists (
-      select 1 from ${members.table("memberships")} m
-      where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = ${approverRole}
-    ))
-    or (v_approvers ->> 'team' is not null and ${teamMatch("v_me")})${
+    or (v_approvers ->> 'role' is not null and ${fact("role", "v_approvers ->> 'role'")})
+    or (v_approvers ->> 'team' is not null and ${fact("team", "v_approvers ->> 'team'")})${
       manager === undefined
         ? ""
         : `
-    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me", ...(managerEmployee === undefined ? {} : { employee: managerEmployee }) })})`
+    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${fact("manager", managerEmployee ?? "null", `v_req.${c("requestedBy")}`)})`
     })`;
+
+  const through = roleThrough(members);
+
+  const rolesTable = through
+    ? through.table
+    : accessModel(ctx) === "catalog"
+      ? ctx.of("permissions").table("roles")
+      : undefined;
+
+  const memoTables = [
+    members.table("memberships"),
+    ...(rolesTable === undefined ? [] : [rolesTable]),
+    ...(teams === undefined ? [] : [teams.table("members")]),
+  ];
+
+  const memoTriggers = memoTables
+    .map(
+      (
+        table,
+      ) => `drop trigger if exists ${ctx.trigger("approval_memo")} on ${table};
+create trigger ${ctx.trigger("approval_memo")} after insert or update or delete on ${table}
+  for each statement execute function ${fn("approval_memo_bump")}();`,
+    )
+    .join("\n");
 
   const notFound = fail(
     "APPROVAL_NOT_FOUND",
@@ -638,6 +682,51 @@ as $$
 $$;
 ${userGrant(`${fn("approval_policy")}(text, text)`)}
 
+${MEMO_FUNCTIONS.trim()}
+
+create or replace function ${fn("approval_memo_bump")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.memo_set('approvals.gen', (coalesce(better_supabase.memo_get('approvals.gen'), '0')::bigint + 1)::text);
+  return null;
+end;
+$$;
+${triggerGrant(`${fn("approval_memo_bump")}()`)}
+${memoTriggers}
+
+create or replace function ${fn("approval_fact")}(tenant ${ctx.idType}, kind text, value text, requester uuid default null)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_me uuid := auth.uid();
+  v_key text := 'approvals.f' || md5(format('%s|%s|%s|%s|%s', v_me, approval_fact.tenant, approval_fact.kind, approval_fact.value, approval_fact.requester));
+  v_stamp text := statement_timestamp()::text || '/' || coalesce(better_supabase.memo_get('approvals.gen'), '0');
+  v_hit text := better_supabase.memo_get(v_key);
+  v_result boolean;
+begin
+  if v_hit is not null and split_part(v_hit, '|', 1) = v_stamp then
+    return split_part(v_hit, '|', 2) = 't';
+  end if;
+  v_result := coalesce(case approval_fact.kind
+    when 'role' then ${roleFact}
+    when 'team' then ${teamMatch("v_me", factValue)}
+    when 'manager' then ${managerFact}
+    else false
+  end, false);
+  perform better_supabase.memo_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
+  return v_result;
+end;
+$$;
+${triggerGrant(`${fn("approval_fact")}(${ctx.idType}, text, text, uuid)`)}
+
 -- Whether the caller may decide the request's current step: a named user,
 -- a holder of the permission, a member with the role or in the team, or a
 -- delegate. The requester can't, unless the policy allows self-approval.${
@@ -647,7 +736,7 @@ ${userGrant(`${fn("approval_policy")}(text, text)`)}
 -- may decide as well, never the requester.`
       : ""
   }
-create or replace function ${fn("approval_eligible")}(request_id uuid)
+create or replace function ${fn("approval_eligible")}(request ${requests})
 returns boolean
 language plpgsql
 stable
@@ -655,13 +744,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_req ${requests}%rowtype;
+  v_req ${requests}%rowtype := approval_eligible.request;
   v_step jsonb;
   v_approvers jsonb;
   v_me uuid := auth.uid();
 begin
-  select * into v_req from ${requests} r where r.${c("id")} = approval_eligible.request_id;
-  if not found or v_me is null or v_req.${c("status")} <> 'pending' then
+  if v_req.${c("id")} is null or v_me is null or v_req.${c("status")} <> 'pending' then
     return false;
   end if;
   if exists (
@@ -713,6 +801,25 @@ begin
   };
 end;
 $$;
+${userGrant(`${fn("approval_eligible")}(${requests})`)}
+
+create or replace function ${fn("approval_eligible")}(request_id uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_req ${requests}%rowtype;
+begin
+  select * into v_req from ${requests} r where r.${c("id")} = approval_eligible.request_id;
+  if not found then
+    return false;
+  end if;
+  return ${fn("approval_eligible")}(v_req);
+end;
+$$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
@@ -729,7 +836,7 @@ as $$
   select r.${c("id")} from ${requests} r
   where r.${c("status")} = 'pending'
     and (approval_eligible_ids.tenant is null or r.${c("tenant")} = approval_eligible_ids.tenant)
-    and ${fn("approval_eligible")}(r.${c("id")})
+    and ${fn("approval_eligible")}(r)
 $$;
 ${userGrant(`${fn("approval_eligible_ids")}(${ctx.idType})`)}
 
@@ -1090,7 +1197,7 @@ const CONTRIBUTES: BlockContributes = {
     from ${own.table("requests")} r
     where ${r("status")} = 'pending'${own.has("requests", "expiresAt") ? `\n      and (${r("expiresAt")} is null or ${r("expiresAt")} > now())` : ""}
       and ${myWorkTenant(r("tenant"))}
-      and ${own.fn("approval_eligible")}(${r("id")})`,
+      and ${own.fn("approval_eligible")}(r)`,
       },
     ];
   },
@@ -1117,7 +1224,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1130,6 +1237,12 @@ export const APPROVALS: BlockSqlDefinition = {
       from: 2,
       description:
         "Adds approval_eligible_ids(tenant), the set of pending requests the caller may decide; list_approvals reads it once per statement.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Adds approval_eligible(approval_requests) and approval_fact, which reads the caller's permission, role, team and manager approvals once per statement.",
       sql: () => "",
     },
   ],

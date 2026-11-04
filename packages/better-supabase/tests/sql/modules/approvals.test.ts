@@ -58,7 +58,7 @@ describe("approvals module", () => {
       `when 'doc:publish' then '{"steps":[{"approvers":{"role":"admin"},"required":1}]`,
     );
     expect(sql).toContain("APPROVAL_POLICY_UNKNOWN");
-    expect(sql).toContain(`m."role" = v_approvers ->> 'role'`);
+    expect(sql).toContain(`m."role" = approval_fact.value`);
   });
 
   it("resolves an approver role key to the catalog role id", () => {
@@ -79,9 +79,9 @@ describe("approvals module", () => {
       },
     );
 
-    expect(sql).not.toContain(`m."role" = v_approvers ->> 'role'`);
+    expect(sql).not.toContain(`m."role" = approval_fact.value`);
     expect(sql).toContain(
-      `m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_approvers ->> 'role')::text or r."key" = (v_approvers ->> 'role')::text)`,
+      `m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (approval_fact.value)::text or r."key" = (approval_fact.value)::text)`,
     );
   });
 
