@@ -1,5 +1,50 @@
 # better-supabase
 
+## 0.52.0
+
+### Minor Changes
+
+- [#715](https://github.com/ScaleDockHQ/better-supabase/pull/715) [`d54046e`](https://github.com/ScaleDockHQ/better-supabase/commit/d54046eaac344b8926a2d74414610b912ffca5e2) Thanks [@mick340](https://github.com/mick340)! - The jobs drain makes fewer database calls. `ensureSchedules` writes only the schedules that are new or whose cron, time zone, queue, tenant or payload changed, so a reconcile on every drain costs one `list_schedules` call when nothing changed. `drainRoute` asks once which queues have a job to claim and claims only from those, instead of one `claim_jobs` call per empty queue. The `queue` SQL module moves to version 11: it adds `ready_job_queues(queues text[])` and a `payload` column on `list_schedules`, and `QueueProvider` gains an optional `readyQueues`. Run `better-supabase upgrade`; until then the drain reports the missing function and claims from every queue as before.
+
+- [`e75727e`](https://github.com/ScaleDockHQ/better-supabase/commit/e75727e2f92b0e234c85a3d28db250e0e2c01351) Thanks [@martijn00](https://github.com/martijn00)! - With `debug.enabled`, `bsb.action` logs the request's database stats in the same format as the
+  `x-bsb-db-calls` header, because a server action cannot set response headers. `testAuthorizer`
+  checks that an authorizer ignores a `runtime.seed` for another user or a version that is not live.
+
+- [`0b54573`](https://github.com/ScaleDockHQ/better-supabase/commit/0b54573b6646aba00d4655eaaec8766f3ed0ee11) Thanks [@martijn00](https://github.com/martijn00)! - `better_supabase.audit()` takes `statement => true`, which audits a table with statement-level triggers over transition tables and writes every entry of a statement in one insert. The audit module moves to version 10 and drops the previous `audit()` signature on upgrade; calls that name their arguments keep working.
+
+- [`59b2fa4`](https://github.com/ScaleDockHQ/better-supabase/commit/59b2fa46f5348f0200021fb7687703d2a345ee90) Thanks [@martijn00](https://github.com/martijn00)! - Add `createVersionCache({ store, maxStaleMs })` to `better-supabase/server`, a `subject` option on the sessions `bootstrap` entries that `bsb.bootstrap` returns and `accessFor` passes to authorizers as `runtime.seed` (`AuthzSubjectSeed`), and doctor code BS611 for a service-role client inside a `"use cache: private"` function.
+
+- [`64a1fee`](https://github.com/ScaleDockHQ/better-supabase/commit/64a1feedfbedf5d81108aebea5161c0dd05ac7d4) Thanks [@martijn00](https://github.com/martijn00)! - Ship reads for the data most pages share. `comments` (`list`, `counts`), `notifications` (`inbox`, `counts`), `saved-views` (`list`), `tags` (`list`, `forSubjects`) and `attachments` (`list`) now appear in `reads` in `blocks.generated.ts`, so a read set loads them with the page's own rows as `s.blocks.<instance>.<read>(args)`. `tags` gains the `subjects_tags` function behind `forSubjects`, and a read argument can be `text[]`.
+
+- [`a9c6ace`](https://github.com/ScaleDockHQ/better-supabase/commit/a9c6aced85b54e46bd5a76398b51ae97dd4f9a78) Thanks [@martijn00](https://github.com/martijn00)! - Load a read set with the session check. `blocks.sessions.options.bootstrap` accepts `{ readSets, shell? }`, the wrapper takes `read_set` and `read_params`, and `bsb.bootstrap({ rpc, readSet, params })` returns the decoded result as `reads`. When the request already ran the wrapper, only the read set runs. `db.$decodeReadSet(readSet, params, payload)` decodes a payload that ran elsewhere. Rendering the new wrapper drops the one-argument version.
+
+- [`ddebe20`](https://github.com/ScaleDockHQ/better-supabase/commit/ddebe20f36d68b4c014367e126eb0b9b04a53696) Thanks [@martijn00](https://github.com/martijn00)! - `doctor --explain` now accepts a function name with `--args` and reports the share of time spent in
+  security definer helpers. New rules BS243 (a security definer function with a literal above 1 KB)
+  and BS244 (schema cache pressure) check the schema. The `updated-at` module adds
+  `better_supabase.memo_get` and `memo_set`, a value kept for one transaction, and BS206 points to
+  them. `gen.api.expose: "used"` and `gen.api.exposeAlso` wrap only the functions your sources call.
+
+- [`0b54573`](https://github.com/ScaleDockHQ/better-supabase/commit/0b54573b6646aba00d4655eaaec8766f3ed0ee11) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase doctor --explain-write <tables>` plans an insert (a copy of one row with fresh keys) and an update on each table in a rolled-back transaction, and reports the time of every trigger from the `EXPLAIN` plan.
+
+- [`2466511`](https://github.com/ScaleDockHQ/better-supabase/commit/24665119291cf3f0deacf09f5515b3c1e474b7cb) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/node` exports `keepAliveFetch({ connections, pipelining })`, a `fetch` for the
+  Supabase client that keeps sockets open through the optional peer `undici` and falls back to the
+  global `fetch` without it. `defineListQuery.run({ count: "planned" })` is documented, and
+  `tests/bench` holds a PostgREST floor script and an executor comparison.
+
+- [`237f34f`](https://github.com/ScaleDockHQ/better-supabase/commit/237f34f5b6df67d67a1252aec714ee9616f6a0bc) Thanks [@martijn00](https://github.com/martijn00)! - Warn about nested private cache scopes. In development `bsb.cached()` logs once when it runs inside another cache scope (best effort, from the async stack), and `better-supabase doctor` reports BS610 for a `"use cache: private"` function that calls another one.
+
+- [`9e5e2ec`](https://github.com/ScaleDockHQ/better-supabase/commit/9e5e2ec0ed8da455c404e2148c42b0a54efa19e0) Thanks [@martijn00](https://github.com/martijn00)! - Gate a read set entry on a permission with `s.when(auth.can("customer.read"), entry)`. The compiled function checks `better_supabase.can`, a refused entry is `null`, and the batch path checks each gate once. `ReadSetGate` is a new type export.
+
+- [`95078ac`](https://github.com/ScaleDockHQ/better-supabase/commit/95078acc054be9f3ccb8765b4a1d571398393a1c) Thanks [@martijn00](https://github.com/martijn00)! - Check a read set result with `readSet.parse(value)`, and find groups of parallel reads with `better-supabase codemod read-many`, which lists each `Promise.all` that `db.$many` can load in one round trip. Doctor BS609 counts `$rpc` and block calls in the same `Promise.all`.
+
+- [`a000617`](https://github.com/ScaleDockHQ/better-supabase/commit/a0006172cf535de7cf5adb71df63cb7e6d14d22a) Thanks [@martijn00](https://github.com/martijn00)! - Count token verifications and service-role calls per request. `db.$stats()`, the `x-bsb-db-calls` header, the `auth` event and the OpenTelemetry spans now report `verifications` and `adminCalls` next to calls and waves, `expectDbBudget` takes `maxVerifications` and `maxAdminCalls`, and the stats collector falls back to the trace id, `x-vercel-id` or `x-request-id` when a request has no `x-bsb-request-id`. Pass `{ request }` to `bsb.admin()` to attach an admin call to its render.
+
+- [`390d754`](https://github.com/ScaleDockHQ/better-supabase/commit/390d754606ec84576ef1e0eac5842415e5e78531) Thanks [@martijn00](https://github.com/martijn00)! - Add `bsb.sessionHandle()` and `bsb.cached({ session })` to `better-supabase/next`. A page parks its verified session once, and each `'use cache: private'` island resolves it from the serializable handle without reading `cookies()` or `headers()`, verifying the token or building another PostgREST client. The verified-token memo now keys by a SHA-256 digest of the token instead of the token itself.
+
+### Patch Changes
+
+- [`4b67fb8`](https://github.com/ScaleDockHQ/better-supabase/commit/4b67fb8f153924026055606727d327c27675315b) Thanks [@martijn00](https://github.com/martijn00)! - Documents the cost of each render stage (database calls, waves, verifications and admin calls) for a customer page, and asserts it in `tests/next/customer-reads.test.ts`.
+
 ## 0.51.0
 
 ### Minor Changes
