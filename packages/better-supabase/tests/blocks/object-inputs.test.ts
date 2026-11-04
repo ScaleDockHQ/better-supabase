@@ -20,6 +20,7 @@ const POSITIONAL = new Set<string>([
   "agent-checkout/x402.ts:verify",
   "ai-evals/job.ts:task",
   "banking/berlin-group.ts:transactions",
+  "create-blocks.ts:serviceBlocks",
   "content/seo.ts:translationUrlFor",
   "e-prescribing/e-prescribing.ts:cancel",
   "e-prescribing/e-prescribing.ts:deliver",

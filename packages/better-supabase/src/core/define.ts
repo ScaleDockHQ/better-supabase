@@ -38,6 +38,7 @@ import { isStorageApi } from "../storage/storage-api.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";
+import { dbDecoder } from "./db-decode.ts";
 import { searchTable } from "./db-search.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
@@ -652,6 +653,7 @@ export class BetterSupabase<
 
             return error;
           }),
+      $decode: (table: string) => dbDecoder(this.meta, table),
       $with: (extra: RequestContext) =>
         this.#db(
           source,

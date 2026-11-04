@@ -16,6 +16,6 @@ export const apiKeysSqlOptions: BlockOptionsSchema<ApiKeysSqlOptions> =
     scopes: option.unknown<"catalog" | readonly string[]>(),
     kinds: option.strings(),
     touchInterval: option.number({ default: 60 }),
-    prefix: option.string({ default: "bs" }),
+    prefix: option.string({ default: "bs", client: true }),
     extraColumns: option.extraColumns(),
   });

@@ -51,6 +51,8 @@ export type {
 
 export { fillTopic, generatedOptions } from "./block-config.ts";
 
+export type { GeneratedFields } from "./block-config.ts";
+
 export { entityNames } from "../core/entity-naming.ts";
 
 export { subjectKey } from "../core/block-subjects.ts";
@@ -191,6 +193,10 @@ export type {
 } from "../core/block-hooks.ts";
 
 export { blockFields } from "../core/block-fields.ts";
+
+export { columnsSchema } from "../core/columns-schema.ts";
+
+export type { ColumnsOutput } from "../core/columns-schema.ts";
 
 export type {
   BlockFields,

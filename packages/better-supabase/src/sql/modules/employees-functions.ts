@@ -346,7 +346,7 @@ begin
   ])}
   begin
     v_status := ${status};
-    if v_status = 'offboarded' then
+    if ${ctx.is("employees", "status", "v_status", ["offboarded"])} then
       ${fail("EMPLOYEE_STATUS_INVALID", "create the employee, then offboard them", "22023")}
     end if;
     insert into ${table} (${insertColumns.join(", ")}${extrasInsert.columns})

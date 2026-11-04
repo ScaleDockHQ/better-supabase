@@ -19,6 +19,7 @@ import {
   blockFormerFunctions,
   tenantNameOf,
 } from "../../config/index.ts";
+import { isRecord } from "../../core/guards.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -329,6 +330,7 @@ function generatedEntry(
 ): GeneratedBlock {
   const resolved = resolveBlock(config.blocks[modules[0] ?? ""]);
   const options: Record<string, unknown> = {};
+  let columns: Record<string, string> | undefined;
 
   for (const module of modules) {
     if (!hasSchema(module)) {
@@ -336,6 +338,17 @@ function generatedEntry(
     }
 
     const configured = resolveBlock(config.blocks[module]).options;
+    const extra = configured["extraColumns"];
+
+    if (columns === undefined && isRecord(extra)) {
+      const typed = Object.entries(extra).flatMap(([name, type]) =>
+        typeof type === "string" ? [[name, type] as const] : [],
+      );
+
+      if (typed.length > 0) {
+        columns = Object.fromEntries(typed);
+      }
+    }
 
     for (const [key, spec] of Object.entries(
       BLOCK_OPTION_SCHEMAS[module].specs,
@@ -358,6 +371,7 @@ function generatedEntry(
     schema: resolved.schema,
     ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
     options,
+    ...(columns === undefined ? {} : { columns }),
     ...(names === undefined ? {} : { names }),
   };
 }
