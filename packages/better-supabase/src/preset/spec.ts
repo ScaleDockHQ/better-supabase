@@ -1,7 +1,7 @@
 import type { Preset, PresetConventions, PresetInstance } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
 
-import { canonicalJson } from "../core/json.ts";
+import { canonicalJson } from "../core/canonical-json.ts";
 import { DEFAULT_CONVENTIONS, CONVENTION_FIELDS } from "./fields.ts";
 import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
 

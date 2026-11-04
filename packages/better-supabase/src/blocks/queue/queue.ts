@@ -32,11 +32,11 @@ import type {
 import { blockCall, budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rpcTransport } from "../../core/block-transport.ts";
+import { canonicalJson } from "../../core/canonical-json.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { nextCronRun } from "../../core/cron.ts";
 import { dbError, DbException } from "../../core/errors.ts";
-import { canonicalJson } from "../../core/json.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
