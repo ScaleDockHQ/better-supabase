@@ -131,8 +131,9 @@ export interface ClientOptions {
    */
   readonly ports?: ClientPorts;
   /**
-   * `blockConfig` from `blocks.generated.ts`: the block hooks call the schema,
-   * function names and topics `gen` wrote.
+   * `blockConfig` from `blocks.config.ts` (plain data, so the browser doesn't
+   * bundle the blocks): the block hooks call the schema, function names and
+   * topics `gen` wrote.
    */
   readonly blocks?: BindClientOptions["blocks"];
   /**

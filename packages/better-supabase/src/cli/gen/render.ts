@@ -28,6 +28,8 @@ import {
 import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
+  emitBlockConfigModule,
+  emitClientBlocks,
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
@@ -180,8 +182,16 @@ export async function render(
 
   const blockConfig = emitBlockConfig(config, runtime);
 
-  if (blockConfig) {
-    files.push(blockConfig);
+  const blockModule = emitBlockConfigModule(config, runtime);
+
+  if (blockConfig && blockModule) {
+    files.push(blockConfig, blockModule);
+
+    const clientBlocks = emitClientBlocks(config, runtime);
+
+    if (clientBlocks) {
+      files.push(clientBlocks);
+    }
   }
 
   files.push(...emitRecords(config));

@@ -3,8 +3,8 @@
 import {
   blockRead,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./blocks.config.ts";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -12,47 +12,10 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      tenantColumn: "organization_id",
-    },
-  },
-  organizations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "read-sets": {
-    schema: "better_supabase",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      tenantColumn: "organization_id",
-    },
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -66,34 +29,6 @@ export const blocks = {
   profiles: profilesBlockInstance,
   teams: teamsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "members.read" | "members.remove" | "members.update_role" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

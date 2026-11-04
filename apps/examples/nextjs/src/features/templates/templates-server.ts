@@ -11,7 +11,7 @@ import {
 } from "better-supabase/blocks/templates";
 import * as v from "valibot";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /** The body of a customer template: the fields a new customer starts with. */
 const ApplyValues = v.object({

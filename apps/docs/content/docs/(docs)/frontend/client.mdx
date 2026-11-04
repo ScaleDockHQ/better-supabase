@@ -36,7 +36,7 @@ read each block's schema, function names and realtime topic from the
 `blocks` option, and act in the tenant from the `memberships` option:
 
 ```ts title="src/lib/supabase/client.ts"
-import { blockConfig } from "./blocks.generated";
+import { blockConfig } from "./blocks.config";
 
 export const bsb = createClient(betterSupabase, {
   env,

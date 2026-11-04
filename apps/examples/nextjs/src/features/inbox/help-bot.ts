@@ -7,7 +7,7 @@ import {
   assistant,
   assistantContext,
 } from "@/features/assistant/assistant-server";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 /** The API schema `gen` wrote for the inbox block. */

@@ -15,7 +15,7 @@ import {
 
 import { env } from "@/env";
 import { aiProviders } from "@/features/ai-providers/ai-providers-server";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig.messaging.api;

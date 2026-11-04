@@ -36,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";

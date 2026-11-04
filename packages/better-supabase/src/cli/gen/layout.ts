@@ -72,60 +72,31 @@ export function docComment(text: string): string[] {
   return ["/**", ...lines, line, " */"];
 }
 
-function call(
-  callee: string,
-  args: readonly string[],
-  indent: string,
-): string[] {
-  return [
-    `${callee}(`,
-    ...args.map((arg) => `${indent}  ${arg},`),
-    `${indent});`,
-  ];
-}
-
 /**
- * `export const { key: name, … } = callee(args);` laid out as the formatter
- * prints it: on one line, then with the arguments broken, then broken after
- * `=`, and with the pattern broken when it is wider than 80 on its own.
+ * `export const name = /*#__PURE__*\/ callee(args);` as the formatter prints
+ * it: on one line when it fits, else one argument per line. The annotation lets
+ * a bundler drop the binding when nothing imports it.
  */
-export function destructuredCall(
-  bindings: readonly (readonly [key: string, name: string])[],
+export function pureExport(
+  name: string,
   callee: string,
   args: readonly string[],
 ): string[] {
-  const pattern = bindings.map(([key, name]) => `${key}: ${name}`);
-  const head = `export const { ${pattern.join(", ")} } =`;
-  const flat = `${callee}(${args.join(", ")});`;
+  const head = `export const ${name} = /*#__PURE__*/ ${callee}`;
+  const flat = `${head}(${args.join(", ")});`;
 
-  if (head.length > WIDTH) {
-    const tail = `} = ${flat}`;
-    const opened = ["export const {", ...pattern.map((entry) => `  ${entry},`)];
-
-    if (tail.length <= WIDTH) {
-      return [...opened, tail];
-    }
-
-    const [first = "", ...rest] = call(callee, args, "");
-
-    return [...opened, `} = ${first}`, ...rest];
+  if (flat.length <= WIDTH) {
+    return [flat];
   }
 
-  if (`${head} ${flat}`.length <= WIDTH) {
-    return [`${head} ${flat}`];
+  if (`${head}(`.length <= WIDTH) {
+    return [`${head}(`, ...args.map((arg) => `  ${arg},`), ");"];
   }
 
-  if (`${head} ${callee}(`.length <= WIDTH) {
-    const [first = "", ...rest] = call(callee, args, "");
-
-    return [`${head} ${first}`, ...rest];
-  }
-
-  if (`  ${flat}`.length <= WIDTH) {
-    return [head, `  ${flat}`];
-  }
-
-  const [first = "", ...rest] = call(callee, args, "  ");
-
-  return [head, `  ${first}`, ...rest];
+  return [
+    `export const ${name} =`,
+    `  /*#__PURE__*/ ${callee}(`,
+    ...args.map((arg) => `    ${arg},`),
+    "  );",
+  ];
 }

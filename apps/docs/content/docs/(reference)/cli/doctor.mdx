@@ -2193,6 +2193,15 @@ which registers pg_cron, or drain the `block_ticks` queue with `maintenanceTick`
 when pg_cron is not available. The check is static: it cannot see whether a job
 is due in the live database, so it does not replace reading `maintenance_jobs`.
 
+### BS511
+
+**Warning: a client component reaches the server block wiring.** A module with
+`"use client"` imports `blocks.generated` or `providers.ts`, or calls
+`defineBlocks`, so every installed block client ends up in the browser bundle.
+Import `blockConfig` from `blocks.config.ts`, which holds data only. When the
+browser needs a few block clients, list those instances in `gen.clientBlocks`
+and import `clientBlocks` from `blocks.client.ts`.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets

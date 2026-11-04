@@ -339,6 +339,7 @@ export type ClientOf<B> = B extends {
   : never;
 
 /** Describes a block with one manifest (ADR 0029). */
+/*#__NO_SIDE_EFFECTS__*/
 export function defineBlock<
   const Name extends string,
   Options = BlockContext,

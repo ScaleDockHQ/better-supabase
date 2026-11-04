@@ -88,7 +88,11 @@ export type { SvelteController } from "../blocks/svelte-controller.ts";
 
 export type { BlockOptions } from "../blocks/block-env.ts";
 
-export { defineDataHooks } from "./data-hooks.ts";
+export {
+  defineDataHooks,
+  defineListHook,
+  defineOneHook,
+} from "./data-hooks.ts";
 
 export type { DataHooks, DataView } from "./data-hooks.ts";
 

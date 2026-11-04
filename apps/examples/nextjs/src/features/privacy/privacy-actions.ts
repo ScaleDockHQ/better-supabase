@@ -10,7 +10,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const SCHEMA = blockConfig["data-lifecycle"].api;

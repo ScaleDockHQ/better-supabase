@@ -10,7 +10,7 @@ import { createMemory } from "better-supabase/blocks/memory";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 
 import { env } from "@/env";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 import { demoEmbedder } from "./demo-embedder";

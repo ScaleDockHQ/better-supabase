@@ -28,7 +28,8 @@ import { tasksBlock } from "better-supabase/blocks/tasks";
 import { versionsBlock } from "better-supabase/blocks/versions";
 import { defineRecordType } from "better-supabase/records";
 
-import { blockConfig, permissions } from "../blocks.generated.ts";
+import { blockConfig } from "../blocks.config.ts";
+import { permissions } from "../blocks.generated.ts";
 
 /**
  * The project record type: each installed block that binds to it. Pass it to

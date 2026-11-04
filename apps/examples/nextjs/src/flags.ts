@@ -9,7 +9,7 @@ import { dedupe, flag } from "flags/next";
 import { env } from "@/env";
 import "server-only";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 /** A signed-out visitor's stable id, so a percentage rollout keeps its bucket. */

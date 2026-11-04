@@ -614,6 +614,7 @@ export function renameBlock<
   RenamesOf<N>,
   EventRenamesOf<N>
 >;
+/*#__NO_SIDE_EFFECTS__*/
 export function renameBlock(
   block: AnyBlock,
   names: BlockNaming | undefined,

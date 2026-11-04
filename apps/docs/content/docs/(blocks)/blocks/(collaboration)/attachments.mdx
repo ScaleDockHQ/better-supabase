@@ -413,7 +413,7 @@ through `ports.topic`; pass `topic: null` to load without listening.
 
 ```ts
 import { createAttachmentListController } from "better-supabase/blocks/attachments";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 const files = createAttachmentListController({
   client: attachments,

@@ -3,8 +3,8 @@
 import {
   blockRead,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./consumer.blocks.config.ts";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { PushEvents } from "better-supabase/blocks/push";
 import { identitiesBlock as identitiesBlockInstance } from "better-supabase/blocks/identities";
@@ -13,43 +13,10 @@ import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/p
 import { pushBlock as pushBlockInstance } from "better-supabase/blocks/push";
 import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  identities: {
-    schema: "better_supabase",
-    options: {},
-  },
-  mfa: {
-    schema: "better_supabase",
-    options: {},
-  },
-  notifications: {
-    schema: "better_supabase",
-    options: {
-      topic: "notifications:{userId}",
-    },
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  push: {
-    schema: "better_supabase",
-    options: {},
-  },
-  sessions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./consumer.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -64,25 +31,6 @@ export const blocks = {
   push: pushBlockInstance,
   sessions: sessionsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "notifications.read" | "notifications.send";
 
 /** Every installed block's events: type to data. @public */
 export type BlockEvents = NotificationsEvents & PushEvents;

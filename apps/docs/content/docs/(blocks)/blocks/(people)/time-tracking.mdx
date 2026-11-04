@@ -297,7 +297,7 @@ const app = createBlocks(
 ```tsx
 import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 const sheet = await time.timesheet(week).orThrow();
 const grid = toWeeklyGrid(sheet.entries, {

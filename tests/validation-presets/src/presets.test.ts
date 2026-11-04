@@ -1,4 +1,4 @@
-import { emitBlockConfig } from "better-supabase/cli";
+import { emitBlockConfig, emitBlockConfigModule } from "better-supabase/cli";
 import { defineConfig, resolveConfig } from "better-supabase/config";
 import {
   namedPreset,
@@ -16,6 +16,9 @@ const live = await reachable();
 
 const wiringFile = (name: string): URL =>
   new URL(`wiring/${name}.generated.ts`, import.meta.url);
+
+const configModuleFile = (name: string): URL =>
+  new URL(`wiring/${name}.blocks.config.ts`, import.meta.url);
 
 const blockConfigFile = (name: string): URL =>
   new URL(`wiring/${name}.blocks.generated.ts`, import.meta.url);
@@ -62,16 +65,24 @@ describe("named presets", () => {
       `./${name}.blocks.generated.ts`,
     );
 
-    const blockConfig =
-      emitBlockConfig(resolveConfig({ preset: name }, "/"))?.contents ?? "";
+    const resolved = resolveConfig({ preset: name }, "/");
+
+    const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replaceAll(
+      "./blocks.config.ts",
+      `./${name}.blocks.config.ts`,
+    );
+
+    const configModule = emitBlockConfigModule(resolved)?.contents ?? "";
 
     if (process.env["UPDATE_WIRING"] === "1") {
       await writeFile(wiringFile(name), source);
       await writeFile(blockConfigFile(name), blockConfig);
+      await writeFile(configModuleFile(name), configModule);
     }
 
     expect(await readFile(wiringFile(name), "utf-8")).toBe(source);
     expect(await readFile(blockConfigFile(name), "utf-8")).toBe(blockConfig);
+    expect(await readFile(configModuleFile(name), "utf-8")).toBe(configModule);
   });
 });
 

@@ -22,7 +22,7 @@ export interface TemplateContext {
   readonly version: string;
   /**
    * Whether the config installs blocks, so the browser client takes
-   * `blockConfig` from `blocks.generated.ts`.
+   * `blockConfig` from `blocks.config.ts`.
    */
   readonly blocks?: boolean;
 }
@@ -286,7 +286,7 @@ export const TEMPLATES: Readonly<Record<Integration, IntegrationTemplate>> = {
           ? importFrom(
               context,
               path,
-              join(posix.dirname(context.generated), "blocks.generated.ts"),
+              join(posix.dirname(context.generated), "blocks.config.ts"),
             )
           : undefined;
 

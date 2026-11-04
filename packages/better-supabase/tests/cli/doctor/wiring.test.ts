@@ -205,3 +205,34 @@ revoke all on function better_supabase.maintenance_schedule(text) from public;`;
     }
   });
 });
+
+describe("BS511", () => {
+  const run = (text: string) =>
+    rule("BS511").check(
+      context({}, { sources: [{ path: "src/a.tsx", text }] }),
+    );
+
+  it("flags a client component that imports the server wiring", async () => {
+    expect(
+      await run(
+        '"use client";\nimport { blocks } from "@/lib/supabase/blocks.generated";',
+      ),
+    ).toHaveLength(1);
+    expect(
+      await run(
+        '"use client";\nimport { defineBlocks } from "x";\ndefineBlocks(a, b);',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("accepts blocks.config and server files", async () => {
+    expect(
+      await run(
+        '"use client";\nimport { blockConfig } from "@/lib/supabase/blocks.config";',
+      ),
+    ).toHaveLength(0);
+    expect(
+      await run('import { blocks } from "@/lib/supabase/blocks.generated";'),
+    ).toHaveLength(0);
+  });
+});

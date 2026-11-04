@@ -34,7 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /**
  * The app's one service worker in `public/`, which shows the pushes. It must be

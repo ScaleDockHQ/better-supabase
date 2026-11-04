@@ -1,11 +1,9 @@
 import type { DbOf } from "better-supabase";
 
-import { defineSupabase } from "better-supabase";
 import { defineBlocks } from "better-supabase/blocks";
 import { createMetrics } from "better-supabase/blocks/metrics";
 import { createNotifications } from "better-supabase/blocks/notifications";
 import { createSettings } from "better-supabase/blocks/settings";
-import { Temporal } from "temporal-polyfill";
 
 import {
   notificationTypes,
@@ -13,14 +11,11 @@ import {
 } from "../../features/notifications/notification-types.ts";
 import { settings } from "../../features/settings/settings-definition.ts";
 import { metrics } from "../../metrics.ts";
-import { toAppError } from "../app-error.ts";
-import { avatars, logos } from "../buckets.ts";
-import { Claims, Profile } from "../claims.ts";
+import { app } from "./app.ts";
 import { blockConfig, blocks } from "./blocks.generated.ts";
-import { schema } from "./generated.ts";
 import { providers } from "./providers.ts";
 
-export type { Functions, Models } from "./generated.ts";
+export type { Functions, Models } from "./app.ts";
 
 /**
  * The block instances as `db.<instance>`: the generated map, with the blocks
@@ -46,20 +41,8 @@ const blockSet = defineBlocks(blockConfig, {
   outbox: blocks.outbox.with({ source: "https://example.bettersupabase.com" }),
 });
 
-/**
- * `.orThrow()` throws an `AppError`; results keep their `DbError`. `maxRows`
- * matches `[api] max_rows` in `supabase/config.toml`. Node 24 and Safari have
- * no `Temporal`, which the blocks return times as.
- */
-export const betterSupabase = defineSupabase(schema, {
-  maxRows: 1000,
-  temporal: Temporal,
-})
-  .claims(Claims)
-  .userMetadata(Profile)
-  .mapError(toAppError)
-  .buckets({ avatars, logos })
-  .blocks(blockSet);
+/** The app with every block instance on `db`. Server only. */
+export const betterSupabase = app.blocks(blockSet);
 
 /** The `Db` the app's requests get, with every block instance on it. */
 export type AppDb = DbOf<typeof betterSupabase>;

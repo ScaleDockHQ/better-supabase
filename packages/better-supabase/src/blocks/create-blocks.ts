@@ -257,6 +257,7 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
  * `on` and `events` type each one's data without `declare module` (invariant
  * 2).
  */
+/*#__NO_SIDE_EFFECTS__*/
 export function defineBlocks<
   const B extends BlockMap,
   const E extends readonly Events[] = [],

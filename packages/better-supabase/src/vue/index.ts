@@ -110,7 +110,11 @@ export type { VueController } from "../blocks/vue-controller.ts";
 
 export type { BlockOptions } from "../blocks/block-env.ts";
 
-export { defineDataHooks } from "./data-hooks.ts";
+export {
+  defineDataHooks,
+  defineListHook,
+  defineOneHook,
+} from "./data-hooks.ts";
 
 export type { DataHooks, DataView } from "./data-hooks.ts";
 

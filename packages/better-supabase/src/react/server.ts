@@ -15,7 +15,11 @@ import type {
   useBlockMutation as clientUseBlockMutation,
   useBlockQuery as clientUseBlockQuery,
 } from "./block-hooks.ts";
-import type { defineDataHooks as clientDefineDataHooks } from "./data-hooks.ts";
+import type {
+  defineDataHooks as clientDefineDataHooks,
+  defineListHook as clientDefineListHook,
+  defineOneHook as clientDefineOneHook,
+} from "./data-hooks.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -246,6 +250,14 @@ export const defineDataHooks: typeof clientDefineDataHooks = () => ({
   useList: clientOnly("useList"),
   useOne: clientOnly("useOne"),
 });
+
+/** The `react-server` build of `defineListHook` (see `defineDataHooks`). */
+export const defineListHook: typeof clientDefineListHook = () =>
+  clientOnly("useList");
+
+/** The `react-server` build of `defineOneHook` (see `defineDataHooks`). */
+export const defineOneHook: typeof clientDefineOneHook = () =>
+  clientOnly("useOne");
 
 /**
  * The `react-server` build of `useDebouncedSearch`: read the term from

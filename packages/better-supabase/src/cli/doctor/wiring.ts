@@ -58,6 +58,18 @@ function wired(sources: readonly TextFile[], entry: WiringProvider): boolean {
   );
 }
 
+const USE_CLIENT =
+  /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*["']use client["']/u;
+
+/**
+ * A static import of the server wiring: the generated block modules or
+ * `providers.ts`.
+ */
+const SERVER_WIRING_IMPORT =
+  /\bfrom\s+["'][^"']*\/(?:blocks\.generated|providers)(?:\.ts)?["']/gu;
+
+const DEFINE_BLOCKS_CALL = /(?:^|[^.\w])defineBlocks\s*\(/mu;
+
 /** The env keys and providers the installed blocks need (BS504, BS505). */
 export const WIRING_RULES: readonly Rule[] = [
   {
@@ -202,5 +214,31 @@ export const WIRING_RULES: readonly Rule[] = [
             },
           ];
     },
+  },
+  {
+    code: "BS511",
+    severity: "warning",
+    title: "Client component reaches the server block wiring",
+    description:
+      "A `use client` module imports `blocks.generated` or `providers.ts`, or calls `defineBlocks`, so every installed block client lands in the browser bundle. Import `blockConfig` from `blocks.config.ts` instead, and list the blocks the browser needs in `gen.clientBlocks` (they come from `blocks.client.ts`).",
+    check: (context) =>
+      context.sources.flatMap((file) => {
+        if (!USE_CLIENT.test(file.text)) {
+          return [];
+        }
+
+        const imports = [...file.text.matchAll(SERVER_WIRING_IMPORT)];
+
+        if (imports.length === 0 && !DEFINE_BLOCKS_CALL.test(file.text)) {
+          return [];
+        }
+
+        return [
+          {
+            message: `${file.path} is a client component that ${imports.length > 0 ? "imports blocks.generated or providers.ts" : "calls defineBlocks"}, which bundles every installed block client for the browser. Import \`blockConfig\` from blocks.config.ts and the browser blocks from blocks.client.ts (\`gen.clientBlocks\`).`,
+            target: file.path,
+          },
+        ];
+      }),
   },
 ];

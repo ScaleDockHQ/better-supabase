@@ -24,7 +24,7 @@ import { after } from "next/server";
 
 import { env } from "@/env";
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 import { codeSandbox, NO_CODE } from "./code-sandbox";

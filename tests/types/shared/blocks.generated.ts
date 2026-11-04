@@ -5,44 +5,17 @@ import {
   defineEvents,
   event,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./blocks.config.ts";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "created-by": {
-    schema: "better_supabase",
-    options: {},
-  },
-  queue: {
-    schema: "better_supabase",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  trash: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -75,27 +48,6 @@ export const appTableEventSchemas = {
   "task.updated": true,
   "task.deleted": true,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  trash: {
-    read: "trash.read",
-    create: "trash.create",
-    restore: "trash.restore",
-    manage: "trash.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "trash.create" | "trash.manage" | "trash.read" | "trash.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
