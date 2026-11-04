@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:fe8d5f08da355ea402988e9c13e7900a49111ae141cac8a5d4f9e33483e2719c
+-- @bsb-hash sha256:59f5821f766905fa17815549efb92086f07b6b08eb06a184c1304279b284ee01
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -812,6 +812,7 @@ drop function if exists "api"."store_ai_file"(uuid, uuid, text, text, bigint, uu
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -848,6 +849,7 @@ grant execute on function "api"."confirm_ai_file"(uuid, text) to authenticated, 
 create or replace function "api"."get_ai_file"(file_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_file"($1) $$;
@@ -857,6 +859,7 @@ grant execute on function "api"."get_ai_file"(uuid) to authenticated, service_ro
 create or replace function "api"."get_ai_file_by_path"(bucket text, path text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_file_by_path"($1, $2) $$;
@@ -866,6 +869,7 @@ grant execute on function "api"."get_ai_file_by_path"(text, text) to authenticat
 create or replace function "api"."list_ai_files"(chat_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_files"($1) $$;
@@ -902,6 +906,7 @@ grant execute on function "api"."set_ai_provider_file"(uuid, text, text, timesta
 create or replace function "api"."get_ai_provider_file"(file_id uuid, provider text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_provider_file"($1, $2) $$;
@@ -911,6 +916,7 @@ grant execute on function "api"."get_ai_provider_file"(uuid, text) to service_ro
 create or replace function "api"."expiring_ai_provider_files"(horizon interval default '1 day', batch integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."expiring_ai_provider_files"($1, $2) $$;
@@ -956,6 +962,7 @@ grant execute on function "api"."rollback_ai_document"(uuid, integer) to authent
 create or replace function "api"."get_ai_document"(document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_document"($1) $$;
@@ -965,6 +972,7 @@ grant execute on function "api"."get_ai_document"(uuid) to authenticated, servic
 create or replace function "api"."list_ai_document_versions"(document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_document_versions"($1) $$;
@@ -983,6 +991,7 @@ grant execute on function "api"."suggest_ai_document_edit"(uuid, text, text, tex
 create or replace function "api"."list_ai_suggestions"(document_id uuid, open_only boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_suggestions"($1, $2) $$;

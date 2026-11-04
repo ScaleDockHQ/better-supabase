@@ -1,6 +1,6 @@
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:9010e391748ada367b25e5459911c8c41708995af47dabc60e0de6459528db05
+-- @bsb-hash sha256:b6729ebf222bdd6fe40823dd756a4aaefd74659ddb36a45563fa2f78b5a7de48
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -961,6 +961,7 @@ drop function if exists "api"."save_promotion"(uuid, uuid, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;

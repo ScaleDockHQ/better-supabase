@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:04ff79dced5ee67c256314e2811ad67bc7500e47d0c49c26e8650c902af7d7f2
+-- @bsb-hash sha256:fa5f18ecb8462e457a79046a48183c2de71541cb105f1a56b823d9447a383b16
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1349,6 +1349,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1394,6 +1395,7 @@ grant execute on function "api"."archive_asset_location"(uuid) to authenticated,
 create or replace function "api"."get_asset_location"(location_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_asset_location"($1) $$;
@@ -1403,6 +1405,7 @@ grant execute on function "api"."get_asset_location"(uuid) to authenticated, ser
 create or replace function "api"."list_asset_locations"(tenant uuid, parent_id uuid default null, include_archived boolean default false, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_asset_locations"($1, $2, $3, $4) $$;
@@ -1448,6 +1451,7 @@ grant execute on function "api"."release_asset"(uuid) to authenticated, service_
 create or replace function "api"."get_asset"(asset_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_asset"($1) $$;
@@ -1457,6 +1461,7 @@ grant execute on function "api"."get_asset"(uuid) to authenticated, service_role
 create or replace function "api"."list_assets"(tenant uuid, location_id uuid default null, include_sublocations boolean default false, kind text default null, status text default null, assignee_type text default null, assignee_id text default null, query text default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_assets"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
@@ -1466,6 +1471,7 @@ grant execute on function "api"."list_assets"(uuid, uuid, boolean, text, text, t
 create or replace function "api"."asset_assignment_history"(asset_id uuid, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."asset_assignment_history"($1, $2) $$;
@@ -1475,6 +1481,7 @@ grant execute on function "api"."asset_assignment_history"(uuid, integer) to aut
 create or replace function "api"."assets_near"(tenant uuid, latitude double precision, longitude double precision, radius_meters double precision, kind text default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."assets_near"($1, $2, $3, $4, $5, $6) $$;
@@ -1484,6 +1491,7 @@ grant execute on function "api"."assets_near"(uuid, double precision, double pre
 create or replace function "api"."asset_locations_at"(tenant uuid, latitude double precision, longitude double precision)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."asset_locations_at"($1, $2, $3) $$;
@@ -1520,6 +1528,7 @@ grant execute on function "api"."dispose_asset"(uuid, date, bigint, text) to aut
 create or replace function "api"."list_asset_depreciations"(asset_id uuid, page_size integer default 600)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_asset_depreciations"($1, $2) $$;

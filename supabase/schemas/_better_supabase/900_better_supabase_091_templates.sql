@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:7eff138c62789906e5b7a48ccd9159ab3b0236e19b2d87b4754edcfb5f5dbccc
+-- @bsb-hash sha256:9e55e298178ab73aaa9b508c0e2c0015241ec22013cb3bd3c36f9018d3f9b608
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1542,6 +1542,7 @@ drop function if exists "api"."save_template"(uuid, uuid, text, text, text, json
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1560,6 +1561,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."template_workflow_input_errors"(definition uuid, inputs jsonb)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_workflow_input_errors"($1, $2) $$;
@@ -1578,6 +1580,7 @@ grant execute on function "api"."save_template"(uuid, uuid, text, text, text, js
 create or replace function "api"."templates_list"(tenant uuid, type text, language text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."templates_list"($1, $2, $3) $$;
@@ -1587,6 +1590,7 @@ grant execute on function "api"."templates_list"(uuid, text, text) to authentica
 create or replace function "api"."template_get"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_get"($1) $$;
@@ -1623,6 +1627,7 @@ grant execute on function "api"."publish_template_version"(uuid) to authenticate
 create or replace function "api"."template_versions_list"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_versions_list"($1) $$;
@@ -1659,6 +1664,7 @@ grant execute on function "api"."sync_templates"(jsonb) to service_role;
 create or replace function "api"."template_apply_target"(template_id uuid, tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_apply_target"($1, $2) $$;
@@ -1677,6 +1683,7 @@ grant execute on function "api"."record_template_application"(uuid, uuid, uuid, 
 create or replace function "api"."template_applications_list"(tenant uuid, template_id uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_applications_list"($1, $2, $3, $4) $$;
@@ -1704,6 +1711,7 @@ grant execute on function "api"."detach_template_workflow"(uuid, uuid) to authen
 create or replace function "api"."template_workflows_list"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_workflows_list"($1) $$;
@@ -1731,6 +1739,7 @@ grant execute on function "api"."remove_template_schedule"(uuid) to authenticate
 create or replace function "api"."template_schedules_list"(tenant uuid, template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_schedules_list"($1, $2) $$;
@@ -1740,6 +1749,7 @@ grant execute on function "api"."template_schedules_list"(uuid, uuid) to authent
 create or replace function "api"."list_template_schedule"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_template_schedule"() $$;
@@ -1749,6 +1759,7 @@ grant execute on function "api"."list_template_schedule"() to service_role;
 create or replace function "api"."due_template_occurrences"(range_start timestamptz, range_end timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."due_template_occurrences"($1, $2) $$;

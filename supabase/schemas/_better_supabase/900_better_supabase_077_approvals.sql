@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:dba4d631d316234c24c3e89cf3563d9e127c9fda1e102b6658d036399e840c87
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:35e6cb1ca08803b90568a02516f3ecbcf7fe56334ae27e069c36e4294f4bc2f2
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -314,6 +314,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -1890,7 +1909,7 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
         else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else case x."subject_type"
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
@@ -1951,7 +1970,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     else false
-  end end))))) or "better_supabase"."approval_eligible"(x."id")
+  end end))))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -2244,6 +2263,7 @@ drop function if exists "api"."decide_approval"(uuid, text, text);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -2253,6 +2273,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2271,6 +2292,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_policy"($1, $2) $$;
@@ -2280,11 +2302,22 @@ grant execute on function "api"."approval_policy"(text, text) to authenticated, 
 create or replace function "api"."approval_eligible"(request_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_eligible"($1) $$;
 revoke execute on function "api"."approval_eligible"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible"(uuid) to authenticated, service_role;
+
+create or replace function "api"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."approval_eligible_ids"($1) $$;
+revoke execute on function "api"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "api"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 create or replace function "api"."save_approval_policy"(tenant uuid, policy jsonb)
 returns jsonb
@@ -2307,6 +2340,7 @@ grant execute on function "api"."remove_approval_policy"(uuid) to authenticated,
 create or replace function "api"."list_approval_policies"(tenant uuid, subject_type text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_approval_policies"($1, $2, $3) $$;
@@ -2316,6 +2350,7 @@ grant execute on function "api"."list_approval_policies"(uuid, text, integer) to
 create or replace function "api"."approval_requirement"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_requirement"($1, $2, $3, $4) $$;
@@ -2406,6 +2441,7 @@ grant execute on function "api"."cancel_approval"(uuid) to authenticated, servic
 create or replace function "api"."get_approval"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_approval"($1) $$;
@@ -2415,6 +2451,7 @@ grant execute on function "api"."get_approval"(uuid) to authenticated, service_r
 create or replace function "api"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_approvals"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -2424,6 +2461,7 @@ grant execute on function "api"."list_approvals"(uuid, text, boolean, text, text
 create or replace function "api"."is_approved"(subject_type text, subject_id text, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_approved"($1, $2, $3) $$;

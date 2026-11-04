@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:79bb69129df2f791485c0fe5cdf08ff00107f101b05ca52ce2e07cb302b93196
+-- @bsb-hash sha256:8ab0df8a25c506a6c6a7bc841b86a37508152a35fb1878bfac6ab9ad828fc7ca
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -925,6 +925,7 @@ drop function if exists "api"."link"(uuid, text, text, text, text, text, jsonb, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -961,6 +962,7 @@ grant execute on function "api"."unlink"(uuid, text, text, text, text, text) to 
 create or replace function "api"."relations_of"(tenant uuid, subject_type text, subject_id text, kind text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."relations_of"($1, $2, $3, $4) $$;
@@ -970,6 +972,7 @@ grant execute on function "api"."relations_of"(uuid, text, text, text) to authen
 create or replace function "api"."relations_by_kind"(tenant uuid, kind text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."relations_by_kind"($1, $2) $$;
@@ -979,6 +982,7 @@ grant execute on function "api"."relations_by_kind"(uuid, text) to authenticated
 create or replace function "api"."relation_walk"(tenant uuid, kind text, subject_type text, subject_id text, up boolean, max_depth integer)
 returns table (type text, id text, depth integer)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."relation_walk"($1, $2, $3, $4, $5, $6) $$;
@@ -988,6 +992,7 @@ grant execute on function "api"."relation_walk"(uuid, text, text, text, boolean,
 create or replace function "api"."ancestors"(tenant uuid, kind text, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ancestors"($1, $2, $3, $4) $$;
@@ -997,6 +1002,7 @@ grant execute on function "api"."ancestors"(uuid, text, text, text) to authentic
 create or replace function "api"."descendants"(tenant uuid, kind text, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."descendants"($1, $2, $3, $4) $$;
@@ -1006,6 +1012,7 @@ grant execute on function "api"."descendants"(uuid, text, text, text) to authent
 create or replace function "api"."converted_into"(tenant uuid, origin_type text, origin_id text, into_type text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."converted_into"($1, $2, $3, $4) $$;
@@ -1015,6 +1022,7 @@ grant execute on function "api"."converted_into"(uuid, text, text, text) to auth
 create or replace function "api"."relation_rollup"(tenant uuid, kind text, subject_type text, subject_id text, of_type text, column_name text, agg text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."relation_rollup"($1, $2, $3, $4, $5, $6, $7) $$;

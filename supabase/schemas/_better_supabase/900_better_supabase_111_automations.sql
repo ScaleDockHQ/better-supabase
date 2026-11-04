@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:adb80700f402fe039ca17f9d3483e3d4a5605977b3ddc22b4e6e8397982796a2
+-- @bsb-hash sha256:fcd4522ecbabaa800f49272208c078c3786051a7f1e4503ab685ca849510821c
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1380,6 +1380,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1398,6 +1399,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."rule_text"(value jsonb)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_text"($1) $$;
@@ -1407,6 +1409,7 @@ grant execute on function "api"."rule_text"(jsonb) to anon, authenticated, servi
 create or replace function "api"."rule_numeric"(value jsonb)
 returns numeric
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_numeric"($1) $$;
@@ -1416,6 +1419,7 @@ grant execute on function "api"."rule_numeric"(jsonb) to anon, authenticated, se
 create or replace function "api"."rule_boolean"(value jsonb)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_boolean"($1) $$;
@@ -1425,6 +1429,7 @@ grant execute on function "api"."rule_boolean"(jsonb) to anon, authenticated, se
 create or replace function "api"."rule_list"(value jsonb)
 returns text[]
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_list"($1) $$;
@@ -1434,6 +1439,7 @@ grant execute on function "api"."rule_list"(jsonb) to anon, authenticated, servi
 create or replace function "api"."rule_moment"(kind text, value jsonb)
 returns timestamp
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_moment"($1, $2) $$;
@@ -1443,6 +1449,7 @@ grant execute on function "api"."rule_moment"(text, jsonb) to anon, authenticate
 create or replace function "api"."rule_bounds"(kind text, value jsonb, time_zone text, now timestamptz)
 returns timestamp[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_bounds"($1, $2, $3, $4) $$;
@@ -1452,6 +1459,7 @@ grant execute on function "api"."rule_bounds"(text, jsonb, text, timestamptz) to
 create or replace function "api"."rule_date"(kind text, operator text, operand jsonb, value jsonb, time_zone text, now timestamptz)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_date"($1, $2, $3, $4, $5, $6) $$;
@@ -1461,6 +1469,7 @@ grant execute on function "api"."rule_date"(text, text, jsonb, jsonb, text, time
 create or replace function "api"."rule_equal"(type text, operand jsonb, value jsonb)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_equal"($1, $2, $3) $$;
@@ -1470,6 +1479,7 @@ grant execute on function "api"."rule_equal"(text, jsonb, jsonb) to anon, authen
 create or replace function "api"."rule_positive"(type text, kind text, operator text, operand jsonb, value jsonb, time_zone text, now timestamptz)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_positive"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -1479,6 +1489,7 @@ grant execute on function "api"."rule_positive"(text, text, text, jsonb, jsonb, 
 create or replace function "api"."rule_node"(node jsonb, subject jsonb, fields jsonb, time_zone text, now timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_node"($1, $2, $3, $4, $5) $$;
@@ -1488,6 +1499,7 @@ grant execute on function "api"."rule_node"(jsonb, jsonb, jsonb, text, timestamp
 create or replace function "api"."rule_evaluate"(conditions jsonb, subject jsonb, fields jsonb, time_zone text default 'UTC', now timestamptz default now())
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_evaluate"($1, $2, $3, $4, $5) $$;
@@ -1497,6 +1509,7 @@ grant execute on function "api"."rule_evaluate"(jsonb, jsonb, jsonb, text, times
 create or replace function "api"."rule_matches"(conditions jsonb, subject jsonb, fields jsonb, time_zone text default 'UTC', now timestamptz default now())
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_matches"($1, $2, $3, $4, $5) $$;
@@ -1506,6 +1519,7 @@ grant execute on function "api"."rule_matches"(jsonb, jsonb, jsonb, text, timest
 create or replace function "api"."rule_check"(node jsonb, fields jsonb, depth integer default 1)
 returns integer
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_check"($1, $2, $3) $$;
@@ -1515,6 +1529,7 @@ grant execute on function "api"."rule_check"(jsonb, jsonb, integer) to anon, aut
 create or replace function "api"."rule_fields_list"(subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_fields_list"($1) $$;
@@ -1524,6 +1539,7 @@ grant execute on function "api"."rule_fields_list"(text) to authenticated, servi
 create or replace function "api"."rule_field_map"(subject_type text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_field_map"($1) $$;
@@ -1551,6 +1567,7 @@ grant execute on function "api"."rules_list"(uuid, text, text, boolean) to authe
 create or replace function "api"."rule_get"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_get"($1) $$;
@@ -1560,6 +1577,7 @@ grant execute on function "api"."rule_get"(uuid) to authenticated, service_role;
 create or replace function "api"."rule_versions_list"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_versions_list"($1) $$;
@@ -1605,6 +1623,7 @@ grant execute on function "api"."reset_default_rule"(uuid) to authenticated, ser
 create or replace function "api"."matching_rules"(tenant uuid, subject_type text, trigger text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."matching_rules"($1, $2, $3, $4, $5) $$;
@@ -1623,6 +1642,7 @@ grant execute on function "api"."record_rule_evaluation"(uuid, text, boolean, js
 create or replace function "api"."rule_evaluations_list"(rule uuid, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rule_evaluations_list"($1, $2, $3) $$;

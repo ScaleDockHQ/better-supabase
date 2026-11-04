@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:f04fbed28b709dd02c605b4442bc2f41b60246a1defbf5f0a8d3e7ecdddd4ac9
+-- @bsb-hash sha256:3d5f6b5a697af7a2c3a5894638b38c84d6767bdf2bb98420aa308dba528fed34
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4327,6 +4327,7 @@ drop function if exists "api"."save_category"(uuid, uuid, uuid, text, text, text
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4345,6 +4346,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."currency_minor_units"(code text)
 returns integer
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."currency_minor_units"($1) $$;
@@ -4489,6 +4491,7 @@ grant execute on function "api"."delete_price"(uuid) to authenticated, service_r
 create or replace function "api"."variant_price"(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."variant_price"($1, $2, $3, $4) $$;
@@ -4570,6 +4573,7 @@ grant execute on function "api"."remove_from_collection"(uuid, uuid) to authenti
 create or replace function "api"."storefront_tenants"()
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."storefront_tenants"() $$;
@@ -4579,6 +4583,7 @@ grant execute on function "api"."storefront_tenants"() to anon, authenticated, s
 create or replace function "api"."storefront_products"()
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."storefront_products"() $$;
@@ -4615,6 +4620,7 @@ grant execute on function "api"."delete_catalog_channel"(uuid) to authenticated,
 create or replace function "api"."channel_price"(channel uuid, variant uuid, as_of timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."channel_price"($1, $2, $3) $$;
@@ -4633,6 +4639,7 @@ grant execute on function "api"."set_channel_listing"(uuid, uuid[], boolean) to 
 create or replace function "api"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."channel_products"($1, $2, $3, $4) $$;
@@ -4660,6 +4667,7 @@ grant execute on function "api"."set_variant_translation"(uuid, text, text) to a
 create or replace function "api"."product_text"(product uuid, locale text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."product_text"($1, $2) $$;
@@ -4705,6 +4713,7 @@ grant execute on function "api"."remove_product_media"(uuid) to authenticated, s
 create or replace function "api"."product_media"(product uuid, locale text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."product_media"($1, $2) $$;
@@ -4732,6 +4741,7 @@ grant execute on function "api"."delete_product_identifier"(uuid) to authenticat
 create or replace function "api"."find_variants_by_identifier"(tenant uuid, value text, type text default null, party uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."find_variants_by_identifier"($1, $2, $3, $4) $$;
@@ -4741,6 +4751,7 @@ grant execute on function "api"."find_variants_by_identifier"(uuid, text, text, 
 create or replace function "api"."variant_identifiers"(variant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."variant_identifiers"($1) $$;
@@ -4768,6 +4779,7 @@ grant execute on function "api"."delete_product_relation"(uuid, uuid, text) to a
 create or replace function "api"."variant_relations"(variant uuid, kind text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."variant_relations"($1, $2) $$;
@@ -4777,6 +4789,7 @@ grant execute on function "api"."variant_relations"(uuid, text) to authenticated
 create or replace function "api"."replacement_variant"(variant uuid)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."replacement_variant"($1) $$;
@@ -4795,6 +4808,7 @@ grant execute on function "api"."set_supplier_item_mapping"(uuid, uuid, jsonb, j
 create or replace function "api"."supplier_item_mapping"(tenant uuid, supplier uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."supplier_item_mapping"($1, $2) $$;
@@ -4813,6 +4827,7 @@ grant execute on function "api"."delete_supplier_item_mapping"(uuid, uuid) to au
 create or replace function "api"."supplier_item_from_row"(tenant uuid, supplier uuid, source jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."supplier_item_from_row"($1, $2, $3) $$;
@@ -4840,6 +4855,7 @@ grant execute on function "api"."delete_supplier_item"(uuid) to authenticated, s
 create or replace function "api"."search_supplier_items"(tenant uuid, query text, supplier uuid default null, row_limit integer default 25)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search_supplier_items"($1, $2, $3, $4) $$;
@@ -4876,6 +4892,7 @@ grant execute on function "api"."import_supplier_item"(uuid, jsonb, text) to ser
 create or replace function "api"."supplier_item_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."supplier_item_updated_at"($1) $$;
@@ -4894,6 +4911,7 @@ grant execute on function "api"."import_product_identifier"(uuid, jsonb, text) t
 create or replace function "api"."product_identifier_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."product_identifier_updated_at"($1) $$;
@@ -4957,6 +4975,7 @@ grant execute on function "api"."delete_discount_rule"(uuid) to authenticated, s
 create or replace function "api"."resolve_line_discount"(tenant uuid, party text, product uuid, quantity numeric, "on" date, currency text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_line_discount"($1, $2, $3, $4, $5, $6) $$;
@@ -4975,6 +4994,7 @@ grant execute on function "api"."import_discount_group"(uuid, jsonb, text) to se
 create or replace function "api"."discount_group_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."discount_group_updated_at"($1) $$;
@@ -4993,6 +5013,7 @@ grant execute on function "api"."import_discount_rule"(uuid, jsonb, text) to ser
 create or replace function "api"."discount_rule_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."discount_rule_updated_at"($1) $$;

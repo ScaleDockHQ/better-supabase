@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:873909276af9aba16e20a155691b28bd9aff960b4b0a1bf1c6c626466842da78
+-- @bsb-hash sha256:e2990d125af673a72d903bc2fe904eac1b02a7d1329e2d7823b2b765c40e883d
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2137,6 +2137,7 @@ drop function if exists "api"."save_calendar_event"(uuid, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2218,6 +2219,7 @@ grant execute on function "api"."import_calendar_events"(uuid, jsonb) to authent
 create or replace function "api"."list_calendar_events"(calendar_ids uuid[], range_start timestamptz, range_end timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_calendar_events"($1, $2, $3) $$;
@@ -2227,6 +2229,7 @@ grant execute on function "api"."list_calendar_events"(uuid[], timestamptz, time
 create or replace function "api"."list_calendars"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_calendars"($1) $$;
@@ -2263,6 +2266,7 @@ grant execute on function "api"."respond_calendar_event"(uuid, text) to authenti
 create or replace function "api"."calendar_rule_starts"(dtstart timestamptz, tz text, rrule text, range_start timestamptz, range_end timestamptz)
 returns setof timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."calendar_rule_starts"($1, $2, $3, $4, $5) $$;
@@ -2272,6 +2276,7 @@ grant execute on function "api"."calendar_rule_starts"(timestamptz, text, text, 
 create or replace function "api"."calendar_busy_blocks"(tenant uuid, user_ids uuid[], range_start timestamptz, range_end timestamptz)
 returns table (user_id uuid, kind text, starts_at timestamptz, ends_at timestamptz, event_id uuid, declines boolean)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."calendar_busy_blocks"($1, $2, $3, $4) $$;
@@ -2290,6 +2295,7 @@ grant execute on function "api"."set_calendar_working_hours"(uuid, uuid, text, j
 create or replace function "api"."list_calendar_working_hours"(tenant uuid, user_ids uuid[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_calendar_working_hours"($1, $2) $$;
@@ -2299,6 +2305,7 @@ grant execute on function "api"."list_calendar_working_hours"(uuid, uuid[]) to a
 create or replace function "api"."calendar_free_busy"(tenant uuid, user_ids uuid[], range_start timestamptz, range_end timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."calendar_free_busy"($1, $2, $3, $4) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:109f7fc5597d0bdf6a1df3b4c32eb0bf8c085f33fa77d8217b802148c382132b
+-- @bsb-hash sha256:91b1481110857088c11a90ca76544f71fc274e2dfbf006c2438f698fe6026639
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1768,6 +1768,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1777,6 +1778,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1822,6 +1824,7 @@ grant execute on function "api"."drive_commit"(uuid, uuid) to authenticated, ser
 create or replace function "api"."drive_object_allowed"(bucket text, path text, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_object_allowed"($1, $2, $3) $$;
@@ -1831,6 +1834,7 @@ grant execute on function "api"."drive_object_allowed"(text, text, text) to auth
 create or replace function "api"."drive_attachment_allowed"(subject_type text, subject_id text, write boolean)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_attachment_allowed"($1, $2, $3) $$;
@@ -1849,6 +1853,7 @@ grant execute on function "api"."drive_prune"(integer) to service_role;
 create or replace function "api"."drive_previews"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_previews"($1) $$;
@@ -1867,6 +1872,7 @@ grant execute on function "api"."drive_set_previews"(uuid, uuid, integer) to ser
 create or replace function "api"."drive_text_source"(node uuid default null, attachment uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_text_source"($1, $2) $$;
@@ -1885,6 +1891,7 @@ grant execute on function "api"."drive_set_text"(uuid, uuid, text, text) to serv
 create or replace function "api"."drive_revisions"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_revisions"($1) $$;
@@ -1921,6 +1928,7 @@ grant execute on function "api"."drive_restore"(uuid, text) to authenticated, se
 create or replace function "api"."drive_bin"(tenant uuid, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_bin"($1, $2, $3) $$;
@@ -1957,6 +1965,7 @@ grant execute on function "api"."drive_open"(uuid) to authenticated, service_rol
 create or replace function "api"."drive_marked"(tenant uuid, recent boolean default false, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_marked"($1, $2, $3) $$;
@@ -1966,6 +1975,7 @@ grant execute on function "api"."drive_marked"(uuid, boolean, integer) to authen
 create or replace function "api"."drive_link"(token text, node uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_link"($1, $2) $$;
@@ -2002,6 +2012,7 @@ grant execute on function "api"."drive_label"(uuid, uuid, boolean) to authentica
 create or replace function "api"."drive_labeled"(tenant uuid, tag uuid, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_labeled"($1, $2, $3) $$;
@@ -2020,6 +2031,7 @@ grant execute on function "api"."drive_request_approval"(uuid, uuid, text) to au
 create or replace function "api"."drive_approvals"(node uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_approvals"($1) $$;
@@ -2074,6 +2086,7 @@ grant execute on function "api"."drive_document_review"(uuid, text, text) to aut
 create or replace function "api"."drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_documents"($1, $2) $$;
@@ -2092,6 +2105,7 @@ grant execute on function "api"."notify_due_drive_reviews"() to service_role;
 create or replace function "api"."drive_retention_kind"(label text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_retention_kind"($1) $$;
@@ -2110,6 +2124,7 @@ grant execute on function "api"."drive_retention_sweep"(uuid, integer) to servic
 create or replace function "api"."drive_changes"(tenant uuid, after text default null, page_size integer default 200, drive uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."drive_changes"($1, $2, $3, $4) $$;

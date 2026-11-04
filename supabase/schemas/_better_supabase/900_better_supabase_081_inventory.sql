@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:5b5833503d0e7e4b9bb481c7075032ce93661ed62e945328410a753a44932537
+-- @bsb-hash sha256:1b5abe10e6d26690b98e084c6fd5aaefd590f1bc55adca9b6bfe9bb1dca83620
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3617,6 +3617,7 @@ drop function if exists "api"."reserve_stock"(uuid, uuid, integer, text, text, t
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -3626,6 +3627,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3671,6 +3673,7 @@ grant execute on function "api"."save_lot"(uuid, text, date) to authenticated, s
 create or replace function "api"."stock_detail"(variant uuid, location uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stock_detail"($1, $2) $$;
@@ -3680,6 +3683,7 @@ grant execute on function "api"."stock_detail"(uuid, uuid) to authenticated, ser
 create or replace function "api"."expiring_lots"(tenant uuid, before date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."expiring_lots"($1, $2) $$;
@@ -3698,6 +3702,7 @@ grant execute on function "api"."expire_lots"(uuid, date) to authenticated, serv
 create or replace function "api"."stock_valuation"(variant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stock_valuation"($1) $$;
@@ -3743,6 +3748,7 @@ grant execute on function "api"."release_allocations"(uuid, text, text) to authe
 create or replace function "api"."list_allocations"(tenant uuid, document_type text, document_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_allocations"($1, $2, $3) $$;
@@ -3860,6 +3866,7 @@ grant execute on function "api"."import_stock_count"(uuid, jsonb, text) to servi
 create or replace function "api"."stock_count_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."stock_count_updated_at"($1) $$;
@@ -4004,6 +4011,7 @@ grant execute on function "api"."purchase_order_from_requisitions"(uuid[], text,
 create or replace function "api"."get_purchase_requisition"(requisition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_purchase_requisition"($1) $$;
@@ -4013,6 +4021,7 @@ grant execute on function "api"."get_purchase_requisition"(uuid) to authenticate
 create or replace function "api"."inventory_overview"(tenant uuid, row_limit integer default 20, expiry_days integer default 30)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."inventory_overview"($1, $2, $3) $$;

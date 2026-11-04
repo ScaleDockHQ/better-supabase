@@ -1,6 +1,6 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:b2c3ea39122f418dc0d961d42ff478bef3cbe408c303b3d18341a062ccf37580
+-- @bsb-hash sha256:89e437660ffca3a80e17cc5c59179b68c2e34fa80c9f3b240b14bac6dd145de3
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1091,6 +1091,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1109,6 +1110,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."commission_amount"(kind text, rate_bps integer, tiers jsonb, prior bigint, basis bigint)
 returns bigint
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."commission_amount"($1, $2, $3, $4, $5) $$;
@@ -1118,6 +1120,7 @@ grant execute on function "api"."commission_amount"(text, integer, jsonb, bigint
 create or replace function "api"."commission_tiers_valid"(tiers jsonb)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."commission_tiers_valid"($1) $$;
@@ -1154,6 +1157,7 @@ grant execute on function "api"."end_commission_assignment"(uuid) to authenticat
 create or replace function "api"."commission_plan_for"(tenant uuid, seller_id uuid, subject_type text, subject_id text, on_date date)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."commission_plan_for"($1, $2, $3, $4, $5) $$;
@@ -1235,6 +1239,7 @@ grant execute on function "api"."pay_commission_statement"(uuid) to authenticate
 create or replace function "api"."get_commission_statement"(statement_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_commission_statement"($1) $$;
@@ -1244,6 +1249,7 @@ grant execute on function "api"."get_commission_statement"(uuid) to authenticate
 create or replace function "api"."list_commission_statements"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_commission_statements"($1, $2) $$;
@@ -1253,6 +1259,7 @@ grant execute on function "api"."list_commission_statements"(uuid, jsonb) to aut
 create or replace function "api"."list_commissions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_commissions"($1, $2) $$;
@@ -1262,6 +1269,7 @@ grant execute on function "api"."list_commissions"(uuid, jsonb) to authenticated
 create or replace function "api"."list_commission_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_commission_plans"($1, $2) $$;
@@ -1271,6 +1279,7 @@ grant execute on function "api"."list_commission_plans"(uuid, jsonb) to authenti
 create or replace function "api"."commission_payroll_lines"(tenant uuid, from_date date, to_date date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."commission_payroll_lines"($1, $2, $3) $$;

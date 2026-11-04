@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:a6bcdc35a8955f6d9e4bb3f63886dd622496f6826df630460e4b62896066b5d4
+-- @bsb-hash sha256:74d3160aa0b438915c2b88681cc2176907f136f302bd12694414b133fe1b96cb
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1581,6 +1581,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1590,6 +1591,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1617,6 +1619,7 @@ grant execute on function "api"."save_funding_product"(uuid, text, text, text, b
 create or replace function "api"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_funding_products"($1, $2) $$;
@@ -1644,6 +1647,7 @@ grant execute on function "api"."end_funding_award"(uuid, date, boolean) to auth
 create or replace function "api"."list_funding_awards"(tenant uuid, subject_type text default null, subject_id text default null, include_ended boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_funding_awards"($1, $2, $3, $4) $$;
@@ -1653,6 +1657,7 @@ grant execute on function "api"."list_funding_awards"(uuid, text, text, boolean)
 create or replace function "api"."funding_award_usage"(award_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."funding_award_usage"($1) $$;
@@ -1680,6 +1685,7 @@ grant execute on function "api"."approve_funding_deliveries"(uuid[], boolean) to
 create or replace function "api"."list_funding_deliveries"(tenant uuid, filter jsonb default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_funding_deliveries"($1, $2) $$;
@@ -1707,6 +1713,7 @@ grant execute on function "api"."build_funding_claim"(uuid, uuid, date, date, te
 create or replace function "api"."get_funding_claim"(claim_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_funding_claim"($1) $$;
@@ -1752,6 +1759,7 @@ grant execute on function "api"."invoice_funding_claim"(uuid, jsonb) to authenti
 create or replace function "api"."list_funding_claims"(tenant uuid, status text default null, funder_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_funding_claims"($1, $2, $3) $$;

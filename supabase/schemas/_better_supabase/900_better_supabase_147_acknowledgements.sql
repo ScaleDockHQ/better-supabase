@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:3fecbd7256e7a7edcb7c6a7ed8a5b659a7f654496ee0208aa363e616f365358b
+-- @bsb-hash sha256:787b228b1055731e33cba31fc17d3d7b1c948fab88d68a730ee50b5199b18b74
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -850,6 +850,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -859,6 +860,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -895,6 +897,7 @@ grant execute on function "api"."unassign_acknowledgement"(uuid) to authenticate
 create or replace function "api"."list_acknowledgement_assignments"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_acknowledgement_assignments"($1, $2) $$;
@@ -913,6 +916,7 @@ grant execute on function "api"."acknowledge"(text, text, uuid, uuid) to authent
 create or replace function "api"."list_my_acknowledgements"(tenant uuid, pending_only boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_my_acknowledgements"($1, $2) $$;
@@ -922,6 +926,7 @@ grant execute on function "api"."list_my_acknowledgements"(uuid, boolean) to aut
 create or replace function "api"."acknowledgement_status"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acknowledgement_status"($1, $2) $$;
@@ -931,6 +936,7 @@ grant execute on function "api"."acknowledgement_status"(text, text) to authenti
 create or replace function "api"."acknowledgements_of"(subject_type text, subject_id text, version_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acknowledgements_of"($1, $2, $3) $$;

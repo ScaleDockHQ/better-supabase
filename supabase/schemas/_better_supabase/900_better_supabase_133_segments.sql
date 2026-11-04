@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:589074179ef5a1ebc468adfcce0891b13ec93acf18b18c18dffbeeea0c27ff60
+-- @bsb-hash sha256:b6e7fb05279ab044e2a22aa5b0253b5ffb04ab736148c639d7a3c6a8effe2557
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1041,6 +1041,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1077,6 +1078,7 @@ grant execute on function "api"."remove_segment"(uuid) to authenticated, service
 create or replace function "api"."segments_list"(tenant uuid, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."segments_list"($1, $2) $$;
@@ -1086,6 +1088,7 @@ grant execute on function "api"."segments_list"(uuid, text) to authenticated, se
 create or replace function "api"."segment_get"(segment uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."segment_get"($1) $$;
@@ -1095,6 +1098,7 @@ grant execute on function "api"."segment_get"(uuid) to authenticated, service_ro
 create or replace function "api"."list_segment_members"(segment uuid, after timestamptz default null, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_segment_members"($1, $2, $3) $$;
@@ -1104,6 +1108,7 @@ grant execute on function "api"."list_segment_members"(uuid, timestamptz, intege
 create or replace function "api"."segments_of"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."segments_of"($1, $2) $$;

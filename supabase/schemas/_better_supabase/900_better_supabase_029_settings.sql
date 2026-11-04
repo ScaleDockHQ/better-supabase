@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5a96b39f4caee9a5ec240578697ca421221f4fca71d4632fd1af9e305343cdec
+-- @bsb-hash sha256:380d156b288a9efe12df82262159b66d1147d11cd27024648d17fd57851cb4a1
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -435,6 +435,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -453,6 +454,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."get_platform_settings"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_platform_settings"() $$;
@@ -480,6 +482,7 @@ grant execute on function "api"."reset_platform_setting"(text) to authenticated,
 create or replace function "api"."get_user_settings"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_user_settings"() $$;
@@ -507,6 +510,7 @@ grant execute on function "api"."reset_user_setting"(text) to authenticated, ser
 create or replace function "api"."get_organization_settings"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_organization_settings"($1) $$;
@@ -534,6 +538,7 @@ grant execute on function "api"."reset_organization_setting"(uuid, text) to auth
 create or replace function "api"."organization_setting"(tenant uuid, key text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_setting"($1, $2) $$;

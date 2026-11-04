@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:c6a3581120ceb3697b6e4f4eb9f9d9399b084285318c6e938789a40c6e66bd91
+-- @bsb-hash sha256:6c17fbf445c69e57245548484a728bb17a149277a080315f42a3771cc26ef330
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1951,6 +1951,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1960,6 +1961,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1978,6 +1980,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."care_plan_json"(plan_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."care_plan_json"($1) $$;
@@ -2059,6 +2062,7 @@ grant execute on function "api"."update_care_plan_action"(uuid, jsonb) to authen
 create or replace function "api"."get_care_plan"(plan_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_care_plan"($1) $$;
@@ -2068,6 +2072,7 @@ grant execute on function "api"."get_care_plan"(uuid) to authenticated, service_
 create or replace function "api"."list_care_plans"(subject_type text, subject_id text, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_care_plans"($1, $2, $3) $$;
@@ -2158,6 +2163,7 @@ grant execute on function "api"."record_care_plan_evaluation"(uuid, text, text, 
 create or replace function "api"."list_care_plan_measures"(tenant uuid, active_only boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_care_plan_measures"($1, $2) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:b800652e5c97faa1aaceb7276805225e6a340eec4395d818e6d2be4e5f28364a
+-- @bsb-hash sha256:c4382abab90efb9a8074b091042624c1ebd38cf519ecee5f732cfd2f1700282a
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -312,6 +312,7 @@ grant execute on function "api"."disable_service_principal"(uuid, uuid) to servi
 create or replace function "api"."default_service_principal"(tenant uuid)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."default_service_principal"($1) $$;
@@ -321,6 +322,7 @@ grant execute on function "api"."default_service_principal"(uuid) to service_rol
 create or replace function "api"."service_principals_list"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."service_principals_list"($1) $$;

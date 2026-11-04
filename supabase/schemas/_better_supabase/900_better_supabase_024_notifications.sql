@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:9c046c4078290bcdcefc1d3bb1cbcdf659734b40c62635c4698416d57a3e194a
+-- @bsb-hash sha256:28b16150cdc9769b58a45240bdab0a32925f37bd367b54ac7880b1f71e3a47bc
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1898,6 +1898,7 @@ drop function if exists "api"."complete_notification_delivery"(uuid, text, text,
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1916,6 +1917,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."notification_enabled"($1, $2, $3, $4) $$;
@@ -1952,6 +1954,7 @@ grant execute on function "api"."send_notifications"(jsonb) to authenticated, se
 create or replace function "api"."list_notifications"(tenant uuid default null, status text default 'all', types text[] default null, before timestamptz default null, max_items integer default 50, before_id uuid default null, subject_types text[] default null, search text default null, read boolean default null, resolved boolean default null, dismissed boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_notifications"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) $$;
@@ -1961,6 +1964,7 @@ grant execute on function "api"."list_notifications"(uuid, text, text[], timesta
 create or replace function "api"."notification_page"(tenant uuid default null, status text default 'all', types text[] default null, subject_types text[] default null, search text default null, max_items integer default 50, skip integer default 0, read boolean default null, resolved boolean default null, dismissed boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."notification_page"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
@@ -1970,6 +1974,7 @@ grant execute on function "api"."notification_page"(uuid, text, text[], text[], 
 create or replace function "api"."notification_counts"(tenant uuid default null, actionable text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."notification_counts"($1, $2) $$;
@@ -2006,6 +2011,7 @@ grant execute on function "api"."dismiss_notifications"(uuid[]) to authenticated
 create or replace function "api"."get_notification"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_notification"($1) $$;
@@ -2024,6 +2030,7 @@ grant execute on function "api"."resolve_notifications"(text, text, text, uuid, 
 create or replace function "api"."notification_actors"(ids uuid[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."notification_actors"($1) $$;
@@ -2051,6 +2058,7 @@ grant execute on function "api"."set_notification_preference"(text, text, boolea
 create or replace function "api"."list_notification_subscriptions"(tenant uuid default null, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_notification_subscriptions"($1, $2, $3) $$;
@@ -2060,6 +2068,7 @@ grant execute on function "api"."list_notification_subscriptions"(uuid, text, te
 create or replace function "api"."list_notification_preferences"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_notification_preferences"($1) $$;
@@ -2087,6 +2096,7 @@ grant execute on function "api"."complete_notification_delivery"(uuid, text, tex
 create or replace function "api"."notification_cadence"(member uuid, tenant uuid, type text, channel text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."notification_cadence"($1, $2, $3, $4) $$;
@@ -2150,6 +2160,7 @@ grant execute on function "api"."unsuppress_notification_address"(text, text) to
 create or replace function "api"."list_notification_suppressions"(max_items integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_notification_suppressions"($1) $$;
@@ -2168,6 +2179,7 @@ grant execute on function "api"."record_delivery_event"(text, text, text, text, 
 create or replace function "api"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_subject_deliveries"($1, $2, $3, $4) $$;

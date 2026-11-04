@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:3f02fa0a5d0353ce59e4fb3648546112e0a9326893bb23f7dd68b87e686c165d
+-- @bsb-hash sha256:e67dc7f30dbfe38950107ac5247573d55c564c46085b6147e7e816f2e6ac74ea
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -947,6 +947,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -983,6 +984,7 @@ grant execute on function "api"."record_care_alerts"(uuid, text, text, text, jso
 create or replace function "api"."care_decision_context"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."care_decision_context"($1, $2, $3) $$;
@@ -992,6 +994,7 @@ grant execute on function "api"."care_decision_context"(uuid, text, text) to aut
 create or replace function "api"."list_care_alerts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_care_alerts"($1, $2) $$;
@@ -1019,6 +1022,7 @@ grant execute on function "api"."delete_care_rule"(uuid) to authenticated, servi
 create or replace function "api"."list_care_rules"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_care_rules"($1) $$;

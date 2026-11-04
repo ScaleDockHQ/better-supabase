@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:f8a0966282b2f48b3508c25ecb9a21842cf568795ed0222c5daa69f68ccd6b21
+-- @bsb-hash sha256:ee529e78829cdb477b2d42b9d592e1d19dcc4b19c2527cdfa2f46967cbb8612b
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -562,6 +562,7 @@ drop function if exists "api"."update_team"(uuid, text, text, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -580,6 +581,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."team_ids_of"(member uuid)
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."team_ids_of"($1) $$;
@@ -652,6 +654,7 @@ grant execute on function "api"."remove_team_member"(uuid, uuid) to authenticate
 create or replace function "api"."list_teams"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_teams"($1) $$;

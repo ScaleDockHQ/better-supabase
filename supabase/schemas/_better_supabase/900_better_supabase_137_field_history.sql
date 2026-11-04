@@ -1,6 +1,6 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:49fecc541638a86a71c7c7aeef9a4af704779f3cf60fe5f1e9e39446d4327620
+-- @bsb-hash sha256:1caf6ebbddbffb758a843a830354abce9cf7cc57f9a1966f844349bf90a2b348
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -196,6 +196,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."field_history"(subject_type text, subject_id text, field text default null, before bigint default null, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."field_history"($1, $2, $3, $4, $5) $$;

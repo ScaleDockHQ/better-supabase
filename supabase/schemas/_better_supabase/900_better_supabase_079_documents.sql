@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:4c8ab40e544353eb918a8e6d6f67e9290a3fcb8a49e200e8dc6428b8f108f458
+-- @bsb-hash sha256:15a43420e54dd213daadbd77f913019683cf51e36c96084f94309e2d41f39f2b
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2463,6 +2463,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2481,6 +2482,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."document_access"(document_id uuid, write boolean)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_access"($1, $2) $$;
@@ -2490,6 +2492,7 @@ grant execute on function "api"."document_access"(uuid, boolean) to authenticate
 create or replace function "api"."document_topic_access"(topic text, write boolean)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_topic_access"($1, $2) $$;
@@ -2526,6 +2529,7 @@ grant execute on function "api"."suggest_document_change"(uuid, text, text) to a
 create or replace function "api"."list_document_suggestions"(document_id uuid, status text default 'open')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_suggestions"($1, $2) $$;
@@ -2544,6 +2548,7 @@ grant execute on function "api"."decide_document_suggestion"(uuid, text, text) t
 create or replace function "api"."pull_document_updates"(document_id uuid, after_seq bigint)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pull_document_updates"($1, $2) $$;
@@ -2562,6 +2567,7 @@ grant execute on function "api"."compact_document"(uuid, text, bigint) to authen
 create or replace function "api"."documents_to_compact"(min_updates integer default 200, max_documents integer default 50)
 returns uuid[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."documents_to_compact"($1, $2) $$;
@@ -2580,6 +2586,7 @@ grant execute on function "api"."save_document_version"(uuid, text, text) to aut
 create or replace function "api"."list_document_versions"(document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_versions"($1) $$;
@@ -2589,6 +2596,7 @@ grant execute on function "api"."list_document_versions"(uuid) to authenticated,
 create or replace function "api"."get_document_version"(document_id uuid, version_id uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_document_version"($1, $2) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:9de61312040c09aa65d62a3501af9a3045aa3ba955a800ff3819f42c74fd2df2
+-- @bsb-hash sha256:d1103cc02197a1cbb7ade11d399f38ca7e1baaaf5f23f05d18d5f7928328b339
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2952,6 +2952,7 @@ drop function if exists "api"."data_lifecycle_credentials"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2970,6 +2971,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."retention_for"(kind text, tenant text default null)
 returns interval
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."retention_for"($1, $2) $$;
@@ -2979,6 +2981,7 @@ grant execute on function "api"."retention_for"(text, text) to service_role;
 create or replace function "api"."retention_floor"(kind text)
 returns interval
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."retention_floor"($1) $$;
@@ -2988,6 +2991,7 @@ grant execute on function "api"."retention_floor"(text) to service_role;
 create or replace function "api"."is_held"(kind text, tenant text default null)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_held"($1, $2) $$;
@@ -2997,6 +3001,7 @@ grant execute on function "api"."is_held"(text, text) to service_role;
 create or replace function "api"."retention_cutoff"(kind text, fallback interval)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."retention_cutoff"($1, $2) $$;
@@ -3024,6 +3029,7 @@ grant execute on function "api"."remove_retention_policy"(text, uuid, text) to s
 create or replace function "api"."list_retention_policies"(kind text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_retention_policies"($1) $$;
@@ -3051,6 +3057,7 @@ grant execute on function "api"."release_legal_hold"(uuid) to service_role;
 create or replace function "api"."list_legal_holds"(include_released boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_legal_holds"($1) $$;
@@ -3105,6 +3112,7 @@ grant execute on function "api"."refuse_data_subject_request"(uuid, text) to aut
 create or replace function "api"."list_data_subject_requests"(tenant uuid, status text default null, open_only boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_data_subject_requests"($1, $2, $3) $$;
@@ -3114,6 +3122,7 @@ grant execute on function "api"."list_data_subject_requests"(uuid, text, boolean
 create or replace function "api"."data_restore_tables"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."data_restore_tables"() $$;
@@ -3132,6 +3141,7 @@ grant execute on function "api"."restore_data_row"(uuid, jsonb, text) to service
 create or replace function "api"."data_lifecycle_credentials"()
 returns table (name text, tbl text, col text, user_col text)
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."data_lifecycle_credentials"() $$;
@@ -3141,6 +3151,7 @@ grant execute on function "api"."data_lifecycle_credentials"() to service_role;
 create or replace function "api"."organization_credential_refs"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_credential_refs"($1) $$;
@@ -3159,6 +3170,7 @@ grant execute on function "api"."request_subject_export"(text, text, text) to au
 create or replace function "api"."expired_data_exports"(max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."expired_data_exports"($1) $$;
@@ -3186,6 +3198,7 @@ grant execute on function "api"."forget_data_exports"(uuid[]) to service_role;
 create or replace function "api"."data_lifecycle_tables"()
 returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."data_lifecycle_tables"() $$;
@@ -3204,6 +3217,7 @@ grant execute on function "api"."request_data_export"(text, uuid) to authenticat
 create or replace function "api"."list_data_exports"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_data_exports"($1) $$;
@@ -3213,6 +3227,7 @@ grant execute on function "api"."list_data_exports"(uuid) to authenticated, serv
 create or replace function "api"."get_data_export"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_data_export"($1) $$;
@@ -3276,6 +3291,7 @@ grant execute on function "api"."cancel_organization_deletion"(uuid) to authenti
 create or replace function "api"."organization_deletion"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_deletion"($1) $$;
@@ -3285,6 +3301,7 @@ grant execute on function "api"."organization_deletion"(uuid) to authenticated, 
 create or replace function "api"."due_organization_deletions"(max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."due_organization_deletions"($1) $$;

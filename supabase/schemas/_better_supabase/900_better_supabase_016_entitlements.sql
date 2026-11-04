@@ -1,6 +1,6 @@
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:ee92bef5a1221790e9485468663b33b26f827814c7dd1d99aef0ba6b16cedcac
+-- @bsb-hash sha256:b11c477c6c0a679d7769151cb4d8d34ae18ac6222394dd13bd58fbd98c97ce31
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -156,6 +156,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."tenant_entitlements"(tenant uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_entitlements"($1) $$;
@@ -165,6 +166,7 @@ grant execute on function "api"."tenant_entitlements"(uuid) to service_role;
 create or replace function "api"."tenant_entitlement_value"(tenant uuid, key text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_entitlement_value"($1, $2) $$;
@@ -174,6 +176,7 @@ grant execute on function "api"."tenant_entitlement_value"(uuid, text) to servic
 create or replace function "api"."tenant_plans"(tenant uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_plans"($1) $$;
@@ -183,6 +186,7 @@ grant execute on function "api"."tenant_plans"(uuid) to service_role;
 create or replace function "api"."has_entitlement"(tenant uuid, key text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_entitlement"($1, $2) $$;
@@ -192,6 +196,7 @@ grant execute on function "api"."has_entitlement"(uuid, text) to authenticated, 
 create or replace function "api"."entitlement_value"(tenant uuid, key text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."entitlement_value"($1, $2) $$;
@@ -201,6 +206,7 @@ grant execute on function "api"."entitlement_value"(uuid, text) to authenticated
 create or replace function "api"."tenant_ids_with_entitlement"(key text)
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."tenant_ids_with_entitlement"($1) $$;
@@ -210,6 +216,7 @@ grant execute on function "api"."tenant_ids_with_entitlement"(text) to authentic
 create or replace function "api"."feature_claims"(user_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."feature_claims"($1) $$;

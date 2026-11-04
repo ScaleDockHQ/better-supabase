@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:0f61aca908529f46f431e62d50da88a07905321a745ec54c36b0bf3e49e2fce9
+-- @bsb-hash sha256:95e4814d6031e2a11fbd0965b26f107e19a3ee4e6270bcfc86ca2575402ef952
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -854,6 +854,7 @@ drop function if exists "api"."create_lease"(uuid, uuid, text, text, date, bigin
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -863,6 +864,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -917,6 +919,7 @@ grant execute on function "api"."terminate_lease"(uuid, date, text, bigint) to a
 create or replace function "api"."get_lease"(lease_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_lease"($1) $$;
@@ -926,6 +929,7 @@ grant execute on function "api"."get_lease"(uuid) to authenticated, service_role
 create or replace function "api"."list_leases"(tenant uuid, status text default null, unit_id uuid default null, party_type text default null, party_id text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_leases"($1, $2, $3, $4, $5, $6) $$;
@@ -953,6 +957,7 @@ grant execute on function "api"."record_rent_payment"(uuid, bigint, timestamptz,
 create or replace function "api"."list_lease_charges"(lease_id uuid, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_lease_charges"($1, $2) $$;

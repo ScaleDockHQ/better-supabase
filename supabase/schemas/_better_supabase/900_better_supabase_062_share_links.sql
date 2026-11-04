@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:de058360d6602a48fec9f29dba5bbab9b401353fbb55733d9fd6d8b3171a21e4
+-- @bsb-hash sha256:b7ff58e252a067ce749f70b009a9d653c660bbf09c94a30738e092b24a91172f
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -572,6 +572,7 @@ drop function if exists "api"."resolve_share_link"(text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -626,6 +627,7 @@ grant execute on function "api"."record_view"(uuid, text, text, text, text) to a
 create or replace function "api"."list_share_links"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_share_links"($1, $2) $$;
@@ -644,6 +646,7 @@ grant execute on function "api"."set_user_state"(text, text, boolean) to authent
 create or replace function "api"."share_ai_chat"(chat uuid, leaf text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."share_ai_chat"($1, $2) $$;

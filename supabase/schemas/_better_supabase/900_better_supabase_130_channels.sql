@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:d413602404bbca2aa0c2b36e9daced7396d6fd49c6ef86d599a5f999d81e5b9a
+-- @bsb-hash sha256:21e6371161c6ca33a6852d78c81180ba42da15966675a26ab20ba0b26e7d27e2
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -524,6 +524,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -596,6 +597,7 @@ grant execute on function "api"."archive_channel"(uuid, boolean) to authenticate
 create or replace function "api"."list_channels"(tenant uuid, browse boolean default false, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_channels"($1, $2, $3) $$;
@@ -605,6 +607,7 @@ grant execute on function "api"."list_channels"(uuid, boolean, boolean) to authe
 create or replace function "api"."get_channel"(channel uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_channel"($1) $$;
@@ -614,6 +617,7 @@ grant execute on function "api"."get_channel"(uuid) to authenticated, service_ro
 create or replace function "api"."find_channel"(tenant uuid, name text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."find_channel"($1, $2) $$;
@@ -623,6 +627,7 @@ grant execute on function "api"."find_channel"(uuid, text) to authenticated, ser
 create or replace function "api"."channels_for_record"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."channels_for_record"($1, $2) $$;

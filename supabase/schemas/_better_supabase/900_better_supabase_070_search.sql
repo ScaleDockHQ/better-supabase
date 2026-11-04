@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:4f86bd8f5e832d0e3dc9b308c27a2ac324a97f373a6dac4c6d07f09c9a5fef8b
+-- @bsb-hash sha256:b6c66b7f814244f48ddd07a5f172f1912c18585d17a24b0636160f09572e98a3
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -812,6 +812,7 @@ drop function if exists "api"."search_user_state"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -857,6 +858,7 @@ grant execute on function "api"."search_reindex"(text) to service_role;
 create or replace function "api"."search"(q text, types text[] default null, tenant uuid default null, max_results integer default 20)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search"($1, $2, $3, $4) $$;
@@ -866,6 +868,7 @@ grant execute on function "api"."search"(text, text[], uuid, integer) to authent
 create or replace function "api"."search_recents"(max_results integer default 10, types text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search_recents"($1, $2) $$;
@@ -875,6 +878,7 @@ grant execute on function "api"."search_recents"(integer, text[]) to authenticat
 create or replace function "api"."search_favorites"(max_results integer default 10, types text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search_favorites"($1, $2) $$;

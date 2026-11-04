@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:220ffd51b917c62a17f735338ee1631a11754e5ed11741fb0be4168e962ae90c
+-- @bsb-hash sha256:4dad94217110a1b00b8d99490cb5eb0f20e4fed5ff894da055ff2c6f4e315dbf
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2731,6 +2731,7 @@ drop function if exists "api"."inbox_file_allowed"(text, text);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -2740,6 +2741,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2902,6 +2904,7 @@ grant execute on function "api"."edit_inbox_message"(uuid, text, boolean) to aut
 create or replace function "api"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_inbox_conversations"($1, $2) $$;
@@ -2911,6 +2914,7 @@ grant execute on function "api"."list_inbox_conversations"(uuid, jsonb) to authe
 create or replace function "api"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_conversation"($1) $$;
@@ -2920,6 +2924,7 @@ grant execute on function "api"."get_conversation"(uuid) to authenticated, servi
 create or replace function "api"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_inbox_messages"($1, $2, $3, $4) $$;
@@ -2929,6 +2934,7 @@ grant execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer
 create or replace function "api"."get_inbox_message"(message uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_inbox_message"($1) $$;
@@ -2938,6 +2944,7 @@ grant execute on function "api"."get_inbox_message"(uuid) to authenticated, serv
 create or replace function "api"."list_conversation_events"(conversation uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_conversation_events"($1) $$;
@@ -2947,6 +2954,7 @@ grant execute on function "api"."list_conversation_events"(uuid) to authenticate
 create or replace function "api"."inbox_counts"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."inbox_counts"($1) $$;
@@ -2992,6 +3000,7 @@ grant execute on function "api"."set_inbound_event_status"(uuid, text, text, int
 create or replace function "api"."pending_inbound_events"(max integer default 100, max_attempts integer default 5)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_inbound_events"($1, $2) $$;
@@ -3037,6 +3046,7 @@ grant execute on function "api"."purge_contact"(uuid) to authenticated, service_
 create or replace function "api"."pending_inbox_files"(max integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."pending_inbox_files"($1) $$;
@@ -3073,6 +3083,7 @@ grant execute on function "api"."schedule_inbox_message"(uuid, jsonb, timestampt
 create or replace function "api"."list_scheduled_inbox_messages"(conversation uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_scheduled_inbox_messages"($1) $$;
@@ -3127,6 +3138,7 @@ grant execute on function "api"."suggest_inbox_draft"(uuid, jsonb, jsonb) to ser
 create or replace function "api"."list_inbox_drafts"(conversation uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_inbox_drafts"($1) $$;

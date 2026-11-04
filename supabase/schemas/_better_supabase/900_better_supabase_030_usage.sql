@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:401d81204246ce48cb1eee834f5cf1f005e1d161156d953807e0ec875210489e
+-- @bsb-hash sha256:855beaf758d518455550d49f7da5c1665f355b6323c176469e66b38d6193e395
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1022,6 +1022,7 @@ drop function if exists "api"."unreported_usage"(integer);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1040,6 +1041,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."usage_history"(tenant uuid, meter text default null, max_rows integer default 100, before_id bigint default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_history"($1, $2, $3, $4) $$;
@@ -1049,6 +1051,7 @@ grant execute on function "api"."usage_history"(uuid, text, integer, bigint) to 
 create or replace function "api"."usage_breakdown"(tenant uuid, meter text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_breakdown"($1, $2) $$;
@@ -1076,6 +1079,7 @@ grant execute on function "api"."purge_usage_events"(interval, integer) to servi
 create or replace function "api"."usage_window"(tenant uuid, period text default 'month')
 returns table (starts_at timestamptz, ends_at timestamptz)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."usage_window"($1, $2) $$;
@@ -1085,6 +1089,7 @@ grant execute on function "api"."usage_window"(uuid, text) to service_role;
 create or replace function "api"."usage_window_start"(tenant uuid, period text, day date)
 returns date
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_window_start"($1, $2, $3) $$;
@@ -1094,6 +1099,7 @@ grant execute on function "api"."usage_window_start"(uuid, text, date) to servic
 create or replace function "api"."usage_meters"()
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_meters"() $$;
@@ -1103,6 +1109,7 @@ grant execute on function "api"."usage_meters"() to anon, authenticated, service
 create or replace function "api"."usage_overview"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_overview"($1) $$;
@@ -1121,6 +1128,7 @@ grant execute on function "api"."record_usage_batch"(uuid, jsonb, text, boolean,
 create or replace function "api"."usage_quota"(tenant uuid, meter text)
 returns table (quota_limit numeric, period text)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."usage_quota"($1, $2) $$;
@@ -1148,6 +1156,7 @@ grant execute on function "api"."remove_usage_quota"(uuid, text, text) to servic
 create or replace function "api"."usage_used"(tenant uuid, meter text, period text default 'month')
 returns numeric
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_used"($1, $2, $3) $$;
@@ -1157,6 +1166,7 @@ grant execute on function "api"."usage_used"(uuid, text, text) to service_role;
 create or replace function "api"."usage_status"(tenant uuid, meter text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_status"($1, $2) $$;
@@ -1166,6 +1176,7 @@ grant execute on function "api"."usage_status"(uuid, text) to authenticated, ser
 create or replace function "api"."within_quota"(tenant uuid, meter text, quantity bigint default 1)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."within_quota"($1, $2, $3) $$;
@@ -1193,6 +1204,7 @@ grant execute on function "api"."consume_quota"(uuid, text, numeric, text, text,
 create or replace function "api"."unreported_usage"(max_rows integer default 500, skip_meters text[] default '{}', skip_tenants uuid[] default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unreported_usage"($1, $2, $3) $$;

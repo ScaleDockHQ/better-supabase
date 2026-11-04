@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:f7622ba3509a3366971a67ee585efdf385d4256c3fdadb7903db48416ab85a85
+-- @bsb-hash sha256:b69f3d07e62f529e40e7c6c1451a327082076fea8be48b709537649898ba4013
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2312,6 +2312,7 @@ drop function if exists "api"."workflow_start_target"(uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2339,6 +2340,7 @@ grant execute on function "api"."sync_workflow_node_kinds"(jsonb) to service_rol
 create or replace function "api"."workflow_node_kinds_list"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_node_kinds_list"() $$;
@@ -2348,6 +2350,7 @@ grant execute on function "api"."workflow_node_kinds_list"() to authenticated, s
 create or replace function "api"."validate_workflow_graph"(graph jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."validate_workflow_graph"($1) $$;
@@ -2366,6 +2369,7 @@ grant execute on function "api"."save_workflow_definition"(uuid, text, text, tex
 create or replace function "api"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_definitions_list"($1, $2) $$;
@@ -2375,6 +2379,7 @@ grant execute on function "api"."workflow_definitions_list"(uuid, text) to authe
 create or replace function "api"."workflow_definition_get"(definition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_definition_get"($1) $$;
@@ -2402,6 +2407,7 @@ grant execute on function "api"."save_workflow_draft"(uuid, jsonb, jsonb) to aut
 create or replace function "api"."workflow_graph_permissions"(graph jsonb)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_graph_permissions"($1) $$;
@@ -2411,6 +2417,7 @@ grant execute on function "api"."workflow_graph_permissions"(jsonb) to authentic
 create or replace function "api"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_run_principal"($1, $2) $$;
@@ -2429,6 +2436,7 @@ grant execute on function "api"."publish_workflow_version"(uuid, jsonb) to authe
 create or replace function "api"."workflow_versions_list"(definition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_versions_list"($1) $$;
@@ -2438,6 +2446,7 @@ grant execute on function "api"."workflow_versions_list"(uuid) to authenticated,
 create or replace function "api"."workflow_version_get"(version uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_version_get"($1) $$;
@@ -2456,6 +2465,7 @@ grant execute on function "api"."set_workflow_definition_purpose"(uuid, text, bo
 create or replace function "api"."resolve_workflow_definition"(tenant uuid, purpose text default 'lifecycle', subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_workflow_definition"($1, $2, $3) $$;
@@ -2465,6 +2475,7 @@ grant execute on function "api"."resolve_workflow_definition"(uuid, text, text) 
 create or replace function "api"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_start_target"($1, $2) $$;
@@ -2474,6 +2485,7 @@ grant execute on function "api"."workflow_start_target"(uuid, uuid) to authentic
 create or replace function "api"."workflow_subject_start_target"(definition uuid, subject_type text, subject_id text, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_subject_start_target"($1, $2, $3, $4) $$;
@@ -2483,6 +2495,7 @@ grant execute on function "api"."workflow_subject_start_target"(uuid, text, text
 create or replace function "api"."start_test_run"(definition uuid, version uuid default null, trigger_node text default null, input jsonb default null, stubs jsonb default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."start_test_run"($1, $2, $3, $4, $5) $$;
@@ -2519,6 +2532,7 @@ grant execute on function "api"."set_workflow_definition_grant"(uuid, text, text
 create or replace function "api"."workflow_definition_grants_list"(definition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_definition_grants_list"($1) $$;
@@ -2537,6 +2551,7 @@ grant execute on function "api"."save_workflow_trigger"(uuid, text, jsonb, boole
 create or replace function "api"."workflow_triggers_list"(definition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_triggers_list"($1) $$;
@@ -2564,6 +2579,7 @@ grant execute on function "api"."rotate_workflow_webhook_token"(uuid) to authent
 create or replace function "api"."workflow_webhook_target"(token text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_webhook_target"($1) $$;
@@ -2582,6 +2598,7 @@ grant execute on function "api"."save_workflow_credential"(uuid, text, text, jso
 create or replace function "api"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_credentials_list"($1) $$;
@@ -2591,6 +2608,7 @@ grant execute on function "api"."workflow_credentials_list"(uuid) to authenticat
 create or replace function "api"."workflow_credential_get"(credential uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_credential_get"($1) $$;
@@ -2618,6 +2636,7 @@ grant execute on function "api"."sync_workflow_steps"(jsonb) to service_role;
 create or replace function "api"."workflow_steps_list"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_steps_list"() $$;
@@ -2636,6 +2655,7 @@ grant execute on function "api"."record_workflow_node_run"(text, text, text, int
 create or replace function "api"."workflow_node_runs_list"(run text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_node_runs_list"($1) $$;
@@ -2654,6 +2674,7 @@ grant execute on function "api"."save_workflow_alert"(uuid, text, jsonb, interva
 create or replace function "api"."workflow_alerts_list"(definition uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."workflow_alerts_list"($1) $$;

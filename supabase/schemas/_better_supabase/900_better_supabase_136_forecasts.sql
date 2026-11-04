@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:b414017beef0f399b45e79d5c5dcfe76b1c461144e9c38de924e921d6bf0d26b
+-- @bsb-hash sha256:3c90728a6ec675a4ae4c040c4901bf09f1e83a9452aa35a69e86adf56661feb8
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -353,6 +353,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -380,6 +381,7 @@ grant execute on function "api"."take_forecast_snapshot"(uuid, uuid, date, date,
 create or replace function "api"."forecast_snapshots"(tenant uuid, pipeline uuid default null, since date default null, until date default null, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_snapshots"($1, $2, $3, $4, $5) $$;
@@ -389,6 +391,7 @@ grant execute on function "api"."forecast_snapshots"(uuid, uuid, date, date, int
 create or replace function "api"."forecast_snapshot"(snapshot uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_snapshot"($1) $$;
@@ -398,6 +401,7 @@ grant execute on function "api"."forecast_snapshot"(uuid) to authenticated, serv
 create or replace function "api"."forecast_changes"(from_snapshot uuid, to_snapshot uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_changes"($1, $2) $$;

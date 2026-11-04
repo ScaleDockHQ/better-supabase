@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:fb3077803e9f1bf6a5bf9e8b82b5b65d5d7c7d97f033fc98801daa625438837a
+-- @bsb-hash sha256:57e6bd6723b72963d7c84aaaef65eaa0cee27f422f71a34d3331be3222c54ec8
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -482,6 +482,7 @@ drop function if exists "api"."session_end_reason"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -500,6 +501,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."last_sign_ins"(p_users uuid[])
 returns table (user_id uuid, last_sign_in_at timestamptz)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."last_sign_ins"($1) $$;
@@ -518,6 +520,7 @@ grant execute on function "api"."end_sessions"(uuid) to service_role;
 create or replace function "api"."list_my_sessions"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_my_sessions"() $$;
@@ -536,6 +539,7 @@ grant execute on function "api"."end_my_session"(uuid) to authenticated;
 create or replace function "api"."sessions_overview"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sessions_overview"() $$;
@@ -545,6 +549,7 @@ grant execute on function "api"."sessions_overview"() to authenticated;
 create or replace function "api"."authz_version"(p_user uuid)
 returns bigint
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."authz_version"($1) $$;
@@ -563,6 +568,7 @@ grant execute on function "api"."bump_authz_versions"(uuid[]) to service_role;
 create or replace function "api"."caller_authz_version"()
 returns bigint
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."caller_authz_version"() $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:79c8cda80af1e5a509e237ad7657dd45090228bb77104f4d5aca4f4244924b6f
+-- @bsb-hash sha256:89f12444edd54e1a0da4a92584939b1834b0aadc9957c11da30428ea3f4d93d5
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -411,6 +411,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."rank_between"(previous text, next text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rank_between"($1, $2) $$;
@@ -420,6 +421,7 @@ grant execute on function "api"."rank_between"(text, text) to authenticated, ser
 create or replace function "api"."rank_key"(nth bigint, total bigint)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rank_key"($1, $2) $$;

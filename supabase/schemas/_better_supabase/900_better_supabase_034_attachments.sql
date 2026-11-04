@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@8 managed
--- @bsb-hash sha256:5f8c58d98359ef8b5296e5df17964f33c88aafd9ea05fad50133a17b83e03ae8
+-- @bsb-hash sha256:0d2e594c643e281d31f4b8d22be1b150a38f47e961a1ed15710a868de7e39d5c
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1537,6 +1537,7 @@ drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1555,6 +1556,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."attachment_schema_error"(fields jsonb)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."attachment_schema_error"($1) $$;
@@ -1564,6 +1566,7 @@ grant execute on function "api"."attachment_schema_error"(jsonb) to authenticate
 create or replace function "api"."attachment_fields_error"(fields jsonb, data jsonb)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."attachment_fields_error"($1, $2) $$;
@@ -1645,6 +1648,7 @@ grant execute on function "api"."restore_attachment_version"(uuid, integer) to a
 create or replace function "api"."list_attachment_versions"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_attachment_versions"($1) $$;
@@ -1654,6 +1658,7 @@ grant execute on function "api"."list_attachment_versions"(uuid) to authenticate
 create or replace function "api"."object_scan"(bucket text, path text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."object_scan"($1, $2) $$;
@@ -1708,6 +1713,7 @@ grant execute on function "api"."list_attachments"(uuid, text, text) to authenti
 create or replace function "api"."get_attachment"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_attachment"($1) $$;

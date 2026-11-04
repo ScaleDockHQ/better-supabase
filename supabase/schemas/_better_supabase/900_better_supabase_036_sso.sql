@@ -1,6 +1,6 @@
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:a4a8e3cb168be021ed8d3cdb209ea76f7316899606fa29d7e16380928acc56dd
+-- @bsb-hash sha256:a6d1ec208d8240c021cd905c2465dbd2fbe93fb8bb7f19fa07d59091669808bd
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1118,6 +1118,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1136,6 +1137,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."scim_group_role"(display_name text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scim_group_role"($1) $$;
@@ -1163,6 +1165,7 @@ grant execute on function "api"."add_organization_domain"(uuid, text) to authent
 create or replace function "api"."list_organization_domains"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_organization_domains"($1) $$;
@@ -1172,6 +1175,7 @@ grant execute on function "api"."list_organization_domains"(uuid) to authenticat
 create or replace function "api"."organization_domain"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_domain"($1) $$;
@@ -1208,6 +1212,7 @@ grant execute on function "api"."verify_organization_domain"(uuid, uuid) to serv
 create or replace function "api"."check_sso_provider"(tenant uuid, domains text[], actor uuid default null)
 returns void
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."check_sso_provider"($1, $2, $3) $$;
@@ -1226,6 +1231,7 @@ grant execute on function "api"."register_sso_provider"(uuid, uuid, text[], text
 create or replace function "api"."sso_provider"(provider uuid, actor uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sso_provider"($1, $2) $$;
@@ -1244,6 +1250,7 @@ grant execute on function "api"."unregister_sso_provider"(uuid, uuid) to service
 create or replace function "api"."list_sso_providers"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_sso_providers"($1) $$;
@@ -1253,6 +1260,7 @@ grant execute on function "api"."list_sso_providers"(uuid) to authenticated, ser
 create or replace function "api"."sso_domain_for"(email text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sso_domain_for"($1) $$;
@@ -1262,6 +1270,7 @@ grant execute on function "api"."sso_domain_for"(text) to anon, authenticated, s
 create or replace function "api"."sso_access_token_check"(event jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sso_access_token_check"($1) $$;
@@ -1271,6 +1280,7 @@ grant execute on function "api"."sso_access_token_check"(jsonb) to service_role;
 create or replace function "api"."scim_list_users"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scim_list_users"($1) $$;
@@ -1280,6 +1290,7 @@ grant execute on function "api"."scim_list_users"(uuid) to service_role;
 create or replace function "api"."scim_get_user"(tenant uuid, id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scim_get_user"($1, $2) $$;
@@ -1307,6 +1318,7 @@ grant execute on function "api"."scim_delete_user"(uuid, uuid) to service_role;
 create or replace function "api"."scim_list_groups"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scim_list_groups"($1) $$;
@@ -1316,6 +1328,7 @@ grant execute on function "api"."scim_list_groups"(uuid) to service_role;
 create or replace function "api"."scim_get_group"(tenant uuid, id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scim_get_group"($1, $2) $$;

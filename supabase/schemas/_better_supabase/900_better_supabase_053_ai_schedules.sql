@@ -1,6 +1,6 @@
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:7f9ff14e0ccfa32cd5bd6b65feb7648f344bb63c059f2aabe69db02d84780c8b
+-- @bsb-hash sha256:acf15c5bf4f603c33909bfe9a22416003ef956ac4e7168fa00bf76ee1eced041
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -442,6 +442,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -478,6 +479,7 @@ grant execute on function "api"."delete_ai_task"(uuid) to authenticated, service
 create or replace function "api"."list_ai_tasks"(tenant uuid, mine boolean default true)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_tasks"($1, $2) $$;
@@ -487,6 +489,7 @@ grant execute on function "api"."list_ai_tasks"(uuid, boolean) to authenticated,
 create or replace function "api"."list_ai_task_runs"(task_id uuid, max_rows integer default 20)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_task_runs"($1, $2) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:aea1e3b9d674ff9184cd3bf930901364bb45bb21b0a73d001f714922eeb5b9c4
+-- @bsb-hash sha256:f6e1c8491a3af7c148622dc8e640b686e98cf05366e3943a96d3da3c68a17b11
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -906,6 +906,7 @@ drop function if exists "api"."claim_webhook_deliveries"(integer, interval);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -996,6 +997,7 @@ grant execute on function "api"."rotate_webhook_secret"(uuid, interval, text) to
 create or replace function "api"."webhook_secrets"(endpoint uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."webhook_secrets"($1) $$;
@@ -1023,6 +1025,7 @@ grant execute on function "api"."update_webhook_endpoint"(uuid, jsonb) to authen
 create or replace function "api"."list_webhook_endpoints"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_webhook_endpoints"($1) $$;

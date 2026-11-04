@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:414e5e87f369a3458f41d1955b26cf12f2b1ac282a3b420c4c12999b43cb3436
+-- @bsb-hash sha256:72fa293a59ae46c76c7458d8449448b1ba80f9840fa4f31f89af7aa168ffa5ec
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2010,6 +2010,7 @@ drop function if exists "api"."portal_quote"(uuid);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -2019,6 +2020,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2181,6 +2183,7 @@ grant execute on function "api"."create_quote_variant"(uuid, text, jsonb) to aut
 create or replace function "api"."list_quote_variants"(quote uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_quote_variants"($1) $$;
@@ -2208,6 +2211,7 @@ grant execute on function "api"."import_quote"(uuid, jsonb, text) to service_rol
 create or replace function "api"."quote_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."quote_updated_at"($1) $$;
@@ -2217,6 +2221,7 @@ grant execute on function "api"."quote_updated_at"(text) to service_role;
 create or replace function "api"."quote_totals_by_billing_party"(quote uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."quote_totals_by_billing_party"($1) $$;

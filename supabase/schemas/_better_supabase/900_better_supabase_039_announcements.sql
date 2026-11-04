@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:d16976f2a80c0625e82c4186be138d6208f00539fb1c9d71faa6877569849fba
+-- @bsb-hash sha256:b68cc255a5b176cb3afbe6c2ea432a83f856f6ddf9b29a8b5e9d1df3217b8669
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -329,6 +329,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -347,6 +348,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."active_announcements"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."active_announcements"($1) $$;
@@ -365,6 +367,7 @@ grant execute on function "api"."dismiss_announcement"(uuid) to authenticated, s
 create or replace function "api"."list_announcements"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_announcements"() $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@4 managed tasks
--- @bsb-hash sha256:26b87d076cdd1dcf7b9457540403b3a5f64024d0957e9a857f734dde79533066
+-- @bsb-hash sha256:98e0e5ec00598e9bb24fa249551798641544c39c3472ed4d60659b872c7f01a1
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -997,6 +997,7 @@ drop function if exists "api"."update_maintenance_requests"(jsonb);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1006,6 +1007,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1069,6 +1071,7 @@ grant execute on function "api"."delete_maintenance_request"(uuid) to authentica
 create or replace function "api"."maintenance_request_tree"(root uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."maintenance_request_tree"($1) $$;
@@ -1078,6 +1081,7 @@ grant execute on function "api"."maintenance_request_tree"(uuid) to authenticate
 create or replace function "api"."list_maintenance_requests"(tenant uuid, filter jsonb, search text, after uuid, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_maintenance_requests"($1, $2, $3, $4, $5) $$;
@@ -1105,6 +1109,7 @@ grant execute on function "api"."delete_maintenance_request_checklist_item"(uuid
 create or replace function "api"."list_maintenance_request_checklist"(work_item uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_maintenance_request_checklist"($1) $$;
@@ -1114,6 +1119,7 @@ grant execute on function "api"."list_maintenance_request_checklist"(uuid) to au
 create or replace function "api"."get_maintenance_request"(work_item uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_maintenance_request"($1) $$;
@@ -1150,6 +1156,7 @@ grant execute on function "api"."watch_maintenance_request"(uuid, text) to authe
 create or replace function "api"."list_maintenance_request_watchers"(work_item uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_maintenance_request_watchers"($1) $$;

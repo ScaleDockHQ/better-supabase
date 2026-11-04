@@ -1,6 +1,6 @@
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:52e9d86e1d3f358ff81603c4c02c3781059019a29b49979807aaa01a00b86f50
+-- @bsb-hash sha256:6ca0b4e18c585b6c77983b7a02b33a301955d5c04e046b5225defa82fb814196
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,6 +1715,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1724,6 +1725,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1742,6 +1744,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."document_address"(address jsonb)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_address"($1) $$;
@@ -1751,6 +1754,7 @@ grant execute on function "api"."document_address"(jsonb) to authenticated, serv
 create or replace function "api"."document_entity"(tenant uuid, legal_entity uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_entity"($1, $2) $$;
@@ -1760,6 +1764,7 @@ grant execute on function "api"."document_entity"(uuid, uuid) to authenticated, 
 create or replace function "api"."document_party"(tenant uuid, company_id text, contact_id text, buyer jsonb default null, email text default null, address jsonb default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_party"($1, $2, $3, $4, $5, $6) $$;
@@ -1769,6 +1774,7 @@ grant execute on function "api"."document_party"(uuid, text, text, jsonb, text, 
 create or replace function "api"."document_tax_summary"(lines jsonb)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_tax_summary"($1) $$;
@@ -1778,6 +1784,7 @@ grant execute on function "api"."document_tax_summary"(jsonb) to authenticated, 
 create or replace function "api"."document_visible"(tenant uuid, document_type text, document_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_visible"($1, $2, $3) $$;
@@ -1787,6 +1794,7 @@ grant execute on function "api"."document_visible"(uuid, text, uuid) to authenti
 create or replace function "api"."document_variables_invoice"(tenant uuid, document_id uuid, credit_note boolean)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_invoice"($1, $2, $3) $$;
@@ -1796,6 +1804,7 @@ grant execute on function "api"."document_variables_invoice"(uuid, uuid, boolean
 create or replace function "api"."document_variables_quote"(tenant uuid, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_quote"($1, $2) $$;
@@ -1805,6 +1814,7 @@ grant execute on function "api"."document_variables_quote"(uuid, uuid) to authen
 create or replace function "api"."document_variables_order"(tenant uuid, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_order"($1, $2) $$;
@@ -1814,6 +1824,7 @@ grant execute on function "api"."document_variables_order"(uuid, uuid) to authen
 create or replace function "api"."document_variables_delivery_note"(tenant uuid, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_delivery_note"($1, $2) $$;
@@ -1823,6 +1834,7 @@ grant execute on function "api"."document_variables_delivery_note"(uuid, uuid) t
 create or replace function "api"."document_variables_dunning_letter"(tenant uuid, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_dunning_letter"($1, $2) $$;
@@ -1832,6 +1844,7 @@ grant execute on function "api"."document_variables_dunning_letter"(uuid, uuid) 
 create or replace function "api"."document_variables_statement"(tenant uuid, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables_statement"($1, $2) $$;
@@ -1841,6 +1854,7 @@ grant execute on function "api"."document_variables_statement"(uuid, uuid) to au
 create or replace function "api"."document_variables"(tenant uuid, document_type text, document_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_variables"($1, $2, $3) $$;
@@ -1850,6 +1864,7 @@ grant execute on function "api"."document_variables"(uuid, text, uuid) to authen
 create or replace function "api"."document_template_contract"(document_type text default null)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_template_contract"($1) $$;
@@ -1859,6 +1874,7 @@ grant execute on function "api"."document_template_contract"(text) to authentica
 create or replace function "api"."validate_document_template"(document_type text, body text, text_block boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."validate_document_template"($1, $2, $3) $$;
@@ -1868,6 +1884,7 @@ grant execute on function "api"."validate_document_template"(text, text, boolean
 create or replace function "api"."document_slot_rank"(entity uuid, wanted_entity uuid, language text, wanted_language text)
 returns integer
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_slot_rank"($1, $2, $3, $4) $$;
@@ -1895,6 +1912,7 @@ grant execute on function "api"."set_document_template_active"(uuid, boolean) to
 create or replace function "api"."get_document_template"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_document_template"($1) $$;
@@ -1904,6 +1922,7 @@ grant execute on function "api"."get_document_template"(uuid) to authenticated, 
 create or replace function "api"."list_document_templates"(tenant uuid, document_type text default null, legal_entity_id uuid default null, active_only boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_templates"($1, $2, $3, $4) $$;
@@ -1922,6 +1941,7 @@ grant execute on function "api"."save_document_text_block"(uuid, text, text, tex
 create or replace function "api"."list_document_text_blocks"(tenant uuid, key text default null, legal_entity_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_text_blocks"($1, $2, $3) $$;
@@ -1931,6 +1951,7 @@ grant execute on function "api"."list_document_text_blocks"(uuid, text, uuid) to
 create or replace function "api"."resolve_document_template"(tenant uuid, document_type text, legal_entity_id uuid default null, language text default null, name text default 'default')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_document_template"($1, $2, $3, $4, $5) $$;
@@ -1940,6 +1961,7 @@ grant execute on function "api"."resolve_document_template"(uuid, text, uuid, te
 create or replace function "api"."resolve_document_blocks"(tenant uuid, keys text[], legal_entity_id uuid default null, language text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_document_blocks"($1, $2, $3, $4) $$;
@@ -1949,6 +1971,7 @@ grant execute on function "api"."resolve_document_blocks"(uuid, text[], uuid, te
 create or replace function "api"."document_render_live"(tenant uuid, document_type text, document_id uuid, language text default null, template_name text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_render_live"($1, $2, $3, $4, $5) $$;
@@ -1958,6 +1981,7 @@ grant execute on function "api"."document_render_live"(uuid, text, uuid, text, t
 create or replace function "api"."render_document"(tenant uuid, document_type text, document_id uuid, language text default null, fresh boolean default false, template_name text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."render_document"($1, $2, $3, $4, $5, $6) $$;
@@ -1994,6 +2018,7 @@ grant execute on function "api"."import_document_text_block"(uuid, jsonb, text) 
 create or replace function "api"."document_template_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_template_updated_at"($1) $$;
@@ -2003,6 +2028,7 @@ grant execute on function "api"."document_template_updated_at"(text) to service_
 create or replace function "api"."document_text_block_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_text_block_updated_at"($1) $$;

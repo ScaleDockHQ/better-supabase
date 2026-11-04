@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:c85b0a3d43d079093d7e34db549733e0f8ec8b9fa7077f3eeeffa5fb06781163
+-- @bsb-hash sha256:9c3980c3325ef2a6d02af0874b4d60dc21936e8d5b2f3374936c46c3e8aff17c
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1041,6 +1041,7 @@ drop function if exists "api"."update_employees"(jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1095,6 +1096,7 @@ grant execute on function "api"."delete_employee"(uuid) to authenticated, servic
 create or replace function "api"."org_chart"(tenant uuid, root uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."org_chart"($1, $2) $$;
@@ -1104,6 +1106,7 @@ grant execute on function "api"."org_chart"(uuid, uuid) to authenticated, servic
 create or replace function "api"."reports_of"(manager uuid, indirect boolean)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reports_of"($1, $2) $$;
@@ -1122,6 +1125,7 @@ grant execute on function "api"."employee_from_application"(uuid, jsonb) to auth
 create or replace function "api"."employee_private_details"(employee uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."employee_private_details"($1) $$;
@@ -1140,6 +1144,7 @@ grant execute on function "api"."save_employee_private_details"(uuid, jsonb) to 
 create or replace function "api"."employee_contracts"(employee uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."employee_contracts"($1) $$;

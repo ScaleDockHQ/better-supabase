@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:93439d600a53bcd207adee46b1fd5298969ffd7972f254804a05f2d656c19057
+-- @bsb-hash sha256:d0991ff3bfc00699e65428d1cc21da4e99651ade218b58bb9754993aa0df60c5
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -683,6 +683,7 @@ drop function if exists "api"."set_field_value"(uuid, text, text, uuid, text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -701,6 +702,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."bsb_valid_bsn"(value text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bsb_valid_bsn"($1) $$;
@@ -710,6 +712,7 @@ grant execute on function "api"."bsb_valid_bsn"(text) to authenticated, service_
 create or replace function "api"."bsb_valid_iban"(value text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bsb_valid_iban"($1) $$;
@@ -755,6 +758,7 @@ grant execute on function "api"."delete_field_definition"(uuid) to authenticated
 create or replace function "api"."list_field_definitions"(tenant uuid, entity text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_field_definitions"($1, $2) $$;

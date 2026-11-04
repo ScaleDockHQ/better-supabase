@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:2118f6f2d323ba337ae26978bc89a9fa1d4b6acbd9927835edc80eb2f44cf2ad
+-- @bsb-hash sha256:13df2d17a09099521c731fa15c3aaa4733b7b7e9fdb8b31fc9d28d3abc0d9235
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -574,6 +574,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -592,6 +593,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."list_ai_provider_keys"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_provider_keys"($1) $$;
@@ -628,6 +630,7 @@ grant execute on function "api"."delete_ai_provider_keys"(uuid) to service_role;
 create or replace function "api"."ai_provider_keys_for"(tenant uuid, providers text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_provider_keys_for"($1, $2) $$;
@@ -673,6 +676,7 @@ grant execute on function "api"."save_ai_batch_items"(uuid, jsonb) to service_ro
 create or replace function "api"."get_ai_batch"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_batch"($1) $$;
@@ -682,6 +686,7 @@ grant execute on function "api"."get_ai_batch"(uuid) to authenticated, service_r
 create or replace function "api"."list_ai_batches"(tenant uuid, status text default null, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_batches"($1, $2, $3) $$;
@@ -691,6 +696,7 @@ grant execute on function "api"."list_ai_batches"(uuid, text, integer) to authen
 create or replace function "api"."list_ai_batch_items"(id uuid, after text default null, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_batch_items"($1, $2, $3) $$;

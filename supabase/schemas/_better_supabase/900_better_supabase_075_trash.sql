@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:bfe850d4fd86535b539a03edb03e8658af9d8a0d47f8fee42a92f3df4e7795c2
+-- @bsb-hash sha256:35cb6a196867889117bfdd2659e3c3f885127449bfaf32a04072e00a03f9182d
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -640,6 +640,7 @@ drop function if exists "api"."trash"(uuid, text, text, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -676,6 +677,7 @@ grant execute on function "api"."restore_trash"(uuid) to authenticated, service_
 create or replace function "api"."list_trash"(tenant uuid, subject_type text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_trash"($1, $2, $3, $4) $$;
@@ -703,6 +705,7 @@ grant execute on function "api"."purge_expired_trash"(integer) to service_role;
 create or replace function "api"."is_trashed"(subject_type text, subject_id text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_trashed"($1, $2) $$;

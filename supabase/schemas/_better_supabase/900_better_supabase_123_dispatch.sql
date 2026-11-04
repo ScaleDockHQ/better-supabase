@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:0e9ccdec41dd7b80425972bdf1c6910fe0afcdecfeda9b142e08306a2edf6182
+-- @bsb-hash sha256:9ec67a50cf7730af125f0ad6e83d92e934f5c63d867121617ed2a095b20594a8
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1192,6 +1192,7 @@ drop function if exists "api"."update_work_order"(uuid, text, text, text, uuid, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1255,6 +1256,7 @@ grant execute on function "api"."set_work_order_status"(uuid, text, text) to aut
 create or replace function "api"."get_work_order"(work_order_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_work_order"($1) $$;
@@ -1264,6 +1266,7 @@ grant execute on function "api"."get_work_order"(uuid) to authenticated, service
 create or replace function "api"."list_work_orders"(tenant uuid, status text default null, technician uuid default null, subject_type text default null, subject_id text default null, from_at timestamptz default null, until_at timestamptz default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_work_orders"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
@@ -1273,6 +1276,7 @@ grant execute on function "api"."list_work_orders"(uuid, text, uuid, text, text,
 create or replace function "api"."dispatch_board"(tenant uuid, from_date date, to_date date, technicians uuid[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."dispatch_board"($1, $2, $3, $4) $$;
@@ -1282,6 +1286,7 @@ grant execute on function "api"."dispatch_board"(uuid, date, date, uuid[]) to au
 create or replace function "api"."technician_day"(tenant uuid, day date, technician uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."technician_day"($1, $2, $3) $$;
@@ -1309,6 +1314,7 @@ grant execute on function "api"."record_work_order_part"(uuid, text, numeric, te
 create or replace function "api"."list_work_order_parts"(work_order_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_work_order_parts"($1) $$;

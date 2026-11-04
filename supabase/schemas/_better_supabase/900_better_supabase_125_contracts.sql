@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:3f92efa7fe7965235ab8e0ddfd3f287ee327970366aaa1d90134dd63d636c84d
+-- @bsb-hash sha256:644e804dabf213f5fd1207d59ef0eb67e0a2da77a840756ba5d772c70e1d6d95
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -988,6 +988,7 @@ drop function if exists "api"."update_contract"(uuid, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1042,6 +1043,7 @@ grant execute on function "api"."send_contract_for_signature"(uuid, uuid[], text
 create or replace function "api"."get_contract"(contract_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_contract"($1) $$;
@@ -1051,6 +1053,7 @@ grant execute on function "api"."get_contract"(uuid) to authenticated, service_r
 create or replace function "api"."list_contracts"(tenant uuid, status text default null, counterparty_type text default null, counterparty_id text default null, owner_id uuid default null, renewing_before date default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_contracts"($1, $2, $3, $4, $5, $6, $7, $8) $$;
@@ -1096,6 +1099,7 @@ grant execute on function "api"."delete_contract_obligation"(uuid) to authentica
 create or replace function "api"."list_contract_obligations"(tenant uuid, contract_id uuid default null, owner_id uuid default null, open_only boolean default false, due_before date default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_contract_obligations"($1, $2, $3, $4, $5, $6) $$;

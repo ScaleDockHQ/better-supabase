@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e7e0f3753f5242df36266812ad5719f438c905f4510f9f78c893700b99364c77
+-- @bsb-hash sha256:7df02800bf1f7183f8c67bab32de2000f304c5722be3add57c0555822a4da7c4
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -789,6 +789,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -816,6 +817,7 @@ grant execute on function "api"."save_post_board"(uuid, jsonb) to authenticated,
 create or replace function "api"."list_post_boards"(tenant uuid, archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_post_boards"($1, $2) $$;
@@ -870,6 +872,7 @@ grant execute on function "api"."delete_post"(uuid) to authenticated, service_ro
 create or replace function "api"."get_post"(post_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_post"($1) $$;
@@ -879,6 +882,7 @@ grant execute on function "api"."get_post"(uuid) to authenticated, service_role;
 create or replace function "api"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_posts"($1, $2) $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:05796b26203ea185e8c93d4473a58000d2ce73b74b9ecf792aacb9ea481df1eb
+-- @bsb-hash sha256:2f14ae2858eeb5167f5c2b6cd26004e3521938303fa27d3c129b923a6e4ff3f9
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1047,6 +1047,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1074,6 +1075,7 @@ grant execute on function "api"."save_sequence"(uuid, jsonb) to authenticated, s
 create or replace function "api"."list_sequences"(tenant uuid, status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_sequences"($1, $2) $$;
@@ -1083,6 +1085,7 @@ grant execute on function "api"."list_sequences"(uuid, text) to authenticated, s
 create or replace function "api"."get_sequence"(sequence_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_sequence"($1) $$;
@@ -1119,6 +1122,7 @@ grant execute on function "api"."change_sequence_enrollment"(uuid, text) to auth
 create or replace function "api"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_sequence_enrollments"($1, $2) $$;

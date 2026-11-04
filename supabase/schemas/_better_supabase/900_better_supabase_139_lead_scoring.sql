@@ -1,6 +1,6 @@
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:c6dbf6bc2c65956f94a82b9562ab126d2e671a4f5ed3dc86e0bf2ee914a9e005
+-- @bsb-hash sha256:77dbb3c331e0b13ca9c01bc3063f2f7e6134b06f258e25519089a653c914beda
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -356,6 +356,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -374,6 +375,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."lead_fields"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."lead_fields"($1, $2, $3) $$;

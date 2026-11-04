@@ -1,6 +1,6 @@
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:35c268a4829d0ba2b205caf3d12ad77ddee35739d35d137fab9da372d5126a06
+-- @bsb-hash sha256:a85ad6f38debb479e163e6d98a378c844bc6d2cfcb43ad9224fac78753fa9fc0
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -122,6 +122,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."credential_get"(provider text, name text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."credential_get"($1, $2) $$;

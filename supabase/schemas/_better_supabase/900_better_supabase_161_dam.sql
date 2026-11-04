@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:5d43a1ab9e43e051532ce682bfb12f118ad04bddba0ce7c0f8b66554afb6b064
+-- @bsb-hash sha256:a7e9083ff28f3634b73d37a9030d8dc8927577afa0880d5fec879ab8d04c5e64
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -528,6 +528,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -537,6 +538,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -564,6 +566,7 @@ grant execute on function "api"."record_rendition"(uuid, uuid, text, jsonb) to a
 create or replace function "api"."list_renditions"(tenant uuid, node_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_renditions"($1, $2) $$;
@@ -591,6 +594,7 @@ grant execute on function "api"."revoke_usage_right"(uuid) to authenticated, ser
 create or replace function "api"."list_usage_rights"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_usage_rights"($1, $2) $$;
@@ -600,6 +604,7 @@ grant execute on function "api"."list_usage_rights"(uuid, jsonb) to authenticate
 create or replace function "api"."check_usage"(tenant uuid, node_id uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."check_usage"($1, $2, $3) $$;

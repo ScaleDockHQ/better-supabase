@@ -1,6 +1,6 @@
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:2fc04b69ef53868e7b88531b28babb3927f1e8e55ba207b591589db581c8993b
+-- @bsb-hash sha256:73b0ebea2ad8b08aff8335c9567e7945015ed1849ebf5f60e9290e399cf5b8f7
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -329,6 +329,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -374,6 +375,7 @@ grant execute on function "api"."start_bulk"(uuid, text, text[], text, jsonb) to
 create or replace function "api"."bulk_run"(run_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."bulk_run"($1) $$;

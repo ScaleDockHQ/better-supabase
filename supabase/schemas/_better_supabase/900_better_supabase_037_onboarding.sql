@@ -1,6 +1,6 @@
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
--- @bsb-hash sha256:40da788f656c482c7ec8d51ff3c56b217e83e6fcef07e7574dbad3d4fa8c2ac3
+-- @bsb-hash sha256:485722caab2a2c224b368ca6d562ba7bc9f06af46b915e67eb04119b860ead02
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,6 +137,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."onboarding_progress"(checklist text, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."onboarding_progress"($1, $2) $$;

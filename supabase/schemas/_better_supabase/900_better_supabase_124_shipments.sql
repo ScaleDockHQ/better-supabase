@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@3 managed
--- @bsb-hash sha256:e3f1bbd109d6cd2da82811e4fc9ec8b418a7a28a5fba029f78f750504a177982
+-- @bsb-hash sha256:fad0ca104d92b081ac0840838b7965c6b661fe6e6520163203f2c72092e67f3e
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1335,6 +1335,7 @@ drop function if exists "api"."create_shipment"(uuid, jsonb, jsonb, jsonb, text,
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1344,6 +1345,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1371,6 +1373,7 @@ grant execute on function "api"."create_shipment"(uuid, jsonb, jsonb, jsonb, tex
 create or replace function "api"."get_shipment"(shipment_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_shipment"($1) $$;
@@ -1380,6 +1383,7 @@ grant execute on function "api"."get_shipment"(uuid) to authenticated, service_r
 create or replace function "api"."list_shipments"(tenant uuid, status text default null, subject_type text default null, subject_id text default null, carrier text default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_shipments"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -1470,6 +1474,7 @@ grant execute on function "api"."delete_intrastat_line"(uuid) to authenticated, 
 create or replace function "api"."list_tracking_events"(shipment_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tracking_events"($1) $$;

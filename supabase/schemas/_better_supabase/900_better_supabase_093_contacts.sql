@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:ed14ed92bbee92d978dee9ba3000245716fae239d7bf84ff83e3963eaf1cc7c5
+-- @bsb-hash sha256:93ea62d5013c5544e5dbe2346d6fe08a805bee9a8a7ed61ed8ac751a09a628a3
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1784,6 +1784,7 @@ drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1874,6 +1875,7 @@ grant execute on function "api"."merge_people"(uuid, uuid) to authenticated, ser
 create or replace function "api"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_companies"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
@@ -1883,6 +1885,7 @@ grant execute on function "api"."list_companies"(uuid, text, text, uuid, text, u
 create or replace function "api"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_people"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
@@ -1892,6 +1895,7 @@ grant execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid
 create or replace function "api"."company_people_of"(company uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."company_people_of"($1) $$;
@@ -1910,6 +1914,7 @@ grant execute on function "api"."save_payment_term"(uuid, jsonb) to authenticate
 create or replace function "api"."list_payment_terms"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_payment_terms"($1) $$;
@@ -1937,6 +1942,7 @@ grant execute on function "api"."set_document_delivery_preferences"(uuid, jsonb)
 create or replace function "api"."list_document_delivery_preferences"(party uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_document_delivery_preferences"($1) $$;
@@ -1955,6 +1961,7 @@ grant execute on function "api"."import_payment_term"(uuid, jsonb, text) to serv
 create or replace function "api"."payment_term_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."payment_term_updated_at"($1) $$;
@@ -1973,6 +1980,7 @@ grant execute on function "api"."import_document_delivery_preference"(uuid, json
 create or replace function "api"."document_delivery_preference_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."document_delivery_preference_updated_at"($1) $$;
@@ -2000,6 +2008,7 @@ grant execute on function "api"."set_supplier_status"(uuid, text, text) to authe
 create or replace function "api"."supplier_status_from_qualifications"(party uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."supplier_status_from_qualifications"($1) $$;
@@ -2009,6 +2018,7 @@ grant execute on function "api"."supplier_status_from_qualifications"(uuid) to a
 create or replace function "api"."list_person_identities"(person uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_person_identities"($1) $$;
@@ -2036,6 +2046,7 @@ grant execute on function "api"."remove_person_identity"(uuid) to authenticated,
 create or replace function "api"."find_person_by_identity"(tenant uuid, channel text, address text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."find_person_by_identity"($1, $2, $3) $$;
@@ -2045,6 +2056,7 @@ grant execute on function "api"."find_person_by_identity"(uuid, text, text) to a
 create or replace function "api"."list_representatives"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_representatives"($1, $2) $$;
@@ -2054,6 +2066,7 @@ grant execute on function "api"."list_representatives"(text, text) to authentica
 create or replace function "api"."represented_by_me"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."represented_by_me"($1) $$;

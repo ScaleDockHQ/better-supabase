@@ -1,6 +1,6 @@
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:3c6f04801cf08c30d890d326a8eda0dc3d84896c617fb4393a298beb8adb0d89
+-- @bsb-hash sha256:a3ea5b3c4143437aaf54ae0c4d25ff20f747a23ca35235540bfb6f60785abf03
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -543,6 +543,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -606,6 +607,7 @@ grant execute on function "api"."cancel_prescription"(uuid, text) to authenticat
 create or replace function "api"."get_prescription"(prescription_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_prescription"($1) $$;
@@ -615,6 +617,7 @@ grant execute on function "api"."get_prescription"(uuid) to authenticated, servi
 create or replace function "api"."list_prescriptions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_prescriptions"($1, $2) $$;

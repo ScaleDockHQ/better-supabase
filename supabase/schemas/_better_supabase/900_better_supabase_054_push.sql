@@ -1,6 +1,6 @@
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:2e3890203a4f1673a8c98a90c60f7efb62348fa36ee731e5b4191ca603ea4748
+-- @bsb-hash sha256:2d401273778c2795a4b3a4586f64cfeb517085920bcb056ea95e9b3ee859b0cc
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -421,6 +421,7 @@ drop function if exists "api"."complete_push_receipts"(jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -457,6 +458,7 @@ grant execute on function "api"."unregister_push_device"(text) to authenticated,
 create or replace function "api"."push_tokens_for"(users uuid[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."push_tokens_for"($1) $$;
@@ -484,6 +486,7 @@ grant execute on function "api"."record_push_tickets"(uuid, jsonb) to service_ro
 create or replace function "api"."push_tickets_for"(delivery uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."push_tickets_for"($1) $$;
@@ -493,6 +496,7 @@ grant execute on function "api"."push_tickets_for"(uuid) to service_role;
 create or replace function "api"."unchecked_push_tickets"(max_items integer default 1000, older_than interval default '15 minutes')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unchecked_push_tickets"($1, $2) $$;

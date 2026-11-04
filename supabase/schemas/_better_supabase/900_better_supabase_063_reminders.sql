@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:3b93663523915cbf2cabf6a0c9b77aa6776ed5fdc708bbda2ae16599ac4be52d
+-- @bsb-hash sha256:4624956e565040c1d23c53e98aa22dee93e227bb45000c6a997519aecee94a3e
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -425,6 +425,7 @@ drop function if exists "api"."list_reminder_schedule"();
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -452,6 +453,7 @@ grant execute on function "api"."save_reminder"(uuid, text, text, integer, times
 create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_my_reminders"($1, $2, $3) $$;
@@ -489,6 +491,7 @@ returns table (
   user_id uuid
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_reminder_schedule"() $$;
