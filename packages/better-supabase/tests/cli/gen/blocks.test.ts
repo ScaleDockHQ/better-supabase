@@ -369,11 +369,13 @@ describe("blocks.generated.ts", () => {
     );
 
     const contents = emitBlockConfig(config)?.contents ?? "";
+    const data = emitBlockConfigModule(config)?.contents ?? "";
 
-    expect(contents).toContain("export const permissions = {");
-    expect(contents).toContain('    write: "tasks.write",');
-    expect(contents).toMatch(
-      /export type PermissionKey = [^;]*"tasks\.write"/u,
+    expect(data).toContain("export const permissions = {");
+    expect(data).toContain('    write: "tasks.write",');
+    expect(data).toMatch(/export type PermissionKey = [^;]*"tasks\.write"/u);
+    expect(contents).toContain(
+      'export { permissions, type PermissionKey } from "./blocks.config.ts";',
     );
     expect(contents).toContain('export type RoleName = "editor" | "owner";');
     expect(contents).toContain(
@@ -407,7 +409,7 @@ describe("blocks.generated.ts", () => {
       "/project",
     );
 
-    const contents = emitBlockConfig(config)?.contents ?? "";
+    const contents = emitBlockConfigModule(config)?.contents ?? "";
 
     expect(contents).toContain('    share: "file.share",');
     expect(contents).toContain('    read: "file.read",');
