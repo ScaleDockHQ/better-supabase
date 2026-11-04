@@ -192,6 +192,28 @@ begin
 end;
 $$;
 
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_now timestamptz := clock_timestamp();
+begin
+  return query
+    select q.name
+    from unnest(ready_job_queues.queues) as q(name)
+    where exists (
+      select 1 from ${messages} m
+      where m.${c("queue")} = q.name and m.${c("archivedAt")} is null and m.${c("visibleAt")} <= v_now
+    );
+end;
+$$;
+
 -- Each claim bumps attempts, so a stale worker (its lease expired and another
 -- worker claimed the message) no longer matches and gets false / null.
 create or replace function better_supabase.complete_job(queue text, job_id bigint, attempt integer)

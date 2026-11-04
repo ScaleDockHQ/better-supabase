@@ -176,7 +176,13 @@ export interface QueueProvider {
    * Schedules by name prefix and tenant. Absent when the backend can't list
    * them.
    */
-  listSchedules?(filter: ScheduleFilter): Promise<readonly ScheduleInfo[]>;
+  listSchedules?(filter: ScheduleFilter): Promise<readonly StoredSchedule[]>;
+  /**
+   * The queues among `queues` that have a job to claim now, so a drain skips
+   * the empty ones. Absent when the backend can't tell; the drain then claims
+   * from every queue.
+   */
+  readyQueues?(queues: readonly string[]): Promise<readonly string[]>;
   /**
    * Removes a tenant's schedules and returns how many. Absent when the backend
    * can't.
@@ -205,6 +211,16 @@ interface ScheduleListRow {
   readonly last_run: Date | string | null;
   readonly locked_until: Date | string | null;
   readonly created_at: Date | string | null;
+  readonly payload?: unknown;
+}
+
+/**
+ * A schedule as a provider lists it, with the payload as stored (with its
+ * recorded context) when the provider returns it, so `ensureSchedules` writes
+ * only the schedules that changed.
+ */
+export interface StoredSchedule extends ScheduleInfo {
+  readonly payload?: unknown;
 }
 
 const instantOrNull = (value: Date | string | null): Temporal.Instant | null =>
@@ -289,7 +305,7 @@ async function dueOf(
   return due;
 }
 
-const scheduleInfo = (row: ScheduleListRow): ScheduleInfo => ({
+const scheduleInfo = (row: ScheduleListRow): StoredSchedule => ({
   name: row.job_name,
   cron: row.schedule,
   timeZone: row.timezone,
@@ -299,6 +315,7 @@ const scheduleInfo = (row: ScheduleListRow): ScheduleInfo => ({
   lastRun: instantOrNull(row.last_run),
   leasedUntil: instantOrNull(row.locked_until),
   createdAt: instantOrNull(row.created_at),
+  ...(row.payload === undefined ? {} : { payload: row.payload }),
 });
 
 interface StatsRow {
@@ -376,6 +393,14 @@ export function sqlQueueProvider(
         "select * from better_supabase.claim_jobs($1, $2, $3)",
         [queue, lease, batch],
       ),
+    async readyQueues(queues) {
+      const rows = await sql.queryRaw<{ queue: string }>(
+        "select queue from better_supabase.ready_job_queues($1)",
+        [[...queues]],
+      );
+
+      return rows.map((row) => row.queue);
+    },
     async complete(job) {
       const [row] = await sql.queryRaw<{ done: boolean }>(
         "select better_supabase.complete_job($1, $2, $3) as done",
@@ -517,6 +542,7 @@ const PARAMS = {
   ],
   enqueue_job_once: ["queue", "payload", "dedupe_key", "delay", "max_attempts"],
   claim_jobs: ["queue", "lease", "batch"],
+  ready_job_queues: ["queues"],
   complete_job: ["queue", "job_id", "attempt"],
   fail_job: ["queue", "job_id", "attempt", "error", "retry_in"],
   extend_job_lease: ["queue", "job_id", "attempt", "lease"],
@@ -658,6 +684,10 @@ export function transportQueueProvider(
       ),
     read: (queue, lease, batch) =>
       rows<QueueMessageRow>("claim_jobs", queue, lease, batch),
+    readyQueues: async (queues) =>
+      (await rows<{ queue: string }>("ready_job_queues", [...queues])).map(
+        (row) => row.queue,
+      ),
     complete: (job) => bool("complete_job", job.queue, job.id, job.attempts),
     async fail(job, error, retryIn) {
       const status = await call(

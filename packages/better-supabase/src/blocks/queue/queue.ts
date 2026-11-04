@@ -6,11 +6,12 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
-  QueueProvider,
   QueueMessageBody,
   QueueMessageRow,
+  QueueProvider,
   QueueRpcClient,
   QueueStats,
+  StoredSchedule,
 } from "./backends.ts";
 import type {
   ClaimOptions,
@@ -35,6 +36,7 @@ import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { nextCronRun } from "../../core/cron.ts";
 import { dbError, DbException } from "../../core/errors.ts";
+import { canonicalJson } from "../../core/json.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
@@ -568,6 +570,17 @@ export function createQueue<const Q extends QueueSchemas>(
     });
   };
 
+  const sameSchedule = (
+    current: StoredSchedule,
+    prepared: PreparedSchedule,
+  ): boolean =>
+    current.payload !== undefined &&
+    current.cron === prepared.cron &&
+    current.timeZone === prepared.timeZone &&
+    current.queue === prepared.queue &&
+    (current.tenant ?? undefined) === prepared.tenant &&
+    canonicalJson(current.payload) === canonicalJson(prepared.payload ?? {});
+
   const write = (prepared: PreparedSchedule): Promise<void> =>
     transport.schedule(
       prepared.name,
@@ -875,8 +888,16 @@ export function createQueue<const Q extends QueueSchemas>(
             ...(tenant === undefined ? {} : { tenant }),
           });
 
+          const stored = new Map(
+            existing.map((schedule) => [schedule.name, schedule] as const),
+          );
+
           for (const schedule of prepared) {
-            await write(schedule);
+            const current = stored.get(schedule.name);
+
+            if (current === undefined || !sameSchedule(current, schedule)) {
+              await write(schedule);
+            }
           }
 
           const removed: string[] = [];
@@ -901,7 +922,9 @@ export function createQueue<const Q extends QueueSchemas>(
           sqlOnly("listSchedules");
         }
 
-        return [...(await transport.listSchedules(filter))];
+        return (await transport.listSchedules(filter)).map(
+          ({ payload: _payload, ...info }) => info,
+        );
       }),
     unscheduleAll: (filter) =>
       run(() => {
@@ -989,10 +1012,25 @@ export function createQueue<const Q extends QueueSchemas>(
 
           const results: Record<string, DrainResult> = {};
 
-          for (const [queue, handler] of Object.entries(
-            routeOptions.handlers,
-          )) {
-            if (handler === undefined) {
+          const handled = Object.entries(routeOptions.handlers).filter(
+            ([, handler]) => handler !== undefined,
+          );
+
+          let ready: ReadonlySet<string> | undefined;
+
+          if (transport.readyQueues && handled.length > 0 && !spent.expired()) {
+            try {
+              ready = new Set(
+                await transport.readyQueues(handled.map(([queue]) => queue)),
+              );
+            } catch (cause) {
+              report(cause);
+            }
+          }
+
+          for (const [queue, handler] of handled) {
+            if (ready !== undefined && !ready.has(queue)) {
+              results[queue] = { succeeded: 0, failed: 0 };
               continue;
             }
 

@@ -230,6 +230,33 @@ begin
 end;
 $$;
 
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
+end;
+$$;
+
 -- Each claim bumps read_ct, so a stale worker (its lease expired and another
 -- worker claimed the message) no longer matches and gets false / null.
 create or replace function better_supabase.complete_job(queue text, job_id bigint, attempt integer)
@@ -518,9 +545,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -533,7 +560,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -643,13 +670,13 @@ $$;
 -- Schedules whose name starts with name_prefix and that run for for_tenant (either
 -- filter null: all), for a product page that shows the next run.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("tenant")}, s.${c("nextRun")}, s.${c("lastRun")}, s.${c("lockedUntil")}, s.${c("createdAt")}
+  select s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("tenant")}, s.${c("nextRun")}, s.${c("lastRun")}, s.${c("lockedUntil")}, s.${c("createdAt")}, s.${c("payload")}
   from ${schedules} s
   where (list_schedules.name_prefix is null or starts_with(s.${c("jobName")}, list_schedules.name_prefix))
     and (list_schedules.for_tenant is null or s.${c("tenant")} = list_schedules.for_tenant)
@@ -744,6 +771,7 @@ const GRANTS = (backend: JobsBackend): string =>
     "enqueue_job(text, jsonb, integer, integer, text, boolean)",
     "enqueue_job_once(text, jsonb, text, integer, integer)",
     "claim_jobs(text, integer, integer)",
+    "ready_job_queues(text[])",
     "complete_job(text, bigint, integer)",
     "fail_job(text, bigint, integer, text, integer)",
     "extend_job_lease(text, bigint, integer, integer)",
@@ -812,13 +840,20 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 10,
+  version: 11,
   names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
       : "",
   upgrades: [
+    {
+      from: 10,
+      description:
+        "ready_job_queues answers which queues have a claimable message, and list_schedules returns each schedule's payload.",
+      sql: () =>
+        "drop function if exists better_supabase.list_schedules(text, text);",
+    },
     {
       from: 9,
       description:

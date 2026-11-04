@@ -347,9 +347,13 @@ the app's built-in schedules on deploy or a tenant's workflow settings after
 an edit. It writes every definition, removes the schedules under `prefix`
 (and `tenant`, when given) that the set no longer names, and returns both
 lists. Every name must start with the prefix, and every payload and cron is
-checked before anything is written. A definition whose cron and time zone
-didn't change keeps its next run, so a run that is due but not yet drained
-still happens and running it twice changes nothing.
+checked before anything is written. It writes only the definitions that are
+new or whose cron, time zone, queue, tenant or payload changed (payloads are
+compared as JSON, whatever the key order), so calling it on every drain costs
+one `list_schedules` call when nothing changed. A definition whose cron and
+time zone didn't change keeps its next run, so a run that is due but not yet
+drained still happens and running it twice changes nothing. Under pg_cron,
+which keeps no queue or payload, it writes every definition.
 
 ```ts
 const result = await jobs
@@ -502,9 +506,12 @@ product is an AI task, which the jobs block then runs.
 
 `drainRoute` turns the queues into an HTTP endpoint for a cron caller such as
 [Vercel Cron](https://vercel.com/docs/cron-jobs). Each call checks the bearer
-secret, enqueues due schedules, then drains each queue in `handlers` until
-they are empty or `budgetMs` (50 seconds by default) is spent. Jobs it
-already claimed still finish.
+secret, enqueues due schedules, asks once which queues in `handlers` have a
+job to claim (`ready_job_queues`), then drains those until they are empty or
+`budgetMs` (50 seconds by default) is spent. The other queues report zero
+jobs without a claim. Jobs it already claimed still finish. When the ready
+check fails, for example before the SQL module is upgraded to version 11, the
+route reports the error and claims from every queue as before.
 
 ```ts title="app/api/jobs/drain/route.ts"
 import "server-only";
