@@ -85,6 +85,8 @@ export const bsb = createServer(betterSupabase, {
 user's access when the job runs, not when it was enqueued. `sub`, `role`,
 `tenant_id` and `act` always come from the context.
 
+Block clients for the service role come from `blockSet.serviceBlocks(admin)`, which builds them over one `rpcTransport` and takes each block's API schema from its generated entry.
+
 ## Webhooks
 
 A webhook belongs to whoever the event is about. Verify and store it with

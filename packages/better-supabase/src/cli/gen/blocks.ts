@@ -28,6 +28,7 @@ import {
   resolveBlocks,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import { isRecord } from "../guards.ts";
 import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { prop, q, runtimeSubpath } from "./shared.ts";
@@ -322,6 +323,33 @@ function compositeEntry(
   };
 }
 
+/**
+ * The app's own employee status values, from
+ * `blocks.employees.values.employees.status`, for the create input's type.
+ */
+function employeeStatuses(
+  resolved: ReturnType<typeof resolveBlock>,
+): readonly string[] {
+  const table: unknown = resolved.values?.["employees"];
+  const map: unknown = isRecord(table) ? table["status"] : undefined;
+
+  if (!isRecord(map)) {
+    return [];
+  }
+
+  const all = Object.values(map).flatMap((value): string[] => {
+    if (typeof value === "string") {
+      return [value];
+    }
+
+    return Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  });
+
+  return [...new Set(all)];
+}
+
 function generatedEntry(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
   modules: readonly string[],
@@ -362,6 +390,12 @@ function generatedEntry(
         options[key] = value;
       }
     }
+  }
+
+  const statuses = employeeStatuses(resolved);
+
+  if (statuses.length > 0 && modules.includes("employees")) {
+    options["statuses"] = statuses;
   }
 
   const names = namingOf(config, modules, instanceFunctionNames);

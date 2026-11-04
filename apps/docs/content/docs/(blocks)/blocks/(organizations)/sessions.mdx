@@ -37,3 +37,15 @@ const { sessions, count, currentId } = await db.$blocks.sessions
   .overview()
   .orThrow();
 ```
+
+## Why a session ended
+
+`Bootstrap.endReason` is `"user_banned"` or `"session_not_found"` when `sessionActive` is false, and `null` otherwise. It is required, so code that reads it needs no fallback. A bootstrap wrapper generated before 0.44 returns no `end_reason`, and the call fails with an error that tells the app to run `sql upgrade` and apply the migration.
+
+## Block clients for the service role
+
+`blockSet.serviceBlocks(server.admin().$client)` builds the block clients over one `rpcTransport`. Each client calls the API schema its generated entry names, so a job or webhook does not write `"api"`. A client is built when first read, and only functions granted to `service_role` work:
+
+```ts
+const { sessions } = blockSet.serviceBlocks(server.admin().$client);
+```

@@ -77,9 +77,9 @@ export interface Bootstrap<
   /**
    * Why `sessionActive` is false: `user_banned` or `session_not_found`. Null
    * while the session is active or signed out. A wrapper generated before 0.44
-   * reports `session_not_found` for both.
+   * returns no reason and is refused: run `bsb sql upgrade`.
    */
-  readonly endReason?: SessionRejection | null;
+  readonly endReason: SessionRejection | null;
   readonly data: T | null;
   /**
    * The read set's result, decoded like `db.$many(readSet, params)`; null
@@ -210,14 +210,23 @@ function bootstrapRow(value: unknown): BootstrapRow {
   const authzVersion = versionOf(value["authz_version"]);
 
   const sessionActive = value["session_active"];
+  const reason = value["end_reason"];
+
+  const ended =
+    reason === "user_banned" || reason === "session_not_found" ? reason : null;
+
+  if (!sessionActive && ended === null) {
+    throw new DbException(
+      dbError(
+        "unexpected",
+        "The bootstrap wrapper returned no end_reason; it was generated before 0.44. Run `bsb sql upgrade` and apply the migration.",
+      ),
+    );
+  }
 
   return {
     sessionActive,
-    endReason: sessionActive
-      ? null
-      : value["end_reason"] === "user_banned"
-        ? "user_banned"
-        : "session_not_found",
+    endReason: sessionActive ? null : ended,
     authzVersion,
     tokenAuthzVersion:
       "token_authz_version" in value

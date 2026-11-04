@@ -2292,6 +2292,42 @@ role skips the user's policies, so what it returns is cached under the user's
 key but isn't their data, and each call adds a verification. Read as the user,
 or move the admin read out of the cached function.
 
+## Shims
+
+These checks read the app's source text, matched by `doctor.sources`, for code the library now covers. Each one reports once per file and only in files that name better-supabase. The shim registry in `src/cli/doctor/shims.ts` lists them, so one entry adds a check.
+
+### BS612
+
+**Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.
+
+### BS613
+
+**Info: an extra Auth call follows `bootstrap`.** `auth.getUser()` or `auth.getClaims()` next to a bootstrap call. Since 0.44, `Bootstrap.endReason` says why a session ended without a second Auth call.
+
+### BS614
+
+**Info: the authorization version is seeded by hand after `bootstrap`.** The bootstrap already seeds the live version.
+
+### BS615
+
+**Info: comment paging filters `deletedAt` in the app.** Use `includeDeleted` on the comments client.
+
+### BS616
+
+**Info: comment authors are read again after a comment list.** With `profiles` installed, `Message.author` is `{ id, name, avatarUrl }`.
+
+### BS617
+
+**Info: `withPublicPolicyRoles`.** The catalog query maps empty policy roles to public itself.
+
+### BS618
+
+**Info: a unique violation is detected by `code === "23505"` or by a message search.** Use `isConflict(error, constraint)`.
+
+### BS619
+
+**Info: a support caller is built as an `AuthState` by hand.** Pass `{ token, claims }`, a `SupportCaller`, to the support API.
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

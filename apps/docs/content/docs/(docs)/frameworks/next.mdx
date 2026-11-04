@@ -638,6 +638,31 @@ The client is built per call from the request's context, so the block runs
 as the signed-in user. A refused caller, a failed validation and a database
 error all come back as `{ ok: false, error }`, like any other action.
 
+### Bound arguments, guards and results
+
+`bsb.action` takes three more options. `bound` is a schema for the leading arguments of `action.bind(null, id)`; `tenant(input, bound)` and the body `fn(input, ctx, bound)` read the validated tuple. `guard(tenant, ctx)` runs after authentication and the permission check and before the body, and a returned `DbError` refuses the call. `result(outcome)` maps the `ActionResult` before it returns:
+
+```ts
+export const archive = bsb.action(
+  {
+    bound: v.tuple([v.string()]),
+    input: v.object({ reason: v.string() }),
+    tenant: (_input, [organizationId]) => organizationId,
+    guard: (_tenant, { auth }) =>
+      auth.kind === "user" ? undefined : dbError("forbidden", "Sign in first"),
+    result: (outcome) => outcome,
+  },
+  ({ reason }, { db }, [organizationId]) =>
+    db.projects.archive({ organizationId, reason }),
+);
+
+// <form action={archive.bind(null, organizationId)}>
+```
+
+### The app's own context
+
+`bsb.withContext((session, base) => ({ ... }))` returns `cached`, `getAccess` and `action` that hand back the app's context merged into the library's. The factory runs once per request and tenant, from the session the library already read. `createNext` keeps the schema's `Database` type, so `ctx.supabase` is `SupabaseClient<Database>` in all of them.
+
 ## Cache tags
 
 Every mutation invalidates `bsb:<table>`, its tenant's `bsb:<table>@<tenant>`

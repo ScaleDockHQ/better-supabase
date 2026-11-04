@@ -3,7 +3,6 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
-import { approvalTests } from "./approvals-tests.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -56,6 +55,7 @@ import {
   tenantlessTypes,
   tenantPoliciesOn,
 } from "./approvals-tenant.ts";
+import { approvalTests } from "./approvals-tests.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./memberships.ts";

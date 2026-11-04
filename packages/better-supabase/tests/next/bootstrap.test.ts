@@ -340,7 +340,12 @@ describe("bsb.bootstrap()", () => {
 
   it("keeps an ended session out of the cache and evicts it", async () => {
     await signIn();
-    row = { ...row, session_active: false, data: null };
+    row = {
+      ...row,
+      session_active: false,
+      end_reason: "session_not_found",
+      data: null,
+    };
     const boot = await bsb.bootstrap({ rpc: "home" });
 
     expect(boot).toMatchObject({ sessionActive: false, data: null });
@@ -355,7 +360,12 @@ describe("bsb.bootstrap()", () => {
 
   it("redirects an ended session when asked", async () => {
     await signIn();
-    row = { ...row, session_active: false, data: null };
+    row = {
+      ...row,
+      session_active: false,
+      end_reason: "session_not_found",
+      data: null,
+    };
     await expect(
       bsb.bootstrap({ rpc: "home", redirect: "/sign-in" }),
     ).rejects.toThrow("NEXT_REDIRECT /sign-in?reason=session_not_found");
@@ -482,6 +492,7 @@ describe("bsb.getAccess()", () => {
     const fromBoot = await bsb.getAccess({
       session: fromSnapshot.session,
       sessionActive: true,
+      endReason: null,
       authzVersion: 9,
       tokenAuthzVersion: 9,
       stale: false,

@@ -207,6 +207,18 @@ await suspendAccount(supabaseAdmin, postgres.admin, userId, {
 await endSessions(postgres.admin, userId);
 ```
 
+### Without a Postgres connection
+
+`endSessions`, `lastSignIns` and `suspendAccount` take a `SqlClient` or a `BlockTransport`. With a transport, the helpers call `better_supabase.end_sessions(p_user)` through the Data API as the service role, so an app without `postgres` configured needs no connection string. On `BetterServer` they fall back to the admin client when `postgres` is not set, instead of returning `needsPostgres`. `lastSignIns` over a transport reads through the Data API only.
+
+```ts
+import { rpcTransport } from "better-supabase";
+
+await endSessions(rpcTransport(server.admin().$client), userId);
+```
+
+`sql upgrade` writes `end_sessions` into the `sessions` module; it is granted to `service_role` only.
+
 ## Recording account actions in the audit log
 
 Pass an `EventSink` as the server's `audit` option, such as the audit log's

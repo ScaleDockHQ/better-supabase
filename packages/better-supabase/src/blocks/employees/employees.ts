@@ -108,7 +108,15 @@ export interface OrgChartEntry<
   readonly directReports: number;
 }
 
-export interface EmployeeInput<F extends object = Record<never, never>> {
+/**
+ * `St` is the app's own status values (`options.statuses`, which `gen` writes
+ * from `blocks.employees.values.employees.status`), accepted next to the
+ * block's labels.
+ */
+export interface EmployeeInput<
+  F extends object = Record<never, never>,
+  St extends string = never,
+> {
   readonly name: string;
   readonly firstName?: string;
   readonly lastName?: string;
@@ -120,7 +128,7 @@ export interface EmployeeInput<F extends object = Record<never, never>> {
   /** One of `options.employmentTypes`; the first one by default. */
   readonly employmentType?: string;
   /** Preboarding before the start date and active from it, by default. */
-  readonly status?: Exclude<EmployeeStatus, "offboarded">;
+  readonly status?: Exclude<EmployeeStatus, "offboarded"> | St;
   readonly startDate?: Temporal.PlainDate;
   readonly endDate?: Temporal.PlainDate;
   /** With an origin, creating again returns the same employee. */
@@ -234,10 +242,13 @@ export interface ContractPatch {
   readonly note?: string | null;
 }
 
-export interface Employees<F extends object = Record<never, never>> {
+export interface Employees<
+  F extends object = Record<never, never>,
+  St extends string = never,
+> {
   create(input: {
     organizationId: string;
-    input: EmployeeInput<F>;
+    input: EmployeeInput<F, St>;
   }): AsyncResult<Employee<F>>;
   /**
    * Applies each change on its own; one that fails doesn't stop the others.
@@ -279,7 +290,7 @@ export interface Employees<F extends object = Record<never, never>> {
    */
   fromApplication(input: {
     applicationId: string;
-    overrides?: Partial<EmployeeInput<F>> | undefined;
+    overrides?: Partial<EmployeeInput<F, St>> | undefined;
   }): AsyncResult<Employee<F>>;
   /** Needs employees.view_sensitive, or being the employee. */
   privateDetails(employeeId: string): AsyncResult<PrivateDetails | undefined>;
@@ -307,8 +318,15 @@ export interface Employees<F extends object = Record<never, never>> {
 
 export interface EmployeesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
+  St extends string = never,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
+  /**
+   * The app's own status values from
+   * `blocks.employees.values.employees.status`. `gen` writes them; they only
+   * widen the type of `status` on create.
+   */
+  readonly statuses?: readonly St[];
   readonly schema?: string;
   /**
    * A Standard Schema for the extra columns
@@ -482,7 +500,8 @@ const BUILT_IN: ReadonlySet<string> = new Set<EmployeeField>([
  */
 export function createEmployees<
   S extends StandardSchemaV1 | undefined = undefined,
->(options: EmployeesOptions<S>): Employees<FieldsOf<S>> {
+  const St extends string = never,
+>(options: EmployeesOptions<S, St>): Employees<FieldsOf<S>, St> {
   type F = FieldsOf<S>;
 
   applyTemporal(options);
@@ -528,14 +547,14 @@ export function createEmployees<
       }),
     );
 
-  const attrsOf = (input: Partial<EmployeeInput<F>>) =>
+  const attrsOf = (input: Partial<EmployeeInput<F, string>>) =>
     AsyncResult.from(() => fields.write({ ...input.fields })).map((extra) => {
       const { fields: _fields, ...rest } = input;
 
       return { ...argsOf(rest), ...argsOf(extra) };
     });
 
-  const client: Employees<F> = {
+  const client: Employees<F, St> = {
     create: ({ organizationId, input }) =>
       attrsOf(input)
         .andThen((attrs) =>

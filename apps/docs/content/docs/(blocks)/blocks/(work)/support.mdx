@@ -68,3 +68,13 @@ better-supabase remove support --with-parts
 ```
 
 The first command replaces `support` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).
+
+## Callers
+
+`start`, `request` and `approve` on the support API take a `SupportCaller`: an `AuthState`, or `{ token, claims }` for code that already holds a verified token. The library builds the `AuthState` from the second form, so an app does not write `source: "cookie"` objects by hand:
+
+```ts
+await support.start({ token, claims }, { targetUserId, reason: "ticket 4411" });
+```
+
+Doctor reports a hand-built `AuthState` in app code (BS619).
