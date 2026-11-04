@@ -99,3 +99,125 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  asset: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  asset_location: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  assets: {
+    read: "assets.read",
+    manage: "assets.manage",
+    assign: "assets.assign",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  catalog: {
+    manage: "catalog.manage",
+    read: "catalog.read",
+  },
+  company: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  contacts: {
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  order: {
+    read: "orders.read",
+    write: "orders.manage",
+  },
+  orders: {
+    manage: "orders.manage",
+    read: "orders.read",
+    prepare: "orders.prepare",
+    overrideCredit: "orders.override_credit",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  person: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  product: {
+    read: "catalog.read",
+    write: "catalog.manage",
+  },
+  product_variant: {
+    read: "catalog.read",
+    write: "catalog.manage",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  shipment: {
+    read: "shipments.read",
+    write: "shipments.manage",
+  },
+  shipments: {
+    read: "shipments.read",
+    manage: "shipments.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "teams.manage" | "teams.read";

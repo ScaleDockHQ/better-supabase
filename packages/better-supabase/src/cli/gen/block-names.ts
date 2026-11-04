@@ -144,7 +144,12 @@ export function hasPermissionConstants(config: NamesConfig): boolean {
   );
 }
 
-function permissionLines(config: NamesConfig): string[] {
+/**
+ * `permissions` and `PermissionKey`. They are plain data, so they live in
+ * `blocks.config.ts` and a client component can read them without bundling the
+ * block clients (ADR 0232).
+ */
+export function permissionLines(config: NamesConfig): string[] {
   const groups = permissionGroups(config);
   const keys = Object.values(groups).flatMap((group) => Object.values(group));
 
@@ -541,7 +546,6 @@ export function nameConstantLines(
     specifiers: [...events.specifiers, ...reads.specifiers],
     imports: events.imports,
     lines: [
-      ...permissionLines(config),
       ...roleLines(config, entries),
       ...events.lines,
       ...urlLines(config, entries),

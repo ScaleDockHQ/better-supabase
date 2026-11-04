@@ -40,6 +40,8 @@ import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./chat.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -68,108 +70,6 @@ export const blocks = {
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  attachments: {
-    read: "attachments.read",
-    upload: "attachments.upload",
-    manage: "attachments.manage",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  channel: {
-    read: "messages.read",
-    write: "channels.manage",
-  },
-  channels: {
-    read: "messages.read",
-    create: "channels.create",
-    manage: "channels.manage",
-  },
-  conversation: {
-    read: "messages.read",
-    write: "messages.send",
-    upload: "messages.send",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  message: {
-    read: "messages.read",
-    write: "messages.send",
-    upload: "messages.send",
-  },
-  messaging: {
-    read: "messages.read",
-    send: "messages.send",
-    moderate: "messages.moderate",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  reactions: {
-    read: "reactions.read",
-    create: "reactions.create",
-    manage: "reactions.manage",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  subjects: {
-    manage: "subjects.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "channels.create" | "channels.manage" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

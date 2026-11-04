@@ -39,3 +39,22 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "notifications.read" | "notifications.send";

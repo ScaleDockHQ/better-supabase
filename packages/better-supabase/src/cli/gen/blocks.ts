@@ -29,7 +29,7 @@ import {
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { isRecord } from "../guards.ts";
-import { nameConstantLines } from "./block-names.ts";
+import { nameConstantLines, permissionLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { prop, q, runtimeSubpath } from "./shared.ts";
 
@@ -960,6 +960,12 @@ export function emitBlockConfig(
       "",
       "/** Re-exported for server code; client code imports `blocks.config.ts`. */",
       "export { blockConfig };",
+      ...(permissionLines(config).length === 0
+        ? []
+        : [
+            "/** The permission keys, re-exported from `blocks.config.ts`. @public */",
+            `export { permissions, type PermissionKey } from "./blocks.config.ts";`,
+          ]),
       ...renamed.lines,
       ...instances.lines,
       ...appTableEventLines(events),
@@ -968,6 +974,9 @@ export function emitBlockConfig(
     ].join("\n"),
   };
 }
+
+/** The lint limit on a file's lines, less the header. */
+const MAX_LINES = 995;
 
 /**
  * `blocks.config.ts`: `blockConfig` as plain data. It imports no block, so a
@@ -984,20 +993,30 @@ export function emitBlockConfigModule(
 
   const runtime = options.runtimeImport ?? "better-supabase";
 
+  const body = [
+    "",
+    `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+    "",
+    "/**",
+    " * The installed blocks' settings from the `blocks` config, for",
+    " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
+    " * and the options its SQL and TypeScript halves share.",
+    " */",
+    `export const blockConfig = ${literal(blockConfigEntries(config), "")} as const satisfies GeneratedBlocks;`,
+    ...permissionLines(config),
+    "",
+  ];
+
   return {
     path: blockConfigModulePath(config),
     contents: [
       GENERATED_HEADER,
-      "",
-      `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
-      "",
-      "/**",
-      " * The installed blocks' settings from the `blocks` config, for",
-      " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
-      " * and the options its SQL and TypeScript halves share.",
-      " */",
-      `export const blockConfig = ${literal(blockConfigEntries(config), "")} as const satisfies GeneratedBlocks;`,
-      "",
+      ...(body.join("\n").split("\n").length > MAX_LINES
+        ? [
+            "/* oxlint-disable eslint/max-lines -- one key per line; a large install exceeds 1,000 lines. */",
+          ]
+        : []),
+      ...body,
     ].join("\n"),
   };
 }

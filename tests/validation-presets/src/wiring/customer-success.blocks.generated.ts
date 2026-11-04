@@ -46,6 +46,8 @@ import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./customer-success.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -78,127 +80,6 @@ export const blocks = {
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  activities: {
-    read: "activities.read",
-    write: "activities.write",
-    manage: "activities.manage",
-    readRestricted: "activities.read_restricted",
-  },
-  activity: {
-    read: "activities.read",
-    write: "activities.write",
-  },
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  automations: {
-    read: "automations.read",
-    write: "automations.write",
-    publish: "automations.publish",
-    manage: "automations.manage",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  company: {
-    read: "contacts.read",
-    write: "contacts.write",
-  },
-  contacts: {
-    read: "contacts.read",
-    write: "contacts.write",
-    manage: "contacts.manage",
-    approveSupplier: "contacts.approve_supplier",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  form: {
-    read: "forms.read",
-    write: "forms.manage",
-  },
-  forms: {
-    read: "forms.read",
-    manage: "forms.manage",
-    submit: "forms.submit",
-    review: "forms.review",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  metrics: {
-    read: "metrics.read",
-    manage: "metrics.manage",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  person: {
-    read: "contacts.read",
-    write: "contacts.write",
-  },
-  reminders: {
-    manage: "reminders.manage",
-    read: "reminders.read",
-  },
-  scores: {
-    read: "scores.read",
-    manage: "scores.manage",
-    compute: "scores.compute",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  subjects: {
-    manage: "subjects.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

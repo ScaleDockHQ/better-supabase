@@ -105,3 +105,109 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  company: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  contacts: {
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
+  },
+  contract: {
+    read: "contracts.read",
+    write: "contracts.write",
+  },
+  contracts: {
+    read: "contracts.read",
+    write: "contracts.write",
+    manage: "contracts.manage",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  person: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  reminders: {
+    manage: "reminders.manage",
+    read: "reminders.read",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  signatures: {
+    read: "signatures.read",
+    request: "signatures.request",
+    manage: "signatures.manage",
+  },
+  subjects: {
+    manage: "subjects.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";

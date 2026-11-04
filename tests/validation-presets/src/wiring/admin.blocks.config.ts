@@ -103,3 +103,87 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  approvals: {
+    read: "approvals.read",
+    request: "approvals.request",
+    manage: "approvals.manage",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  bulk: {
+    run: "bulk.run",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  flags: {
+    manage: "flags.manage",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  metrics: {
+    read: "metrics.read",
+    manage: "metrics.manage",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  "saved-views": {
+    read: "saved_views.read",
+    share: "saved_views.share",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";

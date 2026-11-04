@@ -130,3 +130,143 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  approvals: {
+    read: "approvals.read",
+    request: "approvals.request",
+    manage: "approvals.manage",
+  },
+  asset: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  asset_location: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  assets: {
+    read: "assets.read",
+    manage: "assets.manage",
+    assign: "assets.assign",
+  },
+  attachments: {
+    read: "attachments.read",
+    upload: "attachments.upload",
+    manage: "attachments.manage",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  comments: {
+    read: "messages.read",
+    create: "messages.send",
+    moderate: "messages.moderate",
+  },
+  conversation: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
+  forms: {
+    read: "forms.read",
+    manage: "forms.manage",
+    submit: "forms.submit",
+    review: "forms.review",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  message: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
+  },
+  messaging: {
+    read: "messages.read",
+    send: "messages.send",
+    moderate: "messages.moderate",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  pipelines: {
+    read: "pipelines.read",
+    manage: "pipelines.manage",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  subjects: {
+    manage: "subjects.manage",
+  },
+  task: {
+    read: "tasks.read",
+    write: "tasks.write",
+  },
+  tasks: {
+    read: "tasks.read",
+    write: "tasks.write",
+    manage: "tasks.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";

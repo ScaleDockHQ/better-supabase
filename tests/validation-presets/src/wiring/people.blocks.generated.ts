@@ -54,6 +54,8 @@ import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./people.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -90,132 +92,6 @@ export const blocks = {
   teams: teamsBlockInstance,
   "time-tracking": timeTrackingBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  approvals: {
-    read: "approvals.read",
-    request: "approvals.request",
-    manage: "approvals.manage",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  automations: {
-    read: "automations.read",
-    write: "automations.write",
-    publish: "automations.publish",
-    manage: "automations.manage",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  calendar: {
-    manage: "calendar.manage",
-    write: "calendar.write",
-    read: "calendar.read",
-  },
-  calendar_event: {
-    read: "calendar.read",
-    write: "calendar.write",
-  },
-  document: {
-    read: "documents.read",
-    write: "documents.write",
-  },
-  documents: {
-    read: "documents.read",
-    write: "documents.write",
-    suggest: "documents.suggest",
-    manage: "documents.manage",
-  },
-  employee: {
-    read: "employees.read",
-    write: "employees.write",
-  },
-  employees: {
-    read: "employees.read",
-    write: "employees.write",
-    readSensitive: "employees.read_sensitive",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  hiring: {
-    read: "hiring.read",
-    write: "hiring.write",
-    manage: "hiring.manage",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  pipelines: {
-    read: "pipelines.read",
-    manage: "pipelines.manage",
-  },
-  relations: {
-    read: "relations.read",
-    manage: "relations.manage",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  subjects: {
-    manage: "subjects.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-  "time-tracking": {
-    read: "time_tracking.read",
-    track: "time_tracking.track",
-    approve: "time_tracking.approve",
-    manage: "time_tracking.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

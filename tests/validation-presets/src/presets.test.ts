@@ -67,7 +67,7 @@ describe("named presets", () => {
 
     const resolved = resolveConfig({ preset: name }, "/");
 
-    const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replace(
+    const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replaceAll(
       "./blocks.config.ts",
       `./${name}.blocks.config.ts`,
     );

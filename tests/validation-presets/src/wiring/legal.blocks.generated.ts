@@ -51,6 +51,8 @@ import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/v
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./legal.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -85,148 +87,6 @@ export const blocks = {
   "time-tracking": timeTrackingBlockInstance,
   versions: versionsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  approvals: {
-    read: "approvals.read",
-    request: "approvals.request",
-    manage: "approvals.manage",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  "billable-time": {
-    read: "billable_time.read",
-    manage: "billable_time.manage",
-    invoice: "billable_time.invoice",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  company: {
-    read: "contacts.read",
-    write: "contacts.write",
-  },
-  contacts: {
-    read: "contacts.read",
-    write: "contacts.write",
-    manage: "contacts.manage",
-    approveSupplier: "contacts.approve_supplier",
-  },
-  document: {
-    read: "documents.read",
-    write: "documents.write",
-  },
-  documents: {
-    read: "documents.read",
-    write: "documents.write",
-    suggest: "documents.suggest",
-    manage: "documents.manage",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  invoice: {
-    read: "invoices.read",
-    write: "invoices.write",
-  },
-  invoices: {
-    read: "invoices.read",
-    write: "invoices.write",
-    manage: "invoices.manage",
-    purchase: "invoices.purchase",
-    overrideMatch: "invoices.override_match",
-    collect: "invoices.collect",
-    approve: "invoices.approve",
-    send: "invoices.send",
-  },
-  ledger: {
-    read: "ledger.read",
-    manage: "ledger.manage",
-    post: "ledger.post",
-  },
-  ledger_account: {
-    read: "ledger.read",
-    write: "ledger.manage",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  person: {
-    read: "contacts.read",
-    write: "contacts.write",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  signatures: {
-    read: "signatures.read",
-    request: "signatures.request",
-    manage: "signatures.manage",
-  },
-  subjects: {
-    manage: "subjects.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-  "time-tracking": {
-    read: "time_tracking.read",
-    track: "time_tracking.track",
-    approve: "time_tracking.approve",
-    manage: "time_tracking.manage",
-  },
-  versions: {
-    read: "versions.read",
-    create: "versions.create",
-    restore: "versions.restore",
-    manage: "versions.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

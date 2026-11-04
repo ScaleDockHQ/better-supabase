@@ -47,6 +47,8 @@ import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./pos.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -79,133 +81,6 @@ export const blocks = {
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  booking: {
-    read: "bookings.read",
-    write: "bookings.manage",
-  },
-  bookings: {
-    manage: "bookings.manage",
-    create: "bookings.create",
-    read: "bookings.read",
-  },
-  catalog: {
-    manage: "catalog.manage",
-    read: "catalog.read",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  inventory: {
-    manage: "inventory.manage",
-    read: "inventory.read",
-    reserve: "inventory.reserve",
-    purchase: "inventory.purchase",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  ledger: {
-    read: "ledger.read",
-    manage: "ledger.manage",
-    post: "ledger.post",
-  },
-  ledger_account: {
-    read: "ledger.read",
-    write: "ledger.manage",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  order: {
-    read: "orders.read",
-    write: "orders.manage",
-  },
-  orders: {
-    manage: "orders.manage",
-    read: "orders.read",
-    prepare: "orders.prepare",
-    overrideCredit: "orders.override_credit",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  product: {
-    read: "catalog.read",
-    write: "catalog.manage",
-  },
-  product_variant: {
-    read: "catalog.read",
-    write: "catalog.manage",
-  },
-  promotions: {
-    manage: "promotions.manage",
-    read: "promotions.read",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  subjects: {
-    manage: "subjects.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-  till: {
-    read: "tills.read",
-    write: "tills.write",
-  },
-  tills: {
-    read: "tills.read",
-    write: "tills.write",
-    manage: "tills.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "tills.manage" | "tills.read" | "tills.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

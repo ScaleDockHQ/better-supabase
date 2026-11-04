@@ -50,6 +50,8 @@ import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/v
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./clinic.blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -84,128 +86,6 @@ export const blocks = {
   templates: templatesBlockInstance,
   versions: versionsBlockInstance,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  "api-keys": {
-    manage: "api_keys.manage",
-    own: "api_keys.own",
-  },
-  audit: {
-    read: "audit.read",
-    readAll: "audit.read",
-    revert: "audit.revert",
-  },
-  billing: {
-    read: "billing.read",
-    manage: "billing.manage",
-    readAll: "billing.read",
-  },
-  booking: {
-    read: "bookings.read",
-    write: "bookings.manage",
-  },
-  bookings: {
-    manage: "bookings.manage",
-    create: "bookings.create",
-    read: "bookings.read",
-  },
-  calendar: {
-    manage: "calendar.manage",
-    write: "calendar.write",
-    read: "calendar.read",
-  },
-  calendar_event: {
-    read: "calendar.read",
-    write: "calendar.write",
-  },
-  "custom-fields": {
-    manage: "custom_fields.manage",
-    read: "custom_fields.read",
-    sensitive: "custom_fields.read_sensitive",
-  },
-  enrollments: {
-    read: "enrollments.read",
-    enroll: "enrollments.enroll",
-    manage: "enrollments.manage",
-  },
-  form: {
-    read: "forms.read",
-    write: "forms.manage",
-  },
-  forms: {
-    read: "forms.read",
-    manage: "forms.manage",
-    submit: "forms.submit",
-    review: "forms.review",
-  },
-  guests: {
-    read: "guests.read",
-    manage: "guests.manage",
-  },
-  invitations: {
-    invite: "members.invite",
-    revoke: "members.invite",
-    read: "members.invite",
-  },
-  notifications: {
-    send: "notifications.send",
-    read: "notifications.read",
-  },
-  onboarding: {
-    read: "onboarding.read",
-    complete: "onboarding.complete",
-  },
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  reminders: {
-    manage: "reminders.manage",
-    read: "reminders.read",
-  },
-  settings: {
-    read: "settings.read",
-    update: "settings.update",
-    platform: "settings.manage",
-  },
-  signatures: {
-    read: "signatures.read",
-    request: "signatures.request",
-    manage: "signatures.manage",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-  templates: {
-    read: "templates.read",
-    apply: "templates.apply",
-    manage: "templates.manage",
-  },
-  versions: {
-    read: "versions.read",
-    create: "versions.create",
-    restore: "versions.restore",
-    manage: "versions.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

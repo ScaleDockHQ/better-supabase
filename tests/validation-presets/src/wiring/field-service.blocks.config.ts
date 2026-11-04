@@ -168,3 +168,215 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  asset: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  asset_location: {
+    read: "assets.read",
+    write: "assets.manage",
+  },
+  assets: {
+    read: "assets.read",
+    manage: "assets.manage",
+    assign: "assets.assign",
+  },
+  attachments: {
+    read: "attachments.read",
+    upload: "attachments.upload",
+    manage: "attachments.manage",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  case: {
+    read: "cases.read",
+    write: "cases.write",
+  },
+  cases: {
+    read: "cases.read",
+    create: "cases.create",
+    write: "cases.write",
+    close: "cases.close",
+    manage: "cases.manage",
+  },
+  catalog: {
+    manage: "catalog.manage",
+    read: "catalog.read",
+  },
+  company: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  contacts: {
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
+  },
+  dispatch: {
+    read: "dispatch.read",
+    manage: "dispatch.manage",
+    work: "dispatch.work",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
+  forms: {
+    read: "forms.read",
+    manage: "forms.manage",
+    submit: "forms.submit",
+    review: "forms.review",
+  },
+  inventory: {
+    manage: "inventory.manage",
+    read: "inventory.read",
+    reserve: "inventory.reserve",
+    purchase: "inventory.purchase",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  invoice: {
+    read: "invoices.read",
+    write: "invoices.write",
+  },
+  invoices: {
+    read: "invoices.read",
+    write: "invoices.write",
+    manage: "invoices.manage",
+    purchase: "invoices.purchase",
+    overrideMatch: "invoices.override_match",
+    collect: "invoices.collect",
+    approve: "invoices.approve",
+    send: "invoices.send",
+  },
+  ledger: {
+    read: "ledger.read",
+    manage: "ledger.manage",
+    post: "ledger.post",
+  },
+  ledger_account: {
+    read: "ledger.read",
+    write: "ledger.manage",
+  },
+  maintenance: {
+    read: "maintenance.read",
+    record: "maintenance.record",
+    manage: "maintenance.manage",
+  },
+  maintenance_plan: {
+    read: "maintenance.read",
+    write: "maintenance.manage",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  person: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  pipelines: {
+    read: "pipelines.read",
+    manage: "pipelines.manage",
+  },
+  product: {
+    read: "catalog.read",
+    write: "catalog.manage",
+  },
+  product_variant: {
+    read: "catalog.read",
+    write: "catalog.manage",
+  },
+  quote: {
+    read: "quotes.read",
+    write: "quotes.write",
+  },
+  quotes: {
+    read: "quotes.read",
+    write: "quotes.write",
+    manage: "quotes.manage",
+  },
+  relations: {
+    read: "relations.read",
+    manage: "relations.manage",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  signatures: {
+    read: "signatures.read",
+    request: "signatures.request",
+    manage: "signatures.manage",
+  },
+  sla: {
+    read: "sla.read",
+    manage: "sla.manage",
+  },
+  subjects: {
+    manage: "subjects.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
+  work_order: {
+    read: "dispatch.read",
+    write: "dispatch.manage",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";

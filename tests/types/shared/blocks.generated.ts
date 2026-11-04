@@ -14,6 +14,8 @@ import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
+/** The permission keys, re-exported from `blocks.config.ts`. @public */
+export { permissions, type PermissionKey } from "./blocks.config.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -46,27 +48,6 @@ export const appTableEventSchemas = {
   "task.updated": true,
   "task.deleted": true,
 } as const;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  trash: {
-    read: "trash.read",
-    create: "trash.create",
-    restore: "trash.restore",
-    manage: "trash.manage",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "trash.create" | "trash.manage" | "trash.read" | "trash.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

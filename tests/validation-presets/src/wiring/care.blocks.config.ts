@@ -226,3 +226,261 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * The permission keys the installed blocks, subjects and app tables check,
+ * by owner and action.
+ * @public
+ */
+export const permissions = {
+  acknowledgements: {
+    read: "acknowledgements.read",
+    manage: "acknowledgements.manage",
+    acknowledge: "acknowledgements.acknowledge",
+  },
+  activities: {
+    read: "activities.read",
+    write: "activities.write",
+    manage: "activities.manage",
+    readRestricted: "activities.read_restricted",
+  },
+  activity: {
+    read: "activities.read",
+    write: "activities.write",
+  },
+  "api-keys": {
+    manage: "api_keys.manage",
+    own: "api_keys.own",
+  },
+  approvals: {
+    read: "approvals.read",
+    request: "approvals.request",
+    manage: "approvals.manage",
+  },
+  attachments: {
+    read: "attachments.read",
+    upload: "attachments.upload",
+    manage: "attachments.manage",
+  },
+  audit: {
+    read: "audit.read",
+    readAll: "audit.read",
+    revert: "audit.revert",
+  },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    readAll: "billing.read",
+  },
+  booking: {
+    read: "bookings.read",
+    write: "bookings.manage",
+  },
+  bookings: {
+    manage: "bookings.manage",
+    create: "bookings.create",
+    read: "bookings.read",
+  },
+  calendar: {
+    manage: "calendar.manage",
+    write: "calendar.write",
+    read: "calendar.read",
+  },
+  calendar_event: {
+    read: "calendar.read",
+    write: "calendar.write",
+  },
+  care_plan: {
+    read: "care_plans.read",
+    write: "care_plans.write",
+  },
+  "care-plans": {
+    read: "care_plans.read",
+    write: "care_plans.write",
+    evaluate: "care_plans.evaluate",
+    publish: "care_plans.publish",
+    manage: "care_plans.manage",
+  },
+  case: {
+    read: "cases.read",
+    write: "cases.write",
+  },
+  cases: {
+    read: "cases.read",
+    create: "cases.create",
+    write: "cases.write",
+    close: "cases.close",
+    manage: "cases.manage",
+  },
+  "clinical-decision-support": {
+    read: "clinical_decision_support.read",
+    write: "clinical_decision_support.write",
+    manage: "clinical_decision_support.manage",
+  },
+  company: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  consents: {
+    read: "consents.read",
+    record: "consents.record",
+    manage: "consents.manage",
+  },
+  contacts: {
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
+    approveSupplier: "contacts.approve_supplier",
+  },
+  course: {
+    read: "courses.read",
+    write: "courses.manage",
+  },
+  courses: {
+    read: "courses.read",
+    enroll: "courses.enroll",
+    manage: "courses.manage",
+  },
+  "data-lifecycle": {
+    export: "data_lifecycle.export",
+    delete: "organization.delete",
+    cancelDelete: "organization.delete",
+  },
+  drive: {
+    read: "drive.read",
+    create: "drive.create",
+    manage: "drive.manage",
+  },
+  "e-prescribing": {
+    read: "e_prescribing.read",
+    write: "e_prescribing.write",
+    sign: "e_prescribing.sign",
+    manage: "e_prescribing.manage",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
+  forms: {
+    read: "forms.read",
+    manage: "forms.manage",
+    submit: "forms.submit",
+    review: "forms.review",
+  },
+  funding: {
+    read: "funding.read",
+    write: "funding.write",
+    register: "funding.register",
+    approve: "funding.approve",
+    claim: "funding.claim",
+    manage: "funding.manage",
+  },
+  guests: {
+    read: "guests.read",
+    manage: "guests.manage",
+  },
+  invitations: {
+    invite: "members.invite",
+    revoke: "members.invite",
+    read: "members.invite",
+  },
+  medications: {
+    read: "medications.read",
+    prescribe: "medications.prescribe",
+    administer: "medications.administer",
+    manage: "medications.manage",
+  },
+  notifications: {
+    send: "notifications.send",
+    read: "notifications.read",
+  },
+  numbering: {
+    assign: "numbering.assign",
+  },
+  observations: {
+    read: "observations.read",
+    record: "observations.record",
+    manage: "observations.manage",
+  },
+  onboarding: {
+    read: "onboarding.read",
+    complete: "onboarding.complete",
+  },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
+  person: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  pipelines: {
+    read: "pipelines.read",
+    manage: "pipelines.manage",
+  },
+  qualification_type: {
+    read: "qualifications.read",
+    write: "qualifications.manage",
+  },
+  qualifications: {
+    read: "qualifications.read",
+    grant: "qualifications.grant",
+    manage: "qualifications.manage",
+  },
+  reminders: {
+    manage: "reminders.manage",
+    read: "reminders.read",
+  },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
+  shifts: {
+    read: "shifts.read",
+    write: "shifts.write",
+    request: "shifts.request",
+    manage: "shifts.manage",
+  },
+  signatures: {
+    read: "signatures.read",
+    request: "signatures.request",
+    manage: "signatures.manage",
+  },
+  subjects: {
+    manage: "subjects.manage",
+  },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
+  "time-tracking": {
+    read: "time_tracking.read",
+    track: "time_tracking.track",
+    approve: "time_tracking.approve",
+    manage: "time_tracking.manage",
+  },
+  versions: {
+    read: "versions.read",
+    create: "versions.create",
+    restore: "versions.restore",
+    manage: "versions.manage",
+  },
+} as const;
+
+/**
+ * Every permission key, for `defineAuthorizer<PermissionKey>()` and
+ * the `permission` of actions and routes.
+ * @public
+ */
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "care_plans.evaluate" | "care_plans.manage" | "care_plans.publish" | "care_plans.read" | "care_plans.write" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "clinical_decision_support.manage" | "clinical_decision_support.read" | "clinical_decision_support.write" | "consents.manage" | "consents.read" | "consents.record" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "data_lifecycle.export" | "drive.create" | "drive.manage" | "drive.read" | "e_prescribing.manage" | "e_prescribing.read" | "e_prescribing.sign" | "e_prescribing.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "funding.approve" | "funding.claim" | "funding.manage" | "funding.read" | "funding.register" | "funding.write" | "guests.manage" | "guests.read" | "medications.administer" | "medications.manage" | "medications.prescribe" | "medications.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "observations.manage" | "observations.read" | "observations.record" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "shifts.manage" | "shifts.read" | "shifts.request" | "shifts.write" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
